@@ -1687,6 +1687,126 @@ class AdoptedHistoryGitTests(unittest.TestCase):
         self.graph.command("merge-base", "--is-ancestor", self.row["sha"], refreshed)
 
 
+class CleanupPreflightTests(unittest.TestCase):
+    def setUp(self):
+        self.module = load_cleanup()
+        temporary = tempfile.TemporaryDirectory(prefix="cleanup-preflight-")
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.report = self.root / "report.json"
+        self.outputs = self.root / "outputs"
+
+    def plan(self, failure=None, *, stale=True):
+        plan = dict(source_sha="a" * 40, candidate_count=2, held={}, candidates=[{}, {}])
+        def response(endpoint):
+            if endpoint == "git/ref/heads/main":
+                return {"object": {"sha": "a" * 40}}
+            self.assertEqual(endpoint, "compare/" + "b" * 40 + "..." + "a" * 40 + "?per_page=1")
+            return {"status": "ahead", "behind_by": 0, "merge_base_commit": {"sha": "b" * 40}}
+        with mock.patch.object(sys, "argv", [str(SCRIPT), "plan", "--output", str(self.root / "plan.json"),
+                                             "--report", str(self.report)]), \
+                mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true", "GITHUB_OUTPUT": str(self.outputs)}, clear=True), \
+                mock.patch.object(self.module, "Github") as github, \
+                mock.patch.object(self.module, "make_plan", **({"side_effect": failure} if failure else {"return_value": plan})), \
+                mock.patch.object(self.module, "run", return_value=subprocess.CompletedProcess([], 0, stdout=("b" if stale else "a") * 40)), \
+                mock.patch.object(self.module, "GitStore", side_effect=AssertionError("preflight never mutates")):
+            github.return_value.get.side_effect = response
+            return self.module.main(), json.loads(self.report.read_text())
+
+    def test_stale_plan_defers_without_authorizing_its_earlier_candidates(self):
+        result, report = self.plan()
+        self.assertEqual(result, 0)
+        self.assertEqual((report["status"], report["reason"], report["candidate_count"], report["deleted"]),
+                         ("deferred", "trusted_checkout_is_stale", 0, []))
+        self.assertNotIn("error", report)
+        self.assertFalse((self.root / "plan.json").exists())
+        self.assertEqual(dict(line.split("=", 1) for line in self.outputs.read_text().splitlines()),
+                         {"deferred": "true", "candidate_count": "0"})
+
+    def test_fresh_plan_retains_candidates_but_genuine_errors_remain_red(self):
+        code, report = self.plan(stale=False)
+        self.assertEqual((code, report["status"], report["candidate_count"]), (0, "planned", 2))
+        for reason in ("github_api_get_actions_runs_http_403_forbidden", "active_run_listing_incomplete",
+                       "permanent_branch_unprotected", "trusted_checkout_is_stale"):
+            with self.subTest(reason=reason):
+                code, report = self.plan(self.module.CleanupError(reason))
+                self.assertEqual((code, report["status"], report["error"]), (1, "blocked", reason))
+
+    def test_backup_and_apply_require_an_exact_initial_checkout(self):
+        for command in ("backup", "apply"):
+            args = [str(SCRIPT), command, "--plan", str(self.root / "plan.json")]
+            args += ["--output-dir", str(self.root / "backup")] if command == "backup" else [
+                "--report", str(self.report), "--backup-dir", str(self.root / "backup"),
+                "--backup-artifact-id", "1", "--backup-artifact-digest", "a" * 64]
+            with self.subTest(command=command), mock.patch.object(sys, "argv", args), \
+                    mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(self.module, "Github"), \
+                    mock.patch.object(self.module, "trusted_runtime"), \
+                    mock.patch.object(self.module, "load_plan", return_value={"source_sha": "a" * 40}), \
+                    mock.patch.object(self.module, "run", return_value=subprocess.CompletedProcess([], 0, stdout="b" * 40)), \
+                    mock.patch.object(self.module, "GitStore", side_effect=AssertionError("no mutation")):
+                self.assertEqual(self.module.main(), 1)
+            self.assertFalse((self.root / "backup").exists())
+        self.assertEqual(json.loads(self.report.read_text())["status"], "blocked")
+        self.assertEqual(json.loads(self.report.read_text())["error"], "trusted_checkout_is_stale")
+
+    def test_api_failure_labels_are_actionable_without_exposing_payloads_or_credentials(self):
+        for stderr, status, category in (
+                ("gh: denied (HTTP 401)", "401", "unauthorized"),
+                ("gh: Resource not accessible by integration (HTTP 403)", "403", "forbidden"),
+                ("gh: secondary rate limit (HTTP 403)", "403", "rate_limited"),
+                ("gh: not found (HTTP 404)", "404", "not_found"),
+                ("gh: retry later (HTTP 429)", "429", "rate_limited"),
+                ("gh: unavailable (HTTP 503)", "503", "server_error"),
+                ("failed without an HTTP response", "unknown", "cli_error")):
+            result = subprocess.CompletedProcess([], 1, stdout="private response", stderr=stderr + " secret-token https://signed/private?auth=secret")
+            with self.subTest(status=status), mock.patch.object(self.module.subprocess, "run", return_value=result), \
+                    self.assertRaises(self.module.CleanupError) as error:
+                self.module.Github().get("actions/runs?status=in_progress&private=secret")
+            self.assertEqual(str(error.exception), f"github_api_get_actions_runs_http_{status}_{category}")
+        error = self.module.api_failure(["gh", "api", "--method", "POST", "repos/" + FORK + "/pulls", "--input", "-"], result)
+        self.assertEqual(str(error), "github_api_post_pulls_http_unknown_cli_error")
+        error = self.module.api_failure(["gh", "api", "graphql", "-f", "query=private source"], result)
+        self.assertEqual(str(error), "github_api_post_graphql_http_unknown_cli_error")
+
+    def test_adoption_preflight_deferral_skips_cache_graph_and_writes(self):
+        adoption = load_adoption()
+        with mock.patch.object(sys, "argv", ["adoption.py", "--report", str(self.report), "--apply"]), \
+                mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true", "GITHUB_OUTPUT": str(self.outputs)}, clear=True), \
+                mock.patch.object(adoption, "discover", return_value=([{}], {}, "a" * 40)), \
+                mock.patch.object(adoption.cleanup, "run", return_value=subprocess.CompletedProcess([], 0, stdout="b" * 40)), \
+                mock.patch.object(adoption.cleanup, "Github") as github, mock.patch.object(adoption, "load_negative_cache") as cache, \
+                mock.patch.object(adoption, "Graph") as graph, mock.patch.object(adoption, "Writer") as writer:
+            def response(endpoint):
+                if endpoint == "git/ref/heads/main":
+                    return {"object": {"sha": "a" * 40}}
+                self.assertEqual(endpoint, "compare/" + "b" * 40 + "..." + "a" * 40 + "?per_page=1")
+                return {"status": "ahead", "behind_by": 0, "merge_base_commit": {"sha": "b" * 40}}
+            github.return_value.get.side_effect = response
+            self.assertEqual(adoption.main(), 0)
+        cache.assert_not_called(); graph.assert_not_called(); writer.assert_not_called()
+        saved = json.loads(self.report.read_text())
+        self.assertEqual(saved["status"], "deferred")
+        self.assertEqual(saved["reason"], "trusted_checkout_is_stale")
+        self.assertEqual(saved["deferred_details"]["current_main_sha"], "a" * 40)
+        self.assertFalse(saved["main_advanced"])
+        self.assertIn("deferred=true", self.outputs.read_text())
+
+    def test_adoption_errors_after_preflight_and_generic_api_errors_remain_failures(self):
+        adoption = load_adoption()
+        for preflight in (True, False):
+            error = adoption.cleanup.CleanupError("github_api_get_branches_http_403_forbidden") if preflight \
+                else adoption.cleanup.CleanupError("github_api_get_actions_artifacts_http_403_forbidden")
+            with self.subTest(preflight=preflight), mock.patch.object(sys, "argv", ["adoption.py", "--report", str(self.report)]), \
+                    mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}, clear=True), \
+                    mock.patch.object(adoption.cleanup, "Github"), \
+                    mock.patch.object(adoption, "discover", **({"side_effect": error} if preflight else {"return_value": ([], {}, "a" * 40)})), \
+                    mock.patch.object(adoption.cleanup, "verify_current_checkout"), \
+                    mock.patch.object(adoption, "load_negative_cache", side_effect=error):
+                self.assertEqual(adoption.main(), 1)
+            self.assertEqual(json.loads(self.report.read_text())["status"], "blocked")
+            self.assertEqual(json.loads(self.report.read_text())["error"], str(error))
+
+
 class WorkflowSafetyTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -1744,37 +1864,21 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn("inputs.mode == 'apply'", token)
         self.assertIn("github.workflow_ref == 'noah-l-frank/overte/.github/workflows/branch-cleanup.yml@refs/heads/main'", self.source)
 
-    def test_ci_completion_covers_known_workflows_without_cleanup_recursion(self):
-        trigger = self.source.split("  workflow_run:\n", 1)[1].split("  schedule:\n", 1)[0]
-        names = [json.loads(name) for name in re.findall(r'^      - (".*")$', trigger, re.M)]
-        self.assertEqual(len(names), len(set(names)))
-        self.assertIn("types: [completed]", trigger)
-        self.assertNotIn("Automatic branch cleanup", names)
-        self.assertNotIn("*", names)
-        literal_names = [re.sub(r"\\(.)", r"\1", name) for name in names]
-        for path in (ROOT / ".github/workflows").glob("*.yml"):
-            if path.name == "branch-cleanup.yml":
-                continue
-            name = re.search(r"^name: (.+)$", path.read_text(), re.M)
-            self.assertIsNotNone(name, path)
-            self.assertIn(name.group(1), literal_names, f"Missing CI completion wake-up for {path}")
-        # These run from platform branches or are managed by GitHub.
-        for name in ("Android tests", "iOS bootstrap", "Pico 4 trusted build", "Dependabot Updates"):
-            self.assertIn(name, names)
+    def test_closed_pr_manual_and_bounded_schedule_replace_ci_completion_fanout(self):
+        self.assertNotIn("  workflow_run:", self.source)
+        self.assertIn("  pull_request_target:\n    types: [closed]", self.source)
+        self.assertIn('cron: "*/15 * * * *"', self.source)
+        self.assertIn("  workflow_dispatch:", self.source)
         self.assertNotIn("github.event.workflow_run.head_sha", self.source)
         self.assertNotIn("github.event.workflow_run.conclusion", self.source)
 
-    def test_workflow_name_patterns_escape_every_literal_metacharacter(self):
-        trigger = self.source.split("  workflow_run:\n", 1)[1].split("  schedule:\n", 1)[0]
-        names = [json.loads(name) for name in re.findall(r'^      - (".*")$', trigger, re.M)]
-        self.assertIn(r"Native C\+\+ checks", names)
-        for pattern in names:
-            with self.subTest(pattern=pattern):
-                # GitHub parses names as globs, even when YAML quotes them.
-                # Accept literal names only; an unescaped C++ fails at startup.
-                self.assertRegex(pattern, r"^(?:[^\\*?+!\[\]]|\\[\\*?+!\[\]])+$")
+    def test_preflight_adoption_deferral_skips_plan_and_existing_zero_candidate_dependents(self):
+        plan = self.source.split("- name: Plan from current GitHub state", 1)[1].split("- name: Build and verify", 1)[0]
+        self.assertIn("if: steps.history.outputs.deferred != 'true'", plan)
+        self.assertEqual(self.source.count("fromJSON(steps.plan.outputs.candidate_count || '0') > 0"), 3)
+        self.assertIn("if: always()", self.source.split("- name: Retain plan and outcome", 1)[1])
 
-    def test_ci_completion_runtime_accepts_only_the_trusted_main_context(self):
+    def test_legacy_inflight_context_still_requires_trusted_main_after_trigger_removal(self):
         module = load_cleanup()
         context = {
             "GITHUB_ACTIONS": "true", "GITHUB_REPOSITORY": FORK,

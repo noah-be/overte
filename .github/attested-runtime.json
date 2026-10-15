@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "enabled": false,
+  "epoch": "ubuntu24-host-qt5-qt6-20261015-v1",
+  "not_before": "2026-10-15T00:00:00Z",
+  "max_age_seconds": 259200,
+  "flags": {
+    "JAVA_HOME": "identified-jdk",
+    "LANG": "C.UTF-8",
+    "LC_ALL": "",
+    "LC_CTYPE": "",
+    "LD_LIBRARY_PATH": "python-base-lib",
+    "OVERTE_CREDENTIAL_QT_MAJOR": "6",
+    "OVERTE_GOTO_TEST_QT": "Qt6",
+    "OVERTE_LOGIN_TEST_QT": "Qt6",
+    "OVERTE_NATIVE_QT_MAJOR": "5",
+    "OVERTE_QML_TEST_RUNNER": "Qt6",
+    "OVERTE_SNAPSHOT_TEST_QT": "Qt6",
+    "OVERTE_VOICE_TEST_QT_CORE": "Qt6Core",
+    "OVERTE_WEB_VISIBILITY_QT": "Qt6",
+    "PKG_CONFIG_PATH": "python-base-pkgconfig",
+    "QT_QPA_PLATFORM": "offscreen",
+    "QT_QUICK_BACKEND": "software",
+    "SAFE_LANDING_QT_CORE": "Qt6Core",
+    "TZ": "",
+    "git_process_overrides": "maintenance-disabled"
+  }
+}

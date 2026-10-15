@@ -49,6 +49,40 @@ class CleanupDeferred(CleanupError):
         self.details = details
 
 
+def api_failure(args, result):
+    """Return fixed diagnostic labels; never relay URLs, payloads or stderr."""
+    method, family = "GET", "unknown"
+    if len(args) > 2 and args[2] == "graphql":
+        method, family = "POST", "graphql"
+    if "--method" in args:
+        index = args.index("--method") + 1
+        method = args[index] if index < len(args) and args[index] in {"GET", "POST", "PATCH", "PUT", "DELETE"} else "UNKNOWN"
+    prefix = "repos/" + REPOSITORY
+    for item in args[2:]:
+        if item == prefix or item.startswith(prefix + "/"):
+            parts = item[len(prefix):].strip("/").split("?", 1)[0].split("/")
+            family = "repository" if parts == [""] else parts[0] if parts[0] in {
+                "branches", "pulls", "issues", "compare", "releases", "deployments", "rules", "rulesets", "actions", "git",
+            } else "unknown"
+            children = {"actions": {"runs", "workflows", "artifacts"}, "git": {"ref", "refs", "commits", "trees", "tags", "blobs"}}
+            if family in children and len(parts) > 1 and parts[1] in children[family]:
+                family += "_" + parts[1]
+            break
+    stderr = result.stderr or ""
+    if isinstance(stderr, bytes):
+        stderr = stderr[:8192].decode("utf-8", errors="replace")
+    else:
+        stderr = stderr[:8192]
+    statuses = re.findall(r"\bHTTP ([1-5][0-9]{2})\b", stderr)
+    status = statuses[-1] if statuses else "unknown"
+    category = {"401": "unauthorized", "403": "forbidden", "404": "not_found", "409": "conflict",
+                "422": "invalid_request", "429": "rate_limited"}.get(status, "server_error" if status.startswith("5")
+                                                                       else "cli_error" if status == "unknown" else "http_error")
+    if status in {"403", "429"} and any(text in stderr.lower() for text in ("api rate limit exceeded", "secondary rate limit")):
+        category = "rate_limited"
+    return CleanupError(f"github_api_{method.lower()}_{family}_http_{status}_{category}")
+
+
 def require(condition, reason):
     if not condition:
         raise CleanupError(reason)
@@ -62,6 +96,8 @@ def run(args, **kwargs):
                             timeout=kwargs.pop("timeout", 1200), **kwargs)
     if check and result.returncode:
         # Do not relay arbitrary command output, credentials, or API payloads.
+        if Path(args[0]).name == "gh" and len(args) > 1 and args[1] == "api":
+            raise api_failure(args, result)
         raise CleanupError(f"{Path(args[0]).name}_failed_exit_{result.returncode}")
     return result
 

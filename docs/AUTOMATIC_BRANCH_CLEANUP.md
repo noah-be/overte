@@ -5,20 +5,33 @@ working branches in `noah-l-frank/overte`. It runs on GitHub-hosted Ubuntu runne
 continues operating while the maintainer's computers are switched off.
 
 There is no branch-age requirement or waiting period. A closed pull request wakes
-the cleanup immediately. Completion of the listed CI workflows wakes it again,
-including failed or cancelled runs, so branches held by running CI are reassessed
-after that activity ends. Every wake-up evaluates current GitHub state; it does
-not authorize deletion from the triggering run's result or execute its code or
-artifacts. Cleanup itself is excluded from the explicit workflow-name list to
-prevent recursive runs. Keep that list current when adding or renaming workflows,
-including platform workflows maintained outside `main`. GitHub treats these
-names as glob patterns; escape literal metacharacters such as the plus signs
-in `Native C++ checks`. YAML quoting alone does not escape the pattern.
+the cleanup immediately. Manual runs and a fifteen-minute schedule catch other
+eligible branches and reassess branches held by running CI. Individual workflow
+completions do not start cleanup: a PR's many checks previously created repeated
+assessments and replaced pending runs without adding deletion evidence. The
+existing mutex keeps `cancel-in-progress: false`, so a new notification does not
+interrupt a running backup or deletion sequence. GitHub may delay scheduled
+workflows; fifteen minutes is a detection interval, not a completion guarantee.
 
-A five-minute schedule catches other eligible branches, retries work that was
-previously held, and covers GitHub's workflow-chain depth limit. GitHub may delay
-scheduled workflows, so this is a detection interval, not a five-minute
-completion guarantee.
+Every assessment reads current GitHub state. It does not authorize deletion from
+a triggering event's result or execute candidate code or artifacts. If trusted
+`main` advances before adoption or planning starts work, the stale checkout
+reports `deferred`, a fixed reason and zero authorized candidates after fresh
+ownership and ancestry checks confirm that both snapshots remain in current
+`main`. The remaining planning/backup/deletion steps are skipped and a later
+scheduled run reassesses
+from current trusted code. This early deferral performs no adoption mutation or
+branch deletion. Backup still requires an exact trusted checkout. During apply,
+a freshly verified advance of `main` also defers before deletion. Unproven
+staleness, incomplete integration, invalid backups, API failures and permission
+errors remain failures; none grant deletion permission or a successful backup.
+
+API errors include only fixed method, endpoint-family, HTTP-status and category
+labels in the redacted report. Unknown HTTP causes remain unknown; raw response
+bodies, stderr, signed URLs and credentials are not printed. Historical startup
+failures caused by a disallowed action pin are distinct from these job outcomes;
+the exact pinned action must be allowed by repository policy before a workflow
+can start, even when its step is conditional.
 
 GitHub's native `delete_branch_on_merge` setting remains disabled. All automated
 deletions must pass the cleanup's checks and backup sequence.
@@ -206,7 +219,7 @@ rewind, missing proof or unavailable API still fails. Newly observed activity or
 a changed candidate immediately before deletion also defers that attempt.
 
 A deferral stops the remaining mutations, records its reason in the summary and
-report, and leaves reassessment to the normal CI/PR wake-ups and schedule. A
+report, and leaves reassessment to closed-PR wake-ups and the bounded schedule. A
 deferred plan publishes zero candidates and removes any stale plan; a deferred
 history stage skips deletion planning. No `continue-on-error` masks errors.
 Invalid policy, ownership/protection failures, incomplete activity inventories,

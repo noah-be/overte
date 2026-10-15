@@ -261,7 +261,7 @@ class RuntimeIdentityTests(unittest.TestCase):
                 path.write_text("# reviewed original controller\n", encoding="utf-8")
             (root / "tests/requirements-host.txt").write_text("-r requirements-repository.txt\nPillow==12.3.0\n", encoding="utf-8")
             (root / "tests/requirements-repository.txt").write_text("PyYAML==6.0.3\n", encoding="utf-8")
-            (root / ".github").mkdir()
+            (root / ".github").mkdir(exist_ok=True)
             registry = root / ".github/test-suites.json"
             registry.write_text('{"suites":{"unrelated":"original"}}\n', encoding="utf-8")
             required, manifests = RUNTIME._requirement_inventory(root)

@@ -252,6 +252,12 @@ The full control-plane suite requires QML and writes its detailed report to
 `build/test-results/device-e2e-control-plane.xml`. Its total time limit is
 `--host-timeout`; other suites retain `--timeout`. On timeout the runner allows
 up to five additional seconds to clean up isolated workers before forcing exit.
+On Linux, both outer runners also adopt and reap escaped descendants if a nested
+scheduler must be killed, with a separate one-second reaping deadline. Detached
+children cannot survive the runner or keep its captured output pipe open. This
+ownership requires a standalone, single-threaded process with no existing
+children. On Linux, an occupied process is rejected before launching the command
+or changing ownership; embedded concurrent callers are unsupported.
 Failures in the full group fail the combined project result.
 
 Shared CI, parent qualification and sync fallback use this combined profile.
@@ -292,6 +298,15 @@ and sync owners need complete inner validators. Actual publisher isolation,
 producer concurrency/fallback ownership and trusted caller/template compatibility
 require separate implementation and review.
 
+The `attested-runtime` quick/host suite tests a separate, default-off
+[original-runtime admission and zero-selection terminal](../docs/ATTESTED_RUNTIME_REUSE.md).
+It preserves the exact original tested environment in source fingerprints and
+does not install or claim to measure the unused consumer VM. Every shared suite
+must be reusable and the declared product inventory must be empty. Policy,
+controller, exact requirement, variant, source, authority or expiry changes
+prevent a result. Existing legacy API provenance limits remain activation
+blockers; this dormant helper changes no active workflow or current sync fallback.
+
 The `android-ci` suite runs in both the quick and combined host profiles. It
 checks the staged Android ownership controller with disposable Git trees,
 mocked command results and isolated Python environments. These fixtures verify
@@ -324,12 +339,13 @@ base/candidate commits, preserve whole-language scans and scheduled full scans,
 and review the helper's configuration hashes after changing CodeQL configuration
 or action versions. It selects languages, not individual files within a scan.
 The `browser-cpu-selection` quick suite exercises dormant trusted Browser CPU
-history routing and independent final-result validation against real Git
-histories. It also runs in the combined host profile. Its registry closure
-binds the helper, test, immutable-inventory validator, active legacy workflow
-and exact dormant template. The [Browser CPU selection guide](../docs/BROWSER_CPU_SELECTION.md)
-records the required workflow/source-history migration and outer-gate handoff
-before activation; this preparation changes no active Browser workflow.
+history routing and both inner and outer required-result validation against
+real Git histories. It also runs in the combined host profile. Its registry
+uses a full-repository fallback because actual CLI tests read trusted routing,
+package-generation, event-target and workflow policies together. The
+[Browser selection guide](../docs/BROWSER_CPU_SELECTION.md) records the exact
+paired sole-owner transfer and source-history migration still required before
+activation. Browser activation remains off and active workflows are unchanged.
 
 The `test-evidence` quick suite checks trusted execution receipts, complete
 suite-input fingerprints, actual runtime identity and parent qualification.
@@ -408,10 +424,12 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `producer-proof` | `quick` | `python3 tests/run-project-tests.py --suite producer-proof` |
 | `host-producer-preparation` | `quick` | `python3 tests/run-project-tests.py --suite host-producer-preparation` |
 | `producer-api` | `quick` | `python3 tests/run-project-tests.py --suite producer-api` |
+| `attested-runtime` | `quick` | `python3 tests/run-project-tests.py --suite attested-runtime` |
 | `project-runner` | `quick` | `python3 tests/run-project-tests.py --suite project-runner` |
 | `python-test-runner` | `quick` | `python3 tests/run-project-tests.py --suite python-test-runner` |
 | `repository-checks` | `quick` | `python3 tests/run-project-tests.py --suite repository-checks` |
 | `android-ci` | `quick` | `python3 tests/run-project-tests.py --suite android-ci` |
+| `android-orchestration` | `quick` | `python3 tests/run-project-tests.py --suite android-orchestration` |
 | `android-build-inputs` | `quick` | `python3 tests/run-project-tests.py --suite android-build-inputs` |
 | `codeql-selection` | `quick` | `python3 tests/run-project-tests.py --suite codeql-selection` |
 | `browser-cpu-selection` | `quick` | `python3 tests/run-project-tests.py --suite browser-cpu-selection` |
@@ -658,3 +676,67 @@ tracking/thermal behavior require the corresponding runtime evidence. Collect
 native line coverage from an instrumented configured CMake build when needed.
 Intentional legacy syntax exceptions remain exact allowlists; the health suite
 rejects new or stale exceptions.
+
+
+## Dormant required Android orchestration
+
+The `android-orchestration` quick/host group verifies the next required Android
+owner with disposable Git trees and mocked test processes. Its canonical caller
+and reusable workflow are under `tools/repository-checks/workflows/android/`
+and `tools/repository-checks/workflows/android-required.yml`. Active workflows,
+platform profiles, existing advisory checks and scheduled/manual diagnostics
+are unchanged. This preparation saves no live CI time yet.
+
+The trusted `android_gate.py` controller derives the target, exact ordered merge
+parents and full immutable source delta from the runner event and Git objects.
+Outer routing, the reusable workflow and the final verifier independently derive
+the candidate, plan and complete owner inventory. Caller outputs cannot select
+views or waive cases. Every selected PR, including parent synchronization and
+reconciliation, owns the union of fast/contracts/coverage/VR/Pico plus critical
+mutation exactly once: 40 distinct executions. The Java 21 Robolectric owner is
+separate from the shared Java 17 environment. Distinct JaCoCo, native gcov and
+JavaScript coverage executions remain meaningful independent variants.
+
+Reviewed current branch inventories are 80 Robolectric / 21 native / 30 Pico
+cases for Android main and VR; Phone has 116 / 23 / 30, and Pico has 80 / 21 / 39.
+Phone's nine focus methods at API 26 and 35 are mandatory minimum source
+coverage. Missing classes, methods, SDK variants or reported assertions fail.
+Additional simple Phone test classes are discovered from the complete Git tree,
+including `.github`-only sparse checkouts. These are source and offline fixture
+observations; no new product, Gradle, native or Robolectric execution is claimed.
+
+A selected execution installs Qt 5, Node 22, Java 21 and trusted external host
+tools. `android-host-prepare.sh` pins gcovr 8.4, Ruff 0.15.22 and ShellCheck 0.11.0;
+the Ruff wheel and ShellCheck archive have fixed hashes. Actual tool identities
+and the preparation/controller sources are bound to the runtime/plan. Candidate
+commands inherit the existing fixed Git maintenance and credential/Actions
+command-file stripping policy. The virtualenv, reports and actual execution
+receipt stay outside the immutable candidate. Failed or incomplete owners block
+the inner and outer final checks; uploaded receipts are diagnostic records,
+not authenticated reusable artifact authority. An empty union performs no Android
+tool setup and accepts no fabricated successful execution receipt.
+
+Only verified empty tree deltas or changes within the exact reviewed independent
+Browser and repository administration roots can omit Android executions. Both
+complete trees must match the branch's reviewed reader-complement anchor. Unknown,
+mixed, nonregular, root package, packaged Markdown and changed-reader inputs take
+the full union. Historical reader drift also forces the full union. The anchors
+are conservative source reviews, not an automatic dependency graph; a future
+handoff must review and refresh them after its final source changes.
+
+The four existing complete package workflow tuples remain approved. Four
+additional exact tuples pair either shared project generation with either Android
+caller. The Android callee must also match its trusted canonical blob; individually
+approved files cannot be freely mixed. The generation manifest and actual helper
+sources are bound in the plan. The older package templates remain byte-identical.
+
+Activation is deliberately unavailable: trusted `required_branches` is empty,
+two explicit blockers remain, and `ACTIVATION_READY` is false in the controller.
+Clearing JSON fields alone cannot authorize deployment. A later reviewed change
+must transfer advisory/profile ownership atomically, preserve the other 12 common
+or 18 Phone profile suites, and transfer the `android-long-diagnostics` and manual
+mutation/stability/endurance/regression prerequisites. Simply disabling the old
+ordinary jobs would skip label-selected jobs through their existing `needs`.
+Their exact transfer is outside this preparation. Manual ordinary verification
+preserves the existing first-five-view behavior; critical mutation remains
+mandatory on every selected PR. No branch-name waiver or evidence reuse is added.
