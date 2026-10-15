@@ -6,7 +6,7 @@ runtime evidence; generation itself is not verification.
 
 ## Authorized scope
 
-- Fork and only GitHub write target: `noah-be/overte`.
+- Fork and only GitHub write target: `noah-l-frank/overte`.
 - Base: fork `main`, `d569930678d2edb61330a96bcdcab17ee68a732f`, fetched on
   2026-10-02.
 - Topic: `feature/main/browser-direct-client`.

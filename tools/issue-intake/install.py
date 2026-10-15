@@ -33,7 +33,7 @@ def install(home, codex_home):
 ## Overte issue intake
 
 - Whenever work involves creating, structuring, labeling, updating, or closing an
-  issue in `noah-be/overte`, read `{skill / 'SKILL.md'}` and use the
+  issue in `noah-l-frank/overte`, read `{skill / 'SKILL.md'}` and use the
   `overte-issue` validated workflow. This applies even when the session starts
   outside an Overte checkout or while working on a different task.
 - Load the current repository policy through `overte-issue policy` before issue
@@ -43,7 +43,7 @@ def install(home, codex_home):
   ask for an extra confirmation merely to use the helper. Preserve unknown facts
   honestly, existing evidence, and the user's current active scope.
 - This supplements the existing English-language, label, and fork-only write
-  rules. The authoritative policy is versioned in `noah-be/overte` on `main`.
+  rules. The authoritative policy is versioned in `noah-l-frank/overte` on `main`.
 {END}"""
     previous = instructions.read_text() if instructions.exists() else ""
     if BEGIN in previous or END in previous:

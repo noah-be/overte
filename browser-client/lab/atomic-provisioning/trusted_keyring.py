@@ -132,7 +132,7 @@ def main(*,progress=None):
  stage.staging_phase(progress,'source-check');repo=HERE.parents[2];source=os.environ.get('PROBE_SOURCE_SHA','')
  if not re.fullmatch('[0-9a-f]{40}',source) or subprocess.check_output(['git','-C',str(repo),'rev-parse','HEAD'],text=True,timeout=10,stderr=subprocess.PIPE).strip()!=source:raise ValueError('exact-reviewed-source-required')
  stage.staging_phase(progress,'fork-check')
- if os.environ.get('GITHUB_REPOSITORY')!='noah-be/overte':raise ValueError('authorized-fork-required')
+ if os.environ.get('GITHUB_REPOSITORY')!='noah-l-frank/overte':raise ValueError('authorized-fork-required')
  stage.staging_phase(progress,'temporary-root');parent=Path(os.environ['RUNNER_TEMP']).resolve(strict=True)
  stage.staging_phase(progress,'private-directories');directory=Path(tempfile.mkdtemp(prefix='owned-atomic-keyring-',dir=parent));directory.chmod(0o700)
  keyring=provision(directory,progress=progress)

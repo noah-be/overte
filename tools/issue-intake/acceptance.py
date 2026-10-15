@@ -9,7 +9,7 @@ RECORD_HEADING = "Candidate-bound test records"
 DECISION_HEADING = "Owner-approved completion decisions"
 
 
-def check_decisions(draft, policy):
+def check_decisions(draft, policy, preserved_decisions=()):
     """Validate recorded owner decisions without turning them into test results."""
     decisions = draft.get("completion_decisions", [])
     if not isinstance(decisions, list):
@@ -19,7 +19,7 @@ def check_decisions(draft, policy):
     if draft.get("kind") != "acceptance" or not policy.get("owner_completion"):
         raise ValueError("Owner completion is only available for acceptance criteria under the current policy")
     seen, previous_date = set(), ""
-    for decision in decisions:
+    for index, decision in enumerate(decisions):
         keys = {"id", "approved_by", "approved_at", "criterion_sha256", "authorization", "rationale", "evidence", "limitations"}
         if not isinstance(decision, dict) or set(decision) != keys:
             raise ValueError("Completion decision needs ID, approver, UTC date, criterion hash, authorization, rationale, evidence and limitations")
@@ -28,7 +28,11 @@ def check_decisions(draft, policy):
         if not isinstance(decision["id"], str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", decision["id"]) or decision["id"] in seen:
             raise ValueError("Completion decision IDs must be nonempty and unique")
         seen.add(decision["id"])
-        if decision["approved_by"] != policy["owner_completion"]["approver"]:
+        # A caller reading saved issue history may retain its exact decision prefix.
+        # No draft-only validation or newly appended decision receives this allowance.
+        preserved = (index < len(preserved_decisions) and decision == preserved_decisions[index]
+                     and decision["approved_by"] in policy["owner_completion"].get("historical_approvers", []))
+        if decision["approved_by"] != policy["owner_completion"]["approver"] and not preserved:
             raise ValueError("Completion decision must name the policy's project owner")
         if not isinstance(decision["criterion_sha256"], str) or not re.fullmatch(r"[0-9a-f]{64}", decision["criterion_sha256"]):
             raise ValueError("Completion decision requires the exact criterion hash")
@@ -45,8 +49,8 @@ def check_decisions(draft, policy):
             raise ValueError("Completion decision requires retained evidence references")
 
 
-def owner_completed(draft, policy):
-    check_decisions(draft, policy)
+def owner_completed(draft, policy, preserved_decisions=()):
+    check_decisions(draft, policy, preserved_decisions)
     decisions = draft.get("completion_decisions", [])
     return bool(decisions and decisions[-1]["criterion_sha256"] == criterion_id(draft))
 

@@ -151,7 +151,7 @@ jobs:
     - name: Read actual build job results
       env:
         GH_TOKEN: ${{ github.token }}
-      run: gh api --paginate "repos/noah-be/overte/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" --jq ".jobs[]"
+      run: gh api --paginate "repos/noah-l-frank/overte/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" --jq ".jobs[]"
         | jq -s . > "$RUNNER_TEMP/ios-build-jobs.json"
     - name: Require selected jobs and verify exact IPA provenance
       env:

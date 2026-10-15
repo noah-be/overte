@@ -6,6 +6,7 @@
 #include <QtNetwork/QNetworkAccessManager>
 #include <QtNetwork/QNetworkReply>
 #include "security/redaction/SafeDiagnostics.h"
+#include "libraries/networking/src/CredentialTransportPolicy.h"
 #include "libraries/networking/src/RequestCancellation.h"
 #include "libraries/networking/src/AccountSettings.h"
 #include <cassert>
@@ -125,6 +126,23 @@ signals:
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     auto& network = NetworkAccessManager::getInstance();
+    for (const auto& endpoint : {"http://locker.invalid", "https://user:secret@locker.invalid"}) {
+        AccountManager denied;
+        denied._authURL = QUrl(endpoint);
+        const auto before = network.created.size();
+        const auto stamp = denied._settings.lastChangeTimestamp();
+        denied.postAccountSettings();
+        assert(denied._isPostingAccountSettings);
+        QCoreApplication::processEvents();
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        assert(!denied._isPostingAccountSettings && denied._lastSuccessfulSyncTimestamp == 0);
+        assert(network.created.size() == before && denied._settings.lastChangeTimestamp() == stamp);
+        denied.requestAccountSettings();
+        QCoreApplication::processEvents();
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        assert(network.created.size() == before && denied._lastSuccessfulSyncTimestamp == 0);
+        assert(denied._settings.lastChangeTimestamp() == stamp && denied._numPullRetries == 1);
+    }
     AccountManager manager;
     manager.postAccountSettings(); auto* first = network.last;
     manager._settings.stamp = 20;

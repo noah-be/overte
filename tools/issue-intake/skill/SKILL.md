@@ -1,15 +1,16 @@
 ---
 name: overte-issue-intake
-description: Create, structure, label, update, and close issues in noah-be/overte through the validated Overte issue tool. Use when a user asks to record an Overte bug, idea, task, acceptance criterion, or change its tracked state, including during unrelated coding sessions.
+description: Create, structure, label, update, and close issues in noah-l-frank/overte through the validated Overte issue tool. Use when a user asks to record an Overte bug, idea, task, acceptance criterion, or change its tracked state, including during unrelated coding sessions.
 ---
 
 # Overte issue intake
 
 Use `overte-issue` for issue creation and changes to titles, bodies, labels,
-milestones, and workflow states in `noah-be/overte`. This is the user's normal
+milestones, and workflow states in `noah-l-frank/overte`. This is the user's normal
 issue entry path. The tool reads the current policy from the fork's `main`
 branch on each invocation, independently of the current worktree. Do not use
-`--policy` in ordinary sessions; it is an explicit development/bootstrap option.
+`--policy` in ordinary sessions; it is an explicit offline development option,
+never a bootstrap for live writes after a repository rename.
 
 The user's request authorizes the requested issue operation. Do not ask for
 permission again merely because the skill or tool is involved. Issue intake

@@ -103,10 +103,11 @@ by contracts rather than a test-only imitation of that backend.
 
 ## Runtime validation
 
-The Qt Quick tests require `qmltestrunner`, Qt Quick Test and Qt Quick Controls
-2. They were executed in an isolated Ubuntu 24.04 / Qt 5.15 environment with
-38 explicit `test_*` functions pass (52 QtTest result rows when suite
-initialization and cleanup rows are included). The fast CI job installs the same package set and requires
+The common Qt Quick suite requires Qt 5 `qmltestrunner`, Qt Quick Test and Qt
+Quick Controls 1 and 2; the existing login body imports Controls 1.4. Its exact
+function and result-row counts, including initialization and cleanup, are
+validated by the checkout-specific profile in `ANDROID_TESTING.md` or the
+authoritative Phone override. The fast CI job installs the same package set and requires
 the QML tier to execute; a missing tool is a failure there. Local hosts without
 Qt still receive an explicit skip. This host evidence does not replace Android
 IME, GPU, touch or real application-context tests.
@@ -131,12 +132,10 @@ must not be interpreted as whole-application coverage. The current measured
 results exceed those gates: interface policies are at 100% lines/functions and
 98.9% branches; pending handoff is at 100% for all three metrics.
 
-The clean-host CI harness executes 32 Robolectric source behaviors for Phone,
-legacy Interface, Pico, and Quest (71 executions). The exact matrix is Phone
-(API 26/35), legacy Interface (API 24/26), Pico (API 26/35), and legacy Quest
-(API 24/28/35). Phone accounts for 13 Activity and deep-link behaviors and 26
-executions. Nine single-execution tests of the real legacy `HifiUtils` URL
-policy bring this clean-host harness report to 80 granular JUnit cases. The
+The clean-host harness covers Phone, legacy Interface, Pico and Quest. Exact
+classes, SDK matrices and counts come from the checkout-specific structured
+profile, rather than a historical prose count. The real legacy `HifiUtils`
+URL-policy cases are included in that granular JUnit total. The
 separate prepared-dependency Android Gradle report is scoped to the Phone
 module; it does not duplicate the legacy Interface, Pico, or Quest matrix.
 Their value is behavioral framework coverage, not inflating the
