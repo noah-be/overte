@@ -48,6 +48,18 @@ class LanguageSelectionTests(unittest.TestCase):
                 self.assertEqual(plan["languages"], ["python"])
                 self.assertFalse(plan["full_scan"])
 
+    def test_requirement_names_keep_unknown_inputs_conservative_without_backtracking(self):
+        for name in ('requirements.txt', 'constraints.in', 'requirements-dev.txt',
+                     'constraints_ci.in', 'requirements.a-b.c.txt',
+                     'constraints-' + '-' * 200 + '.txt'):
+            with self.subTest(name=name):
+                self.assertEqual(self.change(name, replacement=entry('b'))['languages'], ['python'])
+        for name in ('requirementsX.txt', 'constraints-.in', 'requirements..txt',
+                     'constraints--..txt', 'requirements.a..b.txt',
+                     'constraints-' + '-' * 200 + '..txt'):
+            with self.subTest(name=name):
+                self.assertEqual(self.change(name, replacement=entry('b'))['languages'], list(CODEQL.LANGUAGES))
+
     def test_python_lock_and_yaml_manifests_are_also_javascript_data_inputs(self):
         for path in ("Pipfile.lock", "poetry.lock", "uv.lock", "environment.yml", "environment.yaml", "conda-lock.yml"):
             with self.subTest(path=path):
