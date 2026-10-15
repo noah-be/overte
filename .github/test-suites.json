@@ -15,6 +15,32 @@
     "**/package.json"
   ],
   "suites": {
+    "producer-proof": {
+      "command": [
+        "python",
+        "tools/test-evidence/producer-test.py"
+      ],
+      "layer": "quick",
+      "scope": "content",
+      "environment": "host-qt5-qt6",
+      "closure": {
+        "kind": "patterns",
+        "inputs": [
+          "tools/test-evidence/producer.py",
+          "tools/test-evidence/producer-test.py",
+          "tools/test-evidence/execution.py",
+          "tools/test-evidence/inputs.py",
+          "tools/test-evidence/runtime.py"
+        ],
+        "required": [
+          "tools/test-evidence/producer.py",
+          "tools/test-evidence/producer-test.py",
+          "tools/test-evidence/execution.py",
+          "tools/test-evidence/inputs.py",
+          "tools/test-evidence/runtime.py"
+        ]
+      }
+    },
     "dependency-releases": {
       "command": [
         "python",

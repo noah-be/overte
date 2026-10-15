@@ -262,6 +262,29 @@ merge candidate and the integrated parent commit remain distinct test inputs.
 
 ## Available project suites
 
+The `producer-proof` quick suite tests the dormant
+[`producer.py`](../tools/test-evidence/producer.py) protocol. Its descriptors bind
+the exact live PR base, head, merge commit/tree, selected owners, trusted policy
+and producer workflow source separately from the tested candidate. Bounded
+single-member artifacts require independently authenticated run, job, app and
+artifact facts. A self-consistent JSON digest does not authenticate a producer.
+
+Authority selection considers all run statuses and attempts. Missing current
+attempts, unresolved descriptors, ambiguous ordering and mixed job attempts
+prevent reuse; a newer pending, failed or cancelled producer cannot inherit an
+older green result. Aggregate verification requires the exact selected successful
+jobs, unchanged final live identity, the original expiry and actual source/runtime
+inputs. Shared owners use the existing trusted execution-receipt validator.
+Other owner kinds and relayed or mixed-attempt proofs remain unsupported.
+
+This protocol has no workflow integration, dispatch, retry or metadata-skip
+capability. Before activation, a trusted API adapter must authenticate and fully
+enumerate current runs, attempts, artifact ownership and resolved workflow blobs;
+all selected native, documentation, security, browser and sync owners need complete
+inner validators. Producers must publish descriptors before candidate work and
+retain complete aggregate proof. Producer concurrency/fallback ownership and
+trusted caller/template compatibility require separate implementation and review.
+
 The `android-ci` suite runs in both the quick and combined host profiles. It
 checks the staged Android ownership controller with disposable Git trees,
 mocked command results and isolated Python environments. These fixtures verify
@@ -339,6 +362,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | --- | --- | --- |
 | `dependency-releases` | `quick` | `python3 tests/run-project-tests.py --suite dependency-releases` |
 | `test-evidence` | `quick` | `python3 tests/run-project-tests.py --suite test-evidence` |
+| `producer-proof` | `quick` | `python3 tests/run-project-tests.py --suite producer-proof` |
 | `project-runner` | `quick` | `python3 tests/run-project-tests.py --suite project-runner` |
 | `python-test-runner` | `quick` | `python3 tests/run-project-tests.py --suite python-test-runner` |
 | `repository-checks` | `quick` | `python3 tests/run-project-tests.py --suite repository-checks` |
