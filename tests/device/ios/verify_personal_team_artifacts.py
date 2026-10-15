@@ -132,7 +132,8 @@ def validate_contracts(arguments: argparse.Namespace) -> tuple[dict, dict, datet
     if (not isinstance(provenance, dict) or set(provenance) != {
             "repository", "repositoryId", "workflow", "reusableWorkflow", "ref",
             "runId", "runAttempt"}
-            or provenance.get("repository") != "noah-be/overte"
+            or provenance.get("repository") != "noah-l-frank/overte"
+            or provenance.get("repositoryId") != 1319052603
             or not isinstance(provenance.get("repositoryId"), int)
             or isinstance(provenance.get("repositoryId"), bool)
             or provenance["repositoryId"] <= 0

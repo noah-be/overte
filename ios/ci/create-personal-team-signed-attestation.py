@@ -176,11 +176,8 @@ def create_attestation(
             "runId",
             "runAttempt",
         }
-        or re.fullmatch(
-            r"[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}",
-            str(provenance.get("repository", "")),
-        )
-        is None
+        or provenance.get("repository") != "noah-l-frank/overte"
+        or provenance.get("repositoryId") != 1319052603
         or not isinstance(provenance.get("repositoryId"), int)
         or provenance["repositoryId"] <= 0
         or provenance.get("workflow") != ".github/workflows/ios-bootstrap.yml"

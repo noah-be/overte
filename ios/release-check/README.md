@@ -337,7 +337,7 @@ local retention policy after preserving reviewed minimal release evidence.
 ## CI integration and extension
 
 [The manual workflow](../../.github/workflows/ios-pre-release-check.yml) runs only
-by dispatch in `noah-be/overte` on a dedicated private macOS self-hosted
+by dispatch in `noah-l-frank/overte` on a dedicated private macOS self-hosted
 runner. Set `IOS_RELEASE_CHECK_RUNNER_LABEL` to that pool's distinct label
 (for example `ios-release-check`) and `IOS_RELEASE_CONFIG_PATH` to the private
 file path as repository variables. Missing configuration, generic labels and
@@ -382,11 +382,14 @@ The existing `ios-bootstrap.yml` dispatch now has an opt-in `prerelease_build`
 mode calling `ios-release-build.yml`, which reuses the existing Qt provisioning
 and integrated Full Client build. No Android/Pico workflow is modified.
 
-After the reviewed source branch is available in the authorized fork:
+After the reviewed source branch is available in the authorized fork, set
+`REVIEWED_IOS_REF` to that exact reviewed iOS branch or commit. Check the current
+repository identity (`noah-l-frank/overte`, ID `1319052603`) before dispatch.
+Historical run URLs and manifests retain their original repository names:
 
 ```bash
-gh workflow run ios-bootstrap.yml --repo noah-be/overte \
-  --ref task/ios/948-prerelease-quality-gate -f prerelease_build=true
+gh workflow run ios-bootstrap.yml --repo noah-l-frank/overte \
+  --ref "$REVIEWED_IOS_REF" -f prerelease_build=true
 ```
 
 Supply all four existing `qt_*` inputs to reuse audited Qt checkpoints, or leave

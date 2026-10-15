@@ -257,7 +257,8 @@ def validate_overte_reuse(
             "runAttempt", "runNumber", "artifactId", "artifactName",
             "artifactSize", "artifactCreatedAt", "actionsArchiveSha256",
         }
-        or provenance.get("repository") != "noah-be/overte"
+        or provenance.get("repository") != "noah-l-frank/overte"
+        or provenance.get("repositoryId") != 1319052603
         or not isinstance(provenance.get("repositoryId"), int)
         or provenance["repositoryId"] <= 0
         or provenance.get("workflow") != ".github/workflows/ios-bootstrap.yml"
@@ -407,10 +408,10 @@ def create_kit(
     if re.fullmatch(r"[0-9a-f]{40}", source_revision) is None:
         raise ValueError("source revision must be a lowercase 40-character Git SHA")
     created_at = parse_created_at(created_at)
-    if re.fullmatch(r"[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}", source_repository) is None:
-        raise ValueError("source repository is invalid")
-    if not isinstance(source_repository_id, int) or source_repository_id <= 0:
-        raise ValueError("source repository ID must be positive")
+    if source_repository != "noah-l-frank/overte":
+        raise ValueError("source repository must be the current authorized Overte fork")
+    if not isinstance(source_repository_id, int) or source_repository_id != 1319052603:
+        raise ValueError("source repository ID must match the stable Overte repository ID")
     if source_ref != "refs/heads/apple-ios":
         raise ValueError("source ref must be the protected apple-ios branch")
     if workflow != ".github/workflows/ios-bootstrap.yml":

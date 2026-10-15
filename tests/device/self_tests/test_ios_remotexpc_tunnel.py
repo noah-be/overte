@@ -1076,7 +1076,7 @@ export async function resolveTunnelServicePorts(_udid, services) {{
                 "createdAt": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "notAfter": (now + timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "provenance": {
-                    "repository": "noah-be/overte", "repositoryId": 42,
+                    "repository": "noah-l-frank/overte", "repositoryId": 1319052603,
                     "workflow": ".github/workflows/ios-bootstrap.yml",
                     "reusableWorkflow": ".github/workflows/ios-fedora-e2e-producer.yml",
                     "ref": "refs/heads/apple-ios", "runId": 123, "runAttempt": 2,
@@ -1119,6 +1119,22 @@ export async function resolveTunnelServicePorts(_udid, services) {{
             self.assertIn(str(overte), helper_input)
             self.assertIn(str(wda), helper_input)
             self.assertEqual("PASS: receipt-bound signed iOS apps installed\n", output.getvalue())
+
+            original_receipt = json.loads(receipt.read_text())
+            TUNNEL.validate_install_receipt(receipt)
+            for repository, repository_id in (
+                    ("noah-be/overte", 1319052603),
+                    ("overte-org/overte", 1319052603),
+                    ("foreign/overte", 1319052603),
+                    ("noah-l-frank/overte", 42),
+                    ("noah-l-frank/overte", True)):
+                with self.subTest(repository=repository, repository_id=repository_id):
+                    value = json.loads(json.dumps(original_receipt))
+                    value["provenance"].update(repository=repository, repositoryId=repository_id)
+                    receipt.write_text(json.dumps(value))
+                    with self.assertRaisesRegex(TUNNEL.TunnelError, "provenance"):
+                        TUNNEL.validate_install_receipt(receipt)
+            receipt.write_text(json.dumps(original_receipt))
 
             overte.write_bytes(b"receipt tamper")
             rejected_stdin = MagicMock()

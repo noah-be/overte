@@ -30,7 +30,6 @@ ARTIFACT_LIFETIME = dt.timedelta(days=1)
 REVISION = re.compile(r"[0-9a-f]{40}")
 BUNDLE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]*(?:[.][A-Za-z0-9][A-Za-z0-9-]*)+")
 TEAM_ID = re.compile(r"[A-Z0-9]{10}")
-REPOSITORY = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 UTC_TIMESTAMP = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z")
 SAFE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,191}[.]ipa")
 E2E_BINARY_MARKER = b"Rejected iOS E2E results path outside Documents"
@@ -341,6 +340,13 @@ def positive_identifier(value: str, description: str) -> int:
     return parsed
 
 
+def validate_source_repository(repository: str, repository_id: int) -> None:
+    if repository != "noah-l-frank/overte":
+        raise ValueError("source repository must be the current authorized Overte fork")
+    if not isinstance(repository_id, int) or repository_id != 1319052603:
+        raise ValueError("source repository ID must match the stable Overte repository ID")
+
+
 def build_manifest(
     *,
     kind: str,
@@ -362,6 +368,7 @@ def build_manifest(
     run_attempt: int,
     xctest: dict | None = None,
 ) -> dict:
+    validate_source_repository(source_repository, source_repository_id)
     if kind not in {"overte-app", "webdriveragent"}:
         raise ValueError("artifact kind is invalid")
     if kind == "webdriveragent" and not bundle_id.endswith(".xctrunner"):
@@ -464,15 +471,14 @@ def main() -> int:
     try:
         if REVISION.fullmatch(args.source_revision) is None:
             raise ValueError("source revision must be a lowercase 40-character Git SHA")
-        if REPOSITORY.fullmatch(args.source_repository) is None:
-            raise ValueError("source repository is invalid")
+        repository_id = positive_identifier(args.source_repository_id, "source repository ID")
+        validate_source_repository(args.source_repository, repository_id)
         if args.source_ref != PROTECTED_REF:
             raise ValueError("source ref is outside the protected producer branch")
         if args.workflow != DISPATCH_WORKFLOW:
             raise ValueError("producer dispatch workflow path is invalid")
         if args.reusable_workflow != PRODUCER_WORKFLOW:
             raise ValueError("reusable producer workflow path is invalid")
-        repository_id = positive_identifier(args.source_repository_id, "source repository ID")
         run_id = positive_identifier(args.run_id, "workflow run ID")
         run_attempt = positive_identifier(args.run_attempt, "workflow run attempt")
         created = parse_utc_timestamp(args.created_at, "artifact creation time")

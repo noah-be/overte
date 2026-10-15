@@ -318,7 +318,8 @@ def validate_kit_manifest(path: Path, ipa: Path) -> dict:
     if (not isinstance(provenance, dict) or set(provenance) != {
             "repository", "repositoryId", "workflow", "reusableWorkflow", "ref",
             "runId", "runAttempt"}
-            or provenance.get("repository") != "noah-be/overte"
+            or provenance.get("repository") != "noah-l-frank/overte"
+            or provenance.get("repositoryId") != 1319052603
             or provenance.get("workflow") != ".github/workflows/ios-bootstrap.yml"
             or provenance.get("reusableWorkflow") !=
             ".github/workflows/ios-personal-team-e2e-kit.yml"

@@ -34,7 +34,7 @@ concurrency:
 
 jobs:
   configuration:
-    if: github.repository == 'noah-be/overte'
+    if: github.repository == 'noah-l-frank/overte'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -52,7 +52,7 @@ jobs:
 
   inspect:
     needs: configuration
-    if: github.repository == 'noah-be/overte'
+    if: github.repository == 'noah-l-frank/overte'
     # Select a dedicated private macOS pool through repository configuration.
     runs-on: [self-hosted, macOS, "${{ vars.IOS_RELEASE_CHECK_RUNNER_LABEL }}"]
     timeout-minutes: 240

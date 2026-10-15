@@ -41,6 +41,13 @@ Overte source revision and the exact kit-assembly repository ID,
 bootstrap/reusable workflow, protected ref, run ID and attempt. It also binds
 XCUITest Driver 12.8.0, WDA 16.8.0, the
 three fixed identifiers, and the `overte-ios-personal-team-e2e-kit-v3` contract.
+Current operative kit producers and consumers require `noah-l-frank/overte`
+and stable repository ID `1319052603`. Historical manifests and SDK reports
+retain their original bytes and names; an old-name object with a matching ID
+is not an authorization to prepare, sign, install, or reuse a kit. No historical
+kit exception is enabled without an independently reviewed immutable input.
+These offline metadata checks do not independently authenticate a GitHub producer;
+the download provenance boundary described below remains required.
 Version 3 is intentionally incompatible with the earlier kit: neither the outer
 WDA runner nor its nested `WebDriverAgentRunner.xctest` and embedded framework
 carry an ad-hoc signature. The hardware gate proved that iPadOS rejects that
