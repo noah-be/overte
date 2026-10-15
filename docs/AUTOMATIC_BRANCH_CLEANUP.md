@@ -103,12 +103,12 @@ record a hold or keep an associated PR open. A local checkout alone cannot reser
 that remote branch. This is the deliberate boundary of operating entirely on
 GitHub; the workflow has no Jenkins, local daemon, or self-hosted runner dependency.
 
-## Dormant immutable-read cache
+## Immutable-read cache
 
-`cleanup.py` prepares an opt-in cache for repeated read-only assessments within
-one trusted cleanup run and attempt. It is disabled by default; the current
-workflow does not enable it. A later reviewed workflow change can set
-`BRANCH_CLEANUP_IMMUTABLE_CACHE=1` for the trusted adoption, plan and apply steps.
+`cleanup.py` provides an opt-in cache for repeated read-only assessments within
+one trusted cleanup run and attempt. The automatic trusted job enables it with
+`BRANCH_CLEANUP_IMMUTABLE_CACHE=1` for adoption, planning and apply; other callers
+keep the uncached default.
 No candidate source, downloaded artifact or other job may populate this cache.
 It is not an `actions/cache` entry or a cross-run proof store.
 
