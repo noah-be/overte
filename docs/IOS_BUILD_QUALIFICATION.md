@@ -82,6 +82,24 @@ can therefore omit the app build while retaining fresh mandatory iOS host
 checks. Both input trees must still match this reader boundary; new application
 readers invalidate the exception even for a later CI-only change.
 
+The own iOS host run also has an independent, narrower negative dependency
+boundary in `host.py`. Exactly 108 reviewed CI paths may change while both the
+protected base and merge candidate retain the complete reviewed complement of
+11,170 ordinary Git entries, including historical child differences, test
+discovery, imports, helpers, product sources, consumed documentation and modes.
+Unknown paths, new discovery members, native scan inputs, missing files, mode
+changes, symbolic links and gitlinks invalidate this boundary. There is no
+generic Markdown, tools or tests exemption. The app input selector must separately
+require no application build before the host omission can apply.
+
+For this reviewed CI-only route, the separate iOS host, Qt and client jobs are
+skipped. The final verifier independently recomputes the selection and requires
+those exact skipped results. Its evidence records `iosHostRequired: false`, no
+host producer and no IPA; it does not claim a passing test execution or reusable
+test receipt. Required shared CI still runs its relevant owners, including the
+changed control-plane launcher. A changed iOS reader complement conservatively
+restores the complete own iOS host run until that graph is reviewed again.
+
 The finite independent-path inventory is unchanged. npm-only app omissions
 still need applicable required Browser/S3 package owners with complete target
 wiring and actual same-candidate results; this deployment does not add that
