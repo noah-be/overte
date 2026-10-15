@@ -3,7 +3,14 @@ name: Dependency release policy
 on:
   pull_request:
   push:
-    branches: ['**']
+    branches:
+      - main
+      - apple-main
+      - apple-ios
+      - android-main
+      - android-phone
+      - android-vr
+      - android-vr-pico
   release:
     types: [published, edited, deleted]
   schedule:

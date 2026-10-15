@@ -24,6 +24,12 @@ _NAME = re.compile(r"[a-z0-9][a-z0-9-]*")
 _OBJECT = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
 _DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
 _MODES = {"100644": "blob", "100755": "blob", "120000": "blob", "160000": "commit"}
+# These legacy controls remain the default for every unreviewed suite. A
+# reviewed import graph can replace them with its complete directory inputs;
+# changes to that graph fall back to the entire repository, including data read
+# by a new import. Ordinary closure patterns keep their existing glob meaning.
+_PYTHON_IMPORT_CONTROLS = frozenset({"*.py", "*.pyc", "*.pyo", "*.so", "*.pyd", "*.pth"})
+_PYTHON_IMPORT_SUFFIXES = (".py", ".pyc", ".pyo", ".so", ".pyd", ".pth")
 
 
 def _canonical(value: object) -> bytes:
@@ -52,6 +58,13 @@ def _paths(value: object, label: str, *, nonempty: bool = False) -> list[str]:
     return value
 
 
+def _import_roots(value: object) -> list[str]:
+    roots = _paths(value, "reviewed Python import roots", nonempty=True)
+    if any(any(character in root for character in "*?[") for root in roots):
+        raise InputError("Python import roots must be exact directories")
+    return roots
+
+
 def _validate_registry(registry: object) -> dict:
     if not isinstance(registry, dict) or set(registry) != {"schema", "control_inputs", "suites"}:
         raise InputError("invalid test input registry fields")
@@ -65,7 +78,7 @@ def _validate_registry(registry: object) -> dict:
     for name, suite in suites.items():
         if not isinstance(name, str) or not _NAME.fullmatch(name):
             raise InputError("invalid suite name")
-        if not isinstance(suite, dict) or set(suite) != fields:
+        if not isinstance(suite, dict) or set(suite) not in (fields, fields | {"python_imports"}):
             raise InputError(f"invalid definition for suite {name}")
         command = suite["command"]
         if not isinstance(command, list) or not command or any(
@@ -97,6 +110,18 @@ def _validate_registry(registry: object) -> dict:
             for relative in closure["required"]
         ):
             raise InputError(f"suite {name} required inputs must be inside its closure")
+        if "python_imports" in suite:
+            imports = suite["python_imports"]
+            if not isinstance(imports, dict) or set(imports) != {"roots", "reviewed"}:
+                raise InputError(f"invalid reviewed Python imports for suite {name}")
+            roots = _import_roots(imports["roots"])
+            if not isinstance(imports["reviewed"], str) or not _DIGEST.fullmatch(imports["reviewed"]):
+                raise InputError(f"invalid reviewed Python import digest for suite {name}")
+            if closure["kind"] != "patterns" or executable != "python" or len(command) < 2 \
+                    or not command[1].endswith(".py") \
+                    or command[1] not in closure["required"] or not any(
+                        command[1].startswith(root + "/") for root in roots):
+                raise InputError(f"suite {name} requires a reviewed Python entrypoint inside its import roots")
     _canonical(registry)
     return registry
 
@@ -181,6 +206,29 @@ def selected_entries(tree: dict, patterns: list[str]) -> list[dict[str, str]]:
     return _selected_entries(tree, patterns)
 
 
+def _import_patterns(roots: list[str]) -> list[str]:
+    # Include directory entries themselves so symlink/gitlink replacements
+    # cannot disappear from a sparse immutable tree's input inventory.
+    return [pattern for root in roots for pattern in (root, root + "/**")]
+
+
+def _python_import_digest(tree: dict, roots: list[str]) -> str:
+    modules = [item for item in _selected_entries(tree, _import_patterns(roots))
+               if item["path"].endswith(_PYTHON_IMPORT_SUFFIXES)]
+    return "sha256:" + hashlib.sha256(_canonical(modules)).hexdigest()
+
+
+def python_import_digest(tree: dict, roots: list[str]) -> str:
+    """Identify a statically reviewed complete module inventory in exact roots.
+
+    This reads immutable path/mode/object identities, never candidate files or
+    code. Reviewers must separately inspect explicit path additions, imports and
+    child interpreters. Matching inventories alone do not establish that review.
+    """
+    _validate_tree(tree)
+    return _python_import_digest(tree, _import_roots(roots))
+
+
 def _environment(environment: object) -> dict:
     if not isinstance(environment, dict) or not environment:
         raise InputError("runtime environment identity must be a nonempty JSON object")
@@ -208,9 +256,18 @@ def _suite_fingerprint(registry: dict, suite_name: str, tree: dict, environment:
     missing = sorted(set(closure["required"]) - set(tree))
     if missing:
         raise InputError(f"suite {suite_name} is missing required inputs")
-    inputs = [{"path": path, **tree[path]} for path in sorted(tree)] if closure["kind"] == "repository" \
-        else _selected_entries(tree, closure["inputs"])
-    controls = _selected_entries(tree, registry["control_inputs"])
+    patterns = registry["control_inputs"]
+    imports = suite.get("python_imports")
+    if imports and any(item["mode"] not in ("100644", "100755")
+                       for item in _selected_entries(tree, _import_patterns(imports["roots"]))):
+        raise InputError(f"suite {suite_name} has an unproven Python import directory")
+    reviewed = imports is not None and _python_import_digest(tree, imports["roots"]) == imports["reviewed"]
+    repository = closure["kind"] == "repository" or imports is not None and not reviewed
+    inputs = [{"path": path, **tree[path]} for path in sorted(tree)] if repository \
+        else _selected_entries(tree, closure["inputs"] + (_import_patterns(imports["roots"]) if imports else []))
+    if reviewed:
+        patterns = [pattern for pattern in patterns if pattern not in _PYTHON_IMPORT_CONTROLS]
+    controls = _selected_entries(tree, patterns)
     if any(item["mode"] == "120000" for item in [*inputs, *controls]):
         # A symlink blob identifies the target string, not the bytes read after
         # dereferencing it. Without an independently proven referent closure it

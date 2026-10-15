@@ -25,6 +25,11 @@ hardcoded dependency tags in executable sources. Pull requests into child
 branches must use the same policy as current `main`. Policy tooling is owned by
 `main` under the existing branch governance rules.
 
+Every pull request runs this merge check. Push verification runs on the seven
+permanent branches; topic pushes use their PR check instead of starting a
+second policy job. The inventory audit below still checks all live branches,
+including topics without an open PR.
+
 The read-only inventory workflow runs daily, on release changes and on manual
 dispatch. It checks **every live remote branch**, including topic branches,
 against `main`, validates current release assets and immutable tag identities,

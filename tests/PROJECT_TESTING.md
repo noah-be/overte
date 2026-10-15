@@ -277,13 +277,20 @@ jobs, unchanged final live identity, the original expiry and actual source/runti
 inputs. Shared owners use the existing trusted execution-receipt validator.
 Other owner kinds and relayed or mixed-attempt proofs remain unsupported.
 
-This protocol has no workflow integration, dispatch, retry or metadata-skip
-capability. Before activation, a trusted API adapter must authenticate and fully
-enumerate current runs, attempts, artifact ownership and resolved workflow blobs;
-all selected native, documentation, security, browser and sync owners need complete
-inner validators. Producers must publish descriptors before candidate work and
-retain complete aggregate proof. Producer concurrency/fallback ownership and
-trusted caller/template compatibility require separate implementation and review.
+The `producer-api` quick and host suite tests the dormant
+[read-only authenticated API adapter](../docs/PRODUCER_API_PROOF.md). It derives
+run, latest-attempt job, app, artifact and original reusable-workflow facts from
+independent GitHub GET responses. It verifies a complete trusted workflow tuple
+at the API-observed original merge, all-status paginated authority inventories,
+bounded raw archive digests and initial/final live refs. Fake API fixtures
+cannot replace missing authentication with artifact claims or an older green.
+
+These helpers have no workflow integration, dispatch, retry or metadata-skip
+capability. Before activation, producers must publish early descriptors and
+complete aggregate proof; all selected native, documentation, security, browser
+and sync owners need complete inner validators. Actual publisher isolation,
+producer concurrency/fallback ownership and trusted caller/template compatibility
+require separate implementation and review.
 
 The `android-ci` suite runs in both the quick and combined host profiles. It
 checks the staged Android ownership controller with disposable Git trees,
@@ -316,6 +323,13 @@ Future activation must use a trusted selector checkout and exact authenticated
 base/candidate commits, preserve whole-language scans and scheduled full scans,
 and review the helper's configuration hashes after changing CodeQL configuration
 or action versions. It selects languages, not individual files within a scan.
+The `browser-cpu-selection` quick suite exercises dormant trusted Browser CPU
+history routing and independent final-result validation against real Git
+histories. It also runs in the combined host profile. Its registry closure
+binds the helper, test, immutable-inventory validator, active legacy workflow
+and exact dormant template. The [Browser CPU selection guide](../docs/BROWSER_CPU_SELECTION.md)
+records the required workflow/source-history migration and outer-gate handoff
+before activation; this preparation changes no active Browser workflow.
 
 The `test-evidence` quick suite checks trusted execution receipts, complete
 suite-input fingerprints, actual runtime identity and parent qualification.
@@ -392,12 +406,15 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `dependency-releases` | `quick` | `python3 tests/run-project-tests.py --suite dependency-releases` |
 | `test-evidence` | `quick` | `python3 tests/run-project-tests.py --suite test-evidence` |
 | `producer-proof` | `quick` | `python3 tests/run-project-tests.py --suite producer-proof` |
+| `host-producer-preparation` | `quick` | `python3 tests/run-project-tests.py --suite host-producer-preparation` |
+| `producer-api` | `quick` | `python3 tests/run-project-tests.py --suite producer-api` |
 | `project-runner` | `quick` | `python3 tests/run-project-tests.py --suite project-runner` |
 | `python-test-runner` | `quick` | `python3 tests/run-project-tests.py --suite python-test-runner` |
 | `repository-checks` | `quick` | `python3 tests/run-project-tests.py --suite repository-checks` |
 | `android-ci` | `quick` | `python3 tests/run-project-tests.py --suite android-ci` |
 | `android-build-inputs` | `quick` | `python3 tests/run-project-tests.py --suite android-build-inputs` |
 | `codeql-selection` | `quick` | `python3 tests/run-project-tests.py --suite codeql-selection` |
+| `browser-cpu-selection` | `quick` | `python3 tests/run-project-tests.py --suite browser-cpu-selection` |
 | `ios-build-qualification` | `quick` | `python3 tests/run-project-tests.py --suite ios-build-qualification` |
 | `ios-input-selection` | `quick` | `python3 tests/run-project-tests.py --suite ios-input-selection` |
 | `repository-policy` | `quick` | `python3 tests/run-project-tests.py --suite repository-policy` |
@@ -571,6 +588,38 @@ S3-only sync shortening additionally requires activation and exact approved
 workflow blobs in both the protected target and merge candidate, so partially
 propagated child branches retain full validation. Browser package profiling is
 separate work; this foundation does not remove browser build variants.
+
+The ordinary shared-host receipt producer is also staged and inactive. Its
+alternate full workflow is
+`tools/repository-checks/workflows/producers/project-tests.yml`; the existing
+package templates and active workflows remain unchanged. The full host job
+checks out trusted policy separately, installs its recursively pinned host/SBOM
+requirements into an external virtual environment, and runs the trusted
+`tools/test-evidence/run.py` against the exact clean candidate. It executes the
+complete trusted shared inventory plus validated branch-owned platform suites,
+retains the existing Qt5/Qt6, Node, Java and namespace prerequisites, and writes
+an actual execution receipt and JUnit report outside the candidate checkout.
+Failed suite runs keep their failure status and upload any resulting receipt
+for diagnosis. Missing receipts cannot certify success.
+
+`.github/package-workflow-generations.json` is trusted default-branch policy.
+It approves complete four-workflow Git blob/mode tuples for both existing
+package callers and their receipt-producing successors. Individual approved
+files cannot be mixed into an unapproved tuple. The same comparison applies to
+ordinary `.github`-only checkouts and independently authenticated API trees.
+Candidate generation manifests have no authority. The package plan binds the
+generation manifest, templates, actual trusted helper inputs and recursive
+requirements. Missing trusted inputs from an existing sparse layout are read
+as bounded ordinary blobs from its exact Git HEAD; ordinary deletions, aliases
+and unknown or corrupt policy fail closed.
+
+The `host-producer-preparation` quick suite covers this compatibility contract.
+Receipt artifacts are diagnostic execution records, not authenticated producer
+authority. A receipt's `reusable` field describes input/runtime eligibility; it
+does not authorize an omission. There is no early descriptor, publisher
+aggregate, API dispatch, artifact consumer or ordinary-PR reuse activation in
+this slice. Those require independent exact event/candidate/source/run-attempt
+authentication and complete owner verification before any checks can be waived.
 
 
 Prepare a native build with `OVERTE_BUILD_TESTS=ON` using the relevant
