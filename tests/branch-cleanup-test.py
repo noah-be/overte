@@ -786,6 +786,261 @@ class GithubWorkflowReferenceTests(unittest.TestCase):
                         self.github.workflow_holds(self.candidates, self.branches)
 
 
+class ImmutableApiCacheTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.module = load_cleanup()
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="cleanup-immutable-cache-")
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.cache = self.module.ImmutableReadCache(self.root, "123", "1")
+        self.github = self.client()
+        self.path = ".github/workflows/example.yml"
+        self.revision = "a" * 40
+        self.contents = "contents/" + self.path + "?ref=" + self.revision
+        self.compare = "compare/" + "b" * 40 + "..." + "c" * 40 + "?per_page=1"
+        self.integrated = {"status": "ahead", "behind_by": 0, "merge_base_commit": {"sha": "b" * 40}}
+        self.unmerged = {"status": "diverged", "behind_by": 1, "merge_base_commit": {"sha": "d" * 40}}
+        self.content = self.file("ref: task/main/retained\n")
+        self.responses, self.calls = {}, []
+        self.real_run = self.module.run
+        context = mock.patch.object(self.module, "run", side_effect=self.response)
+        context.start(); self.addCleanup(context.stop)
+
+    def client(self, cache=None):
+        client = self.module.Github()
+        client.cache = cache or self.cache
+        client.cache_checked = True
+        return client
+
+    def file(self, source):
+        raw = source.encode()
+        return {"type": "file", "path": ".github/workflows/example.yml",
+                "sha": hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest(),
+                "encoding": "base64", "content": base64.b64encode(raw).decode(), "size": len(raw)}
+
+    def response(self, command, **kwargs):
+        if command[:2] == ["git", "check-ref-format"]:
+            return self.real_run(command, **kwargs)
+        self.assertEqual(command[:4], ["gh", "api", "--method", "GET"])
+        prefix = "repos/" + FORK
+        self.assertTrue(command[4] == prefix or command[4].startswith(prefix + "/"))
+        endpoint = command[4][len(prefix):].removeprefix("/")
+        self.calls.append(endpoint)
+        value = self.responses[endpoint]
+        if isinstance(value, BaseException):
+            raise value
+        return subprocess.CompletedProcess(command, 0, stdout=json.dumps(value), stderr="")
+
+    def entry(self, endpoint):
+        request = self.cache.request(endpoint, False)
+        return self.cache.directory / (hashlib.sha256(self.cache.canonical(request)).hexdigest() + ".json")
+
+    def test_same_sha_reuses_disk_across_clients_but_new_sha_path_and_compare_pair_refetch(self):
+        alternate = "contents/.github/workflows/other.yml?ref=" + self.revision
+        other_file = {**self.content, "path": ".github/workflows/other.yml"}
+        changed = self.contents.replace(self.revision, "d" * 40)
+        new_pair = self.compare.replace("c" * 40, "e" * 40)
+        self.responses = {self.contents: self.content, changed: self.content, alternate: other_file,
+                          self.compare: self.integrated, new_pair: self.integrated}
+        for endpoint in self.responses:
+            expected = self.github.get(endpoint)
+            fresh = self.client(self.module.ImmutableReadCache(self.root, "123", "1"))
+            self.assertEqual(fresh.get(endpoint), expected)
+        self.assertEqual(len(self.calls), 5)
+        self.assertEqual(set(self.calls), set(self.responses))
+
+    def test_mutable_owner_refs_activity_rules_and_paginated_requests_are_always_fresh(self):
+        mutable = ("", "branches?per_page=100", "git/ref/tags/release", "pulls?state=open",
+                   "actions/runs?status=queued", "rules/branches/main", "deployments", "releases",
+                   "contents/.github/workflows?ref=main", "compare/main...feature?per_page=1")
+        self.responses = {endpoint: {} for endpoint in mutable}
+        for endpoint in mutable:
+            self.github.get(endpoint); self.github.get(endpoint)
+            self.assertEqual(self.calls.count(endpoint), 2)
+        self.responses[self.contents] = [[self.content]]
+        self.github.get(self.contents, paginate=True); self.github.get(self.contents, paginate=True)
+        self.assertEqual(self.calls.count(self.contents), 2)
+        self.assertEqual(list(self.cache.directory.iterdir()), [])
+
+    def test_immutable_reads_never_cache_or_return_mutable_user_urls_or_permission_metadata(self):
+        compare = {**self.integrated, "base_commit": {"author": {"login": "mutable-user"}}, "permissions": {"admin": True}}
+        content = {**self.content, "download_url": "mutable-url", "permissions": {"admin": True}}
+        self.responses = {self.compare: compare, self.contents: content}
+        for endpoint, expected in ((self.compare, self.integrated), (self.contents, self.content)):
+            self.assertEqual(self.github.get(endpoint), expected)
+            self.assertEqual(self.client().get(endpoint), expected)
+            source = self.entry(endpoint).read_text()
+            for mutable in ("permissions", "mutable-user", "mutable-url"):
+                self.assertNotIn(mutable, source)
+        self.assertEqual(len(self.calls), 2)
+
+    def test_fresh_owner_setting_can_block_after_cached_immutable_reads(self):
+        self.responses[self.compare] = self.integrated
+        self.github.get(self.compare)
+        self.responses[""] = {"full_name": FORK, "id": 1319052603, "default_branch": "main", "delete_branch_on_merge": False}
+        self.github.verify_owner()
+        self.responses[""]["delete_branch_on_merge"] = True
+        with self.assertRaisesRegex(self.module.CleanupError, "native_cleanup"):
+            self.github.verify_owner()
+        self.assertEqual(self.calls.count(""), 2)
+
+    def test_workflow_passes_share_only_immutable_reads_and_changed_heads_refetch(self):
+        branches = [{"name": name, "sha": str(index) * 40} for index, name in enumerate(sorted(PERMANENT), 1)]
+        directory = [{key: self.content[key] for key in ("type", "path", "sha")}]
+        for branch in branches:
+            self.responses["contents/.github/workflows?ref=" + branch["sha"]] = directory
+            self.responses["contents/" + self.path + "?ref=" + branch["sha"]] = self.content
+        candidates = [{"branch": "task/main/retained"}]
+        first = self.github.workflow_holds(candidates, branches)
+        self.assertIn("task/main/retained", first)
+        self.assertEqual(len(self.calls), 8)  # Seven directories, one shared exact blob.
+        self.assertEqual(self.client().workflow_holds(candidates, branches), first)
+        self.assertEqual(len(self.calls), 8)
+        branches[0]["sha"] = "f" * 40
+        self.responses["contents/.github/workflows?ref=" + "f" * 40] = directory
+        self.responses["contents/" + self.path + "?ref=" + "f" * 40] = self.content
+        self.assertEqual(self.github.workflow_holds(candidates, branches), first)
+        self.assertEqual(len(self.calls), 10)
+
+    def test_corrupt_workflow_directory_cannot_remove_a_live_hold(self):
+        branch_sha = "e" * 40
+        directory = "contents/.github/workflows?ref=" + branch_sha
+        self.responses = {directory: [{key: self.content[key] for key in ("type", "path", "sha")}],
+                          self.contents.replace(self.revision, branch_sha): self.content}
+        branches = [{"name": name, "sha": branch_sha} for name in PERMANENT]
+        candidates = [{"branch": "task/main/retained"}]
+        self.assertIn("task/main/retained", self.github.workflow_holds(candidates, branches))
+        path = self.entry(directory)
+        value = json.loads(path.read_text()); value["value"] = []
+        path.write_text(json.dumps(value))  # Its old digest cannot certify an omitted workflow.
+        self.assertIn("task/main/retained", self.client().workflow_holds(candidates, branches))
+        self.assertEqual(self.calls.count(directory), 2)
+
+    def test_corrupt_integration_result_refetches_and_cannot_select_unmerged_work(self):
+        self.responses[self.compare] = self.integrated
+        self.github.get(self.compare)
+        path = self.entry(self.compare)
+        envelope = json.loads(path.read_text()); envelope["value"]["behind_by"] = 99
+        path.write_text(json.dumps(envelope))
+        self.responses[self.compare] = self.unmerged
+        branches = [{"name": name, "sha": "c" * 40, "protected": True} for name in PERMANENT]
+        branches += [{"name": "task/main/not-integrated", "sha": "b" * 40, "protected": False}]
+        policy = json.loads(POLICY_PATH.read_text())
+        comparisons = self.client().comparisons(branches, policy, {})
+        selected, held = self.module.select_candidates(branches, policy, comparisons)
+        self.assertEqual(selected, [])
+        self.assertIn("not_fully_integrated", held["task/main/not-integrated"])
+        self.assertEqual(self.calls.count(self.compare), 2)
+
+    def test_missing_api_or_invalid_fresh_blob_never_becomes_a_successful_cache_entry(self):
+        for value in (self.module.CleanupError("synthetic_api_failure"),
+                      {**self.content, "content": base64.b64encode(b"omitted hold").decode()}):
+            self.responses[self.contents] = value
+            for _ in range(2):
+                with self.assertRaises(self.module.CleanupError): self.github.get(self.contents)
+            self.assertFalse(self.entry(self.contents).exists())
+        self.assertEqual(self.calls.count(self.contents), 4)
+
+    def test_corrupt_entries_refetch_and_failed_refetch_stays_fatal(self):
+        self.responses[self.compare] = self.integrated
+        self.github.get(self.compare)
+        path = self.entry(self.compare)
+        original = path.read_bytes()
+        for data in (b"not json", b'{"schema":1,"schema":1}', original.replace(b'"123"', b'"999"'),
+                     b"x" * (self.cache.MAX_ENTRY + 1)):
+            path.write_bytes(data)
+            self.assertEqual(self.client().get(self.compare), self.integrated)
+        path.write_text("damaged")
+        self.responses[self.compare] = self.module.CleanupError("rate_limited")
+        with self.assertRaisesRegex(self.module.CleanupError, "rate_limited"):
+            self.client().get(self.compare)
+
+    def test_cache_symlink_hardlink_and_public_entry_are_refetched_without_following(self):
+        self.responses[self.compare] = self.integrated
+        self.github.get(self.compare)
+        path = self.entry(self.compare)
+        outside = self.root / "protected.json"
+        outside.write_text("outside marker")
+        path.unlink(); path.symlink_to(outside)
+        self.assertEqual(self.client().get(self.compare), self.integrated)
+        self.assertEqual(outside.read_text(), "outside marker")
+        path.unlink(); os.link(outside, path)
+        self.assertEqual(self.client().get(self.compare), self.integrated)
+        self.assertEqual(outside.read_text(), "outside marker")
+        path.chmod(0o644)
+        self.assertEqual(self.client().get(self.compare), self.integrated)
+        self.assertEqual(self.calls.count(self.compare), 4)
+
+    def test_private_root_and_attempt_are_mandatory_and_new_attempt_does_not_reuse(self):
+        self.responses[self.compare] = self.integrated
+        self.github.get(self.compare)
+        other = self.module.ImmutableReadCache(self.root, "123", "2")
+        self.assertEqual(self.client(other).get(self.compare), self.integrated)
+        self.assertEqual(len(self.calls), 2)
+        alias = self.root / "alias"; alias.symlink_to(self.root, target_is_directory=True)
+        for root, run, attempt in ((alias, "123", "1"), (self.root, "main", "1"), (self.root, "123", "0")):
+            with self.assertRaises(self.module.CleanupError): self.module.ImmutableReadCache(root, run, attempt)
+        self.cache.directory.chmod(0o755)
+        with self.assertRaises(self.module.CleanupError): self.module.ImmutableReadCache(self.root, "123", "1")
+        before = len(self.calls)
+        with self.assertRaises(self.module.CleanupError): self.github.get(self.compare)
+        self.assertEqual(len(self.calls), before)
+
+    def test_cache_bounds_fall_back_to_fresh_observations(self):
+        self.responses[self.compare] = self.integrated
+        self.cache.MAX_ENTRY = 10
+        self.assertEqual(self.github.get(self.compare), self.integrated)
+        self.assertEqual(self.github.get(self.compare), self.integrated)
+        self.assertEqual(len(self.calls), 2)
+        self.assertFalse(self.entry(self.compare).exists())
+
+    def test_opt_in_requires_exact_trusted_runner_context_and_default_is_disabled(self):
+        self.responses[self.compare] = self.integrated
+        with mock.patch.dict(os.environ, {"BRANCH_CLEANUP_IMMUTABLE_CACHE": ""}):
+            ordinary = self.module.Github()
+            ordinary.get(self.compare); ordinary.get(self.compare)
+            self.assertIsNone(ordinary.cache)
+        context = {"BRANCH_CLEANUP_IMMUTABLE_CACHE": "1", "GITHUB_ACTIONS": "true",
+            "GITHUB_REPOSITORY": FORK, "GITHUB_REPOSITORY_ID": "1319052603", "GITHUB_RUN_ID": "123",
+            "GITHUB_RUN_ATTEMPT": "1", "RUNNER_TEMP": str(self.root), "GITHUB_EVENT_NAME": "schedule",
+            "GITHUB_WORKFLOW_REF": FORK + "/.github/workflows/branch-cleanup.yml@refs/heads/main"}
+        with mock.patch.dict(os.environ, context):
+            trusted = self.module.Github(); trusted.get(self.compare); trusted.get(self.compare)
+            self.assertIsNotNone(trusted.cache)
+            with mock.patch.dict(os.environ, {"GITHUB_WORKFLOW_REF": "foreign"}), self.assertRaises(self.module.CleanupError):
+                self.module.Github().get(self.compare)
+        self.assertEqual(len(self.calls), 3)
+
+    def test_unavailable_optional_cache_keeps_fresh_original_api_and_failures(self):
+        self.responses[self.compare] = self.integrated
+        context = {"BRANCH_CLEANUP_IMMUTABLE_CACHE": "1", "GITHUB_ACTIONS": "true",
+            "GITHUB_REPOSITORY": FORK, "GITHUB_REPOSITORY_ID": "1319052603", "GITHUB_RUN_ID": "123",
+            "GITHUB_RUN_ATTEMPT": "1", "RUNNER_TEMP": str(self.root), "GITHUB_EVENT_NAME": "schedule",
+            "GITHUB_WORKFLOW_REF": FORK + "/.github/workflows/branch-cleanup.yml@refs/heads/main"}
+        self.cache.directory.chmod(0o755)
+        with mock.patch.dict(os.environ, context):
+            github = self.module.Github()
+            self.assertEqual(github.get(self.compare), self.integrated)
+            self.assertIsNone(github.cache)
+            self.responses[self.compare] = self.unmerged
+            self.assertEqual(github.get(self.compare), self.unmerged)
+            self.responses[self.compare] = self.module.CleanupError("rate_limited")
+            with self.assertRaisesRegex(self.module.CleanupError, "rate_limited"): github.get(self.compare)
+        self.assertEqual(self.calls.count(self.compare), 3)
+
+    def test_public_git_encoding_ignores_ambient_config_and_writes_no_objects(self):
+        raw = b"public fixed workflow source\n"
+        before = set(self.root.iterdir())
+        with mock.patch.dict(os.environ, {"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "extensions.objectFormat",
+                                         "GIT_CONFIG_VALUE_0": "sha256", "GIT_DIR": str(self.root / "not-a-repository")}):
+            value = self.cache.blob_identity(raw)
+        self.assertEqual(value, hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest())
+        self.assertEqual(set(self.root.iterdir()), before)
+
+
 class GitBackupsAndDeletionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
