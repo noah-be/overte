@@ -643,6 +643,7 @@ class ProductRepairContracts(unittest.TestCase):
         source.read_text.return_value = json.dumps(event)
         with mock.patch.object(gate, "load_config", return_value=settings), \
              mock.patch.object(gate, "GitHubApi", return_value=api), \
+             mock.patch.object(gate, "validate_required_codeql_workflow"), \
              mock.patch.object(gate, "verify_evidence", side_effect=AssertionError("repair must never reuse evidence")), \
              mock.patch.object(gate, "write_outputs") as output:
             self.assertEqual(gate.inspect(SimpleNamespace(config=None, event=source, output=None)), 0)
@@ -966,9 +967,12 @@ class ProductRepairContracts(unittest.TestCase):
 
 
 class InspectionContracts(unittest.TestCase):
+    # Legacy topology/evidence fixtures isolate the orthogonal CodeQL policy;
+    # RequiredCodeQLInvocationTests exercises its real ordinary-PR hook below.
     def inspect_request(self, sync_request, evidence_error=None):
         with mock.patch.object(gate, "load_config", return_value=config()), \
              mock.patch.object(gate, "GitHubApi"), \
+             mock.patch.object(gate, "validate_required_codeql_workflow"), \
              mock.patch.object(gate, "classify_event", return_value=sync_request), \
              mock.patch.object(gate, "verify_evidence", side_effect=evidence_error) as verify, \
              mock.patch.object(gate, "write_outputs") as output:
@@ -1414,6 +1418,181 @@ class LargeComparisonTests(unittest.TestCase):
                     else:
                         with self.assertRaises(gate.GateError):
                             gate.authorize_retired_paths(MappingApi(), REPOSITORY, cfg, [path], changes, BASE, PARENT, MERGE)
+
+
+class RequiredCodeQLInvocationTests(unittest.TestCase):
+    """Actual trusted gate hook and immutable API tree; no caller job facts."""
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix='overte-required-codeql-fixture-')
+        self.addCleanup(temporary.cleanup)
+        self.policy_root = Path(temporary.name)
+        self.policy = {'schema': 1, 'repository': REPOSITORY, 'repository_id': REPOSITORY_ID,
+                       'codeql_results_required_branches': ['main']}
+        (self.policy_root / '.github').mkdir()
+        source = self.policy_root / 'tools/repository-checks/codeql.py'
+        source.parent.mkdir(parents=True)
+        source.write_text(f"_RESULTS_WORKFLOW = '{WORKFLOW_BLOB}'\n_SELECTIVE_WORKFLOW = '{PARENT}'\n")
+        self.write_policy()
+        side = lambda ref, sha: {'ref': ref, 'sha': sha, 'repo': {'full_name': REPOSITORY, 'id': REPOSITORY_ID}}
+        self.pr = {'number': 610, 'state': 'open', 'mergeable': True, 'merge_commit_sha': MERGE,
+                   'base': side('main', BASE), 'head': side('fix/main/ordinary', HEAD)}
+        self.event = {'number': 610, 'repository': {'full_name': REPOSITORY, 'id': REPOSITORY_ID},
+                      'pull_request': deepcopy(self.pr)}
+        self.documents = {
+            f'repos/{REPOSITORY}/pulls/610': self.pr,
+            f'repos/{REPOSITORY}/git/ref/heads/main': {'ref': 'refs/heads/main', 'object': {'type': 'commit', 'sha': BASE}},
+            f'repos/{REPOSITORY}/git/ref/heads/fix%2Fmain%2Fordinary': {
+                'ref': 'refs/heads/fix/main/ordinary', 'object': {'type': 'commit', 'sha': HEAD}},
+            f'repos/{REPOSITORY}/git/commits/{MERGE}': {'sha': MERGE, 'tree': {'sha': TREE},
+                                                     'parents': [{'sha': BASE}, {'sha': HEAD}]},
+            f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1': {
+                'sha': TREE, 'truncated': False, 'tree': [entry('.github/workflows/codeql.yml')]},
+        }
+        self.api = MappingApi(self.documents)
+
+    def write_policy(self):
+        (self.policy_root / '.github/repository-checks.json').write_text(json.dumps(self.policy))
+
+    def validate(self):
+        return gate.validate_required_codeql_workflow(self.event, self.api, self.policy_root)
+
+    def test_default_disabled_or_inactive_child_adds_no_api_or_event_requirements(self):
+        for targets, event in (([], {}), (['main'], {'pull_request': {'base': {'ref': 'apple-ios'}}})):
+            self.policy['codeql_results_required_branches'] = targets
+            self.write_policy()
+            with mock.patch.object(self.api, 'json', side_effect=AssertionError('inactive must not read API')):
+                self.assertFalse(gate.validate_required_codeql_workflow(event, self.api, self.policy_root))
+        del self.policy['codeql_results_required_branches']
+        self.write_policy()
+        (self.policy_root / 'tools/repository-checks/codeql.py').unlink()
+        self.assertFalse(gate.validate_required_codeql_workflow({}, self.api, self.policy_root))
+
+    def test_current_exact_approved_candidate_is_valid_without_job_or_candidate_policy_facts(self):
+        calls = []
+        original = self.api.json
+        def read(endpoint):
+            calls.append(endpoint)
+            return deepcopy(original(endpoint))
+        with mock.patch.object(self.api, 'json', side_effect=read):
+            self.assertTrue(self.validate())
+        self.assertEqual(calls.count(f'repos/{REPOSITORY}/pulls/610'), 2)
+        self.assertFalse(any('/actions/' in call or '/git/ref/pull/' in call for call in calls))
+        self.assertFalse(any('/contents/' in call for call in calls), 'candidate activation policy is never read')
+
+    def test_each_permanent_target_is_enabled_only_by_its_trusted_policy(self):
+        for target in ('main', 'apple-main', 'apple-ios', 'android-main', 'android-phone', 'android-vr', 'android-vr-pico'):
+            self.policy['codeql_results_required_branches'] = [target]
+            self.write_policy()
+            self.pr['base']['ref'] = target
+            self.event['pull_request']['base']['ref'] = target
+            self.documents[f'repos/{REPOSITORY}/git/ref/heads/{target}'] = {
+                'ref': 'refs/heads/' + target, 'object': {'type': 'commit', 'sha': BASE}}
+            with self.subTest(target=target): self.assertTrue(self.validate())
+
+    def test_old_workflow_fake_named_job_missing_and_nonregular_cannot_pass(self):
+        tree = self.documents[f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1']
+        for variant in ('old', 'fabricated', 'missing', 'executable', 'symlink', 'gitlink'):
+            item = entry('.github/workflows/codeql.yml')
+            if variant == 'old': item['sha'] = PARENT
+            if variant == 'fabricated': item['sha'] = HEAD
+            if variant == 'executable': item['mode'] = '100755'
+            if variant == 'symlink': item['mode'] = '120000'
+            if variant == 'gitlink': item.update(mode='160000', type='commit')
+            tree['tree'] = [] if variant == 'missing' else [item]
+            self.event['jobs'] = {'codeql-security-results': 'success'}
+            self.event['codeql_results_required_branches'] = []
+            with self.subTest(variant=variant), self.assertRaises(gate.GateError): self.validate()
+
+    def test_untrusted_or_malformed_activation_and_foreign_event_never_authorize(self):
+        (self.policy_root / '.github/repository-checks.json').write_text('[]')
+        with self.assertRaises(gate.GateError): self.validate()
+        for targets in (True, ['main', 'main'], ['topic'], [None]):
+            self.policy['codeql_results_required_branches'] = targets
+            self.write_policy()
+            with self.subTest(targets=targets), self.assertRaises(gate.GateError): self.validate()
+        self.policy['codeql_results_required_branches'] = ['main']; self.write_policy()
+        for identity in (self.event['repository'], self.event['pull_request']['base']['repo'],
+                         self.event['pull_request']['head']['repo']):
+            identity['full_name'] = 'overte-org/overte'
+            with self.assertRaises(gate.GateError): self.validate()
+            identity['full_name'] = REPOSITORY
+
+    def test_foreign_current_pr_changed_heads_refs_closed_or_conflicting_fail(self):
+        for target, key, value in ((self.pr['head']['repo'], 'id', 1), (self.pr['base'], 'sha', HEAD),
+                                   (self.pr['head'], 'ref', 'different'), (self.pr, 'state', 'closed'),
+                                   (self.pr, 'mergeable', False),
+                                   (self.documents[f'repos/{REPOSITORY}/git/ref/heads/main']['object'], 'sha', HEAD)):
+            old = target[key]; target[key] = value
+            with self.subTest(key=key), self.assertRaises(gate.GateError): self.validate()
+            target[key] = old
+        current_ref = self.documents[f'repos/{REPOSITORY}/git/ref/heads/main']
+        current_ref['ref'] = 'refs/heads/foreign'
+        with self.assertRaises(gate.GateError): self.validate()
+
+    def test_ordered_parent_and_complete_tree_binding_cannot_be_spoofed(self):
+        commit = self.documents[f'repos/{REPOSITORY}/git/commits/{MERGE}']
+        commit['parents'].reverse()
+        with self.assertRaises(gate.GateError): self.validate()
+        commit['parents'].reverse()
+        tree = self.documents[f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1']
+        for key, value in (('sha', BASE), ('truncated', True), ('tree', [entry('../codeql.yml')]),
+                           ('tree', [entry('.github/workflows/codeql.yml')] * 2)):
+            old = tree[key]; tree[key] = value
+            with self.subTest(key=key), self.assertRaises(gate.GateError): self.validate()
+            tree[key] = old
+
+    def test_merge_computation_wait_is_bounded_and_never_retries_api_failures(self):
+        sequence = [dict(self.pr, mergeable=None, merge_commit_sha=None), deepcopy(self.pr), deepcopy(self.pr)]
+        original = self.api.json
+        def read(endpoint):
+            return sequence.pop(0) if endpoint.endswith('/pulls/610') else original(endpoint)
+        with mock.patch.object(self.api, 'json', side_effect=read), mock.patch.object(gate.time, 'sleep') as sleep:
+            self.assertTrue(self.validate())
+            sleep.assert_called_once_with(3)
+        self.pr.update(mergeable=None, merge_commit_sha=None)
+        with mock.patch.object(gate.time, 'sleep') as sleep, self.assertRaisesRegex(gate.GateError, 'did not complete'):
+            self.validate()
+        self.assertEqual(sleep.call_count, 5)
+        with mock.patch.object(self.api, 'json', side_effect=gate.GateError('API unavailable')), \
+                mock.patch.object(gate.time, 'sleep') as sleep, self.assertRaises(gate.GateError):
+            self.validate()
+        sleep.assert_not_called()
+
+    def test_candidate_and_branch_bookends_reject_changes_after_tree_read(self):
+        original = self.api.json
+        for mutation in ('candidate', 'branch'):
+            count = [0]
+            def read(endpoint):
+                if endpoint.endswith('/pulls/610'):
+                    count[0] += 1
+                    if count[0] == 2:
+                        if mutation == 'candidate': return dict(self.pr, merge_commit_sha=HEAD)
+                        return dict(self.pr, head={**self.pr['head'], 'sha': BASE})
+                return original(endpoint)
+            with self.subTest(mutation=mutation), mock.patch.object(self.api, 'json', side_effect=read), \
+                    self.assertRaises(gate.GateError): self.validate()
+
+    def test_actual_inspect_ordinary_hook_validates_before_classification_or_outputs(self):
+        actual = gate.validate_required_codeql_workflow
+        source = mock.Mock()
+        source.read_text.return_value = json.dumps(self.event)
+        def validate(event, api): return actual(event, api, self.policy_root)
+        with mock.patch.object(gate, 'GitHubApi', return_value=self.api), \
+                mock.patch.object(gate, 'validate_required_codeql_workflow', side_effect=validate) as invoked, \
+                mock.patch.object(gate, 'load_config', return_value=config()), \
+                mock.patch.object(gate, 'write_outputs') as output:
+            self.assertEqual(gate.inspect(SimpleNamespace(config=None, event=source, output=None)), 0)
+            invoked.assert_called_once()
+            self.assertEqual(output.call_args.args[1], {'classification': 'ordinary', 'mode': 'ordinary'})
+        self.documents[f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1']['tree'][0]['sha'] = PARENT
+        with mock.patch.object(gate, 'GitHubApi', return_value=self.api), \
+                mock.patch.object(gate, 'validate_required_codeql_workflow', side_effect=validate), \
+                mock.patch.object(gate, 'load_config', return_value=config()), \
+                mock.patch.object(gate, 'classify_event') as classify, \
+                mock.patch.object(gate, 'write_outputs') as output, self.assertRaises(gate.GateError):
+            gate.inspect(SimpleNamespace(config=None, event=source, output=None))
+        classify.assert_not_called()
+        output.assert_not_called()
 
 
 if __name__ == "__main__":
