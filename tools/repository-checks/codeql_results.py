@@ -218,13 +218,17 @@ class Verifier:
         if self.number:
             pr = self.obj(f'pulls/{self.number}')
             require(pr.get('number') == self.number and pr.get('state') == 'open'
-                    and pr.get('merge_commit_sha') == self.source, 'PR candidate changed')
+                    and (pr.get('merge_commit_sha') is None or pr['merge_commit_sha'] == self.source),
+                    'PR candidate changed')
             for side, expected_ref, expected_sha in (('base', self.base_ref, self.base), ('head', self.head_ref, self.head)):
                 value = pr.get(side, {})
                 repository(value.get('repo'))
                 require(value.get('ref') == expected_ref and value.get('sha') == expected_sha
                         and self.ref_sha('heads/' + expected_ref) == expected_sha, 'PR branch changed')
-            commit = self.obj('git/commits/' + self.source)
+            # The current REST version omits merge_commit_sha on PR objects.
+            # Requesting the PR above refreshes its test merge; resolve that live
+            # ref through the commits endpoint and bind both ordered parents.
+            commit = self.obj(f'commits/refs/pull/{self.number}/merge?per_page=1&page=1')
             require(commit.get('sha') == self.source and type(commit.get('parents')) is list
                     and [p.get('sha') for p in commit['parents']] == [self.base, self.head], 'PR ordered merge parents mismatch')
         else:
