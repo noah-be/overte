@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 import sys
 import signal
+import subprocess
 import importlib.util
 from types import SimpleNamespace
 
@@ -41,6 +42,7 @@ CI_TESTS = frozenset({
 CI_POLICY = frozenset({
     '.github/branch-policy.json', '.github/branch-cleanup.json', '.github/issue-policy.json',
     '.github/repository-checks.json', '.github/package-workflow-generations.json',
+    '.github/test-suites.json',
     '.github/ios-host-orchestration.json', '.github/ios-build-qualification.json',
     '.github/workflows/branch-cleanup.yml', '.github/workflows/branch-policy.yml',
     '.github/workflows/browser-client.yml', '.github/workflows/browser-direct-client.yml',
@@ -55,14 +57,29 @@ PROGRAM_INPUTS = (
     'tests/requirements*.txt', 'interface', 'interface/**', 'libraries', 'libraries/**',
     'scripts', 'scripts/**', 'domain-server', 'domain-server/**', 'provenance', 'provenance/**', 'tools/sbom', 'tools/sbom/**',
 )
-REVIEWED_PROGRAMS = 'd89fecb2c53a13e43556cc5ccf6e481e5fbfb933a20ba14dbb01f9a7f7e4953c'
+REVIEWED_PROGRAMS = '78e482c6c46d4ba237a8f2dbe764a182ec9f73e6a3610b668237072d3a9038f6'
 
 
-def program_digest(tree):
-    entries = inputs.selected_entries(tree, list(PROGRAM_INPUTS))
+def program_digest(tree, root=ROOT):
+    # Persist the absence of unowned modules/headers too: checking just the
+    # current delta would miss historical child search-path differences.
+    owned = {entry['path'] for entry in inputs.selected_entries(tree, list(PROGRAM_INPUTS))}
+    entries = [{'path': path, **entry} for path, entry in sorted(tree.items())
+               if path in owned or not ci_owned(path)]
     if any(entry['mode'] not in {'100644', '100755'} or entry['type'] != 'blob' for entry in entries):
         raise ValueError('host program closure contains an unreviewed nonregular input')
-    return hashlib.sha256((json.dumps(entries, sort_keys=True, separators=(',', ':')) + '\n').encode()).hexdigest()
+    registry_entry = tree.get('.github/test-suites.json', {})
+    if registry_entry.get('mode') != '100644' or registry_entry.get('type') != 'blob':
+        raise ValueError('host suite registry is not an ordinary immutable blob')
+    sha = registry_entry['sha']
+    size = subprocess.check_output(['git', '--no-replace-objects', 'cat-file', '-s', sha], cwd=root, timeout=30)
+    if int(size) > 1_000_000:
+        raise ValueError('host registry is oversized')
+    raw = subprocess.check_output(['git', '--no-replace-objects', 'cat-file', 'blob', sha], cwd=root, timeout=30)
+    registry = inputs._validate_registry(json.loads(raw, object_pairs_hook=inputs._unique_object))
+    definitions = {name: suite for name, suite in registry['suites'].items() if suite['layer'] == 'host'}
+    payload = {'programs': entries, 'host_definitions': definitions, 'controls': registry['control_inputs']}
+    return hashlib.sha256((json.dumps(payload, sort_keys=True, separators=(',', ':')) + '\n').encode()).hexdigest()
 
 
 def ci_owned(path):
@@ -72,7 +89,7 @@ def ci_owned(path):
             or path.endswith('.md') or path.endswith('.mdx'))
 
 
-def select(tree, paths, regular, *, unknown=False, trusted_tree=None):
+def select(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_root=ROOT, trusted_root=ROOT):
     registry = inputs.load_registry(ROOT / '.github/test-suites.json')
     names = list(registry['suites'])
     reason = 'unowned-inputs'
@@ -82,16 +99,23 @@ def select(tree, paths, regular, *, unknown=False, trusted_tree=None):
         reason = 'unowned-inputs'
     else:
         try:
-            reviewed = program_digest(tree) == REVIEWED_PROGRAMS
+            reviewed = program_digest(tree, candidate_root) == REVIEWED_PROGRAMS
             if trusted_tree is not None:
-                reviewed &= program_digest(trusted_tree) == REVIEWED_PROGRAMS
-        except (ValueError, inputs.InputError):
+                reviewed &= program_digest(trusted_tree, trusted_root) == REVIEWED_PROGRAMS
+        except (ValueError, OSError, subprocess.SubprocessError):
             reviewed = False
         if reviewed:
             return {'suites': [name for name in names if registry['suites'][name]['layer'] == 'quick'],
                     'reason': 'reviewed-ci-only-inputs', 'full_host': False}
         reason = 'host-reader-generation-not-reviewed'
     return {'suites': names, 'reason': reason, 'full_host': True}
+
+
+def package_policy():
+    spec = importlib.util.spec_from_file_location('host_packages', ROOT / 'tools/repository-checks/package_checks.py')
+    policy = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(policy)
+    return policy
 
 
 def main():
@@ -106,9 +130,7 @@ def main():
     args = parser.parse_args()
     try:
         package = execution._runner()  # Trusted process cleanup/timeouts, never candidate runner code.
-        spec = importlib.util.spec_from_file_location('host_packages', ROOT / 'tools/repository-checks/package_checks.py')
-        policy = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(policy)
+        policy = package_policy()
         candidate = args.candidate.resolve(strict=True)
         before = execution.checkout_identity(candidate)
         policy.validate_wiring(candidate)
@@ -116,7 +138,7 @@ def main():
         if plan['candidate'] != before[0] or plan['plan'] != args.expected_plan or plan['host_mode'] != 'full':
             raise ValueError('host execution differs from the independently recomputed required plan')
         selected = select(inputs.full_tree(candidate, before[0]), plan['paths'], plan['regular'],
-                          unknown=plan['unknown'], trusted_tree=inputs.full_tree(ROOT, 'HEAD'))
+                          unknown=plan['unknown'], trusted_tree=inputs.full_tree(ROOT, 'HEAD'), candidate_root=candidate)
         print(json.dumps(selected, sort_keys=True), flush=True)
         if args.select_only:
             if args.output is None:
@@ -149,7 +171,7 @@ def main():
         if execution.checkout_identity(candidate) != before:
             raise ValueError('host execution changed the candidate')
         return status
-    except (ValueError, OSError, KeyError, TypeError) as error:
+    except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError) as error:
         print(f'Host selection failed: {error}', file=sys.stderr)
         return 1
 

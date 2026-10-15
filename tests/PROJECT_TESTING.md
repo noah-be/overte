@@ -438,6 +438,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `attested-runtime` | `quick` | `python3 tests/run-project-tests.py --suite attested-runtime` |
 | `project-runner` | `quick` | `python3 tests/run-project-tests.py --suite project-runner` |
 | `python-test-runner` | `quick` | `python3 tests/run-project-tests.py --suite python-test-runner` |
+| `host-selection` | `quick` | `python3 tests/run-project-tests.py --suite host-selection` |
 | `repository-checks` | `quick` | `python3 tests/run-project-tests.py --suite repository-checks` |
 | `android-ci` | `quick` | `python3 tests/run-project-tests.py --suite android-ci` |
 | `android-orchestration` | `quick` | `python3 tests/run-project-tests.py --suite android-orchestration` |
