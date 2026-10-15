@@ -181,9 +181,11 @@ class BootstrapTests(unittest.TestCase):
     def test_closed_gate_never_executes_a_workload(self):
         reader, writer = os.pipe()
         os.close(writer)
-        with patch.object(H.os, "getuid", return_value=2001), patch.object(H.os, "geteuid", return_value=2001), patch.object(H.os, "execve") as execute:
+        with (patch.object(H.os, "getuid", return_value=2001), patch.object(H.os, "geteuid", return_value=2001),
+              patch.object(H, "trusted_cleanup_canaries") as canaries, patch.object(H.os, "execve") as execute):
             with self.assertRaises(H.Unavailable):
-                H.bootstrap(reader, "/never-read-candidate-plan")
+                H.bootstrap(reader, "/never-read-candidate-plan", "fork-exit")
+        canaries.assert_not_called()
         execute.assert_not_called()
 
     def test_root_bootstrap_never_accepts_a_generic_privileged_command(self):
@@ -203,10 +205,47 @@ class BootstrapTests(unittest.TestCase):
                 H.bootstrap(reader, str(plan))
             execute.assert_called_once_with("/usr/bin/bwrap", json.loads(plan.read_text()), {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"})
 
+    def test_trusted_cleanup_canaries_start_only_after_release_and_before_fixed_exec(self):
+        with tempfile.TemporaryDirectory() as directory:
+            plan = Path(directory) / "plan.json"
+            plan.write_text('["/usr/bin/bwrap","--unshare-pid","--","/usr/bin/true"]')
+            reader, writer = os.pipe()
+            os.write(writer, b"1")
+            os.close(writer)
+            events = []
+            with (patch.object(H.os, "getuid", return_value=2001), patch.object(H.os, "geteuid", return_value=2001),
+                  patch.object(H, "trusted_cleanup_canaries", side_effect=lambda count: events.append(("controls", count))),
+                  patch.object(H.os, "execve", side_effect=lambda *_: events.append(("exec", None)))):
+                H.bootstrap(reader, str(plan), "fork-exit")
+            self.assertEqual(events, [("controls", 3), ("exec", None)])
+
+    def test_fixed_control_parent_requires_each_readiness_acknowledgement(self):
+        with patch.object(H.os, "fork", return_value=999999) as fork, patch.object(H.os, "read", side_effect=[b"1", b"11"]):
+            H.trusted_cleanup_canaries(3)
+        self.assertEqual(fork.call_count, 3)
+        with patch.object(H.os, "fork", return_value=999999), patch.object(H.os, "read", return_value=b""):
+            with self.assertRaisesRegex(H.Unavailable, "did not become ready"):
+                H.trusted_cleanup_canaries(1)
+
+    def test_fixed_control_child_detaches_closes_streams_and_outlives_case_deadline(self):
+        events = []
+        with (patch.object(H.os, "pipe2", return_value=(77, 78)), patch.object(H.os, "fork", return_value=0),
+              patch.object(H.os, "setsid", side_effect=lambda: events.append("detached")),
+              patch.object(H.os, "close", side_effect=lambda fd: events.append(("close", fd))),
+              patch.object(H.os, "write", side_effect=lambda fd, data: events.append(("ready", fd, data))),
+              patch.object(H.time, "sleep", side_effect=lambda seconds: events.append(("lifetime", seconds))),
+              patch.object(H.os, "_exit", side_effect=SystemExit), self.assertRaises(SystemExit)):
+            H.trusted_cleanup_canaries(1)
+        readiness = events.index(("ready", 78, b"1"))
+        self.assertLess(events.index("detached"), readiness)
+        for descriptor in (0, 1, 2):
+            self.assertLess(events.index(("close", descriptor)), readiness)
+        self.assertIn(("lifetime", 60), events)
+
 
 class SupervisorFixtures(unittest.TestCase):
-    def run_fixture(self, *, reject_attachment=False):
-        events = []
+    def run_fixture(self, *, reject_attachment=False, case="protections", live=1, members=None, events=None):
+        events = [] if events is None else events
         class Scope:
             empty = False
             def attach(self, _process):
@@ -214,7 +253,11 @@ class SupervisorFixtures(unittest.TestCase):
                 if reject_attachment:
                     raise H.Unavailable("fixture attachment failed")
             def populated(self):
-                return 1
+                events.append("kernel-populated")
+                return 0 if self.empty else live
+            def members(self):
+                events.append("kernel-members")
+                return members if members is not None else {1000001, 1000002, 1000003}
             def kill_and_wait(self):
                 events.append("kernel-kill-empty")
                 self.empty = True
@@ -226,6 +269,7 @@ class SupervisorFixtures(unittest.TestCase):
             def poll(self):
                 return 0
             def wait(self, timeout):
+                events.append("initial-command-reaped")
                 if self.gate is not None:
                     os.close(self.gate)
                     self.gate = None
@@ -240,7 +284,7 @@ class SupervisorFixtures(unittest.TestCase):
             self.assertTrue(kwargs["close_fds"])
             process.gate = os.dup(kwargs["pass_fds"][0])
             reader, writer = os.pipe()
-            os.write(writer, b'{"descendants_started":1}\n')
+            os.write(writer, json.dumps({"descendants_started": 3 if case == "fork-exit" else 1}).encode() + b"\n")
             os.close(writer)
             process.stdout = os.fdopen(reader, "rb")
             return process
@@ -252,10 +296,10 @@ class SupervisorFixtures(unittest.TestCase):
         with patch.object(H.subprocess, "Popen", side_effect=start), patch.object(H.os, "write", side_effect=write):
             if reject_attachment:
                 with self.assertRaises(H.Unavailable):
-                    H.supervise(scope, "/fixed-public-plan", 2001, 2001, timeout=2)
+                    H.supervise(scope, "/fixed-public-plan", 2001, 2001, timeout=2, case=case)
                 result = None
             else:
-                result = H.supervise(scope, "/fixed-public-plan", 2001, 2001, timeout=2)
+                result = H.supervise(scope, "/fixed-public-plan", 2001, 2001, timeout=2, case=case)
         return events, result
 
     def test_fake_kernel_control_orders_attachment_before_release_and_cleanup(self):
@@ -269,6 +313,25 @@ class SupervisorFixtures(unittest.TestCase):
         events, _ = self.run_fixture(reject_attachment=True)
         self.assertNotIn("release", events)
         self.assertIn("kernel-kill-empty", events)
+
+    def test_detached_members_are_observed_after_initial_wait_and_before_kill(self):
+        for case, count in (("daemon", 1), ("fork-exit", 3)):
+            events, result = self.run_fixture(case=case, members=set(range(1000001, 1000001 + count)))
+            self.assertLess(events.index("initial-command-reaped"), events.index("kernel-populated"))
+            self.assertLess(events.index("kernel-populated"), events.index("kernel-members"))
+            self.assertLess(events.index("kernel-members"), events.index("kernel-kill-empty"))
+            self.assertEqual(result["live_before_cleanup"], 1)
+            self.assertEqual(result["trusted_cleanup_canaries"], {"initial_command_reaped": True, "kernel_populated": 1,
+                "kernel_member_count": count, "minimum_canaries": count})
+            H.validate_case(case, result, outside())
+
+    def test_exited_empty_or_unreaped_initial_process_cannot_claim_detached_kill_coverage(self):
+        for case in ("daemon", "fork-exit"):
+            for live, members in ((0, {1000001, 1000002, 1000003}), (1, set()), (1, {999999})):
+                events = []
+                with self.subTest(case=case, live=live, members=members), self.assertRaisesRegex(H.Unavailable, "survived the initial command"):
+                    self.run_fixture(case=case, live=live, members=members, events=events)
+                self.assertIn("kernel-kill-empty", events)
 
 
 class FixedResultTests(unittest.TestCase):
@@ -310,6 +373,26 @@ class FixedResultTests(unittest.TestCase):
             value = {"exit_code": 0, "reason": None, "cleanup": cleanup, "observation": {"descendants_started": 1}}
             with self.subTest(cleanup=cleanup), self.assertRaises(H.Unavailable):
                 H.validate_case("daemon", value, outside())
+
+    def test_missing_or_empty_kernel_survivor_observation_cannot_pass_detached_cases(self):
+        for case, count in (("daemon", 1), ("fork-exit", 3)):
+            valid = {"exit_code": 0, "reason": None, "live_before_cleanup": 1,
+                "cleanup": {"kernel_populated": 0, "subtree_kill": True}, "observation": {"descendants_started": count},
+                "trusted_cleanup_canaries": {"initial_command_reaped": True, "kernel_populated": 1,
+                                      "kernel_member_count": count, "minimum_canaries": count}}
+            H.validate_case(case, valid, outside())
+            for key, value in (("live_before_cleanup", None), ("live_before_cleanup", 0), ("trusted_cleanup_canaries", None)):
+                altered = {**valid, key: value}
+                with self.subTest(case=case, key=key, value=value), self.assertRaises(H.Unavailable):
+                    H.validate_case(case, altered, outside())
+            for key in ("live_before_cleanup", "trusted_cleanup_canaries"):
+                altered = {name: value for name, value in valid.items() if name != key}
+                with self.subTest(case=case, missing=key), self.assertRaises(H.Unavailable):
+                    H.validate_case(case, altered, outside())
+            for key, value in (("initial_command_reaped", False), ("kernel_populated", 0), ("kernel_member_count", 0)):
+                altered = {**valid, "trusted_cleanup_canaries": {**valid["trusted_cleanup_canaries"], key: value}}
+                with self.subTest(case=case, key=key), self.assertRaises(H.Unavailable):
+                    H.validate_case(case, altered, outside())
 
     def test_timeout_requires_actual_contained_work_before_kernel_kill(self):
         value = {"exit_code": -9, "reason": "timeout", "live_before_cleanup": 1,

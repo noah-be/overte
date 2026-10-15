@@ -772,6 +772,20 @@ new private interface. No existing assertion is waived.
 Daemon, bounded fork and timeout cases confirm kernel-subtree termination using
 parent-opened `cgroup.kill`/`cgroup.events` descriptors. A source-supplied JSON,
 EOF, PID/group exit or namespace UID number cannot authenticate that ownership.
+For daemon and fork-exit, the trusted low-UID bootstrap creates one or three
+fixed trusted cleanup canaries only after authenticated scope attachment and
+release.
+They close standard streams and acknowledge readiness before the unchanged
+Bubblewrap command starts. These controls remain outside its private PID
+namespace, because namespace-init teardown could otherwise already reap the
+inner fixture. After reaping the initial command, the parent must observe
+`populated=1` and the minimum actual kernel member count in its owned subtree;
+the report retains this observation before `cgroup.kill` establishes zero.
+Missing or already empty observations fail. These prove kernel cleanup of the
+trusted canaries, rather than sandbox escape or inner-fixture survival beyond
+PID namespace teardown. The separate fixed controls have a bounded lifetime
+beyond the case deadline, and no sandbox namespace assertion
+or production execution guard is relaxed.
 Unavailable tools, unsupported delegation, nonempty scopes or failed attacks
 return nonzero, with no successful skip. The template fails unsupported source
 contexts before provisioning and collects the transient service afterward.

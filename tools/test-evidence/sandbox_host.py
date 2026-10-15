@@ -251,7 +251,44 @@ class OwnedScope:
             self.path.rmdir()
 
 
-def bootstrap(gate, plan):
+def trusted_cleanup_canaries(count):
+    """Fixed trusted cgroup kill canaries, never arbitrary pre-sandbox work.
+
+    PID namespace teardown may already kill the inner fixture's children. These
+    separate low-UID controls inherit the authenticated scope after release and
+    survive the initial bwrap process, without relaxing its namespace flags.
+    """
+    require(type(count) is int and count in {1, 3}, "unsupported fixed cleanup canary inventory")
+    reader, writer = os.pipe2(os.O_CLOEXEC)
+    try:
+        for _ in range(count):
+            if os.fork() == 0:
+                try:
+                    os.close(reader)
+                    os.setsid()
+                    for descriptor in (0, 1, 2):
+                        os.close(descriptor)
+                    os.write(writer, b"1")
+                    os.close(writer)
+                    # Longer than the eight-second case deadline. Kernel-owned
+                    # cleanup must terminate us; this fixed fallback is bounded.
+                    time.sleep(60)
+                finally:
+                    os._exit(0)
+        os.close(writer)
+        writer = None
+        remaining = count
+        while remaining:
+            block = os.read(reader, remaining)
+            require(block and block == b"1" * len(block), "fixed cleanup canaries did not become ready")
+            remaining -= len(block)
+    finally:
+        os.close(reader)
+        if writer is not None:
+            os.close(writer)
+
+
+def bootstrap(gate, plan, case="protections"):
     """Trusted unprivileged pre-exec gate: no workload runs before attachment."""
     require(os.getuid() != 0 and os.geteuid() == os.getuid(), "bootstrap must already run under the restricted actual host UID")
     with os.fdopen(gate, "rb", closefd=True) as channel:
@@ -259,16 +296,20 @@ def bootstrap(gate, plan):
     value = json.loads(Path(plan).read_text(encoding="ascii"))
     require(type(value) is list and value and value[0] == "/usr/bin/bwrap"
             and all(type(arg) is str and "\0" not in arg for arg in value), "fixed diagnostic launch plan is unsupported")
+    require(case in CASES, "unsupported fixed bootstrap case")
+    if case in {"daemon", "fork-exit"}:
+        trusted_cleanup_canaries(3 if case == "fork-exit" else 1)
     os.execve(value[0], value, {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"})
 
 
-def supervise(scope, plan, uid, gid, *, timeout):
+def supervise(scope, plan, uid, gid, *, timeout, case="protections"):
     """Contain before exec, then kill/confirm the whole kernel subtree."""
+    require(case in CASES and 0 < timeout <= 8, "unsupported fixed supervisor case or deadline")
     gate_read, gate_write = os.pipe2(os.O_CLOEXEC)
     process, data, reason = None, bytearray(), None
     selector = selectors.DefaultSelector()
     try:
-        process = subprocess.Popen(["/usr/bin/python3", "-I", str(Path(__file__).resolve()), "--bootstrap", str(gate_read), str(plan)],
+        process = subprocess.Popen(["/usr/bin/python3", "-I", str(Path(__file__).resolve()), "--bootstrap", str(gate_read), str(plan), case],
                                    user=uid, group=gid, extra_groups=(), pass_fds=(gate_read,), close_fds=True,
                                    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                    env={"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"}, start_new_session=True)
@@ -292,10 +333,20 @@ def supervise(scope, plan, uid, gid, *, timeout):
                 else:
                     selector.unregister(key.fileobj)
             if process.poll() is not None:
-                # Do not wait for inherited output to close: daemon fixtures
-                # intentionally retain descendants after the leader exits.
+                # Reap the initial command before observing the separate trusted
+                # cleanup canaries; output EOF alone cannot prove this ordering.
+                process.wait(timeout=3)
                 break
         live_before_cleanup = scope.populated()
+        canaries = None
+        if case in {"daemon", "fork-exit"}:
+            minimum = 3 if case == "fork-exit" else 1
+            members = scope.members()
+            require(reason is None and process.returncode is not None and process.pid not in members
+                    and live_before_cleanup == 1 and len(members) >= minimum,
+                    "no kernel-observed cleanup canaries survived the initial command")
+            canaries = {"initial_command_reaped": True, "kernel_populated": live_before_cleanup,
+                        "kernel_member_count": len(members), "minimum_canaries": minimum}
         cleanup = scope.kill_and_wait()
         process.wait(timeout=3)
         # Drain bounded fixed-fixture output ONLY after kernel scope is empty.
@@ -307,7 +358,7 @@ def supervise(scope, plan, uid, gid, *, timeout):
         except (ValueError, UnicodeError):
             observation = None
         return {"exit_code": process.returncode, "reason": reason, "live_before_cleanup": live_before_cleanup,
-                "cleanup": cleanup, "observation": observation}
+                "cleanup": cleanup, "observation": observation, "trusted_cleanup_canaries": canaries}
     finally:
         for descriptor in (gate_read, gate_write):
             if descriptor is not None:
@@ -334,6 +385,15 @@ def validate_case(name, result, outside):
         require(result["reason"] is None and result["exit_code"] == 0, "fixed fixture did not execute successfully")
         if name in {"daemon", "fork-exit"}:
             require(observed == {"descendants_started": 3 if name == "fork-exit" else 1}, "detached descendant fixture did not execute")
+            controls = result.get("trusted_cleanup_canaries")
+            minimum = 3 if name == "fork-exit" else 1
+            require(result.get("live_before_cleanup") == 1 and type(controls) is dict
+                    and set(controls) == {"initial_command_reaped", "kernel_populated", "kernel_member_count", "minimum_canaries"}
+                    and controls["initial_command_reaped"] is True and controls["kernel_populated"] == 1
+                    and type(controls["minimum_canaries"]) is int and controls["minimum_canaries"] == minimum
+                    and type(controls["kernel_member_count"]) is int
+                    and controls["kernel_member_count"] >= minimum,
+                    "trusted cleanup canary kill coverage lacks actual surviving kernel members")
         elif name == "nested":
             require(observed == {"nested_loopback": True, "nested_network_distinct": True}, "required nested user/network namespace fixture failed")
         else:
@@ -425,11 +485,12 @@ def run_host():
                 plan = source.build_plan(layout, ["/opt/overte-ci/venv/bin/python", "-I", "/work/fixture.py", case])
                 plan_path = base / "fixed-plan.json"
                 plan_path.write_text(json.dumps(plan["argv"]), encoding="ascii")
-                observation = supervise(scope, plan_path, uid, gid, timeout=4 if case == "timeout" else 8)
+                observation = supervise(scope, plan_path, uid, gid, timeout=4 if case == "timeout" else 8, case=case)
                 validate_case(case, observation, outside)
                 require(git_canary.read_text(encoding="ascii") == "public-readonly-git-canary\n"
                         and protected.read_text(encoding="ascii") == "diagnostic-canary-not-a-secret\n", "outside protected source or report canary was altered")
-                result["cases"][case] = {"status": "passed", "kernel_scope_empty": True}
+                result["cases"][case] = {"status": "passed", "kernel_scope_empty": True,
+                    "live_before_cleanup": observation["live_before_cleanup"], "trusted_cleanup_canaries": observation["trusted_cleanup_canaries"]}
             finally:
                 scope.kill_and_wait()
                 scope.close()
@@ -439,10 +500,10 @@ def run_host():
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--bootstrap", nargs=2, metavar=("GATE_FD", "FIXED_PLAN"))
+    parser.add_argument("--bootstrap", nargs=3, metavar=("GATE_FD", "FIXED_PLAN", "FIXTURE_CASE"))
     arguments = parser.parse_args(argv)
     if arguments.bootstrap is not None:
-        bootstrap(int(arguments.bootstrap[0]), arguments.bootstrap[1])
+        bootstrap(int(arguments.bootstrap[0]), arguments.bootstrap[1], arguments.bootstrap[2])
         return 1
     try:
         result = run_host()
