@@ -279,6 +279,36 @@
           "sha": "81400ce4f8ce5eee1a7d95976378bc03e2d6fb05"
         }
       }
+    },
+    {
+      "name": "npm-consumers-v1",
+      "workflows": {
+        ".github/workflows/project-tests.yml": {
+          "mode": "100644",
+          "type": "blob",
+          "sha": "8920a91e79c8e25c34c0afdeda610d71a625dde9"
+        },
+        ".github/workflows/parent-qualification.yml": {
+          "mode": "100644",
+          "type": "blob",
+          "sha": "6d2d342e4b63d9e60602451157d13854bd52dde7"
+        },
+        ".github/workflows/sync-validation.yml": {
+          "mode": "100644",
+          "type": "blob",
+          "sha": "2a18a765923e0691a2bd1d98f546cc5f933b539c"
+        },
+        ".github/workflows/repository-checks.yml": {
+          "mode": "100644",
+          "type": "blob",
+          "sha": "7f7ec83f15581ebc9cd693201aac1d8cd77d944f"
+        },
+        ".github/workflows/browser-client.yml": {
+          "mode": "100644",
+          "type": "blob",
+          "sha": "8f6e3e009e201ce6c9980f4f23ff4a994588bb9d"
+        }
+      }
     }
   ]
 }

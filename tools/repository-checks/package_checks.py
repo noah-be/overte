@@ -32,6 +32,8 @@ GENERATION_MANIFEST = ".github/package-workflow-generations.json"
 PRODUCER_TEMPLATE = "tools/repository-checks/workflows/producers/project-tests.yml"
 WORKFLOW_PATHS = tuple(".github/workflows/" + name for name in (
     "project-tests.yml", "parent-qualification.yml", "sync-validation.yml", "repository-checks.yml"))
+CONSUMER_WORKFLOW_PATHS = (*WORKFLOW_PATHS, '.github/workflows/browser-client.yml')
+CONSUMER_TEMPLATES = 'tools/repository-checks/workflows/npm-consumers/'
 
 
 def _trusted_sparse_blob(relative, limit):
@@ -137,7 +139,8 @@ def workflow_generations():
             raise ValueError("invalid complete workflow-generation fields")
         name, workflows = generation["name"], generation["workflows"]
         if not isinstance(name, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]*", name) or name in names \
-                or not isinstance(workflows, dict) or set(workflows) != set(WORKFLOW_PATHS):
+                or not isinstance(workflows, dict) or set(workflows) not in (
+                    set(WORKFLOW_PATHS), set(CONSUMER_WORKFLOW_PATHS)):
             raise ValueError("invalid or duplicate complete workflow generation")
         for entry in workflows.values():
             if not isinstance(entry, dict) or set(entry) != {"mode", "type", "sha"} \
@@ -166,6 +169,7 @@ def _policy_inputs():
         "npm_consumers.py", "npm-source-map-tests.cjs", "npm-proxy-addr-tests.cjs")]
     relatives += ["tools/test-evidence/" + name for name in ("run.py", "execution.py", "inputs.py", "runtime.py", "attested.py")]
     relatives += [".github/attested-runtime.json"]
+    relatives += [CONSUMER_TEMPLATES + name for name in ('browser-client.yml', 'repository-checks.yml')]
     relatives += list(_requirement_paths())
     return {relative: hashlib.sha256(_trusted_bytes(relative, git_fallback=True)).hexdigest()
             for relative in sorted(set(relatives))}
@@ -214,7 +218,43 @@ def _digest(value):
     return hashlib.sha256((json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode()).hexdigest()
 
 
-def candidate_plan(candidate, event, sha, *, include_browser=False, include_consumers=False):
+def consumer_generation(candidate):
+    """Detect a complete reviewed caller; old four-file callers stay unchanged."""
+    path = Path(candidate) / '.github/workflows/repository-checks.yml'
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > 1_000_000:
+        return False
+    value = path.read_bytes()
+    sha = hashlib.sha1(b'blob ' + str(len(value)).encode() + b'\0' + value).hexdigest()
+    if not any(set(generation['workflows']) == set(CONSUMER_WORKFLOW_PATHS)
+               and generation['workflows']['.github/workflows/repository-checks.yml']['sha'] == sha
+               for generation in workflow_generations()):
+        return False
+    name = validate_wiring(candidate)
+    return any(generation['name'] == name and set(generation['workflows']) == set(CONSUMER_WORKFLOW_PATHS)
+               for generation in workflow_generations())
+
+
+def consumer_base(candidate, revision):
+    """A deployed protected-base generation cannot be reverted to a legacy pair."""
+    if not isinstance(revision, str) or not re.fullmatch(r'[0-9a-f]{40}', revision):
+        return False
+    try:
+        raw = _git(candidate, 'ls-tree', '-z', revision, '--', *CONSUMER_WORKFLOW_PATHS)
+    except subprocess.CalledProcessError:
+        return False  # The separately established unknown-history fallback remains full.
+    tree = {}
+    for record in raw.split('\0'):
+        if not record:
+            continue
+        metadata, path = record.split('\t', 1)
+        mode, kind, sha = metadata.split()
+        tree[path] = {'mode': mode, 'type': kind, 'sha': sha}
+    return any(set(generation['workflows']) == set(CONSUMER_WORKFLOW_PATHS)
+               and all(tree.get(path) == entry for path, entry in generation['workflows'].items())
+               for generation in workflow_generations())
+
+
+def candidate_plan(candidate, event, sha, *, include_browser=False, include_consumers=None):
     repository = event.get("repository", {})
     if repository.get("full_name") != REPOSITORY or repository.get("id") != REPOSITORY_ID:
         raise ValueError("package repository identity mismatch")
@@ -244,6 +284,11 @@ def candidate_plan(candidate, event, sha, *, include_browser=False, include_cons
     else:
         paths, regular, unknown = [], False, True
     legacy = checks.plan(event, paths, config, branches, regular)
+    current_consumers = consumer_generation(candidate)
+    if consumer_base(candidate, base) and (not current_consumers or include_consumers is False):
+        raise ValueError('deployed required npm consumer ownership cannot be disabled')
+    if include_consumers is None:
+        include_consumers = current_consumers
     consumers = None
     if include_consumers:
         consumers = load("package_npm_consumers", "tools/repository-checks/npm_consumers.py").select(candidate, base, sha)
@@ -256,6 +301,7 @@ def candidate_plan(candidate, event, sha, *, include_browser=False, include_cons
         selected['package_set'] = [project for project in selected['package_set']
                                   if consumers['projects'][project]['profile'] != 'none']
         selected['dependency_profiles'] = consumers
+        selected['consumer_generation'] = current_consumers
     policy = _policy_inputs()
     result = {"schema": 1, "candidate": sha, "tree": _git(candidate, "rev-parse", "HEAD^{tree}"),
               "base": base, "head": head, "paths": paths, "regular": regular, "unknown": unknown,
@@ -269,6 +315,18 @@ def outputs(plan):
             "package_host_mode": plan["host_mode"],
             "package_tool_projects": json.dumps(plan["tool_projects"], separators=(",", ":")),
             "package_set": json.dumps(plan["package_set"], separators=(",", ":"))}
+
+
+def browser_outputs(plan):
+    """Omit legacy jobs only when the reviewed required owner proves selection."""
+    profile = (plan.get('dependency_profiles') or {}).get('projects', {}).get(BROWSER, {})
+    focused = (profile.get('profile') == 'source-map-postcss-v1'
+               and profile.get('required') is True and BROWSER in plan['package_set'])
+    unchanged = (profile.get('profile') == 'none' and profile.get('required') is False
+                 and profile.get('reason') == 'reviewed-lockfile-format-only')
+    omit = plan.get('consumer_generation') is True and (focused or unchanged)
+    return {'browser_npm_only': str(omit).lower(), 'package_candidate': plan['candidate'],
+            'package_plan': plan['plan']}
 
 
 def receipt(plan, lane="project"):
@@ -310,7 +368,16 @@ def validate_wiring(candidate):
     if any(not p.is_dir() or p.is_symlink() for p in (candidate / ".github", candidate / ".github/workflows")):
         raise ValueError("package workflow directories must be ordinary directories")
     tree = {}
-    for relative in WORKFLOW_PATHS:
+    required = list(WORKFLOW_PATHS)
+    caller = candidate / '.github/workflows/repository-checks.yml'
+    if caller.is_file() and not caller.is_symlink() and caller.stat().st_size <= 1_000_000:
+        value = caller.read_bytes()
+        identity = hashlib.sha1(b'blob ' + str(len(value)).encode() + b'\0' + value).hexdigest()
+        if any(set(generation['workflows']) == set(CONSUMER_WORKFLOW_PATHS)
+               and generation['workflows']['.github/workflows/repository-checks.yml']['sha'] == identity
+               for generation in workflow_generations()):
+            required.append('.github/workflows/browser-client.yml')
+    for relative in required:
         path = candidate / relative
         if not path.is_file() or path.is_symlink() or path.stat().st_size > 1_000_000 \
                 or path.stat().st_mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH):
@@ -332,7 +399,7 @@ def validate_tree_wiring(tree):
     """
     if not isinstance(tree, dict):
         raise ValueError("required package workflow tree is invalid")
-    for generation in workflow_generations():
+    for generation in sorted(workflow_generations(), key=lambda item: len(item['workflows']), reverse=True):
         if all(isinstance(tree.get(path), dict) and all(tree[path].get(key) == value for key, value in entry.items())
                for path, entry in generation["workflows"].items()):
             return generation["name"]
@@ -433,7 +500,7 @@ def execute(candidate, plan, lane, *, include_browser=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("plan", "run", "verify"))
+    parser.add_argument("command", choices=("plan", "run", "verify", "browser-route"))
     parser.add_argument("--candidate", type=Path, required=True)
     parser.add_argument("--event", type=Path, required=True)
     parser.add_argument("--sha", required=True)
@@ -454,7 +521,9 @@ def main():
             raise ValueError("package caller plan mismatch")
         if args.expected_projects and args.expected_projects != ",".join(plan["tool_projects"]):
             raise ValueError("package caller cannot select arbitrary tool projects")
-        if args.command == "plan":
+        if args.command == 'browser-route':
+            result = browser_outputs(plan)
+        elif args.command == "plan":
             result = outputs(plan)
         elif args.command == "run":
             result = execute(args.candidate, plan, args.lane)

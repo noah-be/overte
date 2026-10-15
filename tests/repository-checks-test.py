@@ -1469,6 +1469,128 @@ class NpmConsumerSelectionTests(unittest.TestCase):
             self.assertEqual(focused.call_args.args[2], [CONSUMERS.S3, CONSUMERS.BROWSER])
             legacy.assert_not_called()
 
+    def install_consumer_callers(self):
+        for relative in PACKAGES.CONSUMER_WORKFLOW_PATHS:
+            path = self.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            name = Path(relative).name
+            source = (ROOT / PACKAGES.CONSUMER_TEMPLATES / name if name in (
+                'browser-client.yml', 'repository-checks.yml') else ROOT / relative)
+            path.write_bytes(source.read_bytes())
+        self.base = self.commit()
+
+    def automatic_plan(self, base=None, **kwargs):
+        head = self.commit()
+        payload = {'repository': event()['repository'], 'before': base or self.base,
+                   'after': head, 'ref': 'refs/heads/main'}
+        real_load = PACKAGES.load
+        def load(name, relative):
+            return CONSUMERS if relative.endswith('/npm_consumers.py') else real_load(name, relative)
+        with patch.object(PACKAGES, 'load', side_effect=load):
+            return PACKAGES.candidate_plan(self.root, payload, head, **kwargs)
+
+    def test_complete_consumer_generation_automatically_enables_required_focused_owner(self):
+        self.install_consumer_callers()
+        self.update(CONSUMERS.BROWSER)
+        plan = self.automatic_plan()
+        self.assertTrue(plan['consumer_generation'])
+        self.assertEqual(plan['host_mode'], 'package-dependencies')
+        self.assertEqual(plan['package_set'], [CONSUMERS.BROWSER])
+        self.assertEqual(PACKAGES.browser_outputs(plan)['browser_npm_only'], 'true')
+        needs = PackageChecksTests.needs(self, plan)
+        self.assertEqual(PACKAGES.verify(needs, plan), PACKAGES.receipt(plan))
+        for outcome in ('failure', 'cancelled', 'skipped'):
+            changed = deepcopy(needs); changed['package-checks']['result'] = outcome
+            with self.subTest(outcome=outcome), self.assertRaises(ValueError):
+                PACKAGES.verify(changed, plan)
+        changed = deepcopy(needs)
+        changed['package-checks']['outputs']['package_plan'] = '0' * 64
+        with self.assertRaises(ValueError):
+            PACKAGES.verify(changed, plan)
+
+    def test_format_only_reviewed_lock_omits_both_legacy_jobs_and_all_package_execution(self):
+        self.install_consumer_callers()
+        path = self.root / CONSUMERS.BROWSER / 'package-lock.json'
+        path.write_text(json.dumps(self.lock(CONSUMERS.BROWSER), indent=4))
+        plan = self.automatic_plan()
+        self.assertEqual(plan['package_set'], [])
+        self.assertEqual(plan['host_mode'], 'package-dependencies')
+        self.assertEqual(PACKAGES.browser_outputs(plan)['browser_npm_only'], 'true')
+        needs = results()
+        needs['route']['outputs'].update(PACKAGES.outputs(plan))
+        needs['project'] = {'result': 'skipped', 'outputs': {}}
+        self.assertEqual(CHECKS.verify(needs, package_plan=plan)['status'], 'PASS')
+
+    def test_supported_lock_with_unrelated_ci_keeps_host_and_package_owners_independent(self):
+        self.install_consumer_callers()
+        self.update()
+        (self.root / 'ci.py').write_text('print(1)\n')
+        plan = self.automatic_plan()
+        self.assertEqual(plan['host_mode'], 'full')
+        self.assertEqual(plan['package_set'], [CONSUMERS.S3, CONSUMERS.BROWSER])
+        self.assertEqual(PACKAGES.browser_outputs(plan)['browser_npm_only'], 'true')
+
+    def test_unsupported_dependency_or_changed_browser_consumer_retains_full_legacy_jobs(self):
+        self.install_consumer_callers()
+        for change in ('dependency', 'consumer'):
+            with self.subTest(change=change):
+                self.git('reset', '--hard', self.base)
+                self.update(CONSUMERS.BROWSER)
+                if change == 'dependency':
+                    lock = self.lock(CONSUMERS.BROWSER)
+                    lock['packages']['node_modules/unchanged']['version'] = '2.0.0'
+                    self.write_lock(CONSUMERS.BROWSER, value=lock)
+                else:
+                    (self.root / CONSUMERS.BROWSER / 'consumer.js').write_text('module.exports = 2;\n')
+                plan = self.automatic_plan()
+                self.assertEqual(plan['host_mode'], 'full')
+                self.assertEqual(PACKAGES.browser_outputs(plan)['browser_npm_only'], 'false')
+
+    def test_consumer_workflow_mutation_or_missing_file_cannot_enable_omission(self):
+        self.install_consumer_callers()
+        for mutation in ('content', 'missing', 'symlink'):
+            with self.subTest(mutation=mutation):
+                self.git('reset', '--hard', self.base)
+                path = self.root / '.github/workflows/browser-client.yml'
+                if mutation == 'content':
+                    path.write_bytes(path.read_bytes() + b'\n# unapproved\n')
+                else:
+                    path.unlink()
+                    if mutation == 'symlink':
+                        path.symlink_to('repository-checks.yml')
+                with self.assertRaises(ValueError):
+                    self.automatic_plan()
+
+    def test_deployed_protected_generation_rejects_rollback_and_internal_opt_out(self):
+        self.install_consumer_callers()
+        self.update(CONSUMERS.BROWSER)
+        with self.assertRaises(ValueError):
+            self.automatic_plan(include_consumers=False)
+        path = self.root / '.github/workflows/repository-checks.yml'
+        path.write_bytes((ROOT / '.github/workflows/repository-checks.yml').read_bytes())
+        with self.assertRaises(ValueError):
+            self.automatic_plan()
+
+    def test_prepared_workflows_preserve_all_legacy_steps_and_fail_to_full(self):
+        import yaml
+        legacy = yaml.safe_load((ROOT / '.github/workflows/browser-client.yml').read_text())
+        future = yaml.safe_load((ROOT / PACKAGES.CONSUMER_TEMPLATES / 'browser-client.yml').read_text())
+        self.assertEqual(future['permissions'], {'contents': 'read'})
+        for name in ('browser', 'native-journey'):
+            job = deepcopy(future['jobs'][name])
+            self.assertEqual(job.pop('needs'), 'npm-route')
+            condition = job.pop('if')
+            self.assertIn('!cancelled()', condition)
+            self.assertIn("github.event_name != 'pull_request'", condition)
+            self.assertIn("needs.npm-route.result != 'success'", condition)
+            self.assertIn("needs.npm-route.outputs.browser_npm_only != 'true'", condition)
+            self.assertEqual(job, legacy['jobs'][name])
+        route = future['jobs']['npm-route']
+        self.assertEqual(route['if'], "github.event_name == 'pull_request'")
+        self.assertIn('package_checks.py browser-route', route['steps'][-1]['run'])
+        caller = yaml.safe_load((ROOT / PACKAGES.CONSUMER_TEMPLATES / 'repository-checks.yml').read_text())
+        self.assertIn("package_host_mode == 'full'", caller['jobs']['project']['if'])
+
 
 class CandidateTests(unittest.TestCase):
     def test_exact_merge_paths_and_stale_candidate_rejection(self):
