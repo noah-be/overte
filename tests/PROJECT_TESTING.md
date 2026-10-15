@@ -883,10 +883,16 @@ publish private source/alert payloads. Weekly full scans remain unchanged.
 The source verifier and exact workflow generation must be protected before
 installing the active workflow. The staged main-only ruleset payload is
 `.github/rulesets/codeql-main.json`; apply it only after the new gate has passed
-on a real PR. This adds `codeql-checks` to the existing required contexts on
+on a real PR. This adds `codeql-security-results` to the existing required contexts on
 `main`; other branches receive this requirement only after their own deployment.
 The staged workflow runs a selection/result check for documentation-only PRs
 so the required context is present; no language analyzer runs for that case.
 Both aggregate checkout steps and the API verifier execute in a clean job that
 never runs candidate code. The exact new CI files remain outside the reviewed
 iOS application reader graph, while their own required CI checks still run.
+
+The independent trusted `sync-test-reuse` pull-request-target gate also pins
+the new exact CodeQL workflow when `codeql_results_required_branches` is
+activated for the target. A candidate cannot substitute an older workflow or
+imitate the result job name to avoid its verifier. The source-stage target list
+is empty; the caller deployment enables `main` only after the helper is protected.

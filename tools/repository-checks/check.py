@@ -73,7 +73,7 @@ def configuration(root: Path = ROOT) -> tuple[dict, dict]:
     if type(config.get("native_required", False)) is not bool:
         raise ValueError("invalid native activation setting")
     for key in ("native_required_branches", "direct_browser_required_branches", "package_checks_required_branches",
-                "browser_client_required_branches"):
+                "browser_client_required_branches", "codeql_results_required_branches"):
         targets = config.get(key, [])
         if (not isinstance(targets, list) or any(not isinstance(name, str) or name not in branches for name in targets)
                 or len(targets) != len(set(targets))):

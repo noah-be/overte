@@ -134,7 +134,10 @@ class LanguageSelectionTests(unittest.TestCase):
     def test_saved_workflow_digest_matches_the_actual_reviewed_activation(self):
         actual = subprocess.check_output(['git', 'hash-object', '.github/workflows/codeql.yml'],
                                          cwd=ROOT, text=True).strip()
-        self.assertEqual(actual, CODEQL._SELECTIVE_WORKFLOW)
+        self.assertIn(actual, {CODEQL._SELECTIVE_WORKFLOW, CODEQL._RESULTS_WORKFLOW})
+        canonical = ROOT / "tools/repository-checks/workflows/codeql-results.yml"
+        expected = subprocess.check_output(["git", "hash-object", str(canonical)], cwd=ROOT, text=True).strip()
+        self.assertEqual(expected, CODEQL._RESULTS_WORKFLOW)
 
     def test_both_sides_must_match_reviewed_actual_workflow_and_configuration(self):
         for path in CODEQL._REVIEWED_CONTROLS:

@@ -100,7 +100,7 @@ jobs:
           category: "/language:${{ matrix.language }}"
 
   codeql-checks:
-    name: codeql-checks
+    name: codeql-security-results
     if: always()
     needs: [select, analyze]
     runs-on: ubuntu-24.04

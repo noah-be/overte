@@ -176,14 +176,26 @@
           "tools/repository-checks/codeql.py",
           "tools/test-evidence/inputs.py",
           ".github/workflows/codeql.yml",
-          ".github/codeql/codeql-config.yml"
+          ".github/codeql/codeql-config.yml",
+          "tools/repository-checks/codeql_results.py",
+          ".github/repository-checks.json",
+          "tools/test-evidence/producer_api.py",
+          "tools/test-evidence/producer.py",
+          "tools/test-evidence/execution.py",
+          "tools/test-evidence/runtime.py"
         ],
         "required": [
           "tests/codeql-selection-test.py",
           "tools/repository-checks/codeql.py",
           "tools/test-evidence/inputs.py",
           ".github/workflows/codeql.yml",
-          ".github/codeql/codeql-config.yml"
+          ".github/codeql/codeql-config.yml",
+          "tools/repository-checks/codeql_results.py",
+          ".github/repository-checks.json",
+          "tools/test-evidence/producer_api.py",
+          "tools/test-evidence/producer.py",
+          "tools/test-evidence/execution.py",
+          "tools/test-evidence/runtime.py"
         ]
       }
     },

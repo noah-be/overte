@@ -566,7 +566,7 @@ class RulesetManifestContracts(unittest.TestCase):
             "Android target branch topology": "Enforce Android parent sync path",
             "Apple target branch topology": "Enforce apple-main sync path",
             "Permanent branch governance": "branch-policy",
-            "Selected CodeQL security results on main": "codeql-checks",
+            "Selected CodeQL security results on main": "codeql-security-results",
         }
         for name, context in expected.items():
             parameters = self.rule(

@@ -40,7 +40,7 @@ _REVIEWED_CONTROLS = {
 # scan uses both languages; subsequent scans admit this exact reviewed workflow.
 _SELECTIVE_WORKFLOW = "bdfd6e98d59ab787babcc94ba45c129f8cd899bd"
 # Exact staged selected-result workflow; install only after this policy is protected.
-_RESULTS_WORKFLOW = "2b397deefe426d6593d2e70af29d7bd1dd15cc01"
+_RESULTS_WORKFLOW = "b5789e4b0928ef34cc3d80e8f2fa1813422b6436"
 _GLOBAL_PATHS = {
     "AGENTS.md", ".gitattributes", ".gitignore", ".gitmodules", ".codeqlignore", ".tool-versions",
     "tools/repository-checks/codeql.py", "tools/repository-checks/codeql_results.py",
