@@ -43,7 +43,6 @@ CI_POLICY = frozenset({
     '.github/branch-policy.json', '.github/branch-cleanup.json', '.github/issue-policy.json',
     '.github/repository-checks.json', '.github/package-workflow-generations.json',
     '.github/test-suites.json',
-    '.github/rulesets/codeql-main.json',
     '.github/ios-host-orchestration.json', '.github/ios-build-qualification.json',
     '.github/workflows/branch-cleanup.yml', '.github/workflows/branch-policy.yml',
     # Complete tuple validation runs before selection; arbitrary edits fail.

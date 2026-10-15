@@ -39,7 +39,9 @@ RULESET_FILES = {
     "Immutable Android, canonical, and archive tags": "android-release-tags.json",
     "Immutable Pico 4 release and dependency tags": "pico4-release-tags.json",
     "Permanent branch governance": "permanent-branches.json",
-    "Selected CodeQL security results on main": "codeql-main.json",
+}
+STAGED_RULESET_FILES = {
+    "Selected CodeQL security results on main": ROOT / "tools/repository-checks/workflows/codeql-main.json",
 }
 ACTION_USE = re.compile(r"^\s*uses:\s*([^\s#]+)", re.MULTILINE)
 FULL_SHA_ACTION = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
@@ -552,6 +554,10 @@ class RulesetManifestContracts(unittest.TestCase):
             name: json.loads((RULESETS / filename).read_text(encoding="utf-8"))
             for name, filename in RULESET_FILES.items()
         }
+        cls.manifests.update({
+            name: json.loads(path.read_text(encoding="utf-8"))
+            for name, path in STAGED_RULESET_FILES.items()
+        })
 
     @staticmethod
     def rule(manifest, rule_type):
@@ -565,7 +571,7 @@ class RulesetManifestContracts(unittest.TestCase):
                 versioned.append(path.name)
 
         self.assertEqual(sorted(versioned), sorted(RULESET_FILES.values()))
-        self.assertEqual(set(self.manifests), set(RULESET_FILES))
+        self.assertEqual(set(self.manifests), set(RULESET_FILES) | set(STAGED_RULESET_FILES))
         for name, manifest in self.manifests.items():
             self.assertEqual(manifest["name"], name)
             self.assertIn(manifest["target"], ("branch", "tag"))

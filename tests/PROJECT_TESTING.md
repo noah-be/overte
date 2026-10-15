@@ -882,7 +882,7 @@ publish private source/alert payloads. Weekly full scans remain unchanged.
 
 The source verifier and exact workflow generation must be protected before
 installing the active workflow. The staged main-only ruleset payload is
-`.github/rulesets/codeql-main.json`; apply it only after the new gate has passed
+`tools/repository-checks/workflows/codeql-main.json`; apply it only after the new gate has passed
 on a real PR. This adds `codeql-security-results` to the existing required contexts on
 `main`; other branches receive this requirement only after their own deployment.
 The staged workflow runs a selection/result check for documentation-only PRs
