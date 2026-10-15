@@ -235,7 +235,7 @@ class BranchInventoryApiFixtures(unittest.TestCase):
         for call in request.call_args_list:
             self.assertEqual(call.args[0], "graphql")
             self.assertTrue(call.args[1]["query"].startswith("query("))
-            self.assertEqual(call.args[1]["variables"]["owner"], "noah-be")
+            self.assertEqual(call.args[1]["variables"]["owner"], "noah-l-frank")
             self.assertEqual(call.args[1]["variables"]["name"], "overte")
         return result, request.call_args_list
 

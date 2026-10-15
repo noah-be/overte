@@ -35,7 +35,7 @@ def main():
     definitions=ET.SubElement(parameters,'parameterDefinitions')
     parameter=ET.SubElement(definitions,'hudson.model.StringParameterDefinition')
     ET.SubElement(parameter,'name').text='SOURCE_SHA'
-    ET.SubElement(parameter,'description').text='Exact reviewed noah-be/overte topic commit'
+    ET.SubElement(parameter,'description').text='Exact reviewed noah-l-frank/overte topic commit'
     ET.SubElement(parameter,'defaultValue').text=''
     concurrent=ET.SubElement(properties,'org.jenkinsci.plugins.workflow.job.properties.DisableConcurrentBuildsJobProperty')
     ET.SubElement(concurrent,'abortPrevious').text='false'

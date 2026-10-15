@@ -191,7 +191,7 @@ input to investigate a native peer's stale browser pose. It defaults to false.
 The normal workflow and all original core-journey assertions remain unchanged.
 
 ```sh
-gh workflow run browser-client.yml --repo noah-be/overte \
+gh workflow run browser-client.yml --repo noah-l-frank/overte \
   --ref feature/main/browser-client \
   -f startup_diagnostics=false -f avatar_sample_diagnostics=true
 ```
