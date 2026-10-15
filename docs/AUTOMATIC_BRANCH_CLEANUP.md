@@ -56,6 +56,12 @@ must reserve their source branches with a policy hold or `keep-branch` label.
 Unavailable or ambiguous evidence stops
 the affected cleanup instead of being interpreted as inactivity.
 
+When GitHub's active-run count disagrees with its returned rows during a job
+transition, cleanup reloads all five active states up to four times, waiting
+2, 5, and 10 seconds between attempts. Only a complete inventory is accepted;
+newly visible activity still holds the branch. Persistently incomplete or
+malformed responses stop both history integration and deletion.
+
 Immediately before deletion, the implementation rechecks the current evidence
 and branch SHA. The Git deletion uses an explicit expected SHA, so a branch that
 has received another push cannot be deleted using an older plan.

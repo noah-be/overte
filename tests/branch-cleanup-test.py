@@ -492,16 +492,48 @@ class GithubActivityTests(unittest.TestCase):
             if suffix.startswith("actions/runs?"):
                 return {"total_count": 2, "workflow_runs": []}
             return []
-        with mock.patch.object(self.github, "get", side_effect=response):
-            with self.assertRaises(self.module.CleanupError):
+        with mock.patch.object(self.github, "get", side_effect=response) as get, \
+                mock.patch.object(self.module.time, "sleep") as sleep:
+            with self.assertRaisesRegex(self.module.CleanupError, "active_run_listing_incomplete"):
                 self.github.activity_holds([self.candidate], self.policy)
+        self.assertEqual(sleep.call_args_list, [mock.call(2), mock.call(5), mock.call(10)])
+        self.assertEqual(sum(call.args[0].startswith("actions/runs?") for call in get.call_args_list), 20)
+
+    def test_transient_inventory_mismatch_reloads_all_states_and_honors_new_activity(self):
+        for running in (False, True):
+            with self.subTest(running=running):
+                attempts = []
+                active = [self.active_run(head_branch=self.candidate["branch"])] if running else []
+
+                def response(suffix="", paginate=False):
+                    if suffix.startswith("actions/runs?status=queued&"):
+                        attempts.append(suffix)
+                        return {"total_count": 1, "workflow_runs": []} if len(attempts) < 3 else {
+                            "total_count": len(active), "workflow_runs": active}
+                    return self.inactive_responses(suffix, paginate)
+
+                with mock.patch.object(self.github, "get", side_effect=response) as get, \
+                        mock.patch.object(self.module.time, "sleep") as sleep:
+                    held = self.github.activity_holds([self.candidate], self.policy)
+                self.assertEqual(sleep.call_args_list, [mock.call(2), mock.call(5)])
+                self.assertEqual(sum(call.args[0].startswith("actions/runs?") for call in get.call_args_list), 15)
+                self.assertEqual(self.candidate["branch"] in held, running)
+                if running:
+                    self.assertIn("github_actions_still_active", held[self.candidate["branch"]])
 
     def test_missing_active_run_inventory_fields_fail_closed(self):
-        def response(suffix="", paginate=False):
-            return {} if suffix.startswith("actions/runs?") else []
-        with mock.patch.object(self.github, "get", side_effect=response):
-            with self.assertRaises(self.module.CleanupError):
-                self.github.activity_holds([self.candidate], self.policy)
+        for invalid in ({}, {"total_count": True, "workflow_runs": []},
+                        {"total_count": -1, "workflow_runs": []},
+                        {"total_count": "0", "workflow_runs": []},
+                        {"total_count": 0, "workflow_runs": None}):
+            with self.subTest(invalid=invalid):
+                def response(suffix="", paginate=False):
+                    return invalid if suffix.startswith("actions/runs?") else []
+                with mock.patch.object(self.github, "get", side_effect=response), \
+                        mock.patch.object(self.module.time, "sleep") as sleep:
+                    with self.assertRaisesRegex(self.module.CleanupError, "active_run_listing_invalid"):
+                        self.github.activity_holds([self.candidate], self.policy)
+                sleep.assert_not_called()
 
     def test_github_api_requests_are_read_only_and_explicitly_bound_to_the_fork(self):
         result = subprocess.CompletedProcess([], 0, stdout="[]", stderr="")
