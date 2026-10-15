@@ -4,8 +4,7 @@
   "repository_id": 1319052603,
   "required_branches": [],
   "activation_blockers": [
-    "extended-tier-prerequisite-transfer",
-    "advisory-profile-owner-handoff"
+    "prospective-generation-hosted-qualification"
   ],
   "independent_roots": [
     "browser-client/",
@@ -52,6 +51,35 @@
       "name": "android-v1-direct",
       "caller": "tools/repository-checks/workflows/android/repository-checks-direct-browser.yml",
       "callee": "tools/repository-checks/workflows/android-required.yml"
+    },
+    {
+      "name": "android-owned-normal",
+      "caller": "tools/repository-checks/workflows/android-owned/repository-checks.yml",
+      "callee": "tools/repository-checks/workflows/android-owned/android-required.yml",
+      "project": "tools/repository-checks/workflows/android-owned/project-tests.yml"
+    },
+    {
+      "name": "android-owned-direct",
+      "caller": "tools/repository-checks/workflows/android-owned/repository-checks-direct.yml",
+      "callee": "tools/repository-checks/workflows/android-owned/android-required.yml",
+      "project": "tools/repository-checks/workflows/android-owned/project-tests.yml",
+      "direct": "tools/repository-checks/workflows/browser-direct-client.yml"
+    },
+    {
+      "name": "android-owned-browser",
+      "caller": "tools/repository-checks/workflows/android-owned/repository-checks-browser.yml",
+      "callee": "tools/repository-checks/workflows/android-owned/android-required.yml",
+      "project": "tools/repository-checks/workflows/android-owned/project-tests.yml",
+      "browser": "tools/repository-checks/workflows/browser-client.yml"
+    },
+    {
+      "name": "android-owned-browser-direct",
+      "caller": "tools/repository-checks/workflows/android-owned/repository-checks-browser-direct.yml",
+      "callee": "tools/repository-checks/workflows/android-owned/android-required.yml",
+      "project": "tools/repository-checks/workflows/android-owned/project-tests.yml",
+      "browser": "tools/repository-checks/workflows/browser-client.yml",
+      "direct": "tools/repository-checks/workflows/browser-direct-client.yml"
     }
-  ]
+  ],
+  "handoff_manifest": ".github/android-owner-transfer.json"
 }

@@ -37,6 +37,7 @@ SUITES = (
     Suite("repository-checks", "quick", (sys.executable, "tests/repository-checks-test.py")),
     Suite("android-ci", "quick", (sys.executable, "tests/android-ci-test.py")),
     Suite("android-orchestration", "quick", (sys.executable, "tests/android-orchestration-test.py")),
+    Suite("android-owner-transfer", "quick", (sys.executable, "tests/android-owner-transfer-test.py")),
     Suite("android-build-inputs", "quick", (sys.executable, "tests/android-build-inputs-test.py")),
     Suite("codeql-selection", "quick", (sys.executable, "tests/codeql-selection-test.py")),
     Suite("browser-cpu-selection", "quick", (sys.executable, "tests/browser-cpu-selection-test.py")),

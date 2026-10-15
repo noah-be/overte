@@ -182,10 +182,19 @@ def configuration_variants(policy_root=ROOT):
     return result
 
 
+def approved_outer_workflows(policy_root=ROOT):
+    """Exact additive callers; a complete trusted tuple is still mandatory."""
+    paths = [OUTER_TEMPLATE]
+    paths += ["tools/repository-checks/workflows/android-owned/" + name for name in (
+        "repository-checks-browser.yml", "repository-checks-browser-direct.yml")
+        if (Path(policy_root) / "tools/repository-checks/workflows/android-owned" / name).is_file()]
+    return {_blob(trusted_bytes(path, policy_root)) for path in paths}
+
+
 def _normalizations(policy_root):
     return {
         WORKFLOW: ({REVIEWED_WORKFLOW, _blob(canonical_workflow(policy_root))}, REVIEWED_WORKFLOW),
-        OUTER_WORKFLOW: ({REVIEWED_OUTER, _blob(trusted_bytes(OUTER_TEMPLATE, policy_root))}, REVIEWED_OUTER),
+        OUTER_WORKFLOW: ({REVIEWED_OUTER} | approved_outer_workflows(policy_root), REVIEWED_OUTER),
         CONFIGURATION: (configuration_variants(policy_root), REVIEWED_CONFIGURATION),
     }
 
@@ -218,7 +227,7 @@ def _policy(policy_root):
                    "reviewed_boundary": REVIEWED_BOUNDARY, "cpu_paths": sorted(CPU_PATHS),
                    "independent_policy_paths": sorted(INDEPENDENT_POLICY_PATHS),
                    "legacy_workflow": REVIEWED_WORKFLOW, "canonical_workflow": _blob(canonical_workflow(policy_root)),
-                   "outer_workflow": _blob(trusted_bytes(OUTER_TEMPLATE, policy_root)),
+                   "outer_workflow": sorted(approved_outer_workflows(policy_root)),
                    "activation": json.loads(trusted_bytes(CONFIGURATION, policy_root)).get('browser_client_required_branches', []),
                    "browser_boundary": REVIEWED_BROWSER_BOUNDARY, "external_inputs": sorted(EXTERNAL_INPUTS),
                    "independent_roots": INDEPENDENT_ROOTS, "independent_files": sorted(INDEPENDENT_FILES),
@@ -272,8 +281,14 @@ def validate_wiring(current, *, policy_root=ROOT):
     require(current["entries"].get(WORKFLOW) == {"mode": "100644", "type": "blob",
                                                 "sha": _blob(canonical_workflow(policy_root))},
             "browser workflow differs from trusted canonical orchestration")
-    require(current['entries'].get(OUTER_WORKFLOW) == _entry(_blob(trusted_bytes(OUTER_TEMPLATE, policy_root))),
+    require(current['entries'].get(OUTER_WORKFLOW) in [_entry(sha) for sha in approved_outer_workflows(policy_root)],
             'Browser requires the exact paired sole-owner outer workflow')
+    if current['entries'].get(OUTER_WORKFLOW) != _entry(_blob(trusted_bytes(OUTER_TEMPLATE, policy_root))):
+        spec = importlib.util.spec_from_file_location("browser_complete_package_tuple", ROOT / "tools/repository-checks/package_checks.py")
+        package = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(package)
+        package.ROOT = Path(policy_root)
+        package.validate_tree_wiring(current['entries'])
 
 
 def target_branch(event, event_name):
@@ -326,7 +341,8 @@ def _contract_at(candidate, revision, policy_root):
             continue
         metadata, path = row.split(b'\t', 1)
         mode, kind, sha = metadata.decode('ascii').split()
-        if mode == '100644' and kind == 'blob' and expected.get(path.decode()) == sha:
+        if mode == '100644' and kind == 'blob' and (expected.get(path.decode()) == sha or
+                path.decode() == OUTER_WORKFLOW and sha in approved_outer_workflows(policy_root)):
             return True
     return False
 
