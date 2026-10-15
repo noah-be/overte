@@ -69,7 +69,8 @@ def plan(paths: list[str], regular: bool = True, *, verified_empty: bool = False
         # Routing/runner changes need an actual small native smoke plus their
         # host regressions, not a rebuild of unrelated product applications.
         if path in ('tools/native-tests/check.py', 'tools/native-tests/select.py',
-                    'tools/native-tests/run.py', 'tools/native-tests/qt-test.py', 'tests/native-ci-test.py'):
+                    'tools/native-tests/run.py', 'tools/native-tests/qt-test.py',
+                    'tools/native-tests/browser-owner.py', 'tests/native-ci-test.py'):
             relevant.append(path)
             core_only.add(path)
             continue
@@ -126,6 +127,13 @@ def repository_checks():
     return module
 
 
+def browser_ownership():
+    spec = importlib.util.spec_from_file_location('required_browser_native_owner', ROOT / 'tools/native-tests/browser-owner.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def candidate_changes(candidate: Path, event: dict, sha: str):
     return repository_checks().changed_paths(candidate, event, sha, allow_executable=True)
 
@@ -138,6 +146,16 @@ def candidate_plan(candidate: Path, event: dict, sha: str) -> dict:
     result = plan(paths, regular, verified_empty=isinstance(event.get('pull_request'), dict) and not paths)
     if not activated:
         result.update(mode='skip', reasons=['native lane not activated for this target branch'])
+    elif result['mode'] == 'full' and regular:
+        ownership = browser_ownership().select(candidate, event, sha, paths, regular, checks)
+        if ownership['paths']:
+            remaining = [path for path in paths if path not in ownership['paths']]
+            narrowed = plan(remaining, regular, verified_empty=not remaining)
+            # Mixed native/core/build changes keep their complete previous
+            # selection, including broad target selection for unknown inputs.
+            if narrowed['mode'] == 'skip':
+                result = {**narrowed, 'browser_handoff': ownership,
+                          'reasons': ['all ordinary native inputs have a required Browser owner']}
     return result
 
 
