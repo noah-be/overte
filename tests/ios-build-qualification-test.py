@@ -7,6 +7,8 @@ import importlib.util
 import json
 from pathlib import Path
 import plistlib
+import posixpath
+import re
 import shutil
 import subprocess
 import sys
@@ -654,6 +656,306 @@ class InputSelectionCompatibilityTests(unittest.TestCase):
         self.assertEqual((decision["required"], decision["host_required"]), ("true", "true"))
         self.assertEqual(decision["reason"], "manual-application-build-required")
         self.assertEqual(self.verify(decision, manual, merge), decision)
+
+
+class HostGenerationTests(unittest.TestCase):
+    """Portable real-Git fixtures; no host/product execution or remote transport."""
+    ACTUAL = "52f1cc38180e96cdfd8049a4be93517961ae7dbd"
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        directory = Path(self.temporary.name)
+        self.root, self.trusted = directory / "candidate", directory / "trusted"
+        self.root.mkdir();self.trusted.mkdir()
+        self.git("init", "-q")
+        self.git("config", "user.email", "fixture@example.invalid")
+        self.git("config", "user.name", "Offline source fixture")
+        for relative in (".github/ios-build-qualification.json", ".github/ios-host-orchestration.json",
+                         "tools/ios-build-qualification/inputs.py", "tools/ios-build-qualification/host-workflow.yml"):
+            target = self.trusted / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes((ROOT / relative).read_bytes())
+        self.host = load("host")
+        document = json.loads((self.trusted / self.host.POLICY).read_text())
+        document["activationTargets"] = ["apple-ios"]
+        launcher = (ROOT / "tools/ios-build-qualification/fixtures/host-launcher-52f.sh").read_text()
+        sources = {self.host.WORKFLOW: (ROOT / "tools/ios-build-qualification/workflow.yml").read_text(),
+                   ".github/workflows/ios-integrated.yml": "# Fixed disposable client callee.\n",
+                   ".github/workflows/ios-qt-source.yml": "# Fixed disposable Qt callee.\n",
+                   "ios/tests/run-tests.sh": ("100755", launcher),
+                   "ios/ci/host-test-network.sh": ("100755", "# Fixed disposable network launcher.\n"),
+                   "tests/requirements-host.txt": (ROOT / "tests/requirements-host.txt").read_text(),
+                   "ios/release-check/test_fixture.py": "# Fixed discoverable test.\n",
+                   "tests/device/ios/self_tests/test_fixture.py": "# Fixed discoverable test.\n"}
+        literals = re.findall(r'\$script_dir/([^"$\s]+\.(?:py|cjs|sh|cmake))', launcher)
+        block = re.search(r"readonly rendering_contracts=\(\n(.*?)\n\)", launcher, re.S)[1]
+        literals += re.findall(r"^    ([a-z0-9-]+\.py)$", block, re.M)
+        for path in literals:
+            sources.setdefault(posixpath.normpath("ios/tests/" + path), "# Fixed immutable host source fixture.\n")
+        self.legacy = self.commit(None, sources)
+        observed = self.host.entries(CHECK.input_selector().read_snapshot(self.root, self.legacy))
+        document["legacy"] = {path: observed[path] for path in self.host.PATHS}
+        (self.trusted / self.host.POLICY).write_text(json.dumps(document))
+        next_source = (self.trusted / self.host.TEMPLATE).read_text()
+        self.base = self.commit(self.legacy, {self.host.WORKFLOW: next_source})
+        # Only this disposable trusted policy explicitly approves the fixture graph.
+        inputs = CHECK.input_selector()
+        boundary = inputs.review_boundary(self.root, self.base)["boundary"]
+        path = self.trusted / "tools/ios-build-qualification/inputs.py"
+        path.write_text(path.read_text().replace(inputs.REVIEWED_BOUNDARY, boundary))
+
+    def git(self, *arguments, data=None):
+        return subprocess.run(["git", "--no-replace-objects", *arguments], cwd=self.root, input=data,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True).stdout.decode().strip()
+
+    def commit(self, parent, changes, *, parents=None):
+        self.git("read-tree", parent) if parent else self.git("read-tree", "--empty")
+        for path, value in changes.items():
+            if value is None:
+                self.git("update-index", "--force-remove", "--", path)
+                continue
+            mode, content = value if isinstance(value, tuple) else ("100644", value)
+            oid = parent if mode == "160000" else self.git("hash-object", "-w", "--stdin", data=content.encode())
+            self.git("update-index", "--add", "--cacheinfo", mode + "," + oid + "," + path)
+        tree = self.git("write-tree")
+        ancestors = parents if parents is not None else [parent] if parent else []
+        revision = self.git("commit-tree", tree, *(argument for p in ancestors for argument in ("-p", p)),
+                            "-m", "Immutable offline iOS source fixture")
+        self.git("update-ref", "HEAD", revision)
+        return revision
+
+    def candidate(self, changes=None, *, base=None):
+        base = base or self.base
+        head = self.commit(base, changes or {})
+        merge = self.commit(head, {}, parents=[base, head])
+        repository = {"full_name": CHECK.REPOSITORY, "id": CHECK.REPOSITORY_ID}
+        event = {"repository": repository, "pull_request": {
+            "base": {"ref": "apple-ios", "sha": base, "repo": repository},
+            "head": {"ref": "fix/ios/offline", "sha": head, "repo": repository}}}
+        return event, merge
+
+    def route(self, event, source):
+        with patch.object(self.host, "SOURCE_READY", True), patch.object(CHECK, "host_handoff", return_value=self.host):
+            return CHECK.route(event, self.root, source, policy_root=self.trusted)
+
+    def needs(self, output):
+        return {"route": {"result": "success", "outputs": output}, **{name: {
+            "result": "success" if output["host_required" if name == "host" else "required"] == "true" else "skipped"}
+            for name in ("host", "qt", "client")}}
+
+    def verify(self, output, event, source, *, required=None):
+        with patch.object(self.host, "SOURCE_READY", True), patch.object(CHECK, "host_handoff", return_value=self.host):
+            return CHECK.verify_jobs(required or self.needs(output), source, event=event, candidate=self.root,
+                                     policy_root=self.trusted)
+
+    def execution(self, head, *, attempt=1):
+        repository = {"full_name": CHECK.REPOSITORY, "id": CHECK.REPOSITORY_ID}
+        run = {"id": 123, "run_attempt": attempt, "head_sha": head, "path": self.host.WORKFLOW,
+               "repository": repository, "run_started_at": "2026-10-15T10:00:00Z"}
+        job = {"id": 456, "name": "iOS host contracts", "run_id": 123, "run_attempt": attempt,
+               "head_sha": head, "status": "completed", "conclusion": "success",
+               "started_at": "2026-10-15T10:01:00Z", "completed_at": "2026-10-15T10:09:00Z",
+               "steps": [{"name": "Run iOS host contracts", "status": "completed", "conclusion": "success",
+                          "started_at": "2026-10-15T10:02:00Z", "completed_at": "2026-10-15T10:08:00Z"}]}
+        return [job], run
+
+    def test_actual_legacy_complete_generation_and_protocol_are_unchanged(self):
+        self.assertEqual(self.host.resolve(self.root, self.legacy, policy_root=self.trusted)[0], "legacy")
+        event, source = self.candidate({"docs/ios-fixture.md": "Independent documentation\n"}, base=self.legacy)
+        output = CHECK.route(event, self.root, source, policy_root=self.trusted)
+        self.assertEqual(output["reason"], "ordinary-markdown-only")
+        self.assertNotIn("host_required", output)
+        self.assertNotIn("generation", output)
+        actual = self.git("cat-file", "blob", self.legacy + ":" + self.host.WORKFLOW)
+        self.assertEqual(actual, (ROOT / "tools/ios-build-qualification/workflow.yml").read_text().strip())
+        document = self.host.policy()
+        self.assertEqual(document["reviewedSource"], self.ACTUAL)
+        self.assertEqual(document["legacy"]["ios/tests/run-tests.sh"]["oid"],
+                         self.git("hash-object", "--stdin", data=(ROOT / "tools/ios-build-qualification/fixtures/host-launcher-52f.sh").read_bytes()))
+
+    def test_next_generation_requires_both_trusted_activation_controls(self):
+        event, source = self.candidate({"docs/ios-fixture.md": "Independent documentation\n"})
+        with self.assertRaisesRegex(ValueError, "not qualified or activated"):
+            self.host.route(event, self.root, source, policy_root=self.trusted)
+        value = json.loads((self.trusted / self.host.POLICY).read_text());value["activationTargets"] = []
+        (self.trusted / self.host.POLICY).write_text(json.dumps(value))
+        with patch.object(self.host, "SOURCE_READY", True), self.assertRaisesRegex(ValueError, "not qualified or activated"):
+            self.host.route(event, self.root, source, policy_root=self.trusted)
+        self.assertFalse(load("host").SOURCE_READY)
+        self.assertEqual(json.loads((ROOT / self.host.POLICY).read_text())["activationTargets"], [])
+
+    def test_proven_host_and_docs_changes_keep_ios_host_and_skip_app_only(self):
+        for path in ("docs/ios-fixture.md", "tools/test-evidence/run.py"):
+            event, source = self.candidate({path: "Reviewed independent input\n"})
+            output = self.route(event, source)
+            self.assertEqual((output["required"], output["host_required"]), ("false", "true"))
+            self.assertEqual(self.verify(output, event, source), output)
+            with patch.object(self.host, "SOURCE_READY", True), patch.object(CHECK, "host_handoff", return_value=self.host):
+                CHECK.validate_wiring(self.root, event, self.trusted)
+
+    def test_only_exact_three_tree_noop_can_skip_host_and_app(self):
+        event, source = self.candidate()
+        output = self.route(event, source)
+        self.assertEqual((output["required"], output["host_required"], output["reason"]), ("false", "false", "unchanged-tree"))
+        self.assertEqual(self.verify(output, event, source), output)
+
+    def test_app_unknown_mixed_packaged_mode_and_nonregular_inputs_keep_full(self):
+        for changes in ({"interface/src/ios-unknown.cpp": "// application\n"},
+                        {"unknown-host-helper.py": "# unknown\n"},
+                        {"docs/ios-fixture.md": "Doc\n", "CMakeLists.txt": "project(Changed)\n"},
+                        {"interface/resources/README.md": "Packaged source\n"},
+                        {"docs/ios-fixture.md": ("100755", "Executable document\n")},
+                        {"docs/ios-fixture.md": ("120000", "outside")},
+                        {"docs/vendor": ("160000", "")}):
+            with self.subTest(changes=changes):
+                event, source = self.candidate(changes)
+                output = self.route(event, source)
+                self.assertEqual((output["required"], output["host_required"]), ("true", "true"))
+                self.assertEqual(self.verify(output, event, source), output)
+        event, source = self.candidate({"docs/ios-fixture.md": "Doc\n"})
+        manual = {"repository": event["repository"], "ref": "refs/heads/apple-ios"}
+        self.assertEqual(self.route(manual, source)["required"], "true")
+
+    def test_reader_change_then_host_edit_cannot_use_a_stale_boundary(self):
+        base = self.commit(self.base, {"CMakeLists.txt": "file(READ tools/test-evidence/run.py APP_INPUT)\n"})
+        event, source = self.candidate({"tools/test-evidence/run.py": "# Newly read input\n"}, base=base)
+        output = self.route(event, source)
+        self.assertEqual((output["required"], output["reason"]), ("true", "reader-boundary-not-reviewed"))
+
+    def test_generation_rejects_each_altered_missing_or_nonregular_component(self):
+        for path in self.host.PATHS:
+            for value in ("Altered input\n", None, ("120000", "outside"), ("160000", "")):
+                with self.subTest(path=path, value=value):
+                    source = self.commit(self.base, {path: value})
+                    with self.assertRaisesRegex(ValueError, "complete reviewed generation"):
+                        self.host.resolve(self.root, source, policy_root=self.trusted)
+
+    def test_next_protected_base_cannot_roll_back_to_complete_legacy_generation(self):
+        old = self.git("cat-file", "blob", self.legacy + ":" + self.host.WORKFLOW) + "\n"
+        event, source = self.candidate({self.host.WORKFLOW: old})
+        with self.assertRaisesRegex(ValueError, "cannot roll back"):
+            self.route(event, source)
+
+    def test_missing_test_source_closure_cannot_manufacture_a_host_plan(self):
+        event, source = self.candidate({"ios/tests/native_contracts/test_entity_consent_application.py": None})
+        with self.assertRaisesRegex(ValueError, "source closure is missing"):
+            self.route(event, source)
+
+    def test_final_recomputes_every_output_and_rejects_missing_event_or_failed_selected_job(self):
+        event, source = self.candidate({"docs/ios-fixture.md": "Doc\n"})
+        output = self.route(event, source)
+        for key in output:
+            altered = {**output, key: "forged"}
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                self.verify(altered, event, source)
+        for conclusion in ("failure", "skipped", "cancelled", None):
+            jobs = self.needs(output);jobs["host"]["result"] = conclusion
+            with self.assertRaises(ValueError): self.verify(output, event, source, required=jobs)
+        jobs = self.needs(output);jobs["qt"]["result"] = "success"
+        with self.assertRaises(ValueError): self.verify(output, event, source, required=jobs)
+        with patch.object(CHECK, "host_handoff", return_value=self.host), self.assertRaises(ValueError):
+            CHECK.verify_jobs(self.needs(output), source, policy_root=self.trusted)
+        for mutate in (lambda e: e["repository"].update(id=1),
+                       lambda e: e["pull_request"]["base"].update(ref="main"),
+                       lambda e: e["pull_request"]["head"]["repo"].update(full_name="foreign/repo"),
+                       lambda e: e["pull_request"]["head"].update(sha=e["pull_request"]["base"]["sha"])):
+            changed = copy.deepcopy(event);mutate(changed)
+            with self.assertRaises(ValueError): self.verify(output, changed, source)
+
+    def test_host_only_report_requires_actual_same_run_job_and_step_without_ipa(self):
+        event, source = self.candidate({"docs/ios-fixture.md": "Doc\n"})
+        output = self.route(event, source)
+        jobs, run = self.execution(event["pull_request"]["head"]["sha"])
+        with patch.object(self.host, "SOURCE_READY", True), patch.object(CHECK, "host_handoff", return_value=self.host), \
+                patch.object(CHECK, "verify_ipa", side_effect=AssertionError("host-only must not inspect an IPA")):
+            result = CHECK.report(self.needs(output), source, 688, 123, 1, self.root, jobs,
+                event=event, candidate=self.root, policy_root=self.trusted, run_metadata=run)
+        self.assertEqual((result["ipa"], result["artifact"]), ("not-required", None))
+        self.assertEqual(result["hostSelection"]["producer"]["originalExecutionJobId"], 456)
+        for mutate in (lambda j: j[0].update(conclusion="failure"), lambda j: j[0].update(status="queued"),
+                       lambda j: j[0].update(run_id=999), lambda j: j[0].update(head_sha=SOURCE),
+                       lambda j: j[0].update(run_attempt=2), lambda j: j.append(copy.deepcopy(j[0])),
+                       lambda j: j[0]["steps"][0].update(conclusion="skipped"),
+                       lambda j: j[0].update(steps=[]),
+                       lambda j: j[0]["steps"][0].update(completed_at="2026-10-15T10:02:00Z")):
+            changed = copy.deepcopy(jobs);mutate(changed)
+            with self.assertRaises(ValueError): self.host.verify_execution(changed, run, 123, 1, run["head_sha"])
+        for field, wrong in (("id", 99), ("run_attempt", 2), ("head_sha", SOURCE), ("path", "different.yml"),
+                             ("run_started_at", "2026-10-15T11:00:00Z")):
+            with self.assertRaises(ValueError):
+                self.host.verify_execution(jobs, {**run, field: wrong}, 123, 1, run["head_sha"])
+
+    def test_failed_only_retry_cannot_relabel_an_older_host_execution(self):
+        jobs, run = self.execution(SOURCE, attempt=2)
+        run["run_started_at"] = "2026-10-15T11:00:00Z"
+        with self.assertRaisesRegex(ValueError, "first attempt only"):
+            self.host.verify_execution(jobs, run, 123, 2, SOURCE)
+        run["run_started_at"] = "2026-10-15T10:00:00Z"
+        with self.assertRaisesRegex(ValueError, "first attempt only"):
+            self.host.verify_execution(jobs, run, 123, 2, SOURCE)
+
+    def test_execution_failure_and_environment_channels_cannot_create_success(self):
+        selected = {"host_required": "true", "selection": "fixed"}
+        secret = {"GH_TOKEN": "fixture", "GITHUB_OUTPUT": "/fixture", "ACTIONS_RUNTIME_TOKEN": "fixture",
+                  "ACTIONS_ID_TOKEN_REQUEST_URL": "fixture", "OVERTE_SKIP_TESTS": "1"}
+        with patch.dict(self.host.os.environ, secret), self.host.candidate_environment():
+            self.assertFalse(any(name in self.host.os.environ for name in secret))
+            self.assertEqual(self.host.os.environ["GIT_CONFIG_VALUE_0"], "false")
+        with patch.object(self.host, "route", return_value=selected), patch.object(self.host, "git"), \
+                patch.object(self.host, "preflight") as preflight, \
+                patch.object(self.host.subprocess, "run", side_effect=subprocess.CalledProcessError(7, ["fixture"])):
+            with self.assertRaises(subprocess.CalledProcessError): self.host.execute({}, self.root, SOURCE)
+            preflight.assert_called_once_with(self.root)
+        with patch.object(self.host, "route", side_effect=[selected, {**selected, "selection": "changed"}]), \
+                patch.object(self.host, "git"), patch.object(self.host, "preflight"), patch.object(self.host.subprocess, "run"):
+            with self.assertRaisesRegex(ValueError, "source plan changed"):
+                self.host.execute({}, self.root, SOURCE)
+
+
+    def test_next_template_preserves_full_build_jobs_dependencies_and_independent_final(self):
+        import yaml
+        legacy = yaml.safe_load((ROOT / "tools/ios-build-qualification/workflow.yml").read_text())
+        source = (ROOT / self.host.TEMPLATE).read_text()
+        current = yaml.safe_load(source)
+        for name in ("qt", "client"):
+            self.assertEqual(current["jobs"][name], legacy["jobs"][name])
+        host = current["jobs"]["host"]
+        self.assertEqual(host["if"], "needs.route.outputs.host_required == 'true'")
+        old_dependencies = next(s for s in legacy["jobs"]["host"]["steps"] if s.get("name") == "Install host contract dependencies")
+        self.assertEqual(next(s for s in host["steps"] if s.get("name") == old_dependencies["name"]), old_dependencies)
+        self.assertIn("--event", source);self.assertIn("--candidate candidate", source)
+        self.assertIn("--run-metadata", source)
+        self.assertIn("/attempts/$GITHUB_RUN_ATTEMPT/jobs", source)
+        self.assertIn("/attempts/$GITHUB_RUN_ATTEMPT\"", source)
+        self.assertEqual(current["jobs"]["ios-device-build"]["needs"], ["route", "host", "qt", "client"])
+        for declaration in re.findall(r"(?m)^\s+uses: (.+)$", source):
+            self.assertRegex(declaration, r"^(?:\./\.github/workflows/[a-z-]+\.yml|[^@\s]+@[0-9a-f]{40})$")
+        for field in ("host_required", "generation", "selection", "host_inputs"):
+            self.assertEqual(current["jobs"]["route"]["outputs"][field], "${{ steps.plan.outputs." + field + " }}")
+
+    def test_preflight_requires_real_qt_modules_and_preserves_forced_launcher_variants(self):
+        seen = []
+        qml = Path(self.temporary.name) / "qml"
+        modules = ("QtQml", "QtQml/Models", "QtQml/WorkerScript", "QtQuick", "QtQuick/Controls", "QtQuick/Layouts",
+                   "QtQuick/Templates", "QtQuick/Window", "Qt/labs/settings", "Qt/labs/folderlistmodel", "QtQuick/Dialogs", "QtTest")
+        for name in modules:
+            path = qml / name / "qmldir";path.parent.mkdir(parents=True, exist_ok=True);path.write_text("# Fixture module\n")
+        def runner(command, **kwargs):
+            seen.append(command)
+            output = str(qml) if command[0] == "qtpaths6" else "v22.0.0\n"
+            return subprocess.CompletedProcess(command, 0, stdout=output)
+        environment = {"OVERTE_QML_TEST_RUNNER": "/usr/lib/qt6/bin/qmltestrunner",
+                       "OVERTE_HOST_TEST_NETWORK_RUNNER": str(self.root / "ios/ci/host-test-network.sh")}
+        with patch.object(self.host.shutil, "which", return_value="/fixture/tool"), \
+                patch.object(self.host.os, "access", return_value=True), patch.dict(self.host.os.environ, environment):
+            self.host.preflight(self.root, runner=runner)
+            self.assertIn(["pkg-config", "--exists", "Qt6Core", "Qt6Gui", "Qt6Qml", "Qt6Concurrent", "Qt6WebChannel", "vulkan", "glm"], seen)
+            (qml / "QtTest/qmldir").unlink()
+            with self.assertRaisesRegex(ValueError, "mandatory iOS QML module"):
+                self.host.preflight(self.root, runner=runner)
+            with self.assertRaises(subprocess.CalledProcessError):
+                self.host.preflight(self.root, runner=lambda *a, **k: (_ for _ in ()).throw(subprocess.CalledProcessError(1, "pkg-config")))
 
 
 class HistoryTests(unittest.TestCase):
