@@ -25,7 +25,7 @@ TEMPLATE = "tools/repository-checks/workflows/browser-client.yml"
 REPOSITORY = {"full_name": "noah-l-frank/overte", "id": 1319052603}
 REVIEWED_REVISION = "2750afb6416a4dc71366974f24c8e3e87e5228af"
 REVIEWED_WORKFLOW = "db09fbf3858e022d1f6f50eda61ecb657666cbe5"
-REVIEWED_BOUNDARY = "sha256:021ad22ca83c8e7897b383b4447061ba3cb941ea06affc5efadfbaa691957653"
+REVIEWED_BOUNDARY = "sha256:4f942162be837be489d841066fd14c7821b01b345a615bec948897a3a477a70f"
 CPU_PATHS = frozenset("browser-client/" + path for path in (
     "tests/integration/capture-startup-integration-source-fixture.mjs",
     "tests/tablet-capture-startup-integration-manifest.test.mjs",
@@ -39,6 +39,7 @@ CPU_PATHS = frozenset("browser-client/" + path for path in (
     "tests/fixtures/capture-v34-workflow-before.json.gz",
     "tests/fixtures/capture-workflow-v35-complete-source-manifest.json",
     "tests/tablet-capture-workflow-manifest.test.mjs",
+    "tests/embedded-world-software-ci.test.mjs",
 ))
 INDEPENDENT_POLICY_PATHS = frozenset({
     "tools/repository-checks/browser_cpu.py", TEMPLATE, "tests/browser-cpu-selection-test.py",

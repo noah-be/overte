@@ -88,14 +88,14 @@ class BrowserCpuTests(unittest.TestCase):
                 "browser": {"result": "skipped" if cpu else "success"},
                 "native-journey": {"result": "skipped" if cpu else "success"}}
 
-    def test_all_eleven_exact_cpu_inputs_and_approved_bootstrap_select_cpu(self):
+    def test_all_twelve_exact_cpu_inputs_and_approved_bootstrap_select_cpu(self):
         changes = {path: b"Updated exact CPU history source\n" for path in BROWSER.CPU_PATHS}
         changes[BROWSER.WORKFLOW] = BROWSER.canonical_workflow()
         event, candidate = self.merge(changes)
         selection = self.classify(candidate)
         self.assertEqual(selection["mode"], "cpu")
         self.assertEqual(selection["reason"], "approved-workflow-bootstrap-and-cpu-history")
-        self.assertEqual(len(selection["changes"]), 12)
+        self.assertEqual(len(selection["changes"]), 13)
         outputs = BROWSER.route(event, "pull_request", self.root, candidate)
         self.assertEqual(outputs["mode"], "cpu")
         self.assertEqual(outputs["audit"], "false")

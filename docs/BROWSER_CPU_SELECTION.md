@@ -14,9 +14,10 @@ unknown, nonregular, unreviewed-reader and manual changes.
 
 ## Exact source scope
 
-Only eleven exact `100644` paths declared in the trusted helper may select the
-CPU route: the seven startup/fork-rename history-repair files, plus four reserved
-workflow-history migration files. There is no `tests/**`, fixture directory,
+Only twelve exact `100644` paths declared in the trusted helper may select the
+CPU route: the seven startup/fork-rename history-repair files, four reserved
+workflow-history migration files, and the existing software-fixture workflow
+reader. There is no `tests/**`, fixture directory,
 file-extension, caller path-list or candidate-supplied skip rule. New history
 paths require a trusted parent-policy review.
 
@@ -101,7 +102,7 @@ Before any activation, complete all of the following in separately reviewed work
 1. Land the trusted helper/template first. Re-review/re-anchor against the final
    trusted parent if other prerequisite changes changed its reader inventory.
 2. Extend native host-only ownership from the existing seven CPU paths to all
-   eleven exact regular paths, with negative coverage. This preparation does
+   twelve exact regular paths, with negative coverage. This preparation does
    not change the native policy or an already running prerequisite PR.
 3. Combine the exact canonical workflow installation, V34 fork-history repair
    and bounded V35 workflow-history admission. Existing capture fixtures and the

@@ -116,7 +116,7 @@ class RoutingTests(unittest.TestCase):
 
     def test_browser_history_fixtures_skip_native_without_exempting_neighbors(self):
         fixtures = sorted(POLICY.HOST_BROWSER_FIXTURES)
-        self.assertEqual(len(fixtures), 11)
+        self.assertEqual(len(fixtures), 12)
         self.assertEqual(POLICY.plan(fixtures)['mode'], 'skip')
         for path in fixtures:
             with self.subTest(path=path):

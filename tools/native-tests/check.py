@@ -45,6 +45,7 @@ HOST_BROWSER_FIXTURES = frozenset({
     'browser-client/tests/fixtures/capture-v34-workflow-before.json.gz',
     'browser-client/tests/fixtures/capture-workflow-v35-complete-source-manifest.json',
     'browser-client/tests/tablet-capture-workflow-manifest.test.mjs',
+    'browser-client/tests/embedded-world-software-ci.test.mjs',
 })
 HOST_EVIDENCE_SUFFIXES = frozenset({'.py', '.json'})
 CORE_ROOTS = ('tests/shared/',)
