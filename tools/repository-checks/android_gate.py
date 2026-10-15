@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -225,8 +226,25 @@ def validate_tree_wiring(tree, *, policy_root=ROOT):
 
 
 def has_staged_caller(candidate, *, policy_root=ROOT):
-    tree = _sources(candidate).entries
-    caller = tree.get(".github/workflows/repository-checks.yml")
+    # Legacy non-Android routers omit the execution runtime from their trusted
+    # sparse checkout. Detect ownership from immutable Git metadata before
+    # loading that runtime; admission still validates the complete generation.
+    relative = '.github/workflows/repository-checks.yml'
+    try:
+        raw = subprocess.check_output(['git', '--no-replace-objects', 'ls-tree', '-z', '--full-tree',
+                                       'HEAD', '--', ':(literal)' + relative],
+                                      cwd=candidate, stderr=subprocess.PIPE, timeout=30)
+        if not raw:
+            return False
+        if len(raw) > 1024 or not raw.endswith(b'\0') or raw.count(b'\0') != 1:
+            raise ValueError('invalid immutable Android caller inventory')
+        metadata, path = raw[:-1].split(b'\t')
+        mode, kind, sha = metadata.decode('ascii').split()
+        if path != relative.encode() or not re.fullmatch(r'[0-9a-f]{40}', sha):
+            raise ValueError('invalid immutable Android caller identity')
+        caller = {'mode': mode, 'type': kind, 'sha': sha}
+    except (OSError, subprocess.SubprocessError, UnicodeError) as error:
+        raise ValueError('immutable Android caller is unavailable') from error
     return any(caller == _blob(android()._file(Path(policy_root), path).read_bytes()) for path in CALLERS)
 
 
