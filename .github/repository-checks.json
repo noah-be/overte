@@ -35,7 +35,5 @@
   "package_checks_required_branches": [
     "main"
   ],
-  "browser_client_required_branches": [
-    "main"
-  ]
+  "browser_client_required_branches": []
 }

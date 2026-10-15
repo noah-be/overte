@@ -199,7 +199,15 @@
         "kind": "repository",
         "inputs": [],
         "required": [
-          "tests/ios-build-qualification-test.py"
+          "tests/ios-build-qualification-test.py",
+          "tools/ios-build-qualification/check.py",
+          "tools/ios-build-qualification/host.py",
+          "tools/ios-build-qualification/inputs.py",
+          "tools/ios-build-qualification/host-workflow.yml",
+          "tools/ios-build-qualification/workflow.yml",
+          "tools/ios-build-qualification/fixtures/host-launcher-52f.sh",
+          ".github/ios-host-orchestration.json",
+          ".github/ios-build-qualification.json"
         ]
       }
     },
@@ -1042,10 +1050,7 @@
         "kind": "repository",
         "inputs": [],
         "required": [
-          "tests/native-ci-test.py",
-          "tests/native-app-boundary-test.py",
-          "tools/repository-checks/browser_app_inputs.py",
-          ".github/browser-native-app-inputs.json"
+          "tests/native-ci-test.py"
         ]
       }
     },
@@ -1368,91 +1373,7 @@
           ".github/package-workflow-generations.json",
           "tools/repository-checks/workflows/android-required.yml",
           "tools/repository-checks/workflows/android/repository-checks.yml",
-          "tools/repository-checks/workflows/android/repository-checks-direct-browser.yml",
-          "tools/repository-checks/android_handoff.py",
-          ".github/android-owner-transfer.json"
-        ]
-      }
-    },
-    "android-owner-transfer": {
-      "command": [
-        "python",
-        "tests/android-owner-transfer-test.py"
-      ],
-      "layer": "quick",
-      "scope": "content",
-      "environment": "host-qt5-qt6",
-      "closure": {
-        "kind": "repository",
-        "inputs": [],
-        "required": [
-          "tests/android-owner-transfer-test.py",
-          "tests/fixtures/android-owner-transfer/android-tests-original.yml",
-          "tests/fixtures/android-owner-transfer/android-vr-tests-original.yml",
-          "tests/android-orchestration-test.py",
-          "tests/android-ci-test.py",
-          "tools/repository-checks/android_handoff.py",
-          "tools/repository-checks/android_gate.py",
-          "tools/repository-checks/android.py",
-          "tools/repository-checks/browser_cpu.py",
-          "tools/repository-checks/check.py",
-          "tools/repository-checks/package_checks.py",
-          "tools/test-evidence/execution.py",
-          ".github/android-owner-transfer.json",
-          ".github/android-orchestration.json",
-          ".github/android-checks.json",
-          ".github/package-workflow-generations.json",
-          "tools/repository-checks/workflows/android-owned/project-tests.yml",
-          "tools/repository-checks/workflows/android-owned/android-required.yml"
-        ]
-      }
-    },
-    "shared-sandbox": {
-      "command": [
-        "python",
-        "tools/test-evidence/sandbox-test.py"
-      ],
-      "layer": "quick",
-      "scope": "content",
-      "environment": "host-qt5-qt6",
-      "closure": {
-        "kind": "repository",
-        "inputs": [],
-        "required": [
-          "tools/test-evidence/sandbox.py",
-          "tools/test-evidence/sandbox_probe.py",
-          "tools/test-evidence/sandbox-test.py",
-          "tools/test-evidence/runtime.py",
-          ".github/shared-sandbox.json",
-          "tests/requirements-host.txt",
-          "tests/requirements-repository.txt",
-          "tools/sbom/requirements-validation.txt"
-        ]
-      }
-    },
-    "shared-sandbox-host": {
-      "command": [
-        "python",
-        "tools/test-evidence/sandbox-host-test.py"
-      ],
-      "layer": "quick",
-      "scope": "content",
-      "environment": "host-qt5-qt6",
-      "closure": {
-        "kind": "repository",
-        "inputs": [],
-        "required": [
-          "tools/test-evidence/sandbox_host.py",
-          "tools/test-evidence/sandbox_host_fixture.py",
-          "tools/test-evidence/sandbox-host-test.py",
-          "tools/test-evidence/workflows/shared-sandbox-host-diagnostic.yml",
-          ".github/workflows/shared-sandbox-host-diagnostic.yml",
-          "tools/test-evidence/sandbox.py",
-          "tools/test-evidence/runtime.py",
-          ".github/shared-sandbox.json",
-          "tests/requirements-host.txt",
-          "tests/requirements-repository.txt",
-          "tools/sbom/requirements-validation.txt"
+          "tools/repository-checks/workflows/android/repository-checks-direct-browser.yml"
         ]
       }
     }

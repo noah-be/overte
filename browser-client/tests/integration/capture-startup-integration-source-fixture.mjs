@@ -1,7 +1,6 @@
 // Copyright 2026 Overte contributors
 // SPDX-License-Identifier: Apache-2.0
 // Exact whole-source CPU history for both merge parents; never a shipping fallback.
-import {normalizeForkRenameInput} from './capture-fork-rename-source-fixture.mjs';
 import {openSync, closeSync, fstatSync, readSync, realpathSync, constants} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
@@ -69,7 +68,6 @@ export function readStartupIntegrationParentSource(profile, relative) {
 
 export function normalizeStartupIntegrationInput(profile, relative, bytes) {
     if (!Object.hasOwn(history.profiles, profile) || !Buffer.isBuffer(bytes)) refuse();
-    bytes = normalizeForkRenameInput(relative, bytes);
     const entry = history.profiles[profile];
     if (!Object.hasOwn(entry.current, relative)) return bytes;
     const hash = digest(bytes);

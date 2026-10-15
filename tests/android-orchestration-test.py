@@ -47,9 +47,6 @@ class RequiredAndroidTests(unittest.TestCase):
                  "tools/repository-checks/android_gate.py", "tools/repository-checks/check.py",
                  "tools/repository-checks/package_checks.py", gate.CALLEE, *gate.CALLERS,
                  *gate.android().EXECUTION_FILES]
-        names += [".github/android-owner-transfer.json", "tools/repository-checks/android_handoff.py",
-                  "tools/repository-checks/workflows/browser-client.yml", "tools/repository-checks/workflows/browser-direct-client.yml"]
-        names += [str(path.relative_to(ROOT)) for path in (ROOT / gate.OWNED).rglob("*") if path.is_file()]
         for relative in set(names):
             target = self.policy_root / relative
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -63,12 +60,9 @@ class RequiredAndroidTests(unittest.TestCase):
     def write_policy(self):
         (self.policy_root / gate.POLICY).write_text(json.dumps(self.policy))
 
-    def workflow_files(self, *, direct=False, producer=False, owned=True, browser=False):
+    def workflow_files(self, *, direct=False, producer=False):
         packages = gate.packages()
         name = ("shared-receipt-v1" if producer else "packages-v1") + ("-direct" if direct else "") + "-android"
-        if owned:
-            kind = "browser-direct" if browser and direct else "browser" if browser else "direct" if direct else "normal"
-            name = "android-owned-" + kind
         generation = next(item for item in packages.workflow_generations() if item["name"] == name)
         paths = list((ROOT / "tools/repository-checks/workflows").rglob("*.yml"))
         contents = {gate._blob(path.read_bytes())["sha"]: path.read_bytes() for path in paths}
@@ -76,31 +70,7 @@ class RequiredAndroidTests(unittest.TestCase):
             target = self.candidate / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(contents[entry["sha"]])
-        callee = gate.OWNED + "/android-required.yml" if owned else gate.CALLEE
-        (self.candidate / gate.WORKFLOW).write_bytes((ROOT / callee).read_bytes())
-        if owned:
-            if direct:
-                (self.candidate / ".github/workflows/browser-direct-client.yml").write_bytes(
-                    (ROOT / "tools/repository-checks/workflows/browser-direct-client.yml").read_bytes())
-            if browser:
-                (self.candidate / ".github/workflows/browser-client.yml").write_bytes(
-                    (ROOT / "tools/repository-checks/workflows/browser-client.yml").read_bytes())
-            transfer = gate.handoff().policy()
-            for group in ("legacy_workflows", "source_contracts"):
-                for target, item in transfer[group].items():
-                    path = self.candidate / target
-                    path.parent.mkdir(parents=True, exist_ok=True)
-                    path.write_bytes((ROOT / item["source"]).read_bytes())
-                    path.chmod(0o755 if item["mode"] == "100755" else 0o644)
-            profile = {"schema": 1, "platform": "android", "suites": transfer["profiles"]["android-phone"]["required_suites"]}
-            path = self.candidate / "tests/platform-profile.json"
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps(profile))
-            for item in profile["suites"]:
-                entrypoint = self.candidate / item["entrypoint"]
-                if not entrypoint.exists():
-                    entrypoint.parent.mkdir(parents=True, exist_ok=True)
-                    entrypoint.write_text("# Profile fixture.\n")
+        (self.candidate / gate.WORKFLOW).write_bytes((ROOT / gate.CALLEE).read_bytes())
         self.fixture.commit()
         return generation
 
@@ -235,14 +205,14 @@ class RequiredAndroidTests(unittest.TestCase):
         event = {"repository": self.event["repository"], "ref": "refs/heads/android-phone"}
         manual = gate.candidate_plan(self.candidate, event, self.sha, event_name="workflow_dispatch", policy_root=self.policy_root)
         self.assertTrue(manual["required"])
-        self.assertEqual(manual["views"], list(ownership.android.DEFAULT_VIEWS) + list(ownership.android.DIAGNOSTIC_VIEWS))
+        self.assertEqual(manual["views"], list(ownership.android.DEFAULT_VIEWS))
         self.assertNotIn("mutation", manual["views"])
         self.assertNotIn("stability", result["views"])
         self.assertNotIn("endurance", result["views"])
 
     def test_complete_old_and_new_package_tuples_remain_approved_but_mixed_android_callee_fails(self):
         for direct, producer in ((False, False), (False, True), (True, False), (True, True)):
-            generation = self.workflow_files(direct=direct, producer=producer, owned=False)
+            generation = self.workflow_files(direct=direct, producer=producer)
             self.assertEqual(gate.validate_tree_wiring(gate._sources(self.candidate).entries), generation["name"])
         original = deepcopy(gate._sources(self.candidate).entries)
         for mutate in (lambda t: t.pop(gate.WORKFLOW),
@@ -262,7 +232,7 @@ class RequiredAndroidTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "activation blocked"):
             gate.admit(self.candidate, self.event)
         # Trusted test policy enables only the fake fixture target.
-        with self.assertRaisesRegex(ValueError, "not qualified"):
+        with self.assertRaisesRegex(ValueError, "not implemented"):
             gate.admit(self.candidate, self.event, policy_root=self.policy_root)
         with patch.object(gate, "ACTIVATION_READY", True):
             gate.admit(self.candidate, self.event, policy_root=self.policy_root)

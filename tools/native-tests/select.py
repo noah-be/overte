@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
-import os
 from pathlib import Path
 import re
 import subprocess
@@ -83,22 +82,13 @@ def select(targets, tests, paths, source, broad=False):
             'broad': broad, 'affected_target_count': len(affected)}
 
 
-def validate_input_routes(targets, source, planner, browser_owned=(), ci_only=()):
+def validate_input_routes(targets, source, planner):
     """A new compiled input cannot silently enter a host-only path exemption."""
     for target in targets:
         if target.get('type') not in ('EXECUTABLE', 'STATIC_LIBRARY', 'SHARED_LIBRARY', 'MODULE_LIBRARY', 'OBJECT_LIBRARY'):
             continue
         for item in target.get('sources', []):
             path = source / item['path']
-            canonical = path.resolve()
-            if canonical.is_relative_to(source.resolve()) and canonical.relative_to(source.resolve()).as_posix() in browser_owned:
-                raise ValueError(f'Ordinary native target consumes a delegated Browser input: {path}')
-            # A source may be compiled with LANGUAGE CXX despite its .py/.json
-            # suffix. CI classification is not permission for native consumption.
-            lexical = Path(os.path.abspath(path))
-            if any(item.is_relative_to(source.resolve()) and item.relative_to(source.resolve()).as_posix() in ci_only
-                   for item in (canonical, lexical)):
-                raise ValueError(f'Ordinary native target consumes a classified CI input: {path}')
             # Generated build-tree inputs need no source route. A generated
             # file in the source tree must still obey host-exemption checks.
             if item.get('isGenerated') and not path.is_relative_to(source):
@@ -180,9 +170,7 @@ def main():
     spec = importlib.util.spec_from_file_location('native_input_routing', Path(__file__).with_name('check.py'))
     routing = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(routing)
-    ownership = routing.browser_ownership()
-    validate_input_routes(targets, args.source.resolve(), routing.plan,
-                          ownership.owned_paths(), ownership.classified_ci_paths())
+    validate_input_routes(targets, args.source.resolve(), routing.plan)
     policy = json.loads((args.source / '.github/native-tests.json').read_text())
     plan = json.loads(args.plan.read_text())
     names = configured_test_names(policy, args.source, plan['mode'])

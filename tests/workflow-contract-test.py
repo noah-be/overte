@@ -96,6 +96,65 @@ def artifact_retention_limit(workflow_name, artifact_lines):
     return 90 if source_checkpoint else 30
 
 
+class BrowserTriggerContracts(unittest.TestCase):
+    """Browser product work is selected only by changes in its own client."""
+
+    @staticmethod
+    def selects(filters, paths):
+        for path in paths:
+            selected = False
+            for pattern in filters:
+                negative = pattern.startswith('!')
+                glob = pattern[1:] if negative else pattern
+                # GitHub's **/ also matches zero directory components.
+                if fnmatch.fnmatchcase(path, glob) or fnmatch.fnmatchcase(path, glob.replace('/**/', '/')):
+                    selected = not negative
+            if selected:
+                return True
+        return False
+
+    def test_browser_workflows_ignore_unrelated_changes_and_keep_own_source_and_packages(self):
+        unrelated = [
+            '.github/workflows/browser-client.yml', '.github/workflows/browser-direct-client.yml',
+            '.github/native-tests.json', 'tools/native-tests/select.py',
+            'tools/branch-cleanup/cleanup.py', 'tests/branch-cleanup-test.py',
+            'libraries/networking/src/NodeList.cpp', 'libraries/shared/src/shared/WebRTC.h',
+            'domain-server/src/DomainServer.cpp', 'assignment-client/src/Agent.cpp',
+            'cmake/macros/TargetDataChannel.cmake', 'tests/browser-direct-transport/main.cpp',
+            'ios/tests/run-tests.sh', 'android/app/src/Main.java', 'docs/BRANCH_WORKFLOW.md',
+            'script-archive/marketplace/S3Server/package-lock.json',
+        ]
+        for filename, root, events in (
+                ('browser-client.yml', 'browser-client', ('pull_request',)),
+                ('browser-direct-client.yml', 'browser-direct-client', ('pull_request', 'push'))):
+            source = (WORKFLOW_DIRECTORY / filename).read_text()
+            for event in events:
+                filters = workflow_events(source)[event]['paths']
+                with self.subTest(workflow=filename, event=event):
+                    self.assertFalse(self.selects(filters, unrelated))
+                    for path in unrelated:
+                        self.assertFalse(self.selects(filters, [path]), path)
+                    for suffix in ('src/main.ts', 'gateway/server.mjs', 'tests/behavior.test.ts',
+                                   'public/model.glb', 'package.json', 'package-lock.json'):
+                        self.assertTrue(self.selects(filters, [f'{root}/{suffix}']), suffix)
+                    for suffix in ('README.md', 'docs/nested/guide.md', 'guide.mdx'):
+                        self.assertFalse(self.selects(filters, [f'{root}/{suffix}']), suffix)
+                    self.assertTrue(self.selects(filters, [*unrelated, f'{root}/src/main.ts']))
+                    other = 'browser-direct-client' if root == 'browser-client' else 'browser-client'
+                    self.assertFalse(self.selects(filters, [f'{other}/package-lock.json']))
+
+    def test_atomic_diagnostic_requires_a_changed_browser_laboratory_input(self):
+        events = workflow_events((WORKFLOW_DIRECTORY / 'browser-client-atomic-settings.yml').read_text())
+        self.assertNotIn('pull_request', events)
+        filters = events['push']['paths']
+        self.assertTrue(all(not value.startswith('!') and value.startswith('browser-client/') for value in filters))
+        self.assertTrue(self.selects(filters, ['browser-client/lab/atomic-provisioning/stage.py']))
+        self.assertTrue(self.selects(filters, ['browser-client/lab/manage.py']))
+        for path in ('.github/workflows/browser-client-atomic-settings.yml', 'tools/branch-cleanup/cleanup.py',
+                     'ios/Interface.mm', 'browser-client/src/world.ts', 'browser-client/README.md'):
+            self.assertFalse(self.selects(filters, [path]), path)
+
+
 class LightweightWorkflowContracts(unittest.TestCase):
     def test_documentation_changes_use_lightweight_checks(self):
         documentation = DOCUMENTATION_WORKFLOW.read_text(encoding="utf-8")
@@ -126,59 +185,6 @@ class LightweightWorkflowContracts(unittest.TestCase):
         self.assertFalse(has_automatic_app_trigger("on:\n  workflow_dispatch:\n"))
         self.assertTrue(has_automatic_app_trigger("on:\n  pull_request:\n"))
         self.assertTrue(has_automatic_app_trigger("on:\n  push:\n"))
-
-    def test_manual_sandbox_diagnostic_has_no_pr_or_reusable_evidence_authority(self):
-        name = "shared-sandbox-host-diagnostic.yml"
-        source = (WORKFLOW_DIRECTORY / name).read_text(encoding="utf-8")
-        self.assertEqual(source, (ROOT / "tools/test-evidence/workflows" / name).read_text(encoding="utf-8"))
-        self.assertEqual(workflow_events(source), {"workflow_dispatch": None})
-        data = workflow_data(source)
-        self.assertEqual(data["permissions"], {"contents": "read"})
-        self.assertEqual(data["concurrency"], {"group": "shared-sandbox-host-diagnostic", "cancel-in-progress": False})
-        self.assertEqual(set(data["jobs"]), {"boundary-diagnostic"})
-        job = data["jobs"]["boundary-diagnostic"]
-        self.assertEqual(set(job), {"runs-on", "timeout-minutes", "steps"})
-        self.assertEqual(job["runs-on"], "ubuntu-24.04")
-        self.assertEqual(job["timeout-minutes"], 5)
-        steps = job["steps"]
-        self.assertEqual(set(steps[0]), {"name", "run"})
-        guard = steps[0]["run"]
-        for assertion in (
-                'test "$GITHUB_REPOSITORY" = noah-l-frank/overte',
-                'test "$GITHUB_REPOSITORY_ID" = 1319052603',
-                'test "$GITHUB_EVENT_NAME" = workflow_dispatch',
-                'test "$GITHUB_REF" = refs/heads/main',
-                'test "$GITHUB_WORKFLOW_REF" = \'noah-l-frank/overte/.github/workflows/' + name + '@refs/heads/main\''):
-            self.assertIn(assertion, guard)
-        self.assertIn("set -euo pipefail", guard)
-        checkout = steps[1]
-        self.assertTrue(checkout["uses"].startswith("actions/checkout@"))
-        self.assertEqual(checkout["with"]["repository"], "noah-l-frank/overte")
-        self.assertEqual(checkout["with"]["ref"], "${{ github.sha }}")
-        self.assertIs(checkout["with"]["persist-credentials"], False)
-        provision = steps[2]
-        self.assertEqual(provision["id"], "account")
-        self.assertIn('test "$RUNNER_ENVIRONMENT" = github-hosted', provision["run"])
-        self.assertIn('test "$ImageOS" = ubuntu24', provision["run"])
-        self.assertIn("if getent passwd overte-ci-qualification", provision["run"])
-        self.assertIn("useradd --system --no-create-home --shell /usr/sbin/nologin overte-ci-qualification", provision["run"])
-        measure = steps[3]["run"]
-        self.assertIn("--wait --pipe --collect --quiet --service-type=exec", measure)
-        self.assertIn("--expand-environment=no --property=Delegate=yes", measure)
-        self.assertIn('/usr/bin/env -i', measure)
-        self.assertIn('/usr/bin/python3 -I "$GITHUB_WORKSPACE/tools/test-evidence/sandbox_host.py"', measure)
-        self.assertNotIn("GITHUB_TOKEN", measure)
-        self.assertEqual(steps[4]["if"], "always() && steps.account.outputs.created == 'true'")
-        self.assertEqual(steps[4]["run"], "sudo -n /usr/sbin/userdel overte-ci-qualification")
-        artifact = steps[5]
-        self.assertEqual(artifact["if"], "always()")
-        self.assertTrue(artifact["uses"].startswith("actions/upload-artifact@"))
-        self.assertEqual(artifact["with"]["path"], "${{ runner.temp }}/shared-sandbox-diagnostic/result.json")
-        self.assertEqual(artifact["with"]["retention-days"], 7)
-        self.assertEqual(len(steps), 6)
-        self.assertNotIn("continue-on-error", source)
-        for caller in ("repository-checks.yml", "project-tests.yml", "parent-qualification.yml", "sync-validation.yml"):
-            self.assertNotIn(name, (WORKFLOW_DIRECTORY / caller).read_text(encoding="utf-8"))
 
     def test_canonical_runner_inventory_covers_descendants_and_is_governed(self):
         config = (ROOT / ".github/actionlint.yaml").read_text()

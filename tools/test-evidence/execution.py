@@ -156,10 +156,8 @@ def validate_receipt(receipt, registry, tree, *, require_all=False):
     fields = {"schema", "producer", "candidate_commit", "candidate_tree", "environment", "reusable",
               "requested_suites", "include_platform", "results", "platform_results", "conclusion",
               "started_at", "completed_at", "receipt_digest"}
-    if not isinstance(receipt, dict) or type(receipt.get("schema")) is not int \
-            or (receipt["schema"] == 1 and set(receipt) != fields) \
-            or (receipt["schema"] == 2 and set(receipt) != fields | {"platform_selection"}) \
-            or receipt["schema"] not in {1, 2} or receipt["producer"] != PRODUCER:
+    if not isinstance(receipt, dict) or set(receipt) != fields or type(receipt["schema"]) is not int \
+            or receipt["schema"] != 1 or receipt["producer"] != PRODUCER:
         raise ExecutionError("execution receipt format is invalid")
     unsigned = dict(receipt)
     claimed = unsigned.pop("receipt_digest")
@@ -207,36 +205,7 @@ def validate_receipt(receipt, registry, tree, *, require_all=False):
         if name in registry["suites"] or not isinstance(result, dict) or set(result) != {"status", "command"} \
                 or result["status"] != "passed" or not isinstance(result["command"], list) or not result["command"]:
             raise ExecutionError("execution receipt platform suite did not pass")
-    if receipt["schema"] == 2:
-        selection = receipt["platform_selection"]
-        if require_all:
-            raise ExecutionError("qualification cannot certify pending independent platform ownership")
-        if not isinstance(selection, dict) or set(selection) != {"original", "executed", "delegated", "observed_environment"} \
-                or not receipt["include_platform"] or not isinstance(selection["original"], list) \
-                or any(not isinstance(name, str) for name in selection["original"]) \
-                or len(selection["original"]) != len(set(selection["original"])) \
-                or selection["executed"] != [name for name in selection["original"] if name != "pico4-device-free"] \
-                or set(selection["executed"]) != set(platform) \
-                or not isinstance(selection["delegated"], dict) or set(selection["delegated"]) != {"pico4-device-free"} \
-                or "pico4-device-free" not in selection["original"]:
-            raise ExecutionError("owned platform execution selection is incomplete")
-        if receipt["reusable"] or receipt["environment"] is not None:
-            raise ExecutionError("pending platform transfer cannot authorize reusable evidence")
-        if selection["observed_environment"] is not None:
-            inputs._environment(selection["observed_environment"])
-        _validate_platform_owner(selection["delegated"], receipt["candidate_commit"])
     return results
-
-
-def _validate_platform_owner(value, candidate):
-    """Structural diagnostic data only; the required outer gate owns authority."""
-    if not isinstance(value, dict) or set(value) != {"pico4-device-free"}:
-        raise ExecutionError("only the exact reviewed Pico owner can transfer platform execution")
-    proof = value["pico4-device-free"]
-    if not isinstance(proof, dict) or set(proof) != {"owner", "candidate", "plan", "inventory"} \
-            or proof["owner"] != "required-android" or proof["candidate"] != candidate \
-            or any(not isinstance(proof[key], str) or not _DIGEST.fullmatch(proof[key]) for key in ("plan", "inventory")):
-        raise ExecutionError("invalid independent Android ownership plan")
 
 
 def _write_receipt(path, receipt):
@@ -253,19 +222,12 @@ def _write_receipt(path, receipt):
 
 
 def execute(candidate, suite_names=None, *, include_platform=False, junit=None, receipt_path=None,
-            timeout=240, host_timeout=900, _platform_owner=None):
+            timeout=240, host_timeout=900):
     candidate = Path(candidate).resolve(strict=True)
     initial = checkout_identity(candidate)
     registry = inputs.load_registry(ROOT / ".github/test-suites.json")
     names = select_common(registry, suite_names)
     product = platform_suites(candidate, registry["suites"]) if include_platform else []
-    original_product = [name for name, _ in product]
-    delegated = _platform_owner() if _platform_owner is not None else {}
-    if delegated:
-        if not include_platform or "pico4-device-free" not in original_product:
-            raise ExecutionError("Android transfer requires the complete actual product profile")
-        _validate_platform_owner(delegated, initial[0])
-        product = [(name, command) for name, command in product if name not in delegated]
     controller = _runner()
     environment = None
     try:
@@ -338,13 +300,6 @@ def execute(candidate, suite_names=None, *, include_platform=False, junit=None, 
         "conclusion": "success" if exit_code == 0 and len(observations) == len(suites) else "failure",
         "started_at": started, "completed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
-    if delegated:
-        receipt["schema"] = 2
-        receipt["platform_selection"] = {"original": original_product, "executed": list(commands),
-                                         "delegated": delegated, "observed_environment": environment}
-        receipt["environment"], receipt["reusable"] = None, False
-        for result in results.values():
-            result["fingerprint"] = None
     receipt["receipt_digest"] = digest(receipt)
     _write_receipt(receipt_path, receipt)
     return exit_code, receipt
