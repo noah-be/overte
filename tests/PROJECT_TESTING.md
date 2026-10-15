@@ -333,7 +333,7 @@ They require no Android SDK, Gradle run or product build. The controller and
 wiring. Its current evidence closure covers the repository because controller
 loading also validates the branch-owned platform profile.
 
-The `codeql-selection` quick suite tests the dormant
+The `codeql-selection` quick suite tests the active
 [`tools/repository-checks/codeql.py`](../tools/repository-checks/codeql.py)
 language selector. It compares complete immutable Git trees, including deleted,
 renamed and mode-changed inputs, without importing candidate code. Pure Python
@@ -342,13 +342,20 @@ JavaScript/TypeScript. Overlapping manifests, query-pack directories, shared
 controls, unknown inputs, incomplete inventories and unresolved aliases retain
 both languages. Scheduled scans always retain both languages.
 
-The helper does not control the active CodeQL workflow. Its tests run in the
+The CodeQL workflow runs the helper from trusted default-branch code against
+the exact immutable base and merge candidate. It creates only the selected
+language jobs; a final `codeql-checks` aggregate rejects selection failures and
+failed, cancelled, missing or unexpectedly skipped analyses. Unrelated workflow
+YAML selects JavaScript data analysis; a local Python action selects Python.
+Changes to the actual CodeQL workflow/configuration still select both languages.
+The activation uses the existing trusted CLI and conservatively scans both
+languages until the reviewed successor is integrated. Its tests run in the
 required quick and combined host profiles; the shared registry binds the test,
 helper, immutable-inventory module and actual CodeQL workflow/configuration.
-Future activation must use a trusted selector checkout and exact authenticated
-base/candidate commits, preserve whole-language scans and scheduled full scans,
-and review the helper's configuration hashes after changing CodeQL configuration
+Review the helper's configuration hashes after changing CodeQL configuration
 or action versions. It selects languages, not individual files within a scan.
+PR and default-branch push scans still run independently for affected languages;
+cross-event result reuse is not implemented by this language-selection change.
 The `browser-cpu-selection` quick suite exercises dormant trusted Browser CPU
 history routing and both inner and outer required-result validation against
 real Git histories. It also runs in the combined host profile. Its registry
