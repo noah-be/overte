@@ -784,10 +784,11 @@ Deployment requires the staged complete workflow tuple to be reviewed and landed
 on main before replacing the active callee. The unchanged required aggregate
 still blocks merging if host execution fails or is unexpectedly skipped.
 
-The staged `tools/repository-checks/workflows/host/parent-qualification.yml`
-applies the same impact selection to post-merge parent pushes. Its complete
-workflow tuple must land in trusted policy before deployment. Selection runs
-before Qt installation. Reviewed CI-only pushes run the CI groups; product,
+On `main`, `.github/workflows/parent-qualification.yml` now deploys the canonical
+`tools/repository-checks/workflows/host/parent-qualification.yml` generation and
+applies the same impact selection after merges. Other parent branches receive
+this workflow through their reviewed CI propagation. The complete workflow tuple
+is admitted by trusted policy before deployment. Selection runs before Qt installation. Reviewed CI-only pushes run the CI groups; product,
 unknown, changed-reader and nonregular inputs retain the full host route.
 New candidate command variants run in the impact executor and cannot produce a
 legacy full-inventory receipt unless all commands have a supported receipt.

@@ -997,8 +997,25 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
         steps = workflow_data(source)['jobs']['qualify-parent']['steps']
         create = next(step for step in steps if step['name'] == 'Create content-addressed qualification evidence')
         upload = next(step for step in steps if step['name'] == 'Upload immutable qualification evidence')
+        canonical = (ROOT / 'tools/repository-checks/workflows/host/parent-qualification.yml').read_text()
+        if source == canonical:
+            expected = "steps.host.outputs.complete_receipt == 'true'"
+            selected = next(step for step in steps if step.get('id') == 'host')
+            route = next(step for step in steps if step['name'] == 'Require a complete host execution route')
+            qt = next(step for step in steps if step['name'] == 'Install QML and portable C++ contract prerequisites')
+            self.assertLess(steps.index(selected), steps.index(route))
+            self.assertLess(steps.index(route), steps.index(qt))
+            self.assertEqual(qt['if'], "steps.host.outputs.full_host == 'true'")
+            partial = next(step for step in steps if step['name'] == 'Run independently selected parent host contracts')
+            self.assertIn("steps.host.outputs.complete_receipt == 'false'", partial['if'])
+            self.assertIn('trusted/tools/repository-checks/host_selection.py', partial['run'])
+            self.assertNotIn('--receipt', partial['run'])
+            self.assertNotIn('qualification.py', partial['run'])
+        else:
+            self.assertEqual(source, (ROOT / 'tools/repository-checks/workflows/packages/parent-qualification.yml').read_text())
+            expected = "steps.route.outputs.package_host_mode == 'full'"
         for step in (create, upload):
-            self.assertEqual(step['if'], "steps.route.outputs.package_host_mode == 'full'")
+            self.assertEqual(step['if'], expected)
         self.assertIn('Check only affected tool dependencies and behavior', source)
         self.assertNotIn('continue-on-error:', source)
         self.assertEqual(upload['with']['name'], 'parent-qualification-${{ github.sha }}')

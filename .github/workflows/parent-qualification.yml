@@ -81,8 +81,26 @@ jobs:
         python3 --version
         node --version
         java -version
-    - name: Install QML and portable C++ contract prerequisites
+    - name: Independently select affected parent host contracts
+      id: host
       if: steps.route.outputs.package_host_mode == 'full'
+      env:
+        EXPECTED_PLAN: ${{ steps.route.outputs.package_plan }}
+      run: python3 trusted/tools/repository-checks/host_selection.py --candidate candidate --event "$GITHUB_EVENT_PATH"
+        --sha "$GITHUB_SHA" --expected-plan "$EXPECTED_PLAN" --select-only --output "$GITHUB_OUTPUT"
+        --selection-report build/parent-qualification/host-selection.json
+    - name: Require a complete host execution route
+      if: steps.route.outputs.package_host_mode == 'full'
+      env:
+        FULL_HOST: ${{ steps.host.outputs.full_host }}
+        COMPLETE_RECEIPT: ${{ steps.host.outputs.complete_receipt }}
+      run: |
+        case "$FULL_HOST/$COMPLETE_RECEIPT" in
+          true/true|true/false|false/false) ;;
+          *) printf '%s\n' 'Missing or inconsistent parent host selection' >&2; exit 1 ;;
+        esac
+    - name: Install QML and portable C++ contract prerequisites
+      if: steps.host.outputs.full_host == 'true'
       run: |
         set -euo pipefail
         sudo apt-get -o Acquire::Retries=4 update
@@ -108,14 +126,24 @@ jobs:
         python3 -m venv build/host-tests-env
         build/host-tests-env/bin/python -m pip install --disable-pip-version-check -r trusted/tests/requirements-host.txt
     - name: Run complete host qualification
-      if: steps.route.outputs.package_host_mode == 'full'
+      if: steps.host.outputs.complete_receipt == 'true'
       env:
         GH_TOKEN: ''
         GITHUB_TOKEN: ''
       run: build/host-tests-env/bin/python trusted/tools/test-evidence/run.py --candidate candidate --include-platform
         --timeout 240 --host-timeout 900 --junit build/test-results/parent-project-tests.xml --receipt build/parent-qualification/execution.json
+    - name: Run independently selected parent host contracts
+      if: steps.route.outputs.package_host_mode == 'full' && steps.host.outputs.complete_receipt == 'false'
+      env:
+        GH_TOKEN: ''
+        GITHUB_TOKEN: ''
+        EXPECTED_PLAN: ${{ steps.route.outputs.package_plan }}
+      run: build/host-tests-env/bin/python trusted/tools/repository-checks/host_selection.py --candidate candidate
+        --event "$GITHUB_EVENT_PATH" --sha "$GITHUB_SHA" --expected-plan "$EXPECTED_PLAN"
+        --junit build/test-results/parent-project-tests.xml
+        --selection-report build/parent-qualification/host-selection.json
     - name: Create content-addressed qualification evidence
-      if: steps.route.outputs.package_host_mode == 'full'
+      if: steps.host.outputs.complete_receipt == 'true'
       env:
         PARENT_BRANCH: ${{ github.ref_name }}
         PARENT_COMMIT: ${{ github.sha }}
@@ -128,7 +156,7 @@ jobs:
         "$REPOSITORY_ID" --parent-branch "$PARENT_BRANCH" --commit "$PARENT_COMMIT" --run-id "$RUN_ID" --run-attempt
         "$RUN_ATTEMPT" --output build/parent-qualification/qualification.json
     - name: Upload immutable qualification evidence
-      if: steps.route.outputs.package_host_mode == 'full'
+      if: steps.host.outputs.complete_receipt == 'true'
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
       with:
         name: parent-qualification-${{ github.sha }}
@@ -144,6 +172,7 @@ jobs:
           build/test-results/
           candidate/build/test-results/
           build/parent-qualification/execution.json
+          build/parent-qualification/host-selection.json
         if-no-files-found: warn
         retention-days: 7
     - name: Check only affected tool dependencies and behavior
