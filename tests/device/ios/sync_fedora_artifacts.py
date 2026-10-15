@@ -29,7 +29,7 @@ if str(IOS_ROOT) not in sys.path:
     sys.path.insert(0, str(IOS_ROOT))
 from security_tools import install as install_security_tools  # noqa: E402
 API_VERSION = "2026-03-10"
-DEFAULT_REPOSITORY = "noah-be/overte"
+DEFAULT_REPOSITORY = "noah-l-frank/overte"
 WORKFLOW = "ios-fedora-e2e-producer.yml"
 WORKFLOW_PATH = f".github/workflows/{WORKFLOW}"
 PROTECTED_REF = "apple-ios"

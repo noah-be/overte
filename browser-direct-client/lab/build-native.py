@@ -12,7 +12,7 @@ import subprocess
 
 REPO = Path(__file__).resolve().parents[2]
 STATE = REPO / "build/browser-direct"
-IMAGE = "ghcr.io/noah-be/overte/native-dependencies@sha256:a692b477cd2efdfc1f3d0f059a8eebba4852d37509a2efa945937ef2fe073373"
+IMAGE = "ghcr.io/noah-l-frank/overte/native-dependencies@sha256:a692b477cd2efdfc1f3d0f059a8eebba4852d37509a2efa945937ef2fe073373"
 DATA_CHANNEL_URL = "https://github.com/paullouisageneau/libdatachannel.git"
 DATA_CHANNEL_TAG = "v0.24.6"
 DATA_CHANNEL_COMMIT = "6b1e2e620f1e37f0eafeee702eaea0043cb305fd"

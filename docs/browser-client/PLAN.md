@@ -412,7 +412,7 @@ independent of the existing product roadmap.
 Topic: `feature/main/browser-client` in the separate browser-client worktree.
 Initial fork main: `e6ba29f4819fefdc3b212fd00abcf9dbbb6b4999`; subsequently integrated
 reviewed fork main `d569930678d2edb61330a96bcdcab17ee68a732f` for coherent CI ancestry.
-Only `noah-be/overte` is authorized for GitHub writes. Verify exact repository
+Only `noah-l-frank/overte` is authorized for GitHub writes. Verify exact repository
 ownership and rewritten push URLs before every mutation; upstream remains read-only.
 Preserve other worktrees, credentials, hooks, existing services and unintegrated branches.
 

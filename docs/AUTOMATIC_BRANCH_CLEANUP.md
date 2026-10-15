@@ -1,7 +1,7 @@
 # Automatic branch cleanup
 
 The `Automatic branch cleanup` GitHub Actions workflow retires fully integrated
-working branches in `noah-be/overte`. It runs on GitHub-hosted Ubuntu runners and
+working branches in `noah-l-frank/overte`. It runs on GitHub-hosted Ubuntu runners and
 continues operating while the maintainer's computers are switched off.
 
 There is no branch-age requirement or waiting period. A merged pull request wakes
@@ -102,8 +102,8 @@ substituting the verified values:
 ```bash
 BRANCH='feature/main/example'
 SHA='the-verified-40-character-commit-SHA'
-test "$(gh api repos/noah-be/overte --jq .full_name)" = noah-be/overte
-gh api --method POST repos/noah-be/overte/git/refs \
+test "$(gh api repos/noah-l-frank/overte --jq .full_name)" = noah-l-frank/overte
+gh api --method POST repos/noah-l-frank/overte/git/refs \
   -f ref="refs/heads/$BRANCH" -f sha="$SHA"
 ```
 
@@ -122,7 +122,7 @@ Manual dispatch defaults to `report`. It performs the assessment without creatin
 backups or deleting branches:
 
 ```bash
-gh workflow run branch-cleanup.yml --repo noah-be/overte -f mode=report
+gh workflow run branch-cleanup.yml --repo noah-l-frank/overte -f mode=report
 ```
 
 Explicit `mode=apply` performs the same backup and deletion sequence used by the

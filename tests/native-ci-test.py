@@ -225,9 +225,16 @@ class PreparedPackageTests(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(name)
                 inputs[name] = hashlib.sha256(path.read_bytes()).hexdigest()
-            metadata = {'schema': 1, 'repository': 'noah-be/overte', 'source_sha': 'a' * 40,
+            metadata = {'schema': 1, 'repository': 'noah-l-frank/overte', 'source_sha': 'a' * 40,
                         'run_id': '123', 'archive_sha256': 'b' * 64, 'inputs': inputs}
             self.assertEqual(PACKAGES.verify(root, metadata)['status'], 'PASS')
+            # The reviewed digest image contains the original producer name.
+            # Keep those exact historical bytes valid alongside new producers.
+            original = copy.deepcopy(metadata)
+            legacy = {**metadata, 'repository': 'noah-be/overte'}
+            self.assertEqual(PACKAGES.verify(root, legacy), PACKAGES.verify(root, metadata))
+            self.assertEqual(metadata, original)
+            self.assertEqual(legacy['repository'], 'noah-be/overte')
             (root / 'main.cpp').write_text('changed production code')
             self.assertEqual(PACKAGES.verify(root, metadata)['status'], 'PASS')
             for name in PACKAGES.INPUTS:
@@ -277,7 +284,7 @@ class WorkflowCostTests(unittest.TestCase):
         source = (ROOT / '.github/workflows/native-dependencies.yml').read_text()
         ordinary = (ROOT / '.github/workflows/native-tests.yml').read_text()
         self.assertIn('  workflow_dispatch:', source)
-        self.assertIn('repository: noah-be/overte', source)
+        self.assertIn('repository: noah-l-frank/overte', source)
         self.assertIn('ref: ${{ inputs.candidate_sha || github.sha }}', source)
         self.assertIn('--sha "$BASELINE_SHA"', source)
         self.assertNotRegex(source, r'(?m)^  (push|pull_request|schedule):')
@@ -309,12 +316,23 @@ class WorkflowCostTests(unittest.TestCase):
             self.assertIn('native-ccache-' + image.group(2)[:12] + '-v1-', workflow)
 
     def test_consumer_requires_a_pinned_fork_image_before_offline_resolution(self):
+        import ast
         import yaml
         workflow = yaml.safe_load((ROOT / '.github/workflows/native-tests.yml').read_text())
         caller = yaml.safe_load((ROOT / '.github/workflows/repository-checks.yml').read_text())
         job = workflow['jobs']['build']
         self.assertRegex(job['container']['image'],
-                         r'^ghcr\.io/noah-be/overte/native-dependencies@sha256:[0-9a-f]{64}$')
+                         r'^ghcr\.io/noah-l-frank/overte/native-dependencies@sha256:[0-9a-f]{64}$')
+        direct = yaml.safe_load((ROOT / '.github/workflows/browser-direct-client.yml').read_text())
+        self.assertEqual(direct['jobs']['native']['container']['image'], job['container']['image'])
+        for name in ('manage.py', 'build-native.py'):
+            tree = ast.parse((ROOT / 'browser-direct-client/lab' / name).read_text())
+            images = [ast.literal_eval(node.value) for node in tree.body
+                      if isinstance(node, ast.Assign)
+                      and any(isinstance(target, ast.Name) and target.id == 'IMAGE'
+                              for target in node.targets)]
+            with self.subTest(lab_consumer=name):
+                self.assertEqual(images, [job['container']['image']])
         self.assertEqual(job['container']['credentials'],
                          {'username': '${{ github.actor }}', 'password': '${{ secrets.GITHUB_TOKEN }}'})
         self.assertEqual(workflow['permissions'], {'contents': 'read', 'packages': 'read'})
@@ -340,16 +358,16 @@ class WorkflowCostTests(unittest.TestCase):
         self.assertNotIn('packages: write', prepare)
         self.assertIn('needs: prepare', publish)
         self.assertNotIn('always()', publish.split('    steps:', 1)[0])
-        self.assertIn("github.repository == 'noah-be/overte'", publish)
+        self.assertIn("github.repository == 'noah-l-frank/overte'", publish)
         self.assertIn("github.event.repository.default_branch", publish)
         self.assertIn('ref: ${{ github.sha }}', publish)
-        self.assertIn('ghcr.io/noah-be/overte/native-dependencies:', publish)
+        self.assertIn('ghcr.io/noah-l-frank/overte/native-dependencies:', publish)
         self.assertIn("metadata['source_sha'] == os.environ['BASELINE_SHA']", publish)
         self.assertIn("metadata['run_id'] == os.environ['GITHUB_RUN_ID']", publish)
         self.assertIn("== metadata['archive_sha256']", publish)
         self.assertIn("conan cache save '*#*:*#*' --no-source", prepare)
         dockerfile = (ROOT / 'tools/native-tests/package-image.Dockerfile').read_text()
-        self.assertIn('org.opencontainers.image.source="https://github.com/noah-be/overte"', dockerfile)
+        self.assertIn('org.opencontainers.image.source="https://github.com/noah-l-frank/overte"', dockerfile)
         self.assertIn('conan cache restore /native-packages/conan-packages.tgz', dockerfile)
         self.assertNotIn('COPY . ', dockerfile)
 
@@ -458,7 +476,7 @@ class GitInventoryTests(unittest.TestCase):
             git('switch', '-q', 'base')
             git('merge', '--no-ff', '-m', 'Merge fixture', head)
             merge = git('rev-parse', 'HEAD')
-            repository = {'id': 1319052603, 'full_name': 'noah-be/overte'}
+            repository = {'id': 1319052603, 'full_name': 'noah-l-frank/overte'}
             event_file, output = root / 'event.json', root / 'output'
             command = [sys.executable, str(trusted / 'tools/repository-checks/check.py'), 'plan',
                        '--event', str(event_file), '--candidate', str(candidate), '--sha', merge,

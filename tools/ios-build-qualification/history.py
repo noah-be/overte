@@ -18,7 +18,7 @@ import sys
 from urllib.parse import quote
 
 
-REPOSITORY = "noah-be/overte"
+REPOSITORY = "noah-l-frank/overte"
 REPOSITORY_ID = 1319052603
 WORKFLOW = "ios-bootstrap.yml"
 HISTORY_WORKFLOWS = (WORKFLOW, "ios-build-qualification.yml")
@@ -214,7 +214,7 @@ def main():
                     "apple-ios moved after the reviewed preflight; inspect the new revision")
             dispatched = gh("workflow", "run", WORKFLOW, "--repo", REPOSITORY,
                             "--ref", "apple-ios", "-f", "integrated=true").strip()
-            match = re.fullmatch(r"https://github.com/noah-be/overte/actions/runs/([0-9]+)", dispatched)
+            match = re.fullmatch(r"https://github.com/noah-l-frank/overte/actions/runs/([0-9]+)", dispatched)
             require(match, "dispatch returned no exact run URL; inspect Actions before any retry")
             run = api(f"repos/{REPOSITORY}/actions/runs/{match[1]}")
             require(run["repository"]["full_name"] == REPOSITORY
