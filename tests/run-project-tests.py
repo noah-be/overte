@@ -199,7 +199,10 @@ def select(args: argparse.Namespace) -> list[Suite]:
         return [suite for suite in SUITES if suite.layer in {"quick", "host"}
                 and suite.name not in {"device-e2e-contracts", "native-smoke"}]
     layers = {"quick"} if args.profile == "quick" else {"quick", "native"}
-    return [suite for suite in SUITES if suite.layer in layers]
+    # Preserve the full native profile's existing script coverage after moving
+    # the Qt-dependent group out of the dependency-light quick profile.
+    return [suite for suite in SUITES if suite.layer in layers
+            or args.profile == "full" and suite.name == "shared-script-behavior"]
 
 
 def write_junit(path: Path, results: list[dict[str, object]], elapsed: float) -> None:
@@ -333,7 +336,7 @@ def run_suites(args: argparse.Namespace, suites: list[Suite], cancelled: list[in
     for suite in suites:
         command = list(suite.command)
         timeout = args.timeout
-        if suite.name == "device-control-plane-full":
+        if suite.name == "device-control-plane-full" or suite.name.startswith("device-control-plane-full-candidate-"):
             timeout = args.host_timeout
             command.extend(("--timeout-seconds", str(timeout)))
         if suite.name == "native-ctest" and args.native_build_dir:
