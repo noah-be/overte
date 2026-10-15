@@ -168,8 +168,5 @@
     "tools/test-evidence/run.py",
     "tools/test-evidence/validate-sync.py"
   ],
-  "redundant_pull_request_workflows": [
-    "android-tests.yml",
-    "project-tests.yml"
-  ]
+  "redundant_pull_request_workflows": []
 }
