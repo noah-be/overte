@@ -38,6 +38,15 @@ def load_cleanup():
     return module
 
 
+def load_adoption():
+    cleanup = load_cleanup()
+    spec = importlib.util.spec_from_file_location("branch_adoption_under_test", SCRIPT.with_name("adoption.py"))
+    module = importlib.util.module_from_spec(spec)
+    with mock.patch.dict(sys.modules, {"cleanup": cleanup}):
+        spec.loader.exec_module(module)
+    return module
+
+
 class LocalGitFixture:
     """A real commit graph and bare remote; no network or user Git config."""
 
@@ -1035,6 +1044,458 @@ class ApplyRecoveryTests(unittest.TestCase):
         self.assert_branch_exists()
 
 
+class AdoptedHistoryTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.adoption = load_adoption()
+        cls.module = cls.adoption.cleanup
+
+    def setUp(self):
+        self.policy = json.loads(POLICY_PATH.read_text())
+        self.row = dict(branch="fix/main/adopted-source", sha="a" * 40,
+                        base="main", base_sha="b" * 40, pr=123)
+        self.github = mock.Mock(spec=self.module.Github)
+        self.pr = dict(number=123, state="closed", closed_at="2026-10-15T00:00:00Z", draft=False,
+                       head=dict(ref=self.row["branch"], sha=self.row["sha"],
+                                 repo=dict(id=1319052603, full_name=FORK)),
+                       base=dict(ref="main", sha=self.row["base_sha"],
+                                 repo=dict(id=1319052603, full_name=FORK)))
+        self.branches = [dict(name=name, sha=self.row["base_sha"], protected=True)
+                         for name in sorted(PERMANENT)]
+        self.branches.append(dict(name=self.row["branch"], sha=self.row["sha"], protected=False))
+        self.github.branches.return_value = self.branches
+        self.github.get.return_value = [self.pr]
+        self.github.activity_holds.return_value = {}
+        self.github.workflow_holds.return_value = {}
+        self.plan = dict(held={self.row["branch"]: ["not_fully_integrated"]}, source_sha="b" * 40)
+
+    def discover(self):
+        with mock.patch.object(self.module, "make_plan", return_value=self.plan):
+            return self.adoption.discover(self.github, self.policy)
+
+    def test_only_a_completed_same_repository_exact_head_pr_is_considered(self):
+        self.assertEqual(self.discover()[0], [self.row])
+        for changes in (dict(state="open"), dict(draft=True), dict(closed_at=None),
+                        dict(head={**self.pr["head"], "sha": "c" * 40}),
+                        dict(head={**self.pr["head"], "repo": dict(id=1, full_name="foreign/repo")})):
+            with self.subTest(changes=changes):
+                self.github.get.return_value = [{**self.pr, **changes}]
+                self.assertEqual(self.discover()[0], [])
+
+    def test_latest_pr_state_and_consumer_holds_are_honored(self):
+        self.github.get.return_value = [self.pr, {**self.pr, "number": 124, "state": "open"}]
+        self.assertFalse(self.discover()[0])
+        self.github.get.return_value = [self.pr]
+        for method in ("activity_holds", "workflow_holds"):
+            with self.subTest(method=method):
+                getattr(self.github, method).return_value = {self.row["branch"]: ["consumer_hold"]}
+                self.assertFalse(self.discover()[0])
+                getattr(self.github, method).return_value = {}
+
+    def test_generated_history_branches_do_not_recursively_generate_prs(self):
+        name = self.adoption.maintenance_branch(self.row)
+        self.plan["held"] = {name: ["not_fully_integrated"]}
+        self.assertFalse(self.discover()[0])
+        self.github.get.assert_not_called()
+
+    def test_negative_cache_identity_changes_when_source_target_or_pr_changes(self):
+        original = self.adoption.fingerprint(self.row)
+        for key, value in (("sha", "c" * 40), ("base_sha", "d" * 40), ("pr", 124)):
+            self.assertNotEqual(original, self.adoption.fingerprint({**self.row, key: value}))
+
+    def test_writes_use_the_app_token_only_in_the_environment_and_recheck_ownership(self):
+        writer = self.adoption.Writer(self.github, ROOT, "offline-app-token", "overte-test")
+        self.github.get.return_value = {"object": {"sha": self.row["base_sha"]}}
+        result = subprocess.CompletedProcess([], 0, stdout='{"ok": true}', stderr="")
+        with mock.patch.object(self.module, "trusted_runtime") as runtime, \
+                mock.patch.object(self.module, "verify_checkout") as checkout, \
+                mock.patch.object(self.module, "run", return_value=result) as run:
+            self.assertEqual(writer.write("pulls", "POST", {"head": "example"}), {"ok": True})
+        runtime.assert_called_once()
+        self.github.verify_owner.assert_called_once()
+        checkout.assert_called_once_with(ROOT, self.row["base_sha"])
+        self.assertIn("repos/" + FORK + "/pulls", run.call_args.args[0])
+        self.assertNotIn("offline-app-token", " ".join(run.call_args.args[0]))
+        self.assertEqual(run.call_args.kwargs["env"], {"GH_TOKEN": "offline-app-token"})
+
+    def test_missing_app_identity_and_foreign_owner_prevent_writes(self):
+        self.github.get.return_value = {"object": {"sha": self.row["base_sha"]}}
+        with mock.patch.object(self.module, "trusted_runtime"), \
+                mock.patch.object(self.module, "verify_checkout"), \
+                mock.patch.object(self.module, "run") as run:
+            for token, slug in (("", "overte-test"), ("token", ""), ("token", "../foreign")):
+                with self.assertRaises(self.module.CleanupError):
+                    self.adoption.Writer(self.github, ROOT, token, slug).write("pulls", "POST", {})
+            self.github.verify_owner.side_effect = self.module.CleanupError("foreign_repository")
+            with self.assertRaises(self.module.CleanupError):
+                self.adoption.Writer(self.github, ROOT, "token", "overte-test").write("pulls", "POST", {})
+            run.assert_not_called()
+
+    def guard_responses(self, suffix, **kwargs):
+        if suffix == "pulls/123":
+            return self.pr
+        if suffix == "rules/branches/main":
+            return [dict(type=kind, ruleset_id=5, parameters=dict(
+                strict_required_status_checks_policy=True,
+                required_status_checks=[dict(context=context, integration_id=15368) for context in
+                                        ("repository-checks", "branch-policy", "sync-test-reuse", "dependency-release-policy")]))
+                for kind in ("deletion", "non_fast_forward", "pull_request", "required_status_checks")]
+        if suffix == "rulesets/5":
+            return dict(bypass_actors=[])
+        raise AssertionError(suffix)
+
+    def test_guard_requires_current_heads_completion_holds_and_strict_rules_without_bypass(self):
+        writer = self.adoption.Writer(self.github, ROOT, "token", "overte-test")
+        self.github.get.side_effect = self.guard_responses
+        writer.guard(self.row, self.policy)
+        for key in ("sha", "base_sha"):
+            with self.subTest(key=key), self.assertRaises(self.module.CleanupError):
+                writer.guard({**self.row, key: "c" * 40}, self.policy)
+        for method in ("activity_holds", "workflow_holds"):
+            getattr(self.github, method).return_value = {self.row["branch"]: ["hold"]}
+            with self.assertRaises(self.module.CleanupError):
+                writer.guard(self.row, self.policy)
+            getattr(self.github, method).return_value = {}
+        original = self.guard_responses
+        for changed in (dict(bypass_actors=[dict(actor_type="Integration", actor_id=1)]),):
+            self.github.get.side_effect = lambda suffix, **kw: changed if suffix == "rulesets/5" else original(suffix, **kw)
+            with self.assertRaises(self.module.CleanupError):
+                writer.guard(self.row, self.policy)
+
+    def test_conflicts_and_changed_trees_are_the_only_cacheable_verdicts(self):
+        self.assertEqual(self.adoption.NEGATIVE, {"merge_conflict", "tree_changes", "issue_closing_reference"})
+        self.assertNotIn("adopted", self.adoption.NEGATIVE)
+        self.assertNotIn("integrated", self.adoption.NEGATIVE)
+
+    def test_cache_does_not_authorize_positive_proofs_or_other_versions(self):
+        import io
+        import zipfile
+        key = self.adoption.fingerprint(self.row)
+        self.github.get.side_effect = [
+            {"workflow_runs": [{"id": 1, "run_attempt": 1}]},
+            {"artifacts": [{"id": 5, "name": "branch-cleanup-report-1-1", "size_in_bytes": 100,
+                            "expired": False}]}]
+        for version, verdict in (("v1", "adopted"), ("v1", "integrated"), ("v2", "merge_conflict")):
+            with self.subTest(version=version, verdict=verdict):
+                payload = io.BytesIO()
+                with zipfile.ZipFile(payload, "w") as archive:
+                    archive.writestr("adoption.json", json.dumps(dict(repository=FORK, version=version,
+                                                                   negative={key: verdict})))
+                self.github.get.side_effect = [
+                    {"workflow_runs": [{"id": 1, "run_attempt": 1}]},
+                    {"artifacts": [{"id": 5, "name": "branch-cleanup-report-1-1", "size_in_bytes": 100,
+                                    "expired": False}]}]
+                result = subprocess.CompletedProcess([], 0, stdout=payload.getvalue(), stderr=b"")
+                with mock.patch.object(self.adoption.subprocess, "run", return_value=result):
+                    self.assertEqual(self.adoption.load_negative_cache(self.github, "v1"), {})
+
+    def test_report_mode_and_missing_app_never_mutate_even_with_a_positive_proof(self):
+        for apply, environment in ((False, {"ADOPTION_APP_TOKEN": "token", "ADOPTION_APP_SLUG": "overte-test"}),
+                                   (True, {})):
+            with self.subTest(apply=apply), tempfile.TemporaryDirectory() as directory:
+                report = Path(directory) / "report.json"
+                args = ["adoption.py", "--report", str(report)] + (["--apply"] if apply else [])
+                with mock.patch.object(sys, "argv", args), mock.patch.dict(os.environ, environment, clear=True), \
+                        mock.patch.object(self.adoption, "discover", return_value=([self.row], {}, "b" * 40)), \
+                        mock.patch.object(self.adoption, "load_negative_cache", return_value={}), \
+                        mock.patch.object(self.adoption.Graph, "fetch"), \
+                        mock.patch.object(self.adoption.Graph, "proof", return_value=("adopted", "d" * 40)), \
+                        mock.patch.object(self.adoption.Writer, "reconcile") as reconcile:
+                    self.assertEqual(self.adoption.main(), 0)
+                    reconcile.assert_not_called()
+                saved = json.loads(report.read_text())
+                self.assertEqual(saved["results"][self.row["branch"]], "adopted")
+                self.assertFalse(saved["main_advanced"])
+
+    def test_waiting_pr_does_not_starve_other_targets_and_only_one_mutation_is_allowed(self):
+        rows = [dict(self.row, pr=number, branch=f"fix/main/source-{number}") for number in (1, 2, 3)]
+        with tempfile.TemporaryDirectory() as directory:
+            args = ["adoption.py", "--report", str(Path(directory) / "report.json"), "--apply"]
+            with mock.patch.object(sys, "argv", args), \
+                    mock.patch.dict(os.environ, {"ADOPTION_APP_TOKEN": "token", "ADOPTION_APP_SLUG": "overte-test"}, clear=True), \
+                    mock.patch.object(self.adoption, "discover", return_value=(rows, {}, "b" * 40)), \
+                    mock.patch.object(self.adoption, "load_negative_cache", return_value={}), \
+                    mock.patch.object(self.adoption.Graph, "fetch"), \
+                    mock.patch.object(self.adoption.Graph, "proof", return_value=("adopted", "d" * 40)), \
+                    mock.patch.object(self.adoption.Writer, "reconcile", side_effect=[
+                        ("waiting_for_required_checks", False, False),
+                        ("created_waiting_for_checks", False, True)]) as reconcile:
+                self.assertEqual(self.adoption.main(), 0)
+                self.assertEqual(reconcile.call_count, 2)
+
+    def test_independent_readiness_requires_the_latest_check_on_the_exact_head_and_app(self):
+        writer = self.adoption.Writer(self.github, ROOT, "token", "overte-test")
+        required = [{"context": "repository-checks", "integration_id": 15368}]
+        pr = {**self.pr, "state": "open"}
+        good = dict(id=10, name="repository-checks", app={"id": 15368}, head_sha=self.row["sha"],
+                    status="completed", conclusion="success")
+        state = dict(headRefOid=self.row["sha"], baseRefOid=self.row["base_sha"], baseRefName="main",
+                     mergeStateStatus="CLEAN", reviewDecision=None, closingIssuesReferences={"totalCount": 0})
+        result = subprocess.CompletedProcess([], 0, stdout=json.dumps({"data": {"repository": {
+            "nameWithOwner": FORK, "pullRequest": state}}}), stderr="")
+        with mock.patch.object(self.module, "run", return_value=result):
+            self.github.get.side_effect = None
+            self.github.get.return_value = {"total_count": 1, "check_runs": [good]}
+            self.assertTrue(writer.ready(pr, self.row, required))
+            for changes in (dict(app={"id": 1}), dict(head_sha="c" * 40), dict(status="in_progress"),
+                            dict(conclusion="failure"), dict(conclusion="skipped")):
+                with self.subTest(changes=changes):
+                    self.github.get.return_value = {"total_count": 1, "check_runs": [{**good, **changes}]}
+                    self.assertFalse(writer.ready(pr, self.row, required))
+            self.github.get.return_value = {"total_count": 2, "check_runs": [
+                {**good, "id": 9, "conclusion": "failure"}, good]}
+            self.assertTrue(writer.ready(pr, self.row, required))
+
+    def test_independent_readiness_honors_required_reviews_and_rejects_head_changes(self):
+        writer = self.adoption.Writer(self.github, ROOT, "token", "overte-test")
+        self.github.get.return_value = {"total_count": 0, "check_runs": []}
+        self.github.get.side_effect = None
+        state = dict(headRefOid=self.row["sha"], baseRefOid=self.row["base_sha"], baseRefName="main",
+                     mergeStateStatus="CLEAN", reviewDecision="REVIEW_REQUIRED", closingIssuesReferences={"totalCount": 0})
+        def output(value):
+            return subprocess.CompletedProcess([], 0, stdout=json.dumps({"data": {"repository": {
+                "nameWithOwner": FORK, "pullRequest": value}}}), stderr="")
+        with mock.patch.object(self.module, "run", return_value=output(state)):
+            self.assertFalse(writer.ready(self.pr, self.row, []))
+        with mock.patch.object(self.module, "run", return_value=output({**state, "headRefOid": "c" * 40})):
+            with self.assertRaises(self.module.CleanupError):
+                writer.ready(self.pr, self.row, [])
+
+
+class AdoptedHistoryPullRequestTests(unittest.TestCase):
+    setUpClass = classmethod(AdoptedHistoryTests.setUpClass.__func__)
+    def setUp(self):
+        AdoptedHistoryTests.setUp(self)
+        self.tree = "d" * 40
+        self.head = "c" * 40
+        self.branch = self.adoption.maintenance_branch(self.row)
+        self.graph = mock.Mock(spec=self.adoption.Graph)
+        self.graph.git.return_value = self.row["base_sha"] + " " + self.row["sha"]
+        self.graph.proof.return_value = ("adopted", self.tree)
+        self.history_pr = {**self.pr, "number": 321, "state": "open", "draft": False,
+                           "user": {"login": "overte-test[bot]"}, "labels": [],
+                           "head": {**self.pr["head"], "ref": self.branch, "sha": self.head},
+                           "mergeable": True, "mergeable_state": "clean"}
+        self.saved_pr = self.history_pr
+        self.prs = [self.history_pr]
+        self.writes = []
+        self.recorded = None
+        self.writer = self.adoption.Writer(self.github, ROOT, "token", "overte-test")
+        self.writer.guard = mock.Mock()
+        self.writer.ready = mock.Mock(return_value=True)
+        self.writer.write = mock.Mock(side_effect=self.write_response)
+        self.github.get.side_effect = self.response
+
+    def response(self, suffix, **kwargs):
+        if suffix.startswith("pulls?state=all&head="):
+            return self.prs
+        if suffix == "pulls/321":
+            return self.saved_pr
+        if suffix == "issues/321/labels":
+            return [{"name": "type: task"}]
+        if suffix.startswith("git/ref/heads/"):
+            return {"object": {"sha": self.head}}
+        if suffix.startswith("git/commits/"):
+            if self.recorded and suffix.endswith(self.head):
+                return self.recorded
+            return dict(tree={"sha": self.tree}, parents=[{"sha": self.row["base_sha"]}, {"sha": self.head}])
+        raise AssertionError(suffix)
+
+    def write_response(self, suffix, method, payload):
+        self.writes.append((suffix, method, payload))
+        if suffix == "git/commits":
+            self.recorded = dict(sha=self.head, tree={"sha": payload["tree"]},
+                                 parents=[{"sha": sha} for sha in payload["parents"]])
+            return self.recorded
+        if suffix.startswith("git/refs"):
+            return {"ref": payload.get("ref", "refs/heads/" + self.branch), "object": {"sha": payload["sha"]}}
+        if suffix == "pulls":
+            return {"number": 321}
+        if suffix == "issues/321/labels":
+            return [{"name": "type: task"}]
+        if suffix == "pulls/321/merge":
+            self.saved_pr = {**self.history_pr, "merged": True, "merge_commit_sha": "e" * 40}
+            return {"merged": True}
+        raise AssertionError(suffix)
+
+    def reconcile(self):
+        return self.writer.reconcile(self.row, self.tree, self.graph, self.policy)
+
+    def test_only_a_clean_checked_pr_is_merged_with_the_exact_head(self):
+        self.assertEqual(self.reconcile(), ("integrated", True, True))
+        self.assertEqual(self.writes, [("pulls/321/merge", "PUT", {"sha": self.head, "merge_method": "merge"})])
+        self.assertEqual(self.writer.guard.call_count, 2)
+        self.graph.verify_record.assert_called_once_with(self.head, self.row)
+        self.graph.proof.assert_called_once_with(self.row)
+
+    def test_pending_failed_unknown_and_conflicting_prs_are_not_merged(self):
+        for state in ("blocked", "behind", "dirty", "unstable", "unknown"):
+            with self.subTest(state=state):
+                self.saved_pr = {**self.history_pr, "mergeable_state": state}
+                self.assertEqual(self.reconcile(), ("waiting_for_required_checks", False, False))
+        self.assertFalse(self.writes)
+
+    def test_human_closed_draft_and_keep_prs_do_not_spawn_replacements(self):
+        for changes, expected in (({"state": "closed"}, "previous_adoption_pr_closed"),
+                                  ({"draft": True}, "adoption_pr_held"),
+                                  ({"labels": [{"name": "keep-branch"}]}, "adoption_pr_held")):
+            with self.subTest(changes=changes):
+                self.prs = [{**self.history_pr, **changes}]
+                self.assertEqual(self.reconcile(), (expected, False, False))
+        self.assertFalse(self.writes)
+
+    def test_fresh_pr_head_or_keep_request_changes_prevent_merge(self):
+        for changes in ({"head": {**self.history_pr["head"], "sha": "f" * 40}},
+                        {"labels": [{"name": "keep-branch"}]}, {"draft": True}):
+            with self.subTest(changes=changes):
+                self.saved_pr = {**self.history_pr, **changes}
+                with self.assertRaises(self.module.CleanupError):
+                    self.reconcile()
+        self.assertFalse(self.writes)
+
+    def test_failed_final_proof_prevents_merge_even_when_checks_are_green(self):
+        self.graph.proof.return_value = ("tree_changes", None)
+        with self.assertRaises(self.module.CleanupError):
+            self.reconcile()
+        self.assertFalse(self.writes)
+
+    def test_new_pr_preserves_the_source_and_target_and_is_labeled(self):
+        self.prs = []
+        self.assertEqual(self.reconcile(), ("created_waiting_for_checks", False, True))
+        self.assertEqual([path for path, _, _ in self.writes],
+                         ["git/commits", "git/refs", "pulls", "issues/321/labels"])
+        self.assertEqual(self.writes[0][2]["parents"], [self.row["base_sha"], self.row["sha"]])
+        self.assertEqual(self.writes[0][2]["tree"], self.tree)
+        self.assertEqual(self.writes[1][2]["ref"], "refs/heads/" + self.branch)
+        self.assertEqual(self.writes[-1][2]["labels"], ["type: task"])
+
+    def test_stale_history_branch_is_refreshed_without_force_or_merge(self):
+        self.graph.git.return_value = "e" * 40 + " " + self.row["sha"]
+        self.assertEqual(self.reconcile(), ("refreshed_waiting_for_checks", False, True))
+        self.assertEqual([path for path, _, _ in self.writes],
+                         ["git/commits", "git/refs/heads/" + self.branch.replace("/", "%2F")])
+        self.assertIs(self.writes[-1][2]["force"], False)
+        self.assertEqual(self.writes[0][2]["parents"], [self.row["base_sha"], self.head])
+
+
+class AdoptedHistoryGitTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.adoption = load_adoption()
+        cls.module = cls.adoption.cleanup
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="adopted-history-test-")
+        self.addCleanup(self.temp.cleanup)
+        self.fixture = LocalGitFixture(Path(self.temp.name))
+        self.events = []
+        transport = OfflineGitTransport(self.fixture, self.events, self.module.CleanupError)
+        self.patch = mock.patch.object(self.module, "run", side_effect=transport)
+        self.patch.start()
+        self.addCleanup(self.patch.stop)
+        self.graph = self.adoption.Graph(self.fixture.root / "proof.git")
+        self.row = dict(branch=self.fixture.unmerged_branch, sha=self.fixture.unmerged_sha,
+                        base="main", base_sha=self.fixture.main_sha, pr=123)
+
+    def fetch(self):
+        self.graph.fetch({self.row["branch"]: self.row["sha"], "main": self.row["base_sha"]})
+
+    def adopt_source(self):
+        f = self.fixture
+        f.git(f.seed, "checkout", "-q", "main")
+        f.git(f.seed, "commit", "-q", "--allow-empty", "-m", "independent target progress")
+        f.git(f.seed, "cherry-pick", self.row["sha"])
+        self.row["base_sha"] = f.rev(f.seed, "HEAD")
+        f.git(f.seed, "push", "-q", "fixture", "main")
+
+    def test_normal_merge_proves_cherry_picked_work_without_source_ancestry(self):
+        self.adopt_source()
+        self.fetch()
+        verdict, tree = self.graph.proof(self.row)
+        self.assertEqual(verdict, "adopted")
+        self.assertEqual(tree, self.fixture.git(self.fixture.seed, "rev-parse", "HEAD^{tree}").stdout.strip())
+        self.assertEqual(self.fixture.git(self.fixture.remote, "merge-base", "--is-ancestor",
+                                         self.row["sha"], self.row["base_sha"], check=False).returncode, 1)
+        self.assertFalse(any(event[1] == "push" for event in self.events))
+        self.assertFalse((self.graph.path / "index").exists())
+
+    def test_unadopted_work_and_conflicts_never_authorize_history_integration(self):
+        self.fetch()
+        self.assertEqual(self.graph.proof(self.row), ("tree_changes", None))
+        f = self.fixture
+        f.git(f.seed, "checkout", "-q", "main")
+        (f.seed / "unmerged.txt").write_text("different target implementation\n")
+        f.git(f.seed, "add", "unmerged.txt")
+        f.git(f.seed, "commit", "-q", "-m", "different target payload")
+        self.row["base_sha"] = f.rev(f.seed, "HEAD")
+        f.git(f.seed, "push", "-q", "fixture", "main")
+        self.fetch()
+        self.assertEqual(self.graph.proof(self.row), ("merge_conflict", None))
+
+    def test_mode_changes_remain_real_changes_even_when_file_bytes_match(self):
+        self.adopt_source()
+        f = self.fixture
+        f.git(f.seed, "checkout", "-q", self.row["branch"])
+        f.git(f.seed, "update-index", "--chmod=+x", "unmerged.txt")
+        f.git(f.seed, "commit", "-q", "-m", "unique executable mode")
+        self.row["sha"] = f.rev(f.seed, "HEAD")
+        f.git(f.seed, "push", "-q", "fixture", self.row["branch"])
+        self.fetch()
+        verdict, tree = self.graph.proof(self.row)
+        self.assertIn(verdict, self.adoption.NEGATIVE)
+        self.assertIsNone(tree)
+
+    def test_commit_closing_keywords_cannot_complete_issues_via_history_integration(self):
+        self.adopt_source()
+        f = self.fixture
+        f.git(f.seed, "checkout", "-q", self.row["branch"])
+        f.git(f.seed, "commit", "-q", "--allow-empty", "-m", "Fixes #123")
+        self.row["sha"] = f.rev(f.seed, "HEAD")
+        f.git(f.seed, "push", "-q", "fixture", self.row["branch"])
+        self.fetch()
+        self.assertEqual(self.graph.proof(self.row), ("issue_closing_reference", None))
+
+    def test_record_chain_preserves_original_commits_and_rejects_extra_payload(self):
+        self.adopt_source()
+        self.fetch()
+        verdict, tree = self.graph.proof(self.row)
+        self.assertEqual(verdict, "adopted")
+        message = "Record adopted history\n\n" + self.adoption.MARKER + json.dumps(self.row)
+        head = self.graph.command("-c", "user.name=Offline Test", "-c", "user.email=test@example.invalid",
+                                  "commit-tree", tree, "-p", self.row["base_sha"], "-p", self.row["sha"],
+                                  "-m", message).stdout.strip()
+        self.graph.verify_record(head, self.row)
+        self.assertEqual(self.graph.command("merge-base", "--is-ancestor", self.row["sha"], head).returncode, 0)
+        with self.assertRaises(self.module.CleanupError):
+            self.graph.verify_record(head, {**self.row, "sha": "c" * 40})
+        bad_tree = self.graph.git("rev-parse", self.fixture.initial + "^{tree}").strip()
+        bad = self.graph.command("-c", "user.name=Offline Test", "-c", "user.email=test@example.invalid",
+                                 "commit-tree", bad_tree, "-p", self.row["base_sha"], "-p", self.row["sha"],
+                                 "-m", message).stdout.strip()
+        with self.assertRaises(self.module.CleanupError):
+            self.graph.verify_record(bad, self.row)
+
+    def test_refresh_preserves_the_previous_record_and_original_source(self):
+        self.adopt_source()
+        self.fetch()
+        tree = self.graph.proof(self.row)[1]
+        def record(previous):
+            message = self.adoption.MARKER + json.dumps(self.row)
+            return self.graph.command("-c", "user.name=Offline Test", "-c", "user.email=test@example.invalid",
+                                      "commit-tree", tree, "-p", self.row["base_sha"], "-p", previous,
+                                      "-m", message).stdout.strip()
+        previous = record(self.row["sha"])
+        f = self.fixture
+        f.git(f.seed, "commit", "-q", "--allow-empty", "-m", "later protected target")
+        self.row["base_sha"] = f.rev(f.seed, "HEAD")
+        f.git(f.seed, "push", "-q", "fixture", "main")
+        self.fetch()
+        refreshed = record(previous)
+        self.graph.verify_record(refreshed, self.row)
+        self.graph.command("merge-base", "--is-ancestor", previous, refreshed)
+        self.graph.command("merge-base", "--is-ancestor", self.row["sha"], refreshed)
+
+
 class WorkflowSafetyTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -1067,8 +1528,24 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn('--backup-dir "$RUNNER_TEMP/branch-cleanup/backup"', self.source[apply:])
 
     def test_report_mode_does_not_run_backup_or_apply(self):
-        self.assertEqual(self.source.count("inputs.mode == 'apply'"), 3)
+        self.assertEqual(self.source.count("inputs.mode == 'apply'"), 5)
         self.assertIn("default: report", self.source)
+
+    def test_adoption_uses_a_scoped_app_and_runs_before_the_original_delete_plan(self):
+        app = self.source.index("- name: Create repository-scoped history integration token")
+        assess = self.source.index("adoption.py")
+        plan = self.source.index("cleanup.py plan")
+        self.assertLess(app, assess)
+        self.assertLess(assess, plan)
+        token = self.source[app:assess]
+        self.assertIn("owner: noah-l-frank", token)
+        self.assertIn("repositories: overte", token)
+        self.assertIn("permission-contents: write", token)
+        self.assertIn("permission-pull-requests: write", token)
+        self.assertNotIn("permission-administration", token)
+        self.assertNotIn("permission-checks", token)
+        self.assertIn("inputs.mode == 'apply'", token)
+        self.assertIn("github.workflow_ref == 'noah-l-frank/overte/.github/workflows/branch-cleanup.yml@refs/heads/main'", self.source)
 
     def test_ci_completion_covers_known_workflows_without_cleanup_recursion(self):
         trigger = self.source.split("  workflow_run:\n", 1)[1].split("  schedule:\n", 1)[0]

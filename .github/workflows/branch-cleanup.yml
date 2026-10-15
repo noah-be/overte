@@ -82,12 +82,13 @@ jobs:
     if: >-
       github.repository == 'noah-l-frank/overte' &&
       github.repository_id == '1319052603' &&
-      (github.event_name != 'pull_request_target' || github.event.pull_request.merged == true)
+      github.workflow_ref == 'noah-l-frank/overte/.github/workflows/branch-cleanup.yml@refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
       contents: write
       actions: read
+      checks: read
       deployments: read
       pull-requests: read
       issues: read
@@ -106,8 +107,58 @@ jobs:
           sparse-checkout-cone-mode: false
           sparse-checkout: |
             /tools/branch-cleanup/
+            /tools/branch-policy/check.py
             /.github/branch-cleanup.json
             /.github/branch-policy.json
+            /.github/repository-checks.json
+
+      - name: Create repository-scoped history integration token
+        id: history-token
+        if: >-
+          vars.BRANCH_SYNC_APP_CLIENT_ID != '' &&
+          (github.event_name != 'workflow_dispatch' || inputs.mode == 'apply')
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
+        with:
+          client-id: ${{ vars.BRANCH_SYNC_APP_CLIENT_ID }}
+          private-key: ${{ secrets.BRANCH_SYNC_APP_PRIVATE_KEY }}
+          owner: noah-l-frank
+          repositories: overte
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Assess adopted work and maintain checked history PRs
+        id: history
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ADOPTION_APP_TOKEN: ${{ steps.history-token.outputs.token }}
+          ADOPTION_APP_SLUG: ${{ steps.history-token.outputs.app-slug }}
+          ADOPTION_APPLY: ${{ github.event_name != 'workflow_dispatch' || inputs.mode == 'apply' }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/branch-cleanup"
+          mode_args=()
+          if [[ "$ADOPTION_APPLY" == true ]]; then
+            mode_args=(--apply)
+          fi
+          python3 tools/branch-cleanup/adoption.py \
+            --report "$RUNNER_TEMP/branch-cleanup/adoption.json" "${mode_args[@]}"
+
+      - name: Refresh trusted main after a history-only main merge
+        if: steps.history.outputs.main_advanced == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: noah-l-frank/overte
+          ref: main
+          persist-credentials: false
+          fetch-depth: 1
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /tools/branch-cleanup/
+            /tools/branch-policy/check.py
+            /.github/branch-cleanup.json
+            /.github/branch-policy.json
+            /.github/repository-checks.json
 
       - name: Plan from current GitHub state
         id: plan
@@ -175,5 +226,6 @@ jobs:
           path: |
             ${{ runner.temp }}/branch-cleanup/plan.json
             ${{ runner.temp }}/branch-cleanup/report.json
+            ${{ runner.temp }}/branch-cleanup/adoption.json
           if-no-files-found: warn
           retention-days: 14

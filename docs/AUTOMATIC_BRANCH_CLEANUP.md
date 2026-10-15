@@ -4,7 +4,7 @@ The `Automatic branch cleanup` GitHub Actions workflow retires fully integrated
 working branches in `noah-l-frank/overte`. It runs on GitHub-hosted Ubuntu runners and
 continues operating while the maintainer's computers are switched off.
 
-There is no branch-age requirement or waiting period. A merged pull request wakes
+There is no branch-age requirement or waiting period. A closed pull request wakes
 the cleanup immediately. Completion of the listed CI workflows wakes it again,
 including failed or cancelled runs, so branches held by running CI are reassessed
 after that activity ends. Every wake-up evaluates current GitHub state; it does
@@ -104,6 +104,69 @@ retained for 30 days; reports are retained for 14 days. The plan and manifest
 identify the original branches and commits. A backup upload failure prevents
 deletion. Download the recovery artifact during its retention period if you need
 to retain the branch-name mapping for longer.
+
+## Work adopted through another history
+
+The same cleanup workflow assesses closed working PRs whose exact source heads
+are not ancestors of their permanent targets. It does not interpret closure,
+age, supersession, or a matching commit message as evidence that work was adopted.
+An open or draft PR, a changed source head, keep request, consumer reference or
+active CI retains the branch. Branches without a completed same-fork PR are not
+automatically considered.
+
+For an eligible source, `tools/branch-cleanup/adoption.py` computes a normal
+`git merge-tree --write-tree` against the exact current permanent target. Only a
+conflict-free result whose complete Git tree equals the existing target tree is
+accepted. This includes file contents, modes, symlinks, additions and deletions.
+No forced merge strategy or semantic similarity judgment is used. The temporary
+bare repository never checks out candidate code and disables hooks, global Git
+configuration and custom external merge drivers.
+
+The automation opens a `fix/<scope>/adopted-history-pr-<number>-<sha>` PR. Its
+commit has the permanent target and original source as parents and retains the
+exact target tree. Original commits remain reachable after the ordinary PR merge.
+The existing branch cleanup can then retire both temporary branches through its
+normal ancestry checks and verified backup sequence, without archive tags.
+
+History PRs run the normal required GitHub checks. Later cleanup wake-ups merge
+them only when GitHub reports them mergeable and all required protections remain
+active and strict. Before merging, it independently reads successful checks from
+their required GitHub Apps on the exact head and GitHub's current merge/review
+decision, without relying on the writing App's privileges. The standard PR merge
+API enforces the server-side rules; the automation grants no approvals, writes no check results,
+and bypasses no checks. A fresh tree proof and activity/consumer checks precede
+merging, with exact head matching. A target advance is handled by a fast-forward
+refresh of the history branch followed by fresh CI. Closing an automated PR or
+adding `keep-branch` stops its automatic integration. At most one history PR is
+created, refreshed or merged per cleanup run. Introduced commit messages with
+issue-closing references and PRs with GitHub-reported closing issue links are
+held for review, preventing history integration from completing issues.
+
+Conflicts and merges that would change the tree are reported for review and
+retain the source. Negative verdicts may be reused from retained report artifacts
+only for the exact source, target, PR and implementation version. A cached result
+can only defer work; positive proofs always run again before any integration.
+Unchanged negative verdicts remain in subsequent reports, including runs with
+activity holds. Complete Git objects are fetched only for uncached eligible
+source/target pairs; this avoids lazy object-fetch failures during real merges.
+
+### GitHub App configuration
+
+The existing **Overte Branch Synchronization** App supplies an installation token
+scoped to `noah-l-frank/overte`, with **Contents: read and write** and
+**Pull requests: read and write**. It needs no administration, issue-completion,
+check-writing or branch-protection bypass permission. Unlike `GITHUB_TOKEN`, the
+App's branch and PR writes trigger the normal CI workflows.
+
+Configure the repository variable `BRANCH_SYNC_APP_CLIENT_ID` and repository
+secret `BRANCH_SYNC_APP_PRIVATE_KEY`. The private key must never appear in an
+issue, PR, log or repository file. A pinned official token action creates and
+revokes the short-lived, repository-scoped token. With no App configuration the
+new stage reports findings only; ordinary integrated-branch deletion continues.
+Manual `mode=report` never mints an App token or writes commits, branches or PRs.
+Only the cleanup workflow at trusted fork `main` can perform these operations.
+
+## Branch recovery
 
 To recover a branch, first read the retained run report or backup manifest and
 confirm its original name and full commit SHA. Creating the branch again points
