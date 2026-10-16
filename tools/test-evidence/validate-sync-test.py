@@ -656,9 +656,13 @@ class IsolatedConsumerTests(unittest.TestCase):
         for name in ("Set up candidate Java", "Install candidate host prerequisites"):
             step = next(step for step in steps if step["name"] == name)
             self.assertGreater(steps.index(step), steps.index(selection))
-            self.assertEqual(step["if"], "(steps.select.outputs.consumer_setup != 'none' || steps.select.outputs.native_setup == '') && steps.select.outputs.full_host == 'true'")
+            self.assertEqual(step["if"], "(steps.select.outputs.consumer_setup != 'none' || steps.select.outputs.native_setup == '') && steps.select.outputs.full_host == 'true' && !(steps.select.outputs.lane == 'verified-empty' && steps.select.outputs.consumer_setup == 'none' && steps.select.outputs.empty_setup != '')")
         executions = [step for step in steps if "--expected-selection" in step.get("run", "")]
-        self.assertEqual(len(executions), 2)
+        self.assertEqual(len(executions), 3)
+        self.assertEqual({step['name'] for step in executions}, {
+            'Verify bounded synchronization without product setup',
+            'Verify exact candidate suites and complete runtime identity',
+            'Validate the exact unchanged synchronization without test execution'})
         for step in executions:
             self.assertEqual(step["env"]["EXPECTED_SELECTION"], "${{ steps.select.outputs.selection }}")
             self.assertIn('trusted/tools/test-evidence/validate-sync.py', step["run"])
@@ -670,6 +674,12 @@ class IsolatedConsumerTests(unittest.TestCase):
                 self.assertIn('--expected-native-setup "$EXPECTED_NATIVE_SETUP"', step['run'])
             else:
                 self.assertIn('python3 -B ', step['run'])
+                if step['name'] == 'Validate the exact unchanged synchronization without test execution':
+                    self.assertEqual(step['if'], "steps.select.outputs.lane == 'verified-empty'")
+                    self.assertEqual(step['env']['EXPECTED_EMPTY_SETUP'], '${{ steps.select.outputs.empty_setup }}')
+                    self.assertIn('--expected-empty-setup "$EXPECTED_EMPTY_SETUP"', step['run'])
+                    self.assertNotIn('--expected-native-setup', step['run'])
+                    self.assertNotIn('SYNC_VALIDATOR_PYTHON', step['env'])
         self.assertEqual(data["permissions"], {"actions": "read", "checks": "read", "contents": "read", "pull-requests": "read"})
         # The source-preparation PR still runs the deployed historical recipe.
         # The distinct prospective recipe above is not deployed by changing a

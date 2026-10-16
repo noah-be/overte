@@ -976,12 +976,17 @@ class DependencyPolicyRoutingTests(unittest.TestCase):
         root=Path(__file__).resolve().parents[2]
         revision=ios._git(root,'rev-parse','--verify','HEAD^{commit}').decode().strip()
         snapshot=ios.read_snapshot(root,revision)
+        doctor='tools/repository-health/check.py'
         paths={inputs.AFFECTED_POLICY,'tools/test-evidence/affected-test.py',
-               'tools/test-evidence/AFFECTED_SELECTION.md'}
+               'tools/test-evidence/AFFECTED_SELECTION.md',doctor}
+        self.assertIn(doctor,ios.INDEPENDENT_HOST_PATHS)
+        self.assertIn(doctor,ios.INDEPENDENT_EXECUTABLE_HOST_PATHS)
+        self.assertIn(doctor,host.CI_HOST_INDEPENDENT_PATHS)
+        self.assertIn(doctor,host.CI_HOST_EXECUTABLE_PATHS)
         added={entry.path:entry for entry in snapshot.entries if entry.path in paths}
         self.assertEqual(set(added),paths)
-        self.assertTrue(all(entry.mode=='100644' and entry.object_type=='blob'
-                            for entry in added.values()))
+        self.assertTrue(all(entry.mode==('100755' if entry.path==doctor else '100644')
+            and entry.object_type=='blob' for entry in added.values()))
         before=SimpleNamespace(entries=tuple(entry for entry in snapshot.entries if entry.path not in paths))
         self.assertEqual(len(before.entries)+len(paths),len(snapshot.entries))
         app=ios._boundary(before)
@@ -998,9 +1003,9 @@ class DependencyPolicyRoutingTests(unittest.TestCase):
         # immutable reader audit; a shallow candidate need not fetch its commit.
         self.assertEqual(ios.REVIEWED_REVISION,'2fc894a0605103843b36653f250f854714a963ee')
         self.assertEqual(ios.REVIEWED_BOUNDARY,
-            'sha256:439c4efe0b3640c6da33d75854296063b60f881f0cfeb0c4a5d77fca728a786d')
+            'sha256:8e66f6e9de251fe1a19feb867df56a714fb126cd8e66e22ba370d03af4f90aec')
         self.assertEqual(host.REVIEWED_CI_HOST_BOUNDARY,
-            '14052515fad3917fd66a9fda666acbd82be124c209687b24d92af3694c2ae283')
+            'a66799656e1f6f64e4f48fee32cb1897786a3735e7d15c254652b48447afd08d')
 
     def test_new_policy_uses_existing_native_browser_and_package_host_routes(self):
         native=self.module('affected_native_route','tools/native-tests/check.py')
