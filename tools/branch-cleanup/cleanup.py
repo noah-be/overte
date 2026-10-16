@@ -38,7 +38,7 @@ SCOPES = {
 KINDS = {"feature", "fix", "docs", "refactor", "test", "tests", "task", "ci", "sync", "reconcile", "promote", "build"}
 SHA = re.compile(r"^[0-9a-f]{40}$")
 # A completion is a wake-up only. These are the declared branch-push owners in
-# the seven protected inventories and the one reviewed main-only manual owner.
+# the seven protected inventories and individually reviewed manual owners.
 MANUAL_TERMINAL_WORKFLOW = 386334598
 TERMINAL_WORKFLOWS = {
     330519645: ("Android tests", "android-tests.yml"),
@@ -54,7 +54,32 @@ TERMINAL_WORKFLOWS = {
     330551824: ("Shared project CI", "project-tests.yml"),
     347471831: ("Workflow security", "workflow-security.yml"),
     386334598: ("Shared sandbox host diagnostic", "shared-sandbox-host-diagnostic.yml"),
+    330869250: ("Android Phone trusted build", "android-phone-build.yml"),
+    330869251: ("Android Phone emulator acceptance", "android-phone-emulator-acceptance.yml"),
+    330556274: ("Android Phone release candidate", "android-phone-release-candidate.yml"),
+    371274083: ("Browser client", "browser-client.yml"),
+    357615945: ("Issue intake", "issue-intake.yml"),
+    367914894: ("Prepare native baseline", "native-dependencies.yml"),
+    330643004: ("Pico 4 trusted build", "pico4-build.yml"),
+    330644216: ("Pico 4 device acceptance", "pico4-device-acceptance.yml"),
+    330643006: ("Pico 4 release candidate", "pico4-release-candidate.yml"),
+    366778169: ("Repository checks", "repository-checks.yml"),
+    350430503: ("Repository Health Doctor", "repository-health.yml"),
+    350930894: ("Sync test reuse", "sync-test-reuse.yml"),
+    350930895: ("Sync validation", "sync-validation.yml"),
 }
+# Six owners support both event types. Event admission is exact rather than a
+# manual/push wildcard over the union; the cleanup workflow itself is excluded.
+PUSH_TERMINAL_WORKFLOWS = frozenset({
+    330519645, 331117401, 340529251, 372770820, 373796501, 349116380,
+    359712487, 331326815, 330869252, 350930890, 330551824, 347471831,
+})
+MANUAL_TERMINAL_WORKFLOWS = frozenset({
+    330869250, 330869251, 330556274, 340529251, 372770820, 371274083,
+    373796501, 359712487, 331326815, 357615945, 367914894, 330643004,
+    330644216, 330643006, 330551824, 366778169, 350430503, 386334598,
+    350930894, 350930895,
+})
 
 
 class CleanupError(RuntimeError):
@@ -752,7 +777,8 @@ def terminal_run(github, event):
             and type(actual.get("id")) is int and type(actual.get("run_attempt")) is int
             and type(actual.get("workflow_id")) is int and actual["workflow_id"] in TERMINAL_WORKFLOWS
             and same_repository(actual.get("repository")) and same_repository(actual.get("head_repository"))
-            and actual.get("event") == ("workflow_dispatch" if actual["workflow_id"] == MANUAL_TERMINAL_WORKFLOW else "push")
+            and (actual.get("event") == "push" and actual["workflow_id"] in PUSH_TERMINAL_WORKFLOWS
+                 or actual.get("event") == "workflow_dispatch" and actual["workflow_id"] in MANUAL_TERMINAL_WORKFLOWS)
             and (actual["workflow_id"] != MANUAL_TERMINAL_WORKFLOW or actual.get("head_branch") == "main")
             and actual.get("status") == "completed"
             and isinstance(actual.get("conclusion"), str) and bool(actual["conclusion"])

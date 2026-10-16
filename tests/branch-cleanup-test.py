@@ -2189,8 +2189,8 @@ class TerminalRetryTests(unittest.TestCase):
                 "head_sha": self.revision, "name": name, "path": ".github/workflows/" + filename,
                 "repository": self.repository, "head_repository": self.repository, "pull_requests": []}
 
-    def manual_run(self, identifier=700, target="main", revision=None):
-        return {**self.push_run(identifier, 386334598, target), "event": "workflow_dispatch",
+    def manual_run(self, identifier=700, target="main", revision=None, workflow=386334598):
+        return {**self.push_run(identifier, workflow, target), "event": "workflow_dispatch",
                 "head_sha": revision or self.revision}
 
     def response(self, suffix="", paginate=False):
@@ -2394,6 +2394,53 @@ class TerminalRetryTests(unittest.TestCase):
         with self.assertRaises(self.module.CleanupError):
             self.module.terminal_retry(self.github, self.policy, self.signal)
 
+    def test_all_reviewed_manual_holders_wake_only_their_actual_current_permanent_target(self):
+        expected = {330869250, 330869251, 330556274, 340529251, 372770820, 371274083,
+                    373796501, 359712487, 331326815, 357615945, 367914894, 330643004,
+                    330644216, 330643006, 330551824, 366778169, 350430503, 386334598,
+                    350930894, 350930895}
+        self.assertEqual(self.module.MANUAL_TERMINAL_WORKFLOWS, expected)
+        self.assertNotIn(355150779, self.module.TERMINAL_WORKFLOWS, "cleanup must not wake itself")
+        scopes = {"main": "main", "android-main": "android", "android-phone": "android-phone",
+                  "android-vr": "android-vr", "android-vr-pico": "android-pico", "apple-main": "apple", "apple-ios": "ios"}
+        for workflow in sorted(expected - {386334598}):
+            for target, scope in scopes.items():
+                branch = "fix/" + scope + "/manual-held-source"
+                self.rows = [row for row in self.rows if row["protected"]]
+                self.rows.append({"name": branch, "sha": "a" * 40, "protected": False})
+                self.closed = {branch: [self.closed_pr(branch, target, "a" * 40)]}
+                self.runs[700] = self.manual_run(target=target, revision="f" * 40, workflow=workflow)
+                with self.subTest(workflow=workflow, target=target):
+                    result = self.retry()
+                    self.assertTrue(result["retry"])
+                    self.assertEqual((result["target"], result["target_sha"], result["trigger_source_sha"]),
+                                     (target, self.revision, "f" * 40))
+                    self.assertNotIn("candidates", result)
+
+    def test_registered_event_sets_do_not_admit_manual_only_pushes_or_cleanup_recursion(self):
+        self.assertEqual(self.module.PUSH_TERMINAL_WORKFLOWS,
+                         {330519645, 331117401, 340529251, 372770820, 373796501, 349116380,
+                          359712487, 331326815, 330869252, 350930890, 330551824, 347471831})
+        self.assertEqual(set(self.module.TERMINAL_WORKFLOWS), self.module.PUSH_TERMINAL_WORKFLOWS
+                         | self.module.MANUAL_TERMINAL_WORKFLOWS)
+        self.assertEqual(len(self.module.PUSH_TERMINAL_WORKFLOWS & self.module.MANUAL_TERMINAL_WORKFLOWS), 6)
+        for workflow in self.module.MANUAL_TERMINAL_WORKFLOWS - self.module.PUSH_TERMINAL_WORKFLOWS:
+            self.runs[700] = self.push_run(700, workflow)
+            with self.subTest(workflow=workflow), self.assertRaises(self.module.CleanupError):
+                self.retry()
+        self.runs[700] = {**self.manual_run(), "workflow_id": 355150779}
+        with self.assertRaises(self.module.CleanupError):
+            self.retry()
+
+    def test_other_manual_holders_do_not_admit_unprotected_targets_or_waive_remaining_activity(self):
+        self.runs[700] = self.manual_run(target="feature/main/unprotected", workflow=367914894)
+        with self.assertRaises(self.module.CleanupError):
+            self.retry()
+        self.runs[700] = self.manual_run(revision="f" * 40, workflow=367914894)
+        self.active = [{**self.manual_run(800, revision="e" * 40, workflow=330869250),
+                        "status": "in_progress", "conclusion": None}]
+        self.assertEqual(self.retry()["reason"], "terminal_candidates_still_held")
+
     def test_older_manual_hint_still_holds_all_activity_states_and_current_topic_head(self):
         self.runs[700] = self.manual_run(revision="f" * 40)
         for state in ("queued", "in_progress", "waiting", "pending", "requested"):
@@ -2567,7 +2614,7 @@ class WorkflowSafetyTests(unittest.TestCase):
         retry = self.source.split("  workflow_run:\n", 1)[1].split("  schedule:", 1)[0]
         names = re.findall(r"^      - (.+)$", retry, re.M)
         self.assertEqual(set(names), {name for name, _ in module.TERMINAL_WORKFLOWS.values()})
-        self.assertEqual(len(names), 13)
+        self.assertEqual(len(names), 26)
         self.assertIn("types: [completed]", retry)
         branches = re.search(r"branches: \[([^]]+)\]", retry).group(1).split(", ")
         self.assertEqual(set(branches), PERMANENT)
@@ -2591,6 +2638,9 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn("github.event.workflow_run.workflow_id == 386334598", self.source)
         self.assertIn("github.event.workflow_run.event == 'workflow_dispatch'", self.source)
         self.assertIn("github.event.workflow_run.head_branch == 'main'", self.source)
+        manual = re.search(r"contains\(fromJSON\('(\[[0-9,]+\])'\), github.event.workflow_run.workflow_id\)", self.source)
+        self.assertIsNotNone(manual)
+        self.assertEqual(set(json.loads(manual.group(1))), load_cleanup().MANUAL_TERMINAL_WORKFLOWS - {386334598})
 
     def test_preflight_adoption_deferral_skips_plan_and_existing_zero_candidate_dependents(self):
         plan = self.source.split("- name: Plan from current GitHub state", 1)[1].split("- name: Build and verify", 1)[0]
