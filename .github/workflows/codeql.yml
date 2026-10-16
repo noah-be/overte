@@ -1,4 +1,4 @@
-# Dormant successor; protect exact source admission before workflow deployment.
+# Dormant pinned successor; protect exact source admission before workflow deployment.
 name: CodeQL
 
 on:
@@ -100,11 +100,20 @@ jobs:
           persist-credentials: false
 
       - name: Initialize CodeQL
+        id: init
         uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
         with:
+          tools: https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.27.2/codeql-bundle-linux64.tar.zst
           languages: ${{ matrix.language }}
           build-mode: none
           config-file: ./.github/codeql/codeql-config.yml
+
+      - name: Require reviewed CodeQL extractor version
+        env:
+          CODEQL_VERSION: ${{ steps.init.outputs.codeql-version }}
+        run: |
+          set -euo pipefail
+          test "$CODEQL_VERSION" = 2.27.2
 
       - name: Analyze
         uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9

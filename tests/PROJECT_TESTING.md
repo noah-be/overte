@@ -1392,15 +1392,15 @@ is a finite shared analysis control. Neither this staged template nor its source
 admission activates it; active workflows and existing security assertions remain
 unchanged until separately reviewed deployment and hosted qualification.
 
-The further dormant `metadata-edits/codeql-pinned.yml` successor pins the official
-CodeQL 2.27.2 Linux bundle through the pinned init action's `tools` URL. Init still
+The active workflow exactly matches `metadata-edits/codeql-pinned.yml` and pins
+the official CodeQL 2.27.2 Linux bundle through the pinned init action's `tools` URL. Init still
 uses its existing versioned hosted toolcache; a matching installation needs no
 new download or extraction. A required step checks init's actual
 `codeql-version` before Analyze. The independent result verifier also requires
 that successful step and current processed analyses reporting version 2.27.2.
 All earlier result generations remain admitted for source rollout, while both
 independent gates reject returning from a deployed result generation to an older
-one. Source admission does not deploy the staged workflow.
+one. The deployment transition requires both complete language scans.
 
 Only an edit to an existing ordinary `100644` `.github/android-orchestration.json`
 or `.github/test-suites.json` may select Python without JavaScript when both
@@ -1412,7 +1412,7 @@ the policy governance tests remain required. Additions, removals, aliases, mode
 changes, older or unknown workflow/configuration, other JSON, YAML, package
 locks and mixed JavaScript inputs keep their existing conservative owners.
 
-The same dormant pinned generation admits four further existing ordinary
+The same pinned generation admits four further existing ordinary
 `100644` metadata leaves: `.github/branch-cleanup.json`, `.github/issue-policy.json`,
 `.github/repository-health.json` and `.github/dependency-releases.json`. Only when
 both immutable trees use the exact pinned workflow and unchanged configuration
@@ -1422,6 +1422,6 @@ no-build analysis. Their governance and functional tests remain required.
 Mixed Python, JavaScript, package or analysis-control changes retain their
 existing language owners. Unknown siblings, additions, deletions, renames,
 aliases, mode changes and query-pack inputs cannot inherit this exception.
-YAML remains a JavaScript analysis input. This source preparation changes no
-active workflow; the pinned workflow still needs separate deployment and hosted
-qualification before either JSON optimization applies.
+YAML remains a JavaScript analysis input. The deployment transition cannot use
+either JSON optimization; both immutable trees must already contain the exact
+pinned workflow, and current selected analyses and findings remain required.
