@@ -167,8 +167,13 @@ class HostSelectionTests(unittest.TestCase):
         # Immutable Git/API facts are fixtures; this does not qualify execution,
         # runtime admission, source flags, or the native final publisher.
         import producer_workflow as producer
-        previous, candidate_tree, paths = self.producer_transition()
         packages = HOST.package_policy()
+        generations={g['name']:g['workflows'] for g in packages.workflow_generations()}
+        previous,candidate_tree=deepcopy(self.tree),deepcopy(self.tree)
+        previous.update(deepcopy(generations['postmerge-original-e-v1']))
+        candidate_tree.update(deepcopy(generations['protected-producer-postmerge-original-e-v1']))
+        paths=sorted(path for path in previous.keys() | candidate_tree.keys()
+                     if previous.get(path)!=candidate_tree.get(path))
         plan = {'candidate': 'a'*40, 'base': 'd'*40, 'plan': 'c'*64, 'host_mode': 'full',
                 'paths': paths, 'regular': True, 'unknown': False}
         repository = {'full_name': 'noah-l-frank/overte', 'id': 1319052603}

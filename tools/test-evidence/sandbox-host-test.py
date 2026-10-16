@@ -1489,7 +1489,13 @@ class ProtectedSelectedProducerTests(unittest.TestCase):
         new=yaml.safe_load((H.ROOT/p.TEMPLATE).read_text())
         self.assertEqual(set(new['jobs']),set(old['jobs'])|{'producer-publication'})
         for name in ('tool-dependencies','package-checks','project-results'):
-            self.assertEqual(new['jobs'][name],old['jobs'][name])
+            expected=deepcopy(old['jobs'][name])
+            for step in expected['steps']:
+                if step.get('with',{}).get('path')=='trusted':
+                    step['with']['sparse-checkout-cone-mode']=False
+                    step['with']['sparse-checkout']=step['with']['sparse-checkout'].replace(
+                        'tools/sbom\n','tools/sbom\ntools/branch-policy/check.py\n')
+            self.assertEqual(new['jobs'][name],expected)
         steps={row['name']:row for row in new['jobs']['project-tests']['steps']}
         self.assertEqual(steps['Install QML and portable C++ contract prerequisites'],next(
             row for row in old['jobs']['project-tests']['steps'] if row['name']=='Install QML and portable C++ contract prerequisites'))
