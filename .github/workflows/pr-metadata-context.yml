@@ -1,0 +1,35 @@
+name: Authenticate PR text edit
+
+on:
+  workflow_call:
+    outputs:
+      metadata_intent:
+        value: ${{ jobs.recognize.outputs.metadata_intent }}
+
+permissions:
+  contents: read
+
+jobs:
+  recognize:
+    name: Recognize immutable text edit context
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      metadata_intent: ${{ steps.context.outputs.metadata_intent }}
+    steps:
+      - name: Check out immutable protected main recognition source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: trusted
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: tools/repository-checks/metadata_context.py
+      - name: Recognize only the complete native text edit
+        id: context
+        run: >-
+          python3 -I -S -B trusted/tools/repository-checks/metadata_context.py
+          --event "$GITHUB_EVENT_PATH" --event-name "$GITHUB_EVENT_NAME" --output "$GITHUB_OUTPUT"
+      - name: Authenticated one-way metadata non-producer
+        if: steps.context.outputs.metadata_intent == 'true'
+        run: ':'

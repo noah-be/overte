@@ -22,7 +22,18 @@ concurrency:
   group: repository-checks-${{ github.event.pull_request.number || github.ref }}-${{ github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body) && github.run_id || 'qualification' }}
   cancel-in-progress: true
 jobs:
+  metadata-source:
+    name: Authenticate PR text edit
+    if: github.event_name == 'pull_request' && github.base_ref == 'main' && github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)
+    uses: ./.github/workflows/pr-metadata-context.yml
+
   route:
+    needs: metadata-source
+    if: always() && (needs.metadata-source.result == 'success' || needs.metadata-source.result == 'skipped')
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
     name: Select required repository checks
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -56,6 +67,9 @@ jobs:
           tools/ios-build-qualification
     - name: Recognize only complete title or body edit events
       id: event
+      env:
+        GH_TOKEN: ${{ github.token }}
+        NATIVE_METADATA_INTENT: ${{ needs.metadata-source.outputs.metadata_intent }}
       run: >-
         python3 trusted/tools/repository-checks/check.py metadata-event
         --event "$GITHUB_EVENT_PATH" --event-name "$GITHUB_EVENT_NAME" --output "$GITHUB_OUTPUT"
@@ -88,6 +102,11 @@ jobs:
     with:
       mode: ${{ needs.route.outputs.native }}
   project:
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+      checks: read
     name: ${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && 'project (metadata unchanged)' || 'project' }}
     needs: route
     if: needs.route.outputs.metadata_only != 'true' && (needs.route.outputs.package_host_mode == 'full' || needs.route.outputs.package_host_mode == 'tool-dependencies' || needs.route.outputs.package_set != '[]')
@@ -108,15 +127,36 @@ jobs:
       android_inventory: ${{ needs.route.outputs.android_inventory }}
   documentation:
     name: ${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && 'documentation (metadata unchanged)' || 'documentation' }}
-    needs: route
-    if: needs.route.outputs.metadata_only != 'true'
+    needs: [route, project]
+    if: always() && needs.route.result == 'success' && (needs.project.result == 'success' || needs.project.result == 'skipped') && needs.route.outputs.metadata_only != 'true' && needs.project.outputs.documentation_verified != 'true'
     uses: ./.github/workflows/documentation-checks.yml
   workflow-security:
     name: ${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && 'workflow-security (metadata unchanged)' || 'workflow-security' }}
     needs: route
     if: needs.route.outputs.metadata_only != 'true' && needs.route.outputs.security == 'true'
     uses: ./.github/workflows/workflow-security.yml
+    with:
+      defer_workflow_contracts: true
+  workflow-contracts:
+    needs: [route, project]
+    if: always() && needs.route.result == 'success' && (needs.project.result == 'success' || needs.project.result == 'skipped') && needs.route.outputs.metadata_only != 'true' && needs.route.outputs.security == 'true' && needs.project.outputs.workflow_contracts_verified != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+    - name: Check out the exact candidate without credentials
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.sha }}
+        fetch-depth: 2
+        persist-credentials: false
+    - name: Verify remaining workflow contracts
+      run: PYTHONDONTWRITEBYTECODE=1 python3 tests/workflow-contract-test.py
   repository-checks:
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+      checks: read
     name: ${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && 'repository-checks (metadata unchanged)' || 'repository-checks' }}
     if: always() && (needs.route.result != 'success' || needs.route.outputs.metadata_only != 'true')
     needs:
@@ -124,6 +164,7 @@ jobs:
     - project
     - documentation
     - workflow-security
+    - workflow-contracts
     - native
     - android
     runs-on: ubuntu-24.04
@@ -140,9 +181,13 @@ jobs:
         path: candidate
         fetch-depth: 2
         persist-credentials: false
-        sparse-checkout: .github
+        sparse-checkout-cone-mode: false
+        sparse-checkout: |
+          .github
+          tests/platform-profile.json
     - name: Require all selected checks to succeed
       env:
         CHECK_RESULTS: ${{ toJSON(needs) }}
-      run: python3 tools/repository-checks/check.py verify --needs-json "$CHECK_RESULTS" --candidate candidate --sha
+        GH_TOKEN: ${{ github.token }}
+      run: python3 tools/repository-checks/check.py verify --event "$GITHUB_EVENT_PATH" --needs-json "$CHECK_RESULTS" --candidate candidate --sha
         "$GITHUB_SHA"
