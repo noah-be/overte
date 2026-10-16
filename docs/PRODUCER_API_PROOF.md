@@ -10,7 +10,8 @@ their current behavior. Successful execution jobs alone are never reusable proof
 
 `Adapter.capture(number, plan, policy, now=...)` returns a `Snapshot` containing
 the independently observed exact current PR binding, current references,
-authenticated observations, source chains and explicit inventory gaps.
+authenticated observations, source chains, explicitly classified other original
+candidates and inventory gaps.
 `Adapter.verify(number, plan, policy, contexts, clock=...)` also reads and verifies
 the newest aggregate and its complete selected inner receipts. It returns the
 original qualification time and expiry without extending either.
@@ -38,7 +39,12 @@ for this protocol even if their workflow tuple is otherwise approved.
 
 The adapter reads repository identity; live PR base/head/merge; current base,
 head, merge and default-branch refs; and the exact immutable merge tree and
-ordered parents. It checks these before and after work. Actions `head_sha` is
+ordered parents. Merge identity comes from the supported
+`commits/refs/pull/<number>/merge` endpoint and an independent immutable Git commit
+read, not the optional PR `merge_commit_sha` field or unsupported hidden
+`git/ref/pull` endpoint. Branch refs are URI-escaped inside the fixed fork;
+the PR number and all commit IDs are independently validated. It checks these
+facts before and after work. Actions `head_sha` is
 the PR branch head, so it cannot identify the tested synthetic merge or reusable
 workflow source. The API's `referenced_workflows` must independently identify the
 original local producer merge/ref. Its immutable Git tree must contain one exact
@@ -47,12 +53,21 @@ The descriptor cannot supply a missing original source chain.
 
 Run enumeration filters only the exact PR head and approved caller workflow;
 it includes every status. Every run is resolved to its latest API attempt and
-complete current-attempt job inventory. Check-suite/check-run APIs independently
+complete current-attempt job inventory. Only attempt 1 is admissible. Failed-only
+retries can expose new job IDs and attempt numbers with original successful
+timestamps; those snapshots do not authenticate original execution. A later
+attempt makes the source unavailable, rather than borrowing attempt 1.
+Check-suite/check-run APIs independently
 bind repository, Actions app and job ownership. Ambiguous names, unclassified
 runs, changed inventories, mixed reruns and tied authority prevent reuse. A newer
-pending, failed or cancelled run never inherits an older green. Older runs for a
-different merge with the same branch head conservatively make this first adapter
-unavailable; there is no implicit exclusion based on artifact claims.
+pending, failed or cancelled run for the current candidate never inherits an
+older green. A different original merge with the same branch head is excluded
+only after validating its original reusable source, complete approved workflow
+tuple, ordered parents, same head, repository/app authority and first attempt.
+`Snapshot.other_candidates` records its independently read merge/tree/parents.
+None of its artifacts, results or runtime are reused. An unknown source, missing
+reference, malformed parent, wrong app or rerun still makes the inventory
+unavailable; a claimed old context is not a filtering instruction.
 
 Artifact inventory must be complete, the run/attempt-specific name unique, and
 detail metadata unchanged. The fixed fork GET endpoint supplies the bounded raw
@@ -89,6 +104,32 @@ an independent uploader identity. This adapter cannot prove isolation absent
 from the reviewed producer/caller source. Producer/consumer concurrency and
 fallback ownership also need separate implementation; this stage makes no
 exactly-once claim and never treats a pending run as success.
+
+The next implementation must reuse the existing Stage B supervisor, rather than
+add another policy switch. Its current diagnostic does not qualify production:
+
+1. Verify the complete materialized candidate against immutable Git blobs and
+   modes, including import/discovery membership and unsupported aliases. Mount
+   source, Git metadata and the effective dependency/toolchain profile read-only.
+2. Run candidate code under a separate unprivileged host UID, attached through
+   the existing pre-exec gate to a parent-owned cgroup. Keep publisher credentials,
+   command files, reports and file descriptors inaccessible. Add independently
+   owned cleanup for abrupt controller/service death.
+3. Capture the actual effective runtime in protected probes before execution and
+   after parent-issued subtree kill and kernel-confirmed `populated=0`. The
+   candidate's receipt, exit code, self-digest or stdout cannot supply this proof.
+   Retain exact source, selection, controller/runtime policy, attempt and expiry.
+4. Publish an early descriptor and terminal aggregate from an exact approved
+   reusable-PR source generation with no unisolated candidate sibling jobs.
+   Require successful immutable uploads of the protected files; run-level artifact
+   metadata and a publishing timestamp alone do not identify the uploader.
+5. Qualify that source on the actual hosted image, then transfer ordinary shared
+   ownership atomically. Preserve selected failures and fallback execution.
+   Post-merge/child consumption also needs independent protected integration and
+   input-closure checks; this open-PR adapter does not authorize closed-PR reuse.
+
+The current adapter and protocol tests authenticate source/API facts only. They
+do not establish Stage B post-kill isolation, authorize reuse or qualify a new VM.
 
 ## Offline verification
 

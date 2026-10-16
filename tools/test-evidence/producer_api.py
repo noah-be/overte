@@ -39,6 +39,10 @@ class ApiError(P.ProtocolError):
     """Complete authenticated producer evidence is unavailable."""
 
 
+class OriginalAttemptUnavailable(ApiError):
+    """A rerun snapshot cannot authenticate original successful execution."""
+
+
 def require(condition, message):
     if not condition:
         raise ApiError(message)
@@ -151,6 +155,7 @@ class Snapshot:
     unavailable: tuple[str, ...]
     source_chains: dict[int, dict]
     artifact_inventories: dict[int, list[dict]]
+    other_candidates: dict[int, dict]
 
 
 def _policy(value, plan, number):
@@ -232,7 +237,15 @@ class Adapter:
             repo = pr.get(side, {}).get("repo", {})
             require(repo.get("full_name") == REPOSITORY and repo.get("id") == 1319052603,
                     "foreign-head source-chain contract is not implemented")
-        base, head, merge = sha(pr["base"].get("sha")), sha(pr["head"].get("sha")), sha(pr.get("merge_commit_sha"))
+        base, head = sha(pr["base"].get("sha")), sha(pr["head"].get("sha"))
+        # The current REST API may omit merge_commit_sha. Hidden pull refs are
+        # not exposed by git/ref; resolve the supported commit-ref endpoint.
+        merge_commit = self._object(f"commits/refs/pull/{number}/merge")
+        merge = sha(merge_commit.get("sha"))
+        require(isinstance(merge_commit.get("commit"), dict)
+                and isinstance(merge_commit.get("parents"), list)
+                and all(isinstance(parent, dict) for parent in merge_commit["parents"]),
+                "current PR merge commit is unavailable")
         binding = {"repository": REPOSITORY, "repository_id": 1319052603, "pull_request": number,
                    "head_repository_id": pr["head"]["repo"]["id"], "base_ref": pr["base"].get("ref"),
                    "base_sha": base, "head_ref": pr["head"].get("ref"), "head_sha": head,
@@ -243,11 +256,14 @@ class Adapter:
         P.validate_binding({**binding, "head_ref": default})
         references = {"base": self._ref("heads/" + binding["base_ref"]),
                       "head": self._ref("heads/" + binding["head_ref"]),
-                      "merge": self._ref(f"pull/{number}/merge"), "default_ref": default,
+                      "merge": merge, "default_ref": default,
                       "default": self._ref("heads/" + default)}
         require([references[key] for key in ("base", "head", "merge")] == [base, head, merge],
                 "live PR and Git refs disagree")
         tree, parents = self._commit(merge)
+        require(merge_commit["commit"].get("tree", {}).get("sha") == tree
+                and [parent.get("sha") for parent in merge_commit["parents"]] == parents == [base, head],
+                "current PR merge ref differs from its immutable ordered parents/tree")
         binding.update(merge_tree=tree, merge_parents=parents)
         return P.validate_binding(binding), references
 
@@ -300,8 +316,11 @@ class Adapter:
         matching = [name for name, expected in policy.generations.items() if workflows == expected]
         require(len(matching) == 1 and workflows[policy.producer.workflow_path]["sha"] == policy.producer.workflow_blob,
                 "original caller/producer workflow generation is unknown or mixed")
-        require(revision == binding["merge_sha"] and tree == binding["merge_tree"] and parents == binding["merge_parents"],
-                "original producer candidate differs from the current exact PR merge")
+        require(len(parents) == 2 and parents[1] == binding["head_sha"],
+                "original producer has unknown ordered PR parents")
+        if revision == binding["merge_sha"]:
+            require(tree == binding["merge_tree"] and parents == binding["merge_parents"],
+                    "current producer source tree/parents differ from independently read candidate")
         # Verify every local reusable reference against the SAME independently
         # observed merge. A foreign/remote/other-generation reference is unknown.
         for item in references:
@@ -313,7 +332,8 @@ class Adapter:
         return {"caller_path": policy.caller_path, "caller_blob": workflows[policy.caller_path]["sha"],
                 "caller_commit": revision, "producer_path": policy.producer.workflow_path,
                 "producer_blob": workflows[policy.producer.workflow_path]["sha"], "producer_commit": revision,
-                "producer_ref": source["ref"], "generation": matching[0]}
+                "producer_ref": source["ref"], "generation": matching[0],
+                "candidate": {"merge_sha": revision, "merge_tree": tree, "merge_parents": parents}}
 
     def _job(self, value, run, app_id):
         require(value.get("run_id") == run["id"] and value.get("run_attempt") == run["run_attempt"]
@@ -360,6 +380,10 @@ class Adapter:
         identity = positive(listed.get("id"))
         latest = self._object(f"actions/runs/{identity}")
         latest_attempt = positive(latest.get("run_attempt"))
+        # Failed-only retries can carry old successful timestamps under NEW job
+        # IDs and run_attempt fields. Do not infer original execution from them.
+        if latest_attempt != 1:
+            raise OriginalAttemptUnavailable("original first-attempt producer source unavailable")
         attempt = self._object(f"actions/runs/{identity}/attempts/{latest_attempt}")
         fields = ("id", "workflow_id", "check_suite_id", "path", "event", "head_sha", "head_branch", "run_attempt", "status", "conclusion")
         require(all(listed.get(key) == latest.get(key) == attempt.get(key) for key in fields),
@@ -370,6 +394,15 @@ class Adapter:
                 and suite.get("repository", {}).get("id") == 1319052603
                 and suite.get("app", {}).get("id") == policy.producer.actions_app_id,
                 "run check-suite/app authority mismatch")
+        source_run = P.AuthenticatedRun(REPOSITORY, 1319052603, suite["app"]["id"], identity, 1, 1,
+                                       attempt.get("run_started_at"), policy.producer.workflow_path,
+                                       chain["producer_blob"], chain["producer_commit"], chain["producer_ref"],
+                                       attempt["event"], attempt["status"], attempt.get("conclusion"), None, {})
+        P._run(source_run, policy.producer)
+        if chain["producer_commit"] != binding["merge_sha"]:
+            # Fully classify a different original merge before excluding it.
+            # Its source is known, but no artifacts/runtime/results are reused.
+            return None, chain, []
         jobs = self._pages(f"actions/runs/{identity}/attempts/{latest_attempt}/jobs", "jobs")
         require(all(job.get("run_id") == identity and job.get("run_attempt") == latest_attempt for job in jobs),
                 "latest-attempt job snapshot contains mixed executions")
@@ -397,15 +430,20 @@ class Adapter:
         _policy(policy, plan, number)
         binding, references = self.current(number)
         endpoint = f"actions/workflows/{policy.caller_workflow_id}/runs?head_sha={binding['head_sha']}"
-        observations, chains, inventories, unavailable = [], {}, {}, []
+        observations, chains, inventories, unavailable, other = [], {}, {}, [], {}
         try:
             listed = self._pages(endpoint, "workflow_runs", search=True)
             for item in listed:
                 try:
                     observation, chain, artifacts = self._observation(item, policy, binding, now)
+                    if observation is None:
+                        other[positive(item.get("id"))] = chain
+                        continue
                     observations.append(observation)
                     chains[observation.run.run_id] = chain
                     inventories[observation.run.run_id] = artifacts
+                except OriginalAttemptUnavailable:
+                    unavailable.append("original-attempt-unavailable")
                 except (ApiError, P.ProtocolError, KeyError, TypeError, ValueError):
                     unavailable.append("run-source-or-proof-unclassified")
             final_list = self._pages(endpoint, "workflow_runs", search=True)
@@ -416,7 +454,7 @@ class Adapter:
             unavailable.append("run-inventory-incomplete-or-changed")
         final_binding, final_refs = self.current(number)
         require(final_binding == binding and final_refs == references, "current PR or refs changed during API snapshot")
-        return Snapshot(binding, references, observations, not unavailable, tuple(sorted(set(unavailable))), chains, inventories)
+        return Snapshot(binding, references, observations, not unavailable, tuple(sorted(set(unavailable))), chains, inventories, other)
 
     def verify(self, number, plan, policy, contexts, *, clock=_now):
         """Read both snapshots and validate original aggregate; no implicit rerun."""

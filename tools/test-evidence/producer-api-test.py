@@ -11,7 +11,7 @@ import subprocess
 import sys
 import unittest
 from unittest.mock import patch
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 import producer_api as A
 import producer as P
@@ -42,18 +42,27 @@ class FakeApi:
             result = {"number": 17, "state": "open", "merge_commit_sha": binding["merge_sha"],
                       **{side: {"repo": {"id": 1319052603, "full_name": A.REPOSITORY},
                                 "ref": binding[side + "_ref"], "sha": binding[side + "_sha"]} for side in ("base", "head")}}
+        elif path == "commits/refs/pull/17/merge":
+            result = {"sha": binding["merge_sha"], "commit": {"tree": {"sha": binding["merge_tree"]}},
+                      "parents": [{"sha": sha} for sha in binding["merge_parents"]]}
         elif path.startswith("git/ref/"):
-            ref = path[len("git/ref/"):]
-            identities = {"heads/main": binding["base_sha"], "heads/" + binding["head_ref"]: binding["head_sha"],
-                          "pull/17/merge": binding["merge_sha"]}
+            ref = unquote(path[len("git/ref/"):])
+            identities = {"heads/main": binding["base_sha"], "heads/" + binding["head_ref"]: binding["head_sha"]}
             require(ref in identities)
             result = {"ref": "refs/" + ref, "object": {"type": "commit", "sha": identities[ref]}}
-        elif path == "git/commits/" + binding["merge_sha"]:
-            result = {"sha": binding["merge_sha"], "tree": {"sha": binding["merge_tree"]},
-                      "parents": [{"sha": sha} for sha in binding["merge_parents"]]}
+        elif path.startswith("git/commits/"):
+            revision = path.rsplit("/",1)[1]
+            if revision == binding["merge_sha"]:
+                tree,parents=binding["merge_tree"],binding["merge_parents"]
+            elif revision == binding["head_sha"]:
+                tree,parents="8"*40,["7"*40]
+            else:
+                require(revision in case.originals)
+                tree,parents=case.originals[revision]
+            result = {"sha": revision, "tree": {"sha": tree}, "parents": [{"sha": sha} for sha in parents]}
         elif path.startswith("git/trees/"):
             identity = path.rsplit("/", 1)[1]
-            if identity == binding["merge_tree"]:
+            if identity == binding["merge_tree"] or identity in {tree for tree,_ in case.originals.values()}:
                 entries = [{"path": ".github", "mode": "040000", "type": "tree", "sha": "1" * 40}]
             elif identity == "1" * 40:
                 entries = [{"path": "workflows", "mode": "040000", "type": "tree", "sha": "2" * 40}]
@@ -115,7 +124,7 @@ class AdapterTests(unittest.TestCase):
         self.generation[self.pp.workflow_path]["sha"] = self.pp.workflow_blob
         self.policy = A.AdapterPolicy(self.pp, 99, ".github/workflows/repository-checks.yml", {"reviewed": self.generation},
                                       "project / Publish producer descriptor", {"shared-host": "project / Shared tests"})
-        self.runs, self.jobs, self.artifacts, self.archives = {}, {}, {}, {}
+        self.runs, self.jobs, self.artifacts, self.archives, self.originals = {}, {}, {}, {}, {}
         self.aggregate = deepcopy(example.aggregate)
         self.add_run(replace(example.run, workflow_path=self.pp.workflow_path, workflow_commit=self.binding["merge_sha"],
                              workflow_ref=self.pp.workflow_ref, event="pull_request"))
@@ -242,15 +251,99 @@ class AdapterTests(unittest.TestCase):
     def test_latest_attempt_is_read_and_mixed_rerun_jobs_never_reuse_attempt_one(self):
         run = self.capture().observations[0].run
         current = replace(run, attempt=2, latest_attempt=2,
-                          publisher=replace(run.publisher, attempt=2),
-                          owners={name: replace(job, attempt=2) for name, job in run.owners.items()})
+                          publisher=replace(run.publisher, attempt=2,job_id=210),
+                          owners={name: replace(job, attempt=2,job_id=220) for name, job in run.owners.items()})
         self.add_run(current)
         snapshot = self.capture()
-        self.assertTrue(snapshot.inventory_complete)
-        self.assertEqual(snapshot.observations[0].run.attempt, 2)
-        self.assertTrue(any("/attempts/2/jobs?" in path for path in self.api.calls))
+        self.assertFalse(snapshot.inventory_complete)
+        self.assertIn('original-attempt-unavailable',snapshot.unavailable)
+        self.assertEqual(snapshot.observations,[])
+        self.assertFalse(any("/attempts/2" in path for path in self.api.calls))
+        with self.assertRaises(P.ProtocolError): self.verify()
         self.jobs[100][-1]["run_attempt"] = 1
         self.assertEqual(self.authority()["state"], "unresolved")
+
+    def test_current_merge_uses_supported_commit_ref_without_legacy_payload_field(self):
+        for legacy in ('missing',None,'e'*40):
+            def mutate(endpoint,value):
+                if endpoint.endswith('pulls/17'):
+                    if legacy=='missing':value.pop('merge_commit_sha')
+                    else:value['merge_commit_sha']=legacy
+                return value
+            self.api.mutate=mutate
+            with self.subTest(legacy=legacy):
+                binding,refs=self.adapter.current(17)
+                self.assertEqual(binding,self.binding)
+                self.assertEqual(refs['merge'],self.binding['merge_sha'])
+        self.assertTrue(any(path.endswith('/commits/refs/pull/17/merge') for path in self.api.calls))
+        self.assertFalse(any('/git/ref/pull/' in path for path in self.api.calls))
+
+    def test_valid_branch_uri_characters_are_escaped_inside_fixed_fork_endpoints(self):
+        self.binding['head_ref']='fix/main/hash#percent%20'
+        binding,_=self.adapter.current(17)
+        self.assertEqual(binding['head_ref'],self.binding['head_ref'])
+        self.assertTrue(any(path.endswith('/git/ref/heads/fix/main/hash%23percent%2520') for path in self.api.calls))
+        self.assertTrue(all('#' not in path and path.startswith(A.PREFIX) for path in self.api.calls))
+
+    def test_current_ref_must_match_immutable_tree_ordered_parents_and_fresh_branches(self):
+        for mode in ('tree','parents','head-as-merge','base-ref','head-ref'):
+            def mutate(endpoint,value):
+                if endpoint.endswith('/commits/refs/pull/17/merge'):
+                    if mode=='tree':value['commit']['tree']['sha']='f'*40
+                    elif mode=='parents':value['parents'].reverse()
+                    elif mode=='head-as-merge':value['sha']=self.binding['head_sha']
+                elif mode=='base-ref' and endpoint.endswith('/git/ref/heads/main'):value['object']['sha']='f'*40
+                elif mode=='head-ref' and '/git/ref/heads/fix/' in endpoint:value['object']['sha']='f'*40
+                return value
+            self.api.mutate=mutate
+            with self.subTest(mode=mode),self.assertRaises(P.ProtocolError):self.adapter.current(17)
+
+    def add_other_candidate(self,status='completed',conclusion='failure'):
+        run=self.capture().observations[0].run
+        other=replace(run,run_id=101,status=status,conclusion=conclusion,
+                      attempt_started_at='2026-10-15T10:01:00Z',publisher=None,owners={})
+        self.add_run(other,descriptor=False)
+        self.originals['f'*40]=('9'*40,['8'*40,self.binding['head_sha']])
+        source=self.runs[101]['referenced_workflows'][0]
+        source.update(sha='f'*40,path=A.REPOSITORY+'/'+self.pp.workflow_path+'@'+'f'*40)
+
+    def test_authenticated_different_original_candidate_is_reported_without_reusing_it(self):
+        self.add_other_candidate()
+        snapshot=self.capture()
+        self.assertTrue(snapshot.inventory_complete)
+        self.assertEqual([item.run.run_id for item in snapshot.observations],[100])
+        other=snapshot.other_candidates[101]
+        self.assertEqual(other['candidate'],{'merge_sha':'f'*40,'merge_tree':'9'*40,
+                                           'merge_parents':['8'*40,self.binding['head_sha']]})
+        self.assertEqual(self.verify()['run_id'],100)
+        self.assertFalse(any('/runs/101/artifacts' in path for path in self.api.calls))
+
+    def test_other_candidate_cannot_hide_unknown_chain_parents_app_or_attempt(self):
+        self.add_other_candidate()
+        for mode in ('parent','workflow','app','attempt','missing-source'):
+            def mutate(endpoint,value):
+                if mode=='parent' and endpoint.endswith('/git/commits/'+'f'*40):value['parents'][1]['sha']='7'*40
+                elif mode=='workflow' and endpoint.endswith('/git/trees/'+'2'*40):
+                    value['tree'][0]['mode']='100755'
+                elif mode=='app' and endpoint.endswith('/check-suites/1101'):value['app']['id']=42
+                elif mode=='attempt' and endpoint.endswith('/actions/runs/101'):value['run_attempt']=2
+                elif mode=='missing-source' and '/actions/runs/101' in endpoint and 'referenced_workflows' in value:
+                    value['referenced_workflows']=[]
+                return value
+            self.api.mutate=mutate
+            with self.subTest(mode=mode):
+                snapshot=self.capture()
+                self.assertFalse(snapshot.inventory_complete)
+                with self.assertRaises(P.ProtocolError):self.verify()
+
+    def test_new_current_candidate_failure_still_blocks_even_with_known_other_context(self):
+        self.add_other_candidate()
+        current=self.capture().observations[0].run
+        failed=replace(current,run_id=102,conclusion='failure',attempt_started_at='2026-10-15T10:01:00Z',
+                       publisher=replace(current.publisher,job_id=112,started_at='2026-10-15T10:01:00Z',
+                                         completed_at='2026-10-15T10:01:30Z'),owners={})
+        self.add_run(failed)
+        with self.assertRaises(P.ProtocolError):self.verify()
 
     def test_reused_artifact_name_foreign_owner_digest_size_and_expiry_fail(self):
         original = deepcopy(self.artifacts[100])
