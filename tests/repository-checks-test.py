@@ -634,16 +634,20 @@ class AggregateTests(unittest.TestCase):
         metadata_callers = {
             'npm-consumers-metadata-edits-v1': 'metadata-edits/repository-checks.yml',
             'android-owned-npm5-sync-ci-v1': 'android-owned/repository-checks.yml',
+            'protected-producer-metadata-ci-v1': 'producers/repository-checks.yml',
+            'protected-producer-seven-target-ci-v1': 'producers/repository-checks.yml',
         }
         metadata = generation in metadata_callers
         if metadata:
             self.assertEqual(source, (ROOT / 'tools/repository-checks/workflows' / metadata_callers[generation]).read_text())
-        if generation == 'android-owned-npm5-sync-ci-v1':
+        protected = generation in ('protected-producer-metadata-ci-v1', 'protected-producer-seven-target-ci-v1')
+        if generation == 'android-owned-npm5-sync-ci-v1' or protected:
             spec = importlib.util.spec_from_file_location('aggregate_android_generation',
                 ROOT / 'tools/repository-checks/android_gate.py')
             android = importlib.util.module_from_spec(spec); spec.loader.exec_module(android)
             tree = {}
-            for relative in (*PACKAGES.CONSUMER_WORKFLOW_PATHS, '.github/workflows/android-required.yml'):
+            paths = PACKAGES.METADATA_WORKFLOW_PATHS if protected else PACKAGES.CONSUMER_WORKFLOW_PATHS
+            for relative in (*paths, '.github/workflows/android-required.yml'):
                 path = ROOT / relative
                 self.assertTrue(path.is_file() and not path.is_symlink() and not path.stat().st_mode & 0o111)
                 tree[relative] = android._blob(path.read_bytes())
@@ -688,6 +692,184 @@ class AggregateTests(unittest.TestCase):
                      "tools/repository-policy/check.py", "tools/repository-health/check.py",
                      "tests/requirements-repository.txt"):
             self.assertTrue(any(fnmatch.fnmatchcase(path, pattern) for pattern in reuse["qualified_inputs"]), path)
+
+
+
+class NativeOwnerAggregateTests(unittest.TestCase):
+    """Claim strings cannot replace current original native receipt authority."""
+    def setUp(self):
+        self.plan = {'candidate': 'a' * 40, 'plan': 'b' * 64, 'host_mode': 'full',
+                     'tool_projects': [], 'package_set': []}
+        self.needs = results()
+        self.needs['route']['outputs'].update(PACKAGES.outputs(self.plan))
+        self.needs['project']['outputs'] = {**PACKAGES.receipt(self.plan),
+            'documentation_verified': 'true', 'workflow_contracts_verified': 'true'}
+        self.needs['documentation']['result'] = 'skipped'
+        self.needs['workflow-contracts'] = {'result': 'skipped', 'outputs': {}}
+        self.proof = {'kind': 'current-original-pr-owners', 'qualification': False,
+                      'reusable': False, 'verified': True,
+                      'suites': sorted(CHECKS._NATIVE_DOCUMENTATION | {'workflow-contracts'})}
+        self.calls = []
+        def verify(candidate, event_, environment, adapter, *, demanded):
+            self.calls.append((candidate, event_, set(demanded)))
+            return deepcopy(self.proof)
+        controller = SimpleNamespace(verify_current_owners=verify,
+                                    producer_api=SimpleNamespace(Adapter=lambda: object()))
+        self.enterContext(patch.object(CHECKS, 'native_owner_policy', return_value=controller))
+        self.policy = SimpleNamespace(validate_wiring=lambda _: CHECKS._NATIVE_OWNER_GENERATION)
+        self.enterContext(patch.object(CHECKS, 'package_policy', side_effect=lambda: self.policy))
+
+    def bound(self, needs=None):
+        return CHECKS.bound_project_owners(self.needs if needs is None else needs,
+                                          ROOT, event(), 'a' * 40)
+
+    def aggregate(self, represented):
+        with patch.object(CHECKS, 'package_policy', return_value=PACKAGES):
+            return CHECKS.verify(represented, package_plan=self.plan)
+
+    def test_exact_native_owner_maps_passed_commands_without_mutating_original_jobs(self):
+        original = deepcopy(self.needs)
+        with self.assertRaises(ValueError):
+            self.aggregate(self.needs)
+        represented, proof = self.bound()
+        self.assertEqual(self.aggregate(represented)['status'], 'PASS')
+        self.assertEqual(self.needs, original)
+        self.assertEqual(represented['project']['outputs'], PACKAGES.receipt(self.plan))
+        self.assertEqual(self.calls[0][2], CHECKS._NATIVE_DOCUMENTATION | {'workflow-contracts'})
+        self.assertEqual(proof, self.proof)
+
+    def test_false_claims_keep_real_standalone_checks_and_do_not_read_native_api(self):
+        for key in CHECKS._NATIVE_OWNER_OUTPUTS:
+            self.needs['project']['outputs'][key] = 'false'
+        self.needs['documentation']['result'] = 'success'
+        self.needs['workflow-contracts']['result'] = 'success'
+        represented, proof = self.bound()
+        self.assertIsNone(proof)
+        self.assertEqual(self.calls, [])
+        self.assertEqual(self.aggregate(represented)['status'], 'PASS')
+        self.needs['documentation']['result'] = 'skipped'
+        represented, _ = self.bound()
+        with self.assertRaises(ValueError): self.aggregate(represented)
+
+    def test_unselected_security_needs_no_unused_contract_proof(self):
+        self.needs['project']['outputs']['documentation_verified'] = 'false'
+        self.needs['documentation']['result'] = 'success'
+        self.needs['route']['outputs']['security'] = 'false'
+        self.needs['workflow-security']['result'] = 'skipped'
+        represented, proof = self.bound()
+        self.assertIsNone(proof)
+        self.assertFalse(self.calls)
+        self.assertEqual(self.aggregate(represented)['status'], 'PASS')
+
+    def test_foreign_mixed_missing_or_malformed_claims_cannot_delegate(self):
+        for generation in ('protected-producer-metadata-ci-v1', 'unknown', None):
+            self.policy.validate_wiring = lambda _, value=generation: value
+            with self.subTest(generation=generation), self.assertRaises(ValueError): self.bound()
+        self.policy.validate_wiring = lambda _: CHECKS._NATIVE_OWNER_GENERATION
+        for value in ('', 'TRUE', '1', True, None, []):
+            wrong = deepcopy(self.needs); wrong['project']['outputs']['documentation_verified'] = value
+            with self.subTest(value=value), self.assertRaises(ValueError): self.bound(wrong)
+        for key in (*self.needs['project']['outputs'], 'unknown_owner'):
+            wrong = deepcopy(self.needs)
+            if key == 'unknown_owner': wrong['project']['outputs'][key] = 'false'
+            else: del wrong['project']['outputs'][key]
+            with self.subTest(key=key), self.assertRaises(ValueError): self.bound(wrong)
+        self.assertFalse(self.calls)
+
+    def test_native_failure_missing_command_or_nonproof_result_never_maps_docs(self):
+        for change in ({'verified': False}, {'qualification': True}, {'reusable': True},
+                       {'kind': 'completed-foreign-owner'}, {'suites': ['documentation']}):
+            original = deepcopy(self.proof); self.proof.update(change)
+            with self.subTest(change=change), self.assertRaises(ValueError): self.bound()
+            self.proof = original
+        with patch.object(CHECKS, 'native_owner_policy', side_effect=ValueError('native proof unavailable')):
+            with self.assertRaises(ValueError): self.bound()
+
+    def test_native_docs_require_precisely_skipped_standalone_not_hidden_failure(self):
+        for result_ in ('failure', 'cancelled', 'success', None):
+            wrong = deepcopy(self.needs); wrong['documentation']['result'] = result_
+            with self.subTest(result=result_), self.assertRaises(ValueError): self.bound(wrong)
+        for result_ in ('failure', 'cancelled', 'skipped', None):
+            wrong = deepcopy(self.needs); wrong['project']['result'] = result_
+            with self.subTest(project=result_), self.assertRaises(ValueError): self.bound(wrong)
+
+    def test_native_owner_preserves_all_other_job_and_exact_package_failures(self):
+        represented, _ = self.bound()
+        for job in ('native', 'workflow-security', 'project', 'route'):
+            for state in ('failure', 'cancelled', 'skipped'):
+                wrong = deepcopy(represented); wrong[job]['result'] = state
+                with self.subTest(job=job, state=state), self.assertRaises(ValueError): self.aggregate(wrong)
+        for key in PACKAGES.receipt(self.plan):
+            wrong = deepcopy(represented); wrong['project']['outputs'][key] = 'forged'
+            with self.subTest(key=key), self.assertRaises(ValueError): self.aggregate(wrong)
+
+    def test_contract_fallback_is_required_without_native_proof_and_never_hides_failure(self):
+        self.needs['project']['outputs'].update(documentation_verified='false', workflow_contracts_verified='false')
+        self.needs['documentation']['result'] = 'success'
+        for state in ('skipped', 'failure', 'cancelled', 'neutral', None):
+            self.needs['workflow-contracts']['result'] = state
+            with self.subTest(state=state), self.assertRaises(ValueError): self.bound()
+        self.needs['workflow-contracts']['result'] = 'success'
+        represented, proof = self.bound()
+        self.assertIsNone(proof)
+        self.assertFalse(self.calls)
+        self.assertEqual(self.aggregate(represented)['status'], 'PASS')
+        self.needs['project']['result'] = 'skipped'
+        self.needs['project']['outputs'] = {}
+        self.plan['host_mode'] = 'documentation'
+        self.needs['route']['outputs'].update(PACKAGES.outputs(self.plan))
+        represented, proof = self.bound()
+        self.assertEqual(self.aggregate(represented)['status'], 'PASS')
+        self.assertIsNone(proof)
+
+    def test_native_contract_claim_requires_the_fallback_job_to_be_precisely_skipped(self):
+        for changes in ({'result': 'success'}, {'result': 'failure'}, {'result': 'cancelled'},
+                        {'outputs': {'unknown': ''}}, {'outputs': 'malformed'}):
+            wrong = deepcopy(self.needs); wrong['workflow-contracts'].update(changes)
+            with self.subTest(changes=changes), self.assertRaises(ValueError): self.bound(wrong)
+        wrong = deepcopy(self.needs); del wrong['workflow-contracts']
+        with self.assertRaises(ValueError): self.bound(wrong)
+        self.assertFalse(self.calls)
+
+    def test_fresh_isolated_current_owner_imports_stay_inside_the_fixed_controller_graph(self):
+        # The actual outer CLI calls this boundary BEFORE loading unrelated
+        # browser/Android routers. A fresh interpreter catches real imports;
+        # parent unittest mocks or ambient PYTHONPATH cannot make it pass.
+        program = r"""
+import importlib.util, json, sys
+from pathlib import Path
+root=Path(sys.argv[1])
+spec=importlib.util.spec_from_file_location('fresh_owner_checks',root/'tools/repository-checks/check.py')
+checks=importlib.util.module_from_spec(spec);sys.modules[spec.name]=checks;spec.loader.exec_module(checks)
+producer=checks.native_owner_policy()
+allowed=set(producer.controller_sources(producer._host_policy()))
+reached=set()
+for module in tuple(sys.modules.values()):
+    source=getattr(module,'__file__',None)
+    if source and Path(source).resolve().is_relative_to(root):
+        reached.add(Path(source).resolve().relative_to(root).as_posix())
+assert reached <= allowed, sorted(reached-allowed)
+assert 'tools/repository-checks/check.py' in reached
+assert 'tools/test-evidence/source_admission.py' in reached
+assert 'tools/repository-checks/browser_cpu.py' not in reached
+assert 'tools/repository-checks/android_gate.py' not in reached
+print(json.dumps(sorted(reached)))
+"""
+        result = subprocess.run([sys.executable, '-I', '-S', '-B', '-c', program, str(ROOT)],
+                                capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('tools/test-evidence/producer_workflow.py', json.loads(result.stdout))
+
+    def test_unselected_project_retains_the_existing_documentation_route(self):
+        self.plan['host_mode'] = 'documentation'
+        self.needs = results('documentation', 'false')
+        self.needs['route']['outputs'].update(PACKAGES.outputs(self.plan))
+        self.needs['project']['outputs'] = {}
+        self.needs['workflow-contracts'] = {'result': 'skipped', 'outputs': {}}
+        represented, proof = self.bound()
+        self.assertIsNone(proof)
+        self.assertEqual(self.calls, [])
+        self.assertEqual(self.aggregate(represented)['status'], 'PASS')
 
 
 class DirectBrowserTests(unittest.TestCase):
@@ -1363,7 +1545,8 @@ class PackageChecksTests(unittest.TestCase):
 
     def test_protected_route_accepts_only_actual_complete_flag_bearing_generations(self):
         names={'protected-shared-producer-v1','protected-producer-postmerge-original-e-v1',
-               'protected-producer-ci37-v1','protected-producer-metadata-ci-v1'}
+               'protected-producer-ci37-v1','protected-producer-metadata-ci-v1',
+               'protected-producer-seven-target-ci-v1'}
         self.assertEqual(PACKAGES._PROTECTED_ROUTE_GENERATIONS,names)
         for name in (*sorted(names),'postmerge-original-e-v1','npm-consumers-v1'):
             root,_,_=self.protected_workflow_fixture(name)

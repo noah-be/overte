@@ -47,6 +47,10 @@ PROTECTED_PUSH_WORKFLOWS = {
     330551824: (".github/workflows/project-tests.yml",
                 frozenset({"android-phone", "android-vr-pico", "apple-ios"})),
 }
+# This consumer is registered by its one fixed path, never an artifact/CLI ID.
+# Its registration may be new; it cannot publish original producer authority.
+DOCUMENTATION_PUSH_WORKFLOW = '.github/workflows/documentation-push-owner.yml'
+DOCUMENTATION_PUSH_BRANCHES = frozenset({'main','android-phone','android-vr-pico','apple-ios'})
 _SHA = re.compile(r"[0-9a-f]{40}\Z")
 _DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 
@@ -437,14 +441,23 @@ class Adapter:
         fields = ("id", "workflow_id", "check_suite_id", "event", "path", "head_sha", "head_branch",
                   "run_attempt", "status", "conclusion", "run_started_at")
         require(all(run.get(key) == latest.get(key) for key in fields) and run.get("id") == push_run_id
-                and run.get("event") == "push" and type(run.get("workflow_id")) is int
-                and run["workflow_id"] in PROTECTED_PUSH_WORKFLOWS,
+                and run.get("event") == "push" and type(run.get("workflow_id")) is int,
                 "protected push run/attempt identity unavailable")
         for key in ("repository", "head_repository"):
             value = run.get(key)
             require(isinstance(value, dict) and value.get("id") == 1319052603
                     and value.get("full_name") == REPOSITORY, "protected push repository mismatch")
-        path, branches = PROTECTED_PUSH_WORKFLOWS[run["workflow_id"]]
+        if run['workflow_id'] in PROTECTED_PUSH_WORKFLOWS:
+            path, branches = PROTECTED_PUSH_WORKFLOWS[run['workflow_id']]
+        else:
+            require(run.get('path') == DOCUMENTATION_PUSH_WORKFLOW,
+                    'unreviewed protected push consumer')
+            registered = self._object('actions/workflows/documentation-push-owner.yml')
+            require(positive(registered.get('id')) == run['workflow_id']
+                    and registered.get('path') == DOCUMENTATION_PUSH_WORKFLOW
+                    and registered.get('state') == 'active',
+                    'fixed documentation consumer registration changed')
+            path, branches = DOCUMENTATION_PUSH_WORKFLOW, DOCUMENTATION_PUSH_BRANCHES
         target, revision = run.get("head_branch"), sha(run.get("head_sha"))
         require(target in branches and run.get("path") == path
                 and run.get("status") in P._PENDING | {"completed"}

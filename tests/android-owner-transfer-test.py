@@ -231,10 +231,14 @@ class AndroidOwnerTransferTests(unittest.TestCase):
             with self.subTest(path=path), self.assertRaises(ValueError):
                 gate.validate_tree_wiring(forged)
         generations = gate.packages().workflow_generations()
-        self.assertEqual(len(generations),20)
+        self.assertEqual(len(generations),21)
         prior = next(row for row in generations if row['name']=='protected-producer-ci37-v1')
         self.assertEqual(len(prior['workflows']),5)
         self.assertEqual(gate.packages().validate_tree_wiring(prior['workflows']),prior['name'])
+        for name in ('protected-producer-metadata-ci-v1', 'protected-producer-seven-target-ci-v1'):
+            enrolled = next(row for row in generations if row['name'] == name)
+            self.assertEqual(set(enrolled['workflows']), set(gate.packages().METADATA_WORKFLOW_PATHS))
+            self.assertEqual(gate.packages().validate_tree_wiring(enrolled['workflows']), name)
 
     def test_partial_selected_host_does_not_execute_product_or_claim_reuse(self):
         self.prepare_project()
@@ -423,12 +427,15 @@ class AndroidOwnerTransferTests(unittest.TestCase):
         event_path.write_text(json.dumps(self.fixture.event))
         android = SimpleNamespace(activated=lambda event: False,
             admit=lambda candidate, event: gate.admit(candidate, event, policy_root=self.policy_root))
+        packages = gate.packages()
+        self.assertEqual(packages.validate_wiring(self.candidate), 'android-owned-npm5-sync-ci-v1')
+        package_policy = SimpleNamespace(activated=lambda event: False, validate_wiring=packages.validate_wiring)
         argv = ["check.py", "verify", "--event", str(event_path), "--candidate", str(self.candidate),
                 "--sha", self.fixture.sha, "--needs-json", json.dumps(needs)]
         errors = io.StringIO()
         with patch.object(sys, "argv", argv), redirect_stderr(errors), \
                 patch.object(prior.checks, "configuration", return_value=({}, {})), \
-                patch.object(prior.checks, "package_policy", return_value=SimpleNamespace(activated=lambda event: False)), \
+                patch.object(prior.checks, "package_policy", return_value=package_policy), \
                 patch.object(prior.checks, "browser_policy", return_value=SimpleNamespace(required=lambda *args: False)), \
                 patch.object(prior.checks, "android_policy", return_value=android):
             self.assertNotEqual(prior.checks.main(), 0)

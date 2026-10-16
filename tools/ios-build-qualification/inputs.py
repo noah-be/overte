@@ -33,7 +33,7 @@ import subprocess
 # Protected apple-ios merge of the successful host-only workflow bootstrap.
 # Its only tree delta from the previous anchor is the exact reviewed workflow.
 REVIEWED_REVISION = "2fc894a0605103843b36653f250f854714a963ee"
-REVIEWED_BOUNDARY = "sha256:48d5394647900717f6d69de0c0059b935e6e2c6a2efc085c76da04c568d78d90"
+REVIEWED_BOUNDARY = "sha256:439c4efe0b3640c6da33d75854296063b60f881f0cfeb0c4a5d77fca728a786d"
 
 # Reviewed host control-plane files, not generic tests/** or tools/** patterns.
 # In particular, E2E builds can compile tests/device source and fixtures.
@@ -43,6 +43,13 @@ REVIEWED_BOUNDARY = "sha256:48d5394647900717f6d69de0c0059b935e6e2c6a2efc085c76da
 # its device-control-plane-full and project-runner owners remain independently required.
 # Independent required CI must still validate these files before any app waiver.
 INDEPENDENT_HOST_PATHS = frozenset({
+    '.github/workflows/documentation-checks.yml',
+    '.github/workflows/documentation-push-owner.yml',
+    'tools/test-evidence/source_admission.py',
+    'tools/test-evidence/source-admission-test.py',
+    'tools/repository-checks/workflows/producers/legacy/parent-qualification-metadata-v1.yml',
+    'tools/repository-checks/workflows/producers/legacy/protected-project-tests-metadata-v1.yml',
+    'tools/repository-checks/workflows/producers/legacy/repository-checks-metadata-v1.yml',
     ".github/dependency-security.md",
     ".github/test-suite-dependencies.json",
     "tools/test-evidence/affected-test.py",

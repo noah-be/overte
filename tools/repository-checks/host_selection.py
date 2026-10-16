@@ -59,6 +59,12 @@ CI_POLICY = frozenset({
 # import/read these controls or unit tests. Do not extend this to tools/** or
 # tests/**: those roots also contain real product readers and import candidates.
 CI_ROLLOUT_PATHS = frozenset({
+    '.github/workflows/documentation-checks.yml',
+    '.github/workflows/workflow-security.yml',
+
+    '.github/workflows/documentation-push-owner.yml',
+    'tools/test-evidence/source_admission.py',
+    'tools/test-evidence/source-admission-test.py',
     'tools/test-evidence/affected-test.py',
     ".github/workflows/pr-metadata-context.yml",
     '.github/android-checks.json', '.github/android-orchestration.json', '.github/android-owner-transfer.json',
@@ -116,6 +122,7 @@ PROGRAM_INPUTS = (
     'tools/test-evidence/sandbox_shared.py',
     'tools/test-evidence/producer_workflow.py',
     'tools/test-evidence/postmerge.py',
+    'tools/test-evidence/source_admission.py',
     # The CI37 policy is independently CI-owned data: protected admission binds
     # its exact ordinary entry and bytes. Including its generation here would
     # cycle through this file's REVIEWED_PROGRAMS and the complete CI37 tree.
@@ -135,23 +142,23 @@ PROGRAM_INPUTS = (
 # legacy-retirement/contract handoff files. Only the two separately owned foreign
 # locks are outside this complement; changed locks need mandatory package coverage.
 # These identities are not execution receipts or application-build evidence.
-REVIEWED_PROGRAMS = 'f176815fd0cf042620023bd8f4a4d69bab0cb72ba8bb5cdda4380d42568edd5b'
+REVIEWED_PROGRAMS = 'b547c26d4c952ec34fd47688afc134bcf2c933566c3c3647ed5049e7c4226ff3'
 REVIEWED_CHILD_PROGRAMS = {
-    'apple-main': 'ecbc6db19231488b0b7b2694f66775af2c4d26efdb03ccb9dde249356f84d114',
-    'apple-ios': '0539cdfdde0528b306270ce3dcbaadf64508eb33323981c16a0cfd8678a00f98',
-    'android-main': 'f2eb6f7631bb5413eb53eb90b29d5088a20427baa4826f40044c5817b5c7e95a',
-    'android-phone': '9336b7aa5bcdfcba91f630a58803263af0b3285e055c1ff1ee21d7496dadff07',
-    'android-vr': 'f2eb6f7631bb5413eb53eb90b29d5088a20427baa4826f40044c5817b5c7e95a',
-    'android-vr-pico': '7c22880a90518f282dbb48ccfd4aafbd19bc2522601effc8069d4f28f2e54379',
+    'apple-main': 'dc2869615e57eb0f3fc24cfc78684d67238867299d75e70f42414714bb1bbc71',
+    'apple-ios': 'c4c9f5fbbf38e227e3cceac49ffea37e53fdab14a1835c2d31bf75437f65b45e',
+    'android-main': 'a1465b1a06466d785f42c105370254a257509d565879190f537b076fcd6dcb9d',
+    'android-phone': '9c6dc165db7d265f212665d857bb8c961cc24db524198723226a4a136ebeb297',
+    'android-vr': 'a1465b1a06466d785f42c105370254a257509d565879190f537b076fcd6dcb9d',
+    'android-vr-pico': '1cf99bff17e489284b312d9aaf0533f250b0d3b1607df64487473ad5c8e8a6bc',
 }
 REVIEWED_PREDECESSORS = {
-    'main': '1294d2d232b6b639a9a194933acc4770c5979526c35a594d71f9aa6d7db9196b',
-    'apple-main': 'f206a151e7002fc01d82905aa266abcec803d4eb749029798f6898079f905133',
-    'apple-ios': '5f5a50074beba254ee9fbe938164ca07946079ecae4bacdd123dbff9a23b1749',
-    'android-main': '05df16f08173e7365dcc508239a8fc006d8e3110bde3d886fa823281f649eeff',
-    'android-phone': 'a6775a9dbcb1c1d6cefca7dc549c48db31378de82e1d04aed82dade01f0ce639',
-    'android-vr': '05df16f08173e7365dcc508239a8fc006d8e3110bde3d886fa823281f649eeff',
-    'android-vr-pico': 'f330d4e3053b16c3252851ce361385b72a813fb077a4a291f3dabb156f4fc5c1',
+    'main': '0644bec55de2d979b7a406f54e96960e44d50961b1fc43e2f73fac739658b799',
+    'apple-main': '4f317ee1df2e619b1465605751f472fa555fad68a13fd7a739139057c63c3fd0',
+    'apple-ios': 'c284b211104288ddb08ed34d63b22bf0b9e515feb301bec0573c2a150d744022',
+    'android-main': '6e2fa5e9ed95ead952fd9ae6e50b6d9ba524641b832ca847779ae4b0306b245f',
+    'android-phone': '085ad53b6f0c99c4ac6a0323d9f0b545b4f31c8244730376d9b1aa89ce1cf518',
+    'android-vr': '6e2fa5e9ed95ead952fd9ae6e50b6d9ba524641b832ca847779ae4b0306b245f',
+    'android-vr-pico': 'd664c6fcb84a98e584781be64eb7d3b7ebfe75e4ca5e44504fa25cca9afbfd97',
 }
 CONTROL_PLANE = 'tests/device/run_control_plane_tests.py'
 PACKAGE_LOCKS = {
@@ -292,6 +299,8 @@ def _protected_producer_transition(tree, paths, base_tree, trusted_tree, target)
             ('postmerge-original-e-v1', 'protected-producer-metadata-ci-v1', metadata_endpoints,
              set(policy.METADATA_WORKFLOW_PATHS), False),
             ('android-owned-npm5-sync-ci-v1', 'protected-producer-metadata-ci-v1', joint_endpoints,
+             set(policy.METADATA_WORKFLOW_PATHS), True),
+            ('android-owned-npm5-sync-ci-v1', 'protected-producer-seven-target-ci-v1', joint_endpoints,
              set(policy.METADATA_WORKFLOW_PATHS), True)):
         previous, producer = generations.get(old_name, {}), generations.get(new_name, {})
         if set(paths) != endpoints or set(previous) != consumers or set(producer) != candidate_paths \

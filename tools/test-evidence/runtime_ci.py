@@ -402,14 +402,19 @@ def _process():
 
 
 def _capture_ci_environment(selection, candidate_tree, trusted_tree, registry, *, root=ROOT, target='main', _diagnostic=False,
-                            read_blob=None, source=None, source_root=None):
+                            read_blob=None, source=None, source_root=None, controller_manifest=None):
     """Actual protected BEFORE/AFTER query; no caller may invent optional tools."""
     if _diagnostic:
         binding = ci_profile.diagnostic_selection(selection,candidate_tree,trusted_tree,registry,
-            source=source,source_root=source_root,root=root,target=target,read_blob=read_blob)
+            source=source,source_root=source_root,root=root,target=target,read_blob=read_blob,
+            controller_manifest=controller_manifest)
     else:
+        policy=ci_profile.load_policy(root)
+        require(policy.get('generation_kind')!=ci_profile.CONTROLLER_KIND or controller_manifest is not None,
+                'CI37 controller capture requires its sealed admitted D manifest')
         binding = ci_profile.validate_selection(selection, candidate_tree, trusted_tree, registry,
-            target=target,policy=ci_profile.load_policy(root),root=root,read_blob=read_blob)
+            target=target,policy=policy,root=root,read_blob=read_blob,
+            controller_manifest=controller_manifest)
     return _measure_ci_environment(binding,root=root)
 
 
@@ -636,10 +641,12 @@ def _validate_environment(environment, qualified_at, expires_at, now, selection,
             'policy_digest': ci_profile.policy_identity(policy)}
 
 
-def capture_ci_environment(selection, candidate_tree, trusted_tree, registry, *, root=ROOT, target='main', read_blob=None):
+def capture_ci_environment(selection, candidate_tree, trusted_tree, registry, *, root=ROOT, target='main', read_blob=None,
+                           controller_manifest=None):
     """No unknown capture outcome may be represented as a reusable identity."""
     try:
-        return _capture_ci_environment(selection,candidate_tree,trusted_tree,registry,root=root,target=target,read_blob=read_blob)
+        return _capture_ci_environment(selection,candidate_tree,trusted_tree,registry,root=root,target=target,read_blob=read_blob,
+                                       controller_manifest=controller_manifest)
     except CIEnvironmentError:
         raise
     except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError, subprocess.SubprocessError) as error:
@@ -647,7 +654,7 @@ def capture_ci_environment(selection, candidate_tree, trusted_tree, registry, *,
 
 
 def capture_ci_environment_diagnostic(selection, candidate_tree, trusted_tree, registry, *, root=ROOT, target='main',
-                                      read_blob=None, source=None, source_root=None):
+                                      read_blob=None, source=None, source_root=None, controller_manifest=None):
     """Fixed source-qualified measurement only; never activation, admission or reuse.
 
     This dedicated API binds the complete actual immutable source and real
@@ -656,7 +663,8 @@ def capture_ci_environment_diagnostic(selection, candidate_tree, trusted_tree, r
     """
     try:
         return _capture_ci_environment(selection,candidate_tree,trusted_tree,registry,
-            root=root,target=target,_diagnostic=True,read_blob=read_blob,source=source,source_root=source_root)
+            root=root,target=target,_diagnostic=True,read_blob=read_blob,source=source,source_root=source_root,
+            controller_manifest=controller_manifest)
     except CIEnvironmentError:
         raise
     except (ValueError,KeyError,TypeError,AttributeError,RuntimeError,OSError,subprocess.SubprocessError) as error:

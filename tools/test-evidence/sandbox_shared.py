@@ -36,14 +36,17 @@ _CACERTS_MAX_BYTES = 4 * 1024 ** 2
 
 def sources():
     _, requirements = runtime._requirement_inventory(ROOT)
-    return sorted({*sandbox.contract(ROOT)['sources'], *runtime._TRUSTED_EXECUTION_FILES,
+    names={*sandbox.contract(ROOT)['sources'], *runtime._TRUSTED_EXECUTION_FILES,
                    *requirements, '.github/test-suites.json', 'tests/platform-profile.json',
                    'tools/test-evidence/sandbox_shared.py', 'tools/test-evidence/sandbox_host.py',
                    'tools/test-evidence/sandbox_host_fixture.py', 'tools/test-evidence/sandbox_probe.py',
                    'tools/test-evidence/ci_profile.py','tools/test-evidence/runtime_ci.py',ci_profile.POLICY,
                    ci_profile.PINNED_SOURCE,
                    'tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml',
-                   '.github/workflows/shared-sandbox-host-diagnostic.yml'})
+                   '.github/workflows/shared-sandbox-host-diagnostic.yml'}
+    if ci_profile.load_policy(ROOT).get('generation_kind')==ci_profile.CONTROLLER_KIND:
+        names.update(ci_profile.controller_paths())
+    return sorted(names)
 
 
 def verify_source(revision):
@@ -79,9 +82,16 @@ def materialize_source(revision, destination, *, repository=None):
     return sandbox.materialize_candidate_snapshot(repository, revision, destination, context_revisions=tuple(parents))
 
 
-def project_policy(destination, names):
+def project_policy(destination, names, *, trusted_source=None):
     """Project protected controller sources, never copies chosen by candidate."""
     host.require(not any(destination.iterdir()), 'shared-host policy destination is not empty')
+    controller=ci_profile.load_policy(ROOT).get('generation_kind')==ci_profile.CONTROLLER_KIND
+    if controller:
+        host.require(type(trusted_source) is str and re.fullmatch('[0-9a-f]{40}',trusted_source)
+            and trusted_source!='0'*40 and set(ci_profile.controller_paths())<=set(names),
+            'controller projection requires complete admitted native D source')
+        manifest=ci_profile.capture_controller_manifest(ROOT,trusted_source)
+        sandbox._write_source(destination,ci_profile.CONTROLLER_MANIFEST,sandbox._canonical(manifest))
     for relative in names:
         sandbox._write_source(destination, relative, sandbox._source(ROOT, relative),
                               executable=relative == 'tests/run-project-tests.py')
@@ -531,7 +541,7 @@ def run_host(*, profile=FULL_ENVIRONMENT):
             candidate.mkdir(mode=0o755)
             policy.mkdir(mode=0o755)
             snapshot = materialize_source(os.environ['GITHUB_SHA'], candidate)
-            projection = project_policy(policy, names)
+            projection = project_policy(policy, names, trusted_source=os.environ['GITHUB_SHA'])
             binding = {'source': os.environ['GITHUB_SHA'], 'run_id': int(os.environ['GITHUB_RUN_ID']),
                        'run_attempt': int(os.environ['GITHUB_RUN_ATTEMPT']), 'profile': PROFILE,
                        'snapshot': snapshot['digest'], 'git_context': snapshot['git_context'],

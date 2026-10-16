@@ -62,8 +62,8 @@ clock, cancellation and empty-discovery check.
 
 A smaller owner set cannot replace an existing route with broader preparation.
 Existing Qt-free selections remain authoritative until an equally narrow setup
-context for a subset is independently established. The protected producer still
-declines unsupported subsets before preparation; no CI37 identity is relabeled.
+context for a subset is independently established. A full-host subset keeps the
+complete full-host environment; it cannot inherit a CI37 environment identity.
 
 Added import candidates anywhere and root-level import contents also
 invalidate the protected lookup review. This initial reader digest is broad:
@@ -81,14 +81,28 @@ The selector retains the existing plan unless the new plan has a strictly
 smaller owner set. Existing proven CI37/metadata/package decisions are preserved;
 a broad unproved dependency owner cannot replace them with more tests.
 
-Dynamic subsets use the existing trusted nonreusable execution path. The exact
-empty shared platform proof permits `include_platform=false`, while
-`full_host=true` keeps complete prerequisite preparation. Complete
-host prerequisites are retained. Environment capture cannot expand the subset
-back to all suites or produce partial reusable evidence. A started test failure
-is returned once as failure; it never triggers an alternate execution. The
-protected producer declines this new selection reason before runtime setup,
-since no protected environment profile for arbitrary subsets is qualified.
+The protected producer supports a proper affected subset on `main` only when
+its independent complete-host decision, exact ordinary registry in base,
+candidate and protected source, dependency policy, lookup inventory and empty
+shared platform profile all agree. The selected ordered suite list must equal
+the independently recomputed plan. `full_host=true` retains complete prerequisite
+preparation and the original full-host environment; `include_platform=false`
+requires the exact empty platform proof. Environment capture cannot expand the
+subset back to all suites or turn it into CI37 execution.
+
+An eligible native execution records only the suites actually selected and run
+in its schema-3 receipt. Reuse authenticates the original native run, final
+publisher's whole-receipt commitment, original environment and expiry, then
+recomputes both original and current selections and every selected suite's full
+input closure. The reused list must equal the selected ordered owners, with no
+selected owner still requiring execution. Every other registry name remains in
+the explicit unproved complement and needs an independent unaffected-input
+decision. Missing, extra, changed or unproved owners cannot become successful
+omissions. The existing full-inventory path retains its complete-owner requirement.
+
+Unsupported contexts keep the independently selected execution path. A
+protected producer may decline before a suite starts; a started failure or
+post-execution proof failure is returned once and never triggers a second run.
 
 The exact ordinary dependency policy and its hyphenated regression test are
 independent iOS/Android host inputs. Neighboring names and executable/alias
@@ -103,7 +117,38 @@ not currently alter provisioning. Future setup reduction needs a separate
 review of actual executable, compiler, loader, Python/Qt/Java and fixture
 requirements for each selected owner.
 
-This implementation makes subsequent protected-graph decisions functional. Its
-first deployment remains conservative. It does not complete the broader
-per-suite audit: many repository closures still run, provisioning remains full,
-and no source/runtime reuse capability is enabled.
+The CI37 profile has a separate protected-controller generation mode,
+`ci37-protected-controller-v1`, with epoch
+`ubuntu24-ci37-controller-20261016-v1`. Its policy uses `generation_kind` in place
+of the legacy pinned whole-candidate `generation_digest`. Legacy policy keeps
+its existing strict whole-tree semantics. The new mode still accepts only the
+exact ordered 37 suites on a known regular `main` plan, unchanged ordinary
+policy and registry declarations, the pinned Android policy and the empty
+shared platform profile.
+
+Before execution, native source admission establishes the actual protected
+controller commit. The supervisor projects its complete authenticated Git
+manifest and fixed controller/import files into a read-only policy mount. The
+probe checks this separate protected source against its immutable commit and
+tree; candidate files cannot supply the controller manifest. Generation binds
+all reviewed controller and import-member bytes, modes, membership and suite
+definitions. Complete protected commit/tree identifiers stay in the internal
+manifest, rather than making unrelated protected commits change runtime
+identity. Only the two existing policy self-cycles omit their SHA from generation;
+raw policy equality and the complete pinned Android entry remain independent
+requirements. All reviewed import-member bytes remain conservatively bound.
+
+Source admission covers the finite seven-target topology, but does not itself
+qualify an environment, platform command or branch edge. Nonempty Android
+platform declarations still require their separately enforced owners; a common
+receipt cannot claim their success. The protected full-host receipt and the
+CI37 receipt retain separate environment identities and original validity.
+
+Enabled source capabilities, a source-only PR, a green legacy fallback and a
+manual diagnostic do not establish reusable native execution evidence. The
+first eligible native run must pass admission before its selected tests,
+retain equal before/after environment observations, complete process cleanup
+and publish the authenticated whole receipt. Separate manual full-suite or
+CI37 runs are not prerequisites to that stronger execution proof. The broader
+per-suite and all-branch acceptance remains open until actual evidence exists;
+full prerequisite preparation remains required where its reduction is unproved.

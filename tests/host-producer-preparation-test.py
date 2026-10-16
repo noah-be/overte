@@ -59,7 +59,10 @@ class WorkflowGenerationTests(TemporaryGit, unittest.TestCase):
                     '861db7b76a11b9b8772e91cb24ec7cb9d918e339',
                     '6684e18785719813c51f9e3f5481a82ca40f0baf',
                     '84d98cac819755f98eecffba847e0bbcf667a6ca',
-                    'c1d3d14a9098de214b6544dca8dcba0072090c6b'):
+                    'c1d3d14a9098de214b6544dca8dcba0072090c6b',
+                    'c01ff8a69f1ccbc60196da17e782c9a09defe4e5',
+                    '1f8a7c3b4fe400a7c62ec2682de3f77d08dfd70d',
+                    'b9022d17b985f93838b92cb42c7e2d873e7cb11f'):
             self.assertIn(oid, self.contents)
             self.assertEqual(blob(self.contents[oid])['sha'], oid)
 
@@ -123,7 +126,7 @@ class WorkflowGenerationTests(TemporaryGit, unittest.TestCase):
         previous = next(g for g in self.generations if g['name'] == 'android-owned-npm5-sync-ci-v1')
         prospective = next(g for g in self.generations if g['name'] == 'protected-shared-producer-v1')
         self.assertEqual(set(prospective['workflows']), set(PACKAGES.CONSUMER_WORKFLOW_PATHS))
-        self.assertEqual(len(self.generations), 20)
+        self.assertEqual(len(self.generations), 21)
         for path in prospective['workflows']:
             if path not in {'.github/workflows/repository-checks.yml', '.github/workflows/project-tests.yml'}:
                 self.assertEqual(prospective['workflows'][path], previous['workflows'][path])
@@ -152,24 +155,56 @@ class WorkflowGenerationTests(TemporaryGit, unittest.TestCase):
         with self.assertRaises(ValueError): PACKAGES.validate_wiring(root)
 
     def test_metadata_generation_requires_the_complete_six_ordinary_immutable_entries(self):
-        generation = next(row for row in self.generations if row['name'] == 'protected-producer-metadata-ci-v1')
-        original = generation['workflows']
-        self.assertEqual(set(original), set(PACKAGES.METADATA_WORKFLOW_PATHS))
-        self.assertEqual(PACKAGES.validate_tree_wiring(original), generation['name'])
-        for path in original:
-            known_other = next(value for row in self.generations for value in row['workflows'].values()
-                               if value != original[path])
-            for change in ('missing', 'neighbor', 'mixed-known', 'executable', 'symlink', 'gitlink', 'unknown'):
-                tree = deepcopy(original)
-                if change == 'missing': del tree[path]
-                elif change == 'neighbor': tree[path + '.neighbor.yml'] = tree.pop(path)
-                elif change == 'mixed-known': tree[path] = deepcopy(known_other)
-                elif change == 'executable': tree[path]['mode'] = '100755'
-                elif change == 'symlink': tree[path]['mode'] = '120000'
-                elif change == 'gitlink': tree[path].update(mode='160000', type='commit')
-                else: tree[path]['sha'] = 'a' * 40
-                with self.subTest(path=path, change=change), self.assertRaises(ValueError):
-                    PACKAGES.validate_tree_wiring(tree)
+        for name in ('protected-producer-metadata-ci-v1', 'protected-producer-seven-target-ci-v1'):
+            generation = next(row for row in self.generations if row['name'] == name)
+            original = generation['workflows']
+            self.assertEqual(set(original), set(PACKAGES.METADATA_WORKFLOW_PATHS))
+            self.assertEqual(PACKAGES.validate_tree_wiring(original), name)
+            for path in original:
+                known_other = next(value for row in self.generations for value in row['workflows'].values()
+                                   if value != original[path])
+                for change in ('missing', 'neighbor', 'mixed-known', 'executable', 'symlink', 'gitlink', 'unknown'):
+                    tree = deepcopy(original)
+                    if change == 'missing': del tree[path]
+                    elif change == 'neighbor': tree[path + '.neighbor.yml'] = tree.pop(path)
+                    elif change == 'mixed-known': tree[path] = deepcopy(known_other)
+                    elif change == 'executable': tree[path]['mode'] = '100755'
+                    elif change == 'symlink': tree[path]['mode'] = '120000'
+                    elif change == 'gitlink': tree[path].update(mode='160000', type='commit')
+                    else: tree[path]['sha'] = 'a' * 40
+                    with self.subTest(generation=name, path=path, change=change), self.assertRaises(ValueError):
+                        PACKAGES.validate_tree_wiring(tree)
+
+    def test_seven_target_generation_binds_all_canonical_sources_and_retains_metadata_baseline(self):
+        generation = next(row for row in self.generations if row['name'] == 'protected-producer-seven-target-ci-v1')
+        canonical = {
+            '.github/workflows/project-tests.yml': 'producers/protected-project-tests.yml',
+            '.github/workflows/parent-qualification.yml': 'producers/parent-qualification.yml',
+            '.github/workflows/repository-checks.yml': 'producers/repository-checks.yml',
+            '.github/workflows/sync-validation.yml': 'sync-ci-selection.yml',
+            '.github/workflows/browser-client.yml': 'npm-consumers/browser-client.yml',
+            '.github/workflows/pr-metadata-context.yml': 'metadata-edits/pr-metadata-context.yml',
+        }
+        expected = {}
+        for target, relative in canonical.items():
+            path = ROOT / 'tools/repository-checks/workflows' / relative
+            self.assertFalse(path.is_symlink())
+            self.assertEqual(path.stat().st_mode & 0o777, 0o644)
+            expected[target] = blob(path.read_bytes())
+        self.assertEqual(generation['workflows'], expected)
+        self.assertEqual(PACKAGES.validate_tree_wiring(expected), generation['name'])
+        previous = next(row for row in self.generations if row['name'] == 'protected-producer-metadata-ci-v1')
+        for target, filename, oid in (
+                ('.github/workflows/project-tests.yml', 'protected-project-tests', 'c01ff8a69f1ccbc60196da17e782c9a09defe4e5'),
+                ('.github/workflows/parent-qualification.yml', 'parent-qualification', '1f8a7c3b4fe400a7c62ec2682de3f77d08dfd70d'),
+                ('.github/workflows/repository-checks.yml', 'repository-checks', 'b9022d17b985f93838b92cb42c7e2d873e7cb11f')):
+            frozen = ROOT / ('tools/repository-checks/workflows/producers/legacy/' + filename + '-metadata-v1.yml')
+            self.assertEqual(blob(frozen.read_bytes())['sha'], oid)
+            self.assertEqual(previous['workflows'][target], blob(frozen.read_bytes()))
+            self.assertNotEqual(expected[target], previous['workflows'][target])
+        for target in set(expected) - {'.github/workflows/project-tests.yml', '.github/workflows/parent-qualification.yml',
+                                       '.github/workflows/repository-checks.yml'}:
+            self.assertEqual(expected[target], previous['workflows'][target])
 
     def test_metadata_candidate_and_immutable_base_cannot_omit_or_alias_the_sixth_workflow(self):
         generation = next(row for row in self.generations if row['name'] == 'protected-producer-metadata-ci-v1')
@@ -336,7 +371,7 @@ class TrustedGenerationPolicyTests(TemporaryGit, unittest.TestCase):
 
 
 class ProtectedProducerPermissionTests(unittest.TestCase):
-    def test_caller_grants_only_the_exact_api_read_ceiling_to_the_project_call(self):
+    def test_caller_grants_exact_read_ceiling_only_to_native_owner_roles(self):
         old = yaml.safe_load((ROOT / 'tools/repository-checks/workflows/android-owned/repository-checks.yml').read_text())
         source = (ROOT / 'tools/repository-checks/workflows/producers/repository-checks.yml').read_text()
         prospective = yaml.safe_load(source)
@@ -355,6 +390,28 @@ class ProtectedProducerPermissionTests(unittest.TestCase):
         event = next(step for step in route['steps'] if step.get('id') == 'event')
         event['env'] = {'GH_TOKEN': '${{ github.token }}',
                         'NATIVE_METADATA_INTENT': '${{ needs.metadata-source.outputs.metadata_intent }}'}
+        docs = expected['jobs']['documentation']
+        docs['needs'] = ['route', 'project']
+        docs['if'] = "always() && needs.route.result == 'success' && (needs.project.result == 'success' || needs.project.result == 'skipped') && needs.route.outputs.metadata_only != 'true' && needs.project.outputs.documentation_verified != 'true'"
+        expected['jobs']['workflow-security']['with'] = {'defer_workflow_contracts': True}
+        expected['jobs']['workflow-contracts'] = {
+            'needs': ['route', 'project'],
+            'if': "always() && needs.route.result == 'success' && (needs.project.result == 'success' || needs.project.result == 'skipped') && needs.route.outputs.metadata_only != 'true' && needs.route.outputs.security == 'true' && needs.project.outputs.workflow_contracts_verified != 'true'",
+            'runs-on': 'ubuntu-24.04', 'timeout-minutes': 5,
+            'steps': [{'name': 'Check out the exact candidate without credentials',
+                'uses': 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1',
+                'with': {'ref': '${{ github.sha }}', 'fetch-depth': 2, 'persist-credentials': False}},
+                {'name': 'Verify remaining workflow contracts',
+                 'run': 'PYTHONDONTWRITEBYTECODE=1 python3 tests/workflow-contract-test.py'}]}
+        outer = expected['jobs']['repository-checks']
+        outer['permissions'] = permissions
+        outer['needs'].insert(outer['needs'].index('native'), 'workflow-contracts')
+        candidate = next(step['with'] for step in outer['steps'] if step.get('with', {}).get('path') == 'candidate')
+        candidate.update({'sparse-checkout-cone-mode': False,
+                          'sparse-checkout': '.github\ntests/platform-profile.json\n'})
+        verify = outer['steps'][-1]
+        verify['env']['GH_TOKEN'] = '${{ github.token }}'
+        verify['run'] = verify['run'].replace(' verify --needs-json', ' verify --event "$GITHUB_EVENT_PATH" --needs-json')
         self.assertEqual(prospective, expected)
         self.assertEqual(prospective['permissions'], {'contents': 'read'})
         self.assertEqual(prospective['jobs']['project']['uses'], './.github/workflows/project-tests.yml')

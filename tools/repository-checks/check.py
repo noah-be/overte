@@ -458,6 +458,101 @@ def native_required(config: dict, event: dict | None) -> bool:
     return base["ref"] in targets
 
 
+_NATIVE_OWNER_GENERATION = 'protected-producer-seven-target-ci-v1'
+_NATIVE_OWNER_OUTPUTS = frozenset({'documentation_verified', 'workflow_contracts_verified'})
+_NATIVE_DOCUMENTATION = frozenset({'documentation-contracts', 'documentation', 'policy-consistency'})
+
+
+def native_owner_policy():
+    """Load only the fixed trusted controller, before unrelated router imports."""
+    directory = ROOT / 'tools/test-evidence'
+    sys.path.insert(0, str(directory))
+    try:
+        module = __import__('producer_workflow')
+    finally:
+        sys.path.pop(0)
+    if Path(module.__file__).resolve() != directory / 'producer_workflow.py':
+        raise ValueError('current owner controller is not the fixed trusted source')
+    return module
+
+
+def bound_project_owners(needs, candidate, event, sha):
+    """Map only exact21 native owners into the unchanged legacy aggregate.
+
+    A skipped standalone documentation job is represented by the actual passed
+    shared owner only after its completed native publication, original schema3
+    receipt and exact demanded commands have been independently authenticated.
+    The two output strings request verification; they supply no authority.
+    """
+    if not isinstance(needs, dict):
+        return needs, None  # The generic verifier rejects the malformed inventory.
+    project = needs.get('project', {})
+    outputs = project.get('outputs', {})
+    if not isinstance(outputs, dict):
+        raise ValueError('native owner output inventory is malformed')
+    present = _NATIVE_OWNER_OUTPUTS & outputs.keys()
+    generation = package_policy().validate_wiring(candidate) if candidate is not None else None
+    if generation != _NATIVE_OWNER_GENERATION:
+        if 'workflow-contracts' in needs:
+            raise ValueError('contract fallback requires the exact complete generation21')
+        if present:
+            raise ValueError('native owner outputs require the exact complete generation21')
+        return needs, None
+    def contract_fallback(represented, claims):
+        # Static analyzers start independently of the shared host. This one
+        # post-project job executes the contract only when no native owner
+        # claims it. The claim is still authenticated below before acceptance.
+        fallback = needs.get('workflow-contracts')
+        if not isinstance(fallback, dict):
+            raise ValueError('generation21 requires its real contract fallback job')
+        route = needs.get('route', {})
+        required = (route.get('result') == 'success' and route.get('outputs', {}).get('security') == 'true'
+            and project.get('result') in {'success', 'skipped'}
+            and claims.get('workflow_contracts_verified') != 'true')
+        expected = 'success' if required else 'skipped'
+        if fallback.get('result') != expected or fallback.get('outputs', {}) != {}:
+            raise ValueError('workflow contract fallback did not follow the required actual execution route')
+        return {key: value for key, value in represented.items() if key != 'workflow-contracts'}
+    if not outputs and project.get('result') == 'skipped':
+        return contract_fallback(needs, {}), None
+    expected = {'package_verified', 'package_candidate', 'package_plan', 'package_lane', *_NATIVE_OWNER_OUTPUTS}
+    if set(outputs) != expected:
+        raise ValueError('generation21 requires its complete bounded project output inventory')
+    claims = {key: outputs[key] for key in _NATIVE_OWNER_OUTPUTS}
+    if project.get('result') == 'skipped' and all(value == '' for value in claims.values()):
+        claims = {key: 'false' for key in claims}
+    if any(type(value) is not str or value not in {'true', 'false'} for value in claims.values()):
+        raise ValueError('native owner claims require literal boolean strings')
+    represented = {**needs, 'project': {**project, 'outputs': {
+        key: value for key, value in outputs.items() if key not in _NATIVE_OWNER_OUTPUTS}}}
+    represented = contract_fallback(represented, claims)
+    demanded = set()
+    if claims['documentation_verified'] == 'true':
+        demanded.update(_NATIVE_DOCUMENTATION)
+    # An unselected security lane consumes no contract delegation. Its normal
+    # skipped status remains mandatory without another API proof lookup.
+    if claims['workflow_contracts_verified'] == 'true' and needs.get('route', {}).get('outputs', {}).get('security') == 'true':
+        demanded.add('workflow-contracts')
+    if not demanded:
+        return represented, None
+    if project.get('result') != 'success' or candidate is None or not isinstance(event, dict) or not sha:
+        raise ValueError('native owner requires a successful exact candidate project')
+    controller = native_owner_policy()
+    proof = controller.verify_current_owners(candidate, event, os.environ,
+        controller.producer_api.Adapter(), demanded=demanded)
+    if not isinstance(proof, dict) or proof.get('verified') is not True \
+            or proof.get('kind') != 'current-original-pr-owners' \
+            or proof.get('qualification') is not False or proof.get('reusable') is not False \
+            or proof.get('suites') != sorted(demanded):
+        raise ValueError('native owner verification did not authenticate every demanded command')
+    if claims['documentation_verified'] == 'true':
+        documentation = needs.get('documentation', {})
+        if documentation.get('result') != 'skipped':
+            raise ValueError('native documentation delegation requires exactly the skipped standalone job')
+        represented['documentation'] = {**documentation, 'result': 'success'}
+    return represented, proof
+
+
 def verify(needs: dict, require_native: bool = True, *, require_direct: bool = False,
            direct_plan: dict | None = None, package_plan: dict | None = None,
            require_packages: bool = False, require_browser: bool = False, browser_plan: dict | None = None,
@@ -641,6 +736,10 @@ def main() -> int:
         elif args.command == "verify":
             event = json.loads(args.event.read_text()) if args.event is not None else None
             needs = json.loads(args.needs_json)
+            # The protected controller rejects ambient unrelated repository
+            # imports. Authenticate its current owner before loading browser
+            # or Android routing modules in this fresh trusted process.
+            needs, native_owners = bound_project_owners(needs, args.candidate, event, args.sha)
             direct_plan = None
             packages = package_policy()
             package_plan = None
@@ -680,6 +779,8 @@ def main() -> int:
                             package_plan=package_plan, require_packages=package_required,
                             require_browser=browser_required, browser_plan=browser_plan,
                             android_plan=android_plan, require_android=android_required)
+            if native_owners is not None:
+                result['native_owners'] = native_owners
         else:
             event = json.loads(args.event.read_text())
             validate_direct_wiring(args.candidate)

@@ -40,6 +40,10 @@ SHA = re.compile(r"^[0-9a-f]{40}$")
 # A completion is a wake-up only. These are the declared branch-push owners in
 # the seven protected inventories and individually reviewed manual owners.
 MANUAL_TERMINAL_WORKFLOW = 386334598
+# A newly installed consumer has no predictable numeric registration ID.
+# Its one fixed path is authenticated through both live workflow endpoints.
+DOCUMENTATION_PUSH_FILENAME = "documentation-push-owner.yml"
+DOCUMENTATION_PUSH_TARGETS = frozenset({"main", "android-phone", "android-vr-pico", "apple-ios"})
 TERMINAL_WORKFLOWS = {
     330519645: ("Android tests", "android-tests.yml"),
     331117401: ("Android VR integration tests", "android-vr-tests.yml"),
@@ -775,16 +779,31 @@ def terminal_run(github, event):
     fields = ("id", "run_attempt", "workflow_id", "event", "status", "head_branch", "head_sha", "name")
     require(isinstance(actual, dict) and all(actual.get(key) == signal.get(key) for key in fields)
             and type(actual.get("id")) is int and type(actual.get("run_attempt")) is int
-            and type(actual.get("workflow_id")) is int and actual["workflow_id"] in TERMINAL_WORKFLOWS
+            and type(actual.get("workflow_id")) is int and actual["workflow_id"] > 0
             and same_repository(actual.get("repository")) and same_repository(actual.get("head_repository"))
-            and (actual.get("event") == "push" and actual["workflow_id"] in PUSH_TERMINAL_WORKFLOWS
-                 or actual.get("event") == "workflow_dispatch" and actual["workflow_id"] in MANUAL_TERMINAL_WORKFLOWS)
             and (actual["workflow_id"] != MANUAL_TERMINAL_WORKFLOW or actual.get("head_branch") == "main")
             and actual.get("status") == "completed"
             and isinstance(actual.get("conclusion"), str) and bool(actual["conclusion"])
             and actual.get("head_branch") in PERMANENT and isinstance(actual.get("head_sha"), str)
             and SHA.fullmatch(actual["head_sha"]), "invalid_terminal_push_run")
-    name, filename = TERMINAL_WORKFLOWS[actual["workflow_id"]]
+    registered_documentation = False
+    if actual["workflow_id"] in TERMINAL_WORKFLOWS:
+        name, filename = TERMINAL_WORKFLOWS[actual["workflow_id"]]
+    else:
+        name, filename = "Documentation checks", DOCUMENTATION_PUSH_FILENAME
+        require(actual.get("event") == "push" and actual["head_branch"] in DOCUMENTATION_PUSH_TARGETS
+                and actual.get("name") == name and actual.get("path") == ".github/workflows/" + filename,
+                "unreviewed_terminal_workflow")
+        registration = github.get("actions/workflows/" + filename)
+        require(isinstance(registration, dict) and type(registration.get("id")) is int
+                and registration["id"] == actual["workflow_id"] and registration.get("name") == name
+                and registration.get("path") == actual["path"] and registration.get("state") == "active",
+                "terminal_documentation_registration_changed")
+        registered_documentation = True
+    require((actual.get("event") == "push" and (actual["workflow_id"] in PUSH_TERMINAL_WORKFLOWS
+                                               or registered_documentation))
+            or (actual.get("event") == "workflow_dispatch"
+                and actual["workflow_id"] in MANUAL_TERMINAL_WORKFLOWS), "invalid_terminal_push_run")
     path = ".github/workflows/" + filename
     require(actual.get("name") == name and actual.get("path") == path,
             "unreviewed_terminal_workflow")
@@ -792,6 +811,8 @@ def terminal_run(github, event):
     require(isinstance(workflow, dict) and workflow.get("id") == actual["workflow_id"]
             and workflow.get("name") == name and workflow.get("path") == path,
             "terminal_workflow_registration_changed")
+    require(not registered_documentation or workflow.get("state") == "active",
+            "terminal_documentation_registration_changed")
     return actual
 
 

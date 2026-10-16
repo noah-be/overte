@@ -2,6 +2,7 @@
 """Fake selected-profile routing; no host queries, namespaces or workloads."""
 from contextlib import ExitStack
 from copy import deepcopy
+from dataclasses import replace
 import hashlib
 import importlib.util
 import io
@@ -149,11 +150,443 @@ class SelectionIntegrationTests(unittest.TestCase):
         binding={'merge_sha':'a'*40,'base_ref':'main','head_ref':'fix/main/documentation'}
         adapter=SimpleNamespace(current=Mock(return_value=(binding,{'default':'b'*40,'default_ref':'main'})))
         with (patch.object(P,'_native',return_value=(17,19)),patch.object(P,'_event_binding'),
+              patch.object(P,'protected_source_context',return_value={'fixture':'already authenticated native source'}) as source,
               patch.object(P.execution,'checkout_identity',return_value=('b'*40,'c'*40)),
               patch.object(P,'_host_policy',return_value=policy),patch.object(P.inputs,'load_registry',return_value=self.registry),
               self.assertRaises(P.PreExecutionUnavailable)):
-            P.prepare(Path('/unexecuted'),event,{'GITHUB_SHA':'a'*40,'GITHUB_HEAD_REF':'fix/main/documentation'},adapter)
+            P.prepare(Path('/unexecuted'),event,{'GITHUB_SHA':'a'*40,'GITHUB_HEAD_REF':'fix/main/documentation',
+                'GITHUB_BASE_REF':'main'},adapter)
+        source.assert_called_once()
         policy.candidate_selection.assert_not_called()
+
+
+class AffectedProtectedAdmissionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Seal a small protected fixture, retaining the real complete registry,
+        # every authority/required subject/import root and finite CI exception.
+        # This exercises the real pure planner, never a mocked subset result.
+        cls.registry=inputs.load_registry(C.ROOT/'.github/test-suites.json')
+        cls.registry_raw=(C.ROOT/'.github/test-suites.json').read_bytes()
+        source=inputs.full_tree(C.ROOT,'HEAD')
+        graph=json.loads(inputs.load_dependencies(C.ROOT/inputs.AFFECTED_POLICY,cls.registry))
+        required=set(inputs.AFFECTED_AUTHORITY)
+        required.update(graph['suites']['device-control-plane-full']['native_independent_paths'])
+        for suite in cls.registry['suites'].values():
+            required.update(suite['closure']['required'])
+            imports=suite.get('python_imports')
+            if imports and inputs.python_import_digest(source,imports['roots'])==imports['reviewed']:
+                required.update(row['path'] for row in inputs.selected_entries(
+                    source,inputs._import_patterns(imports['roots'])))
+        cls.base={path:dict(entry) for path,entry in source.items() if path in required}
+        graph['lookup_digest']=inputs.affected_lookup_digest(cls.base)
+        native=graph['suites']['device-control-plane-full']
+        native['reviewed_reader_digest']=inputs.device_reader_digest(cls.base,native['native_independent_paths'])
+        cls.graph_raw=(json.dumps(graph,indent=2)+'\n').encode()
+        cls.base[inputs.AFFECTED_POLICY]=cls.blob(cls.graph_raw)
+        cls.router=P._host_policy()
+        cls.temporary=tempfile.TemporaryDirectory();cls.addClassCleanup(cls.temporary.cleanup)
+        cls.root=Path(cls.temporary.name)
+        (cls.root/'.github').mkdir()
+        (cls.root/'.github/test-suites.json').write_bytes(cls.registry_raw)
+        subprocess.run(['git','init','--quiet',str(cls.root)],check=True,capture_output=True)
+        subprocess.run(['git','hash-object','-w','.github/test-suites.json'],cwd=cls.root,
+                       check=True,capture_output=True)
+
+    @staticmethod
+    def blob(raw):
+        return {'mode':'100644','type':'blob',
+                'sha':hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()}
+
+    def setUp(self):
+        self.old=deepcopy(self.base);self.candidate=deepcopy(self.base)
+        self.candidate['tools/test-evidence/sandbox_host.py']=self.blob(b'changed candidate controller')
+        (self.root/inputs.AFFECTED_POLICY).write_bytes(self.graph_raw)
+        self.stack=ExitStack();self.addCleanup(self.stack.close)
+        self.stack.enter_context(patch.object(self.router,'ROOT',self.root))
+
+    def profile(self, *, target='main', registry=None):
+        return P.selection_profile(self.router,self.registry if registry is None else registry,
+            self.candidate,self.old,self.base,root=self.root,target=target)
+
+    def selected(self):
+        paths=sorted(p for p in self.old.keys()|self.candidate.keys() if self.old.get(p)!=self.candidate.get(p))
+        return self.router.select(self.candidate,paths,True,base_tree=self.old,trusted_tree=self.base,
+                                  candidate_root=self.root,trusted_root=self.root)
+
+    def test_real_protected_plan_uses_original_full_environment_for_exact_subset(self):
+        with patch.object(C,'validate_selection',side_effect=AssertionError('no CI37 identity')):
+            prepared=self.profile()
+        selected=prepared['selection'];names=prepared['suites']
+        self.assertEqual(len(self.registry['suites']),60)
+        self.assertEqual(selected['reason'],'protected-affected-dependencies')
+        self.assertEqual(names,selected['affected']['required'])
+        self.assertTrue(set(names)<set(self.registry['suites']))
+        self.assertNotIn('device-control-plane-full',names)
+        self.assertIn('test-evidence',names)
+        self.assertEqual(prepared['profile'],P.FULL_PROFILE);self.assertIsNone(prepared['binding'])
+        self.assertIs(selected['full_host'],True);self.assertIs(selected['include_platform'],False)
+        # A pure selection has no passing evidence. Actual schema-3 execution
+        # and the final native whole-receipt publisher remain separate gates.
+        self.assertIs(selected['affected']['reusable'],False)
+
+    def test_claimed_label_cannot_choose_names_or_forge_the_dependency_plan(self):
+        actual=self.selected()
+        for change in ('missing','extra','duplicate','order','plan','paths','field','platform','quick'):
+            claimed=deepcopy(actual)
+            if change=='missing':claimed['suites']=claimed['suites'][1:]
+            elif change=='extra':claimed['suites'].append(actual['affected']['omitted'][0])
+            elif change=='duplicate':claimed['suites'].append(claimed['suites'][0])
+            elif change=='order':claimed['suites'].reverse()
+            elif change=='plan':claimed['affected']['required']=[]
+            elif change=='paths':claimed['affected']['paths']=[]
+            elif change=='field':claimed['supplied_subset']=True
+            elif change=='platform':claimed['include_platform']=True
+            else:claimed['full_host']=False
+            with self.subTest(change=change),patch.object(self.router,'select',return_value=claimed), \
+                 self.assertRaises(P.PreExecutionUnavailable):self.profile()
+
+    def test_legacy_setup_unknown_and_installation_gates_cannot_be_replaced(self):
+        actual=self.selected()
+        full={'suites':list(self.registry['suites']),'reason':'host-reader-generation-not-reviewed',
+              'full_host':True,'include_platform':True}
+        for change in ('qt-free','unknown','unowned','installation','not-narrower'):
+            legacy=deepcopy(full)
+            if change=='qt-free':legacy['full_host']=False
+            elif change=='unknown':legacy['reason']='unknown-or-nonregular-inventory'
+            elif change=='unowned':legacy['reason']='unowned-inputs'
+            elif change=='installation':legacy['reason']='reviewed-protected-producer-transition'
+            else:legacy['suites']=list(actual['suites'])
+            with self.subTest(change=change),patch.object(self.router,'select',return_value=actual), \
+                 patch.object(self.router,'_select_legacy',return_value=legacy), \
+                 self.assertRaises(P.PreExecutionUnavailable):self.profile()
+        for target in ('apple-main','apple-ios','android-main','android-phone','android-vr','android-vr-pico'):
+            with self.subTest(target=target),patch.object(self.router,'select',return_value=actual), \
+                 self.assertRaises(P.PreExecutionUnavailable):self.profile(target=target)
+
+    def test_untrusted_graph_source_platform_modes_and_definitions_decline_before_execution(self):
+        actual=self.selected()
+        for change in ('graph','authority','platform','mode','alias','lookup','neighbor','registry','new-definition'):
+            self.old=deepcopy(self.base);self.candidate=deepcopy(self.base)
+            self.candidate['tools/test-evidence/sandbox_host.py']=self.blob(b'changed candidate controller')
+            registry=deepcopy(self.registry)
+            if change=='graph':self.candidate[inputs.AFFECTED_POLICY]=self.blob(b'candidate graph')
+            elif change=='authority':self.candidate['tools/test-evidence/execution.py']=self.blob(b'changed runner')
+            elif change=='platform':self.candidate['tests/platform-profile.json']=self.blob(b'nonempty delegated owners')
+            elif change in ('mode','alias'):
+                self.candidate['tools/test-evidence/sandbox_host.py']['mode']='100755' if change=='mode' else '120000'
+            elif change=='lookup':self.candidate['tools/test-evidence/new_import.py']=self.blob(b'new import')
+            elif change=='neighbor':self.candidate['unknown-ci-controller.py']=self.blob(b'unknown input')
+            elif change=='registry':self.candidate['.github/test-suites.json']=self.blob(b'new commands')
+            else:registry['suites']['snapshot-native']['command'].append('--changed-definition')
+            with self.subTest(change=change),patch.object(self.router,'select',return_value=actual), \
+                 self.assertRaises(P.PreExecutionUnavailable):self.profile(registry=registry)
+
+    def test_current_plan_is_rederived_even_when_candidate_and_claim_are_changed_together(self):
+        # Adding a native input makes device tests genuinely necessary. A
+        # matching freshly computed claim still must respect the legacy
+        # unowned-input gate, rather than certify arbitrary new source paths.
+        self.candidate['cassert']=self.blob(b'changed native include lookup')
+        actual=self.selected()
+        plan=inputs.plan_affected(self.registry,self.graph_raw,self.old,self.candidate,self.base)
+        self.assertIn('device-control-plane-full',plan['required'])
+        self.assertEqual(actual['reason'],'unowned-inputs')
+        claimed={'suites':plan['required'],'reason':'protected-affected-dependencies',
+                 'full_host':True,'include_platform':False,'affected':plan}
+        with patch.object(self.router,'select',return_value=claimed),self.assertRaises(P.PreExecutionUnavailable):
+            self.profile()
+
+    def test_selected_failure_is_hard_after_full_admission_without_fallback(self):
+        prepared=self.profile();events=[]
+        batch=SimpleNamespace(candidate=Path('/fixture'),snapshot={},policy=Path('/policy'),projection={},
+            protected=Path('/protected'),prepared=((),None,None,None),
+            probe=lambda _:events.append('probe') or {'actual':'full E'},empty=lambda:events.append('empty'))
+        with (patch.object(sandbox,'verify_snapshot'),patch.object(sandbox,'_files',return_value={}),
+              patch.object(S,'prepared_identity',return_value={}),
+              patch.object(S,'run_suites',side_effect=H.Unavailable('selected failure')) as run,
+              self.assertRaises(H.Unavailable) as caught):
+            S.check_batch(batch,self.registry,[],{},names=prepared['suites'],
+                          admit=lambda _:events.append('full admission'))
+        self.assertIs(type(caught.exception),H.Unavailable)
+        self.assertEqual(events,['probe','full admission'])
+        self.assertEqual(run.call_count,1)
+        self.assertEqual(run.call_args.kwargs['names'],prepared['suites'])
+
+    def test_actual_receipt_path_admits_full_e_and_keeps_only_selected_results(self):
+        prepared=self.profile();names=prepared['suites'];events=[]
+        context={'profile':prepared['profile'],'selected':prepared['selection'],'registry':self.registry,
+            'refs':{'default':'b'*40},'binding':{'merge_sha':'a'*40,'merge_tree':'c'*40},'git_context':{},
+            'plan':{'owners':{'shared-host':{'suites':names,'include_platform':False}}}}
+        batch=SimpleNamespace(candidate=Path('/candidate'),snapshot={})
+        def check(*args,**options):
+            self.assertNotIn('preexecution_unavailable',options)
+            self.assertEqual(options['names'],names)
+            events.append('before');options['admit']({'actual':'original full E'});events.append('selected suites')
+            return ([{'name':name,'status':'passed'} for name in names],
+                    {'actual':'original full E'},{'actual':'original full E'})
+        with (patch.object(P.inputs,'full_tree',return_value=self.candidate),
+              patch.object(P,'git_context',return_value={}),patch.object(P.execution,'validate_receipt') as validate,
+              patch.object(P.shared,'check_batch',side_effect=check),
+              patch.object(P.attested,'validate_environment',side_effect=lambda *a,**k:events.append('full admission')) as admit,
+              patch.object(P.runtime_ci,'validate_environment',side_effect=AssertionError('no CI37 E'))):
+            receipt=P.protected_receipt(batch,context,[],{})
+        self.assertEqual(events,['before','full admission','selected suites'])
+        self.assertEqual(admit.call_args.kwargs,{'root':P.ROOT,'isolated':True})
+        self.assertEqual(receipt['schema'],3);self.assertEqual(receipt['requested_suites'],names)
+        self.assertEqual(list(receipt['results']),names)
+        self.assertTrue(set(receipt['results']).isdisjoint(prepared['selection']['affected']['omitted']))
+        self.assertIs(receipt['include_platform'],False);self.assertEqual(receipt['platform_results'],{})
+        validate.assert_called_once_with(receipt,self.registry,self.candidate,expected_git_context={})
+
+
+class CurrentOriginalOwnerTests(unittest.TestCase):
+    """Actual fake-API protocol with explicit source/admission primitives.
+
+    The selected definitions are the shipping three docs commands and workflow
+    contracts plus one other owner. These fixtures cannot qualify native E or
+    enroll generation21; the separate source/recipe checks own that boundary.
+    """
+    @classmethod
+    def setUpClass(cls):
+        spec=importlib.util.spec_from_file_location('current_owner_api_fixtures',
+            Path(__file__).with_name('producer-api-test.py'))
+        cls.fixtures=importlib.util.module_from_spec(spec);spec.loader.exec_module(cls.fixtures)
+
+    def setUp(self):
+        f=self.fixtures.AdapterTests('runTest');f.setUp();self.case=f
+        self.now=self.fixtures.NOW
+        original=f.capture().observations[0].run
+        shipping=inputs.load_registry(C.ROOT/'.github/test-suites.json')
+        suites={name:deepcopy(shipping['suites'][name]) for name in
+                ('documentation-contracts','documentation','policy-consistency','workflow-contracts')}
+        suites['first']=deepcopy(f.context.registry['suites']['first'])
+        self.registry={'schema':1,'control_inputs':shipping['control_inputs'],'suites':suites}
+        self.tree=deepcopy(f.context.tree)
+        self.tree['tests/platform-profile.json']=deepcopy(inputs._AFFECTED_SHARED_PROFILE)
+        for suite in suites.values():
+            for path in suite['closure']['required']:
+                self.tree.setdefault(path,{'mode':'100644','type':'blob','sha':'5'*40})
+        f.plan['owners']['shared-host']['suites']=list(suites)
+        f.pp=replace(f.pp,required_execution_schema=3)
+        f.policy=replace(f.policy,producer=f.pp)
+        f.originals[f.binding['base_sha']]=('6'*40,['7'*40])
+        self.git=P.expected_git_context(f.adapter,f.binding)
+        self.receipt=deepcopy(f.aggregate['results']['shared-host']['receipt'])
+        self.receipt.update(schema=3,git_context=self.git,requested_suites=list(suites),
+            environment=self.fixtures.FIXTURES.isolated_codec_environment())
+        self.receipt['results']={name:{'status':'passed','fingerprint':inputs.suite_fingerprint(
+            self.registry,name,self.tree,self.receipt['environment'])} for name in suites}
+        self.receipt=self.fixtures.FIXTURES.signed(self.receipt,'receipt_digest')
+        self.run=replace(original,status='in_progress',conclusion=None,
+            final_publisher=replace(original.final_publisher,
+                receipt_sha256=hashlib.sha256(P.protocol.canonical(self.receipt)).hexdigest()))
+        self.refresh()
+        binding,refs=f.adapter.current(17)
+        self.context={'number':17,'run_id':100,'binding':binding,'refs':refs,'registry':self.registry,
+            'selected':{'suites':list(suites),'reason':'fixture-full-owner','full_host':True,'include_platform':False},
+            'profile':P.FULL_PROFILE,'profile_binding':None,'plan':f.plan,'policy':f.policy,'git_context':self.git}
+        self.context['source_context']={'schema':1,'kind':'protected-default-controller-source-v1',
+            'target':'main','base':binding['base_sha'],'default':refs['default'],
+            'controller_digest':f.pp.controller_digest,'lookup_digest':'sha256:'+'a'*64,
+            'target_profile':deepcopy(inputs._AFFECTED_SHARED_PROFILE)}
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.workspace=Path(self.temp.name);self.candidate=self.workspace/'candidate';self.candidate.mkdir()
+        self.context['candidate']=self.candidate
+        self.environment={'GITHUB_JOB':'repository-checks','GITHUB_WORKSPACE':str(self.workspace)}
+        self.package=SimpleNamespace(validate_wiring=Mock(return_value=P.CURRENT_OWNER_GENERATION))
+        self.stack=ExitStack();self.addCleanup(self.stack.close)
+        self.stack.enter_context(patch.object(P,'protected_admission'))
+        self.prepared=self.stack.enter_context(patch.object(P,'prepare',return_value=self.context))
+        self.stack.enter_context(patch.object(P,'_host_policy',return_value=SimpleNamespace(package_policy=lambda:self.package)))
+        self.stack.enter_context(patch.object(inputs,'full_tree',return_value=self.tree))
+        self.admitted=self.stack.enter_context(patch.object(P.attested,'validate_environment',return_value={}))
+        self.stack.enter_context(patch.object(P.execution,'execute',side_effect=AssertionError('no candidate command')))
+        self.stack.enter_context(patch.object(P.execution,'capture_execution_environment',side_effect=AssertionError('no consumer E')))
+
+    def refresh(self):
+        f=self.case
+        f.aggregate['results']['shared-host']['receipt']=self.receipt
+        f.add_run(self.run)
+        f.jobs[100].append({'id':140,'run_id':100,'run_attempt':1,'head_sha':f.binding['head_sha'],
+            'name':'repository-checks','status':'in_progress','conclusion':None,
+            'started_at':'2026-10-15T10:04:50Z','completed_at':None,
+            'check_run_url':f'https://api.github.com/{P.producer_api.PREFIX}/check-runs/140'})
+
+    def verify(self,demanded=None):
+        return P.verify_current_owners(self.candidate,{},self.environment,self.case.adapter,
+            demanded=P.DOCUMENTATION_SUITES if demanded is None else demanded,clock=lambda:self.now)
+
+    def test_original_pending_outer_has_completed_native_owners_without_completed_run_relabel(self):
+        value=self.verify(P.DOCUMENTATION_SUITES|P.WORKFLOW_CONTRACT_SUITES)
+        self.assertIs(value['verified'],True);self.assertIs(value['qualification'],False);self.assertIs(value['reusable'],False)
+        self.assertEqual(value['suites'],sorted(P.DOCUMENTATION_SUITES|P.WORKFLOW_CONTRACT_SUITES))
+        self.assertEqual((value['run_id'],value['attempt'],value['outer_job_id']),(100,1,140))
+        self.assertEqual(value['receipt_sha256'],hashlib.sha256(P.protocol.canonical(self.receipt)).hexdigest())
+        self.assertEqual(value['source_chain']['producer_commit'],self.case.binding['merge_sha'])
+        self.assertEqual(self.case.runs[100]['status'],'in_progress');self.assertIsNone(self.case.runs[100]['conclusion'])
+        # The same honest API facts remain unavailable to the ordinary completed
+        # proof selector. The fixed current-self verifier grants only these jobs.
+        snapshot=self.case.capture()
+        self.assertEqual(P.protocol.select_authority(snapshot.observations,snapshot.binding,self.case.plan,self.case.pp,
+            inventory_complete=True,now=self.now)['state'],'pending')
+        context=P.protocol.SharedContext(self.registry,self.tree,self.receipt['environment'],
+            self.case.binding['merge_sha'],self.case.binding['merge_tree'],self.git)
+        with self.assertRaises(P.protocol.ProtocolError):
+            self.case.adapter.verify(17,self.case.plan,self.case.policy,{'shared-host':context},clock=lambda:self.now)
+        self.admitted.assert_called_once();self.assertEqual(self.prepared.call_count,2)
+
+    def test_only_fixed_owner_groups_exact_generation_current_job_and_selected_commands_are_allowed(self):
+        for demanded in (set(),{'first'},{'documentation'},{'workflow-contracts','first'},['workflow-contracts']):
+            with self.subTest(demanded=demanded),self.assertRaises(H.Unavailable):self.verify(demanded)
+        for generation in ('protected-producer-metadata-ci-v1','foreign',None):
+            self.package.validate_wiring.return_value=generation
+            with self.subTest(generation=generation),self.assertRaises(H.Unavailable):self.verify()
+        self.package.validate_wiring.return_value=P.CURRENT_OWNER_GENERATION
+        self.environment['GITHUB_JOB']='documentation'
+        with self.assertRaises(H.Unavailable):self.verify()
+        self.environment['GITHUB_JOB']='repository-checks'
+        complete=list(self.case.plan['owners']['shared-host']['suites'])
+        for name in P.DOCUMENTATION_SUITES|P.WORKFLOW_CONTRACT_SUITES:
+            self.case.plan['owners']['shared-host']['suites']=[item for item in complete if item!=name]
+            demand=P.WORKFLOW_CONTRACT_SUITES if name=='workflow-contracts' else P.DOCUMENTATION_SUITES
+            with self.subTest(name=name),self.assertRaises(H.Unavailable):self.verify(demand)
+
+    def test_native_app_source_first_attempt_job_status_and_outer_identity_cannot_be_claimed(self):
+        for kind in ('app','source','attempt','descriptor','shared','final','outer','outer-id'):
+            def mutate(endpoint,value):
+                if kind=='app' and '/check-runs/' in endpoint:value['app']['id']=42
+                elif kind=='source' and '/attempts/' in endpoint and 'referenced_workflows' in value:
+                    value['referenced_workflows'][0]['sha']='f'*40
+                elif kind=='attempt' and '/actions/runs/100' in endpoint and 'run_attempt' in value:value['run_attempt']=2
+                elif endpoint.endswith('/jobs?per_page=100&page=1'):
+                    for job in value['jobs']:
+                        match=(kind=='descriptor' and job['name']==self.case.policy.publisher_job
+                            or kind=='shared' and job['name']==P.SHARED_JOB
+                            or kind=='final' and job['name'].startswith(P.PUBLISH_PREFIX)
+                            or kind in {'outer','outer-id'} and job['name']=='repository-checks')
+                        if match:
+                            if kind=='outer-id':job['check_run_url']='https://api.github.com/repos/overte-org/overte/check-runs/140'
+                            else:job.update(status='completed',conclusion='failure')
+                return value
+            self.case.api.mutate=mutate
+            with self.subTest(kind=kind),self.assertRaises((H.Unavailable,P.protocol.ProtocolError)):
+                self.verify()
+
+    def test_artifact_native_hash_and_every_actual_required_result_must_match(self):
+        runs,jobs,artifacts,archives=deepcopy((self.case.runs,self.case.jobs,self.case.artifacts,self.case.archives))
+        for kind in ('hash','api-digest','duplicate','missing-result','failed-result'):
+            self.case.runs,self.case.jobs,self.case.artifacts,self.case.archives=deepcopy((runs,jobs,artifacts,archives))
+            if kind=='hash':self.case.jobs[100][2]['name']=P.PUBLISH_PREFIX+'f'*64
+            elif kind=='api-digest':self.case.artifacts[100][-1]['digest']='sha256:'+'f'*64
+            elif kind=='duplicate':self.case.artifacts[100].append(deepcopy(self.case.artifacts[100][-1]))
+            else:
+                value=deepcopy(self.receipt)
+                if kind=='missing-result':del value['results']['documentation']
+                else:value['results']['documentation']['status']='failed'
+                value=self.fixtures.FIXTURES.signed(value,'receipt_digest')
+                self.case.aggregate['results']['shared-host']['receipt']=value
+                changed=replace(self.run,final_publisher=replace(self.run.final_publisher,
+                    receipt_sha256=hashlib.sha256(P.protocol.canonical(value)).hexdigest()))
+                self.case.add_run(changed)
+                self.case.jobs[100].append(deepcopy(jobs[100][-1]))
+            with self.subTest(kind=kind),self.assertRaises((H.Unavailable,P.protocol.ProtocolError)):self.verify()
+
+    def test_newer_failed_or_pending_and_equal_timestamp_runs_do_not_borrow_current_jobs(self):
+        for kind in ('failed','pending','tie'):
+            stamp='2026-10-15T09:59:00Z' if kind=='tie' else '2026-10-15T10:04:00Z'
+            run=replace(self.run,run_id=101,attempt_started_at=stamp,
+                status='completed' if kind!='pending' else 'in_progress',
+                conclusion='failure' if kind!='pending' else None,
+                publisher=replace(self.run.publisher,job_id=211,
+                    started_at='2026-10-15T10:04:00Z',completed_at='2026-10-15T10:04:30Z'),
+                owners={},final_publisher=None)
+            self.case.add_run(run)
+            with self.subTest(kind=kind),self.assertRaises(H.Unavailable):self.verify()
+            for values in (self.case.runs,self.case.jobs,self.case.artifacts):values.pop(101)
+
+    def test_original_environment_admission_and_final_bookends_are_required(self):
+        self.admitted.side_effect=P.attested.AttestedReuseUnavailable('fixture E declined')
+        with self.assertRaises(P.attested.AttestedReuseUnavailable):self.verify()
+        self.admitted.side_effect=None
+        capture=self.case.adapter.capture;reads=0
+        def late(*args,**options):
+            nonlocal reads
+            reads+=1
+            if reads==2:self.case.artifacts[100].append(deepcopy(self.case.artifacts[100][-1]))
+            return capture(*args,**options)
+        with patch.object(self.case.adapter,'capture',side_effect=late),self.assertRaises((H.Unavailable,P.protocol.ProtocolError)):
+            self.verify()
+
+    def test_dispatch_outputs_are_literal_and_do_not_invent_missing_owner_results(self):
+        self.assertEqual(P._completed_owner_outputs(self.context,self.receipt),
+            {'documentation_verified':'true','workflow_contracts_verified':'true'})
+        for name in P.DOCUMENTATION_SUITES|P.WORKFLOW_CONTRACT_SUITES:
+            receipt=deepcopy(self.receipt);del receipt['results'][name]
+            value=P._completed_owner_outputs(self.context,receipt)
+            self.assertEqual(value['documentation_verified'],'true' if name=='workflow-contracts' else 'false')
+            self.assertEqual(value['workflow_contracts_verified'],'false' if name=='workflow-contracts' else 'true')
+        self.package.validate_wiring.return_value='protected-producer-metadata-ci-v1'
+        self.assertEqual(P._completed_owner_outputs(self.context,self.receipt),
+            {'documentation_verified':'false','workflow_contracts_verified':'false'})
+
+    def test_every_finite_full_target_uses_its_own_native_source_and_existing_platform_boundary(self):
+        profiles={'main':inputs._AFFECTED_SHARED_PROFILE['sha'],
+            'apple-main':inputs._AFFECTED_SHARED_PROFILE['sha'],'apple-ios':inputs._AFFECTED_SHARED_PROFILE['sha'],
+            'android-main':'1314006455751831be60b143e46ce9c6f5398e26',
+            'android-vr':'1314006455751831be60b143e46ce9c6f5398e26',
+            'android-vr-pico':'1314006455751831be60b143e46ce9c6f5398e26',
+            'android-phone':'f91169af7bdfedffb0b6ab9ab0ac1da28fd1f7fe'}
+        self.assertEqual(set(profiles),P._CURRENT_OWNER_TARGETS)
+        original_json=self.case.api.json
+        def child_ref(endpoint):
+            target=self.case.binding['base_ref']
+            if target!='main' and endpoint==P.producer_api.PREFIX+'/git/ref/heads/'+target:
+                self.case.api.calls.append(endpoint)
+                return {'ref':'refs/heads/'+target,'object':{'type':'commit','sha':self.case.binding['base_sha']}}
+            return original_json(endpoint)
+        self.case.api.json=child_ref
+        for target,sha in profiles.items():
+            self.case.binding['base_ref']=target
+            self.context['binding']['base_ref']=target
+            self.context['source_context']['target']=target
+            entry={'mode':'100644','type':'blob','sha':sha}
+            self.context['source_context']['target_profile']=entry
+            self.tree['tests/platform-profile.json']=entry
+            self.context['refs']=self.case.adapter.current(17)[1]
+            self.receipt['results']={name:{'status':'passed','fingerprint':inputs.suite_fingerprint(
+                self.registry,name,self.tree,self.receipt['environment'])} for name in self.registry['suites']}
+            self.receipt=self.fixtures.FIXTURES.signed(self.receipt,'receipt_digest')
+            self.run=replace(self.run,final_publisher=replace(self.run.final_publisher,
+                receipt_sha256=hashlib.sha256(P.protocol.canonical(self.receipt)).hexdigest()))
+            # The real native chain descriptor binds the actual child base;
+            # no prior main descriptor is relabelled as a child source.
+            self.refresh()
+            with self.subTest(target=target):
+                value=self.verify(P.DOCUMENTATION_SUITES|P.WORKFLOW_CONTRACT_SUITES)
+                self.assertIs(value['verified'],True)
+                self.assertEqual(self.case.binding['base_ref'],target)
+                self.assertEqual(P._completed_owner_outputs(self.context,self.receipt),
+                    {'documentation_verified':'true','workflow_contracts_verified':'true'})
+        # Android nonempty declarations are supported only when the separately
+        # selected native shared owner actually omits platform owners.
+        owner=self.context['plan']['owners']['shared-host'];owner['include_platform']=True
+        self.assertFalse(P._owner_target_supported(self.context))
+        self.assertEqual(P._completed_owner_outputs(self.context,self.receipt),
+            {'documentation_verified':'false','workflow_contracts_verified':'false'})
+        with self.assertRaises(H.Unavailable):self.verify()
+        owner['include_platform']=False
+        for change in ('subset','quick','missing-source','wrong-target','wrong-controller','unknown'):
+            context=deepcopy(self.context)
+            if change=='subset':context['plan']['owners']['shared-host']['suites']=list(context['registry']['suites'])[1:]
+            elif change=='quick':context['profile']=C.PROFILE;context['selected']['full_host']=False
+            elif change=='missing-source':del context['source_context']
+            elif change=='wrong-target':context['source_context']['target']='main'
+            elif change=='wrong-controller':context['source_context']['controller_digest']='sha256:'+'f'*64
+            else:context['binding']['base_ref']='unknown'
+            with self.subTest(change=change):
+                self.assertFalse(P._owner_target_supported(context))
+                self.assertEqual(P._completed_owner_outputs(context,self.receipt),
+                    {'documentation_verified':'false','workflow_contracts_verified':'false'})
 
 
 class ExecutionIntegrationTests(unittest.TestCase):
@@ -392,12 +825,13 @@ class ProtectedSetupTemplateTests(unittest.TestCase):
         self.rows=yaml.safe_load(path.read_bytes())['jobs']['project-tests']['steps']
         self.steps={row['name']:row for row in self.rows}
 
-    def plan(self,protected,full,executed,*,success=True):
+    def plan(self,protected,full,executed,*,success=True,admitted='true'):
         import re
         values={'needs.route.outputs.protected_full':protected,'steps.host.outputs.full_host':full,
-                'steps.protected.outputs.protected_executed':executed}
+                'steps.protected.outputs.protected_executed':executed,
+                'steps.protected-source.outputs.admitted':admitted}
         def atom(value):
-            match=re.fullmatch(r"([a-z_.]+) (==|!=) '(true|false)'",value)
+            match=re.fullmatch(r"([a-z_.-]+) (==|!=) '(true|false)'",value)
             self.assertIsNotNone(match,value)
             actual=values[match[1]]
             return (actual==match[3]) if match[2]=='==' else (actual!=match[3])
@@ -428,6 +862,10 @@ class ProtectedSetupTemplateTests(unittest.TestCase):
         self.assertEqual(self.plan('true','false','false'),[select,*quick,execute,*restore,*legacy])
         self.assertEqual(self.plan('true','true','false'),[select,*java,qt,full,execute,*legacy])
         self.assertEqual(self.plan('true','false','',success=False),[])
+        for admitted in ('false','','unknown'):
+            with self.subTest(admitted=admitted):
+                self.assertEqual(self.plan('true','false','',admitted=admitted),[select,*java,*legacy])
+                self.assertEqual(self.plan('true','true','',admitted=admitted),[select,*java,qt,*legacy])
         for name in (*restore,*legacy):
             self.assertNotIn('always()',self.steps[name]['if'])
             self.assertNotIn('continue-on-error',self.steps[name])

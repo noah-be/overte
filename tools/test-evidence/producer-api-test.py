@@ -1332,10 +1332,10 @@ class MainConsumerTests(unittest.TestCase):
         self.registry = old.registry
         self.tree = deepcopy(old.tree)
         generations = json.loads((postmerge.ROOT / '.github/package-workflow-generations.json').read_text())['generations']
-        self.generation_name = getattr(self,'generation_name','protected-producer-metadata-ci-v1')
+        self.generation_name = getattr(self,'generation_name','protected-producer-seven-target-ci-v1')
         generation = next(item for item in generations if item['name'] == self.generation_name)
         self.generations = {item['name']:deepcopy(item['workflows']) for item in generations}
-        if self.generation_name == 'protected-producer-metadata-ci-v1':
+        if self.generation_name in {'protected-producer-metadata-ci-v1','protected-producer-seven-target-ci-v1'}:
             # Derive the actual prospective native tuple from its reviewed
             # sources. A stale hard-coded historical tuple must not hide a
             # missing admission of the installed producer generation.
@@ -1345,6 +1345,13 @@ class MainConsumerTests(unittest.TestCase):
                 '.github/workflows/sync-validation.yml':'.github/workflows/sync-validation.yml',
                 '.github/workflows/browser-client.yml':'.github/workflows/browser-client.yml',
                 A.METADATA_WORKFLOW:'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml'}
+            if self.generation_name == 'protected-producer-metadata-ci-v1':
+                sources.update({'.github/workflows/project-tests.yml':
+                    'tools/repository-checks/workflows/producers/legacy/protected-project-tests-metadata-v1.yml',
+                    '.github/workflows/repository-checks.yml':
+                    'tools/repository-checks/workflows/producers/legacy/repository-checks-metadata-v1.yml',
+                    '.github/workflows/parent-qualification.yml':
+                    'tools/repository-checks/workflows/producers/legacy/parent-qualification-metadata-v1.yml'})
             workflows={}
             for target,relative in sources.items():
                 path=postmerge.ROOT/relative
@@ -1359,7 +1366,7 @@ class MainConsumerTests(unittest.TestCase):
         self.tree.update(workflows)
         self.tree[postmerge.TEMPLATE] = deepcopy(self.tree['.github/workflows/parent-qualification.yml'])
         self.tree['.github/test-suites.json'] = {'mode':'100644','type':'blob','sha':'1'*40}
-        self.tree['tests/platform-profile.json'] = {'mode':'100644','type':'blob','sha':'2'*40}
+        self.tree['tests/platform-profile.json'] = postmerge.source_admission.ordinary(postmerge.source_admission.SHARED_PROFILE)
         self.previous = deepcopy(self.tree)
         self.case.generation = {path:self.tree[path] for path in A.WORKFLOWS}
         self.case.pp = replace(self.case.pp, workflow_blob=self.tree['.github/workflows/project-tests.yml']['sha'], required_execution_schema=3)
@@ -1398,6 +1405,9 @@ class MainConsumerTests(unittest.TestCase):
                 'selection':{'suites':list(self.registry['suites']),'full_host':True,
                     'include_platform':True,'reason':'fixture-full-owner'}}),
             patch.object(postmerge,'original_controller',return_value=self.case.pp.controller_digest),
+            # The actual64-source enrollment is tested separately; this tiny
+            # native receipt fixture supplies only its admitted controller ID.
+            patch.object(postmerge,'integrated_controller',return_value=self.case.pp.controller_digest),
             patch.object(postmerge,'_policy',return_value=(self.case.plan,self.case.policy)),
             patch.object(postmerge.attested,'validate_environment',return_value={'environment_digest':'sha256:'+'1'*64,'policy':{'epoch':'fixture'}}),
             patch.object(postmerge.execution,'capture_execution_environment',side_effect=AssertionError('unused consumer E')),
@@ -1451,9 +1461,9 @@ class MainConsumerTests(unittest.TestCase):
             self.case.aggregate,self.case.artifacts,self.case.archives = original
 
     def test_current_canonical_producer_generation_reaches_original_native_commitment(self):
-        self.assertEqual(self.real_package.validate_tree_wiring(self.tree),'protected-producer-metadata-ci-v1')
+        self.assertEqual(self.real_package.validate_tree_wiring(self.tree),'protected-producer-seven-target-ci-v1')
         self.assertEqual(self.tree['.github/workflows/project-tests.yml']['sha'],
-                         self.generations['protected-producer-metadata-ci-v1']['.github/workflows/project-tests.yml']['sha'])
+                         self.generations['protected-producer-seven-target-ci-v1']['.github/workflows/project-tests.yml']['sha'])
         value=self.lookup()
         self.assertTrue(value['reused'],value)
         proof=value['proof']
@@ -1668,7 +1678,7 @@ class MainCI37ConsumerTests(unittest.TestCase):
             value=self.lookup()
         self.assertTrue(value['reused'],value)
         self.assertEqual([call.args[1] for call in source.call_args_list],
-            [self.case.integrated,self.case.binding['base_sha'],self.case.binding['merge_sha']])
+            [self.case.integrated,self.case.integrated,self.case.binding['base_sha'],self.case.binding['merge_sha']])
         proof=value['proof']
         self.assertEqual(proof['reused_suites'],list(self.module.ci_profile.SUITES))
         self.assertEqual(proof['executed_suites'],[])
@@ -1754,7 +1764,8 @@ class MainCI37ConsumerTests(unittest.TestCase):
 
 class MainConsumerSourceTests(unittest.TestCase):
     def test_previous_complete_consumer_generations_remain_reusable(self):
-        for generation in ('postmerge-original-e-v1','protected-producer-postmerge-original-e-v1','protected-producer-ci37-v1'):
+        for generation in ('postmerge-original-e-v1','protected-producer-postmerge-original-e-v1',
+                           'protected-producer-ci37-v1','protected-producer-metadata-ci-v1'):
             fixture=MainConsumerTests();fixture.generation_name=generation
             try:
                 fixture.setUp()
@@ -1817,7 +1828,16 @@ class MainConsumerSourceTests(unittest.TestCase):
     def test_prospective_parent_keeps_existing_job_and_has_no_false_qualification_on_reuse(self):
         import postmerge as C
         import yaml
-        old=yaml.safe_load((C.ROOT/'.github/workflows/parent-qualification.yml').read_text())
+        # The baseline is an immutable reviewed legacy recipe. Reading the
+        # active successor here would prepend its reuse condition twice after
+        # the exact workflow installation.
+        baseline=C.ROOT/'tools/repository-checks/workflows/host/parent-qualification.yml'
+        legacy=next(row for row in C.producer._host_policy().package_policy().workflow_generations()
+                    if row['name']=='android-owned-npm5-sync-ci-v1')
+        raw=baseline.read_bytes()
+        self.assertEqual(hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest(),
+                         legacy['workflows']['.github/workflows/parent-qualification.yml']['sha'])
+        old=yaml.safe_load(raw)
         new=yaml.safe_load((C.ROOT/C.TEMPLATE).read_text())
         self.assertEqual(set(new['jobs']),{'qualify-parent'})
         job=new['jobs']['qualify-parent'];self.assertEqual(job['name'],old['jobs']['qualify-parent']['name'])
@@ -1879,7 +1899,7 @@ class MainConsumerSourceTests(unittest.TestCase):
             self.assertEqual([p for p in current[after] if current[after][p]!=current[before][p]],changed)
             self.assertEqual(current[after]['.github/workflows/parent-qualification.yml']['sha'],
                              '84d98cac819755f98eecffba847e0bbcf667a6ca')
-        latest=current['protected-producer-metadata-ci-v1']
+        latest=current['protected-producer-seven-target-ci-v1']
         self.assertEqual(latest['.github/workflows/parent-qualification.yml']['sha'],blob)
         for active,template in (
                 ('.github/workflows/project-tests.yml',C.producer.TEMPLATE),
@@ -1966,14 +1986,24 @@ class MetadataRetentionConsumerTests(unittest.TestCase):
         real_host = C.producer._host_policy()
         real_package = real_host.package_policy()
         generations = real_package.workflow_generations()
-        self.assertEqual(len(generations), 20)
-        generation = next(row for row in generations if row["name"] == "protected-producer-metadata-ci-v1")
+        self.assertEqual(len(generations), 21)
+        self.generation_name = getattr(self, 'generation_name', 'protected-producer-metadata-ci-v1')
+        generation = next(row for row in generations if row["name"] == self.generation_name)
         sources = {".github/workflows/project-tests.yml": C.producer.TEMPLATE,
             ".github/workflows/repository-checks.yml": "tools/repository-checks/workflows/producers/repository-checks.yml",
             ".github/workflows/parent-qualification.yml": C.TEMPLATE,
             ".github/workflows/sync-validation.yml": ".github/workflows/sync-validation.yml",
             ".github/workflows/browser-client.yml": ".github/workflows/browser-client.yml",
             A.METADATA_WORKFLOW: "tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml"}
+        if self.generation_name == 'protected-producer-metadata-ci-v1':
+            sources.update({'.github/workflows/project-tests.yml':
+                'tools/repository-checks/workflows/producers/legacy/protected-project-tests-metadata-v1.yml',
+                '.github/workflows/repository-checks.yml':
+                'tools/repository-checks/workflows/producers/legacy/repository-checks-metadata-v1.yml',
+                '.github/workflows/parent-qualification.yml':
+                'tools/repository-checks/workflows/producers/legacy/parent-qualification-metadata-v1.yml'})
+        for name in getattr(self, 'extra_registry_names', ()):
+            self.registry['suites'][name] = deepcopy(next(iter(self.registry['suites'].values())))
         def blob(relative):
             path = C.ROOT / relative
             self.assertFalse(path.is_symlink())
@@ -2034,7 +2064,8 @@ class MetadataRetentionConsumerTests(unittest.TestCase):
         c.generation = {path: c.tree[path] for path in A.WORKFLOWS}
         self.git = C.producer.expected_git_context(self.adapter, c.binding)
         self.receipt = deepcopy(c.aggregate["results"]["shared-host"]["receipt"])
-        self.receipt.update(schema=3, git_context=self.git, environment=FIXTURES.isolated_codec_environment())
+        self.receipt.update(schema=3, git_context=self.git, environment=FIXTURES.isolated_codec_environment(),
+                            requested_suites=list(self.registry['suites']))
         self.receipt["results"] = {name: {"status": "passed", "fingerprint": P.inputs.suite_fingerprint(
             self.registry, name, c.tree, self.receipt["environment"])} for name in self.registry["suites"]}
         self.receipt = FIXTURES.signed(self.receipt, "receipt_digest")
@@ -2172,6 +2203,391 @@ class MetadataRetentionConsumerTests(unittest.TestCase):
                 self.verify(clock=lambda: P._time(c.aggregate["expires_at"]) if expired else NOW)
             self.assertEqual(original.call_count, 1)
             self.assertEqual(reads, 2)
+
+
+
+class NativeDelegatedMetadataTests(unittest.TestCase):
+    """Exact21 completed native publication plus real aggregate/API checks.
+
+    The additional named commands use the same small fixture closure; this is
+    an owner-admission regression, not execution or shipping qualification.
+    """
+    def setUp(self):
+        self.fixture = MetadataRetentionConsumerTests('runTest')
+        self.fixture.generation_name = 'protected-producer-seven-target-ci-v1'
+        self.fixture.extra_registry_names = ('documentation-contracts', 'documentation',
+                                             'policy-consistency', 'workflow-contracts')
+        self.fixture.setUp(); self.addCleanup(self.fixture.doCleanups)
+        f = self.fixture
+        self.module, self.case, self.adapter = f.module, f.case, f.adapter
+        self.docs = next(job for job in self.case.jobs[100]
+                         if job['name'] == 'documentation / documentation')
+        self.docs.update(name='documentation', conclusion='skipped', started_at=None,
+                         completed_at=None, steps=[])
+        self.security = next(job for job in self.case.jobs[100]
+                            if job['name'] == 'workflow-security / Actionlint, Zizmor, and Gitleaks')
+        self.contract = next(step for step in self.security['steps']
+                             if step['name'] == 'Verify fail-closed workflow contracts')
+        self.contract.update(conclusion='skipped', started_at=None, completed_at=None)
+        self.fallback = f.job(170, 100, 'workflow-contracts', skipped=True)
+        self.case.jobs[100].append(self.fallback)
+
+    def verify(self):
+        return self.fixture.verify()
+
+    def test_exact21_retains_actual_shared_docs_and_only_delegated_contract_step(self):
+        value = self.verify()
+        self.assertEqual(value['metadata_only'], 'true')
+        self.assertTrue(value['original_proof']['verified'])
+        self.assertEqual(value['original_proof']['receipt_sha256'],
+                         hashlib.sha256(P.canonical(self.fixture.receipt)).hexdigest())
+        docs = value['retained_checker_jobs']['.github/workflows/documentation-checks.yml']
+        self.assertEqual(docs['shared_suites'], sorted(self.module.DOCUMENTATION_SUITES))
+        self.assertEqual(docs['native']['conclusion'], 'skipped')
+        self.module.execution.capture_execution_environment.assert_not_called()
+        self.module.execution.execute.assert_not_called()
+
+    def test_delegated_docs_still_need_exact_skipped_native_record(self):
+        for mutation in ({'conclusion': 'failure'}, {'conclusion': 'success'},
+                         {'name': 'documentation / documentation'}, {'run_attempt': 2}):
+            before = deepcopy(self.docs); self.docs.update(mutation)
+            with self.subTest(mutation=mutation), self.assertRaises(P.ProtocolError): self.verify()
+            self.docs.clear(); self.docs.update(before)
+        self.case.jobs[100].append(deepcopy(self.docs))
+        with self.assertRaises(P.ProtocolError): self.verify()
+
+    def test_only_workflow_contract_step_may_be_skipped_or_failed(self):
+        for step in self.security['steps']:
+            if step is self.contract:
+                step['conclusion'] = 'failure'
+                with self.assertRaises(P.ProtocolError): self.verify()
+                step['conclusion'] = 'skipped'
+                continue
+            for state in ('skipped', 'failure', 'cancelled'):
+                step['conclusion'] = state
+                with self.subTest(step=step['name'], state=state), self.assertRaises(P.ProtocolError): self.verify()
+            step['conclusion'] = 'success'
+
+    def test_a_missing_or_changed_native_whole_receipt_never_delegates(self):
+        publisher = next(job for job in self.case.jobs[100]
+                         if job['name'].startswith(self.module.producer.PUBLISH_PREFIX))
+        before = deepcopy(publisher)
+        for mutation in ({'name': self.module.producer.PUBLISH_PREFIX + 'f' * 64},
+                         {'conclusion': 'failure'}, {'status': 'in_progress', 'conclusion': None}):
+            publisher.update(mutation)
+            with self.subTest(mutation=mutation), self.assertRaises(P.ProtocolError): self.verify()
+            publisher.clear(); publisher.update(before)
+        changed = deepcopy(self.fixture.receipt)
+        changed['results']['documentation']['status'] = 'failed'
+        with self.assertRaises(P.ProtocolError):
+            self.module.metadata_outer_jobs(self.adapter, 100, self.case.binding,
+                self.case.tree, self.case.previous, 'true', shared_receipt=changed)
+
+    def test_native_contract_owner_requires_exact_skipped_fallback_job(self):
+        for state in ('success', 'failure', 'cancelled', None):
+            self.fallback['conclusion'] = state
+            with self.subTest(state=state), self.assertRaises(P.ProtocolError): self.verify()
+        self.fallback['conclusion'] = 'skipped'
+        self.case.jobs[100].remove(self.fallback)
+        with self.assertRaises(P.ProtocolError): self.verify()
+
+    def test_a_real_fallback_contract_is_required_when_the_shared_owner_lacks_it(self):
+        f = self.fixture
+        del f.registry['suites']['workflow-contracts']
+        f.selected['suites'].remove('workflow-contracts')
+        f.selected['selection']['suites'].remove('workflow-contracts')
+        c = self.case
+        self.assertEqual(c.plan['owners']['shared-host']['suites'], f.selected['selection']['suites'])
+        receipt = deepcopy(f.receipt)
+        receipt['requested_suites'].remove('workflow-contracts')
+        del receipt['results']['workflow-contracts']
+        f.receipt = FIXTURES.signed(receipt, 'receipt_digest')
+        c.aggregate['results']['shared-host']['receipt'] = f.receipt
+        f.run = replace(f.run, final_publisher=replace(f.run.final_publisher,
+            receipt_sha256=hashlib.sha256(P.canonical(f.receipt)).hexdigest()))
+        c.aggregate['descriptor_digest'] = P.descriptor(c.binding,c.plan,c.pp,f.run)['descriptor_digest']
+        c.aggregate = FIXTURES.signed(c.aggregate, 'aggregate_digest')
+        extras = [job for job in c.jobs[100] if job['name'] in {
+            'native','android','project / tool-dependencies','project / package-checks',
+            'documentation','workflow-security / Actionlint, Zizmor, and Gitleaks','workflow-contracts'}]
+        c.add_run(f.run)
+        c.jobs[100].extend(extras)
+        for path in self.module._METADATA_OUTER_RECIPES:
+            c.runs[100]['referenced_workflows'].append(f.reference(path))
+        replacement = f.job(170, 100, 'workflow-contracts', steps=('Verify remaining workflow contracts',), late=True)
+        self.fallback.clear(); self.fallback.update(replacement)
+        with self.assertRaises(P.ProtocolError): self.verify()  # Before final publication is not this route.
+        self.fallback.update(started_at='2026-10-15T10:04:46Z', completed_at='2026-10-15T10:04:49Z')
+        self.fallback['steps'][0].update(started_at='2026-10-15T10:04:46Z', completed_at='2026-10-15T10:04:49Z')
+        self.assertEqual(self.verify()['metadata_only'], 'true')
+        self.fallback['steps'][0]['conclusion'] = 'failure'
+        with self.assertRaises(P.ProtocolError): self.verify()
+
+    def test_missing_receipt_cannot_make_skipped_checker_jobs_authoritative(self):
+        with self.assertRaises(P.ProtocolError):
+            self.module.metadata_outer_jobs(self.adapter, 100, self.case.binding,
+                self.case.tree, self.case.previous, 'true')
+
+    def test_newer_attempt_or_final_source_drift_still_rejects_retention(self):
+        self.case.runs[100]['run_attempt'] = 2
+        with self.assertRaises(P.ProtocolError): self.verify()
+        self.case.runs[100]['run_attempt'] = 1
+        path = '.github/workflows/workflow-security.yml'
+        self.case.previous[path]['sha'] = 'f' * 40
+        with self.assertRaises(P.ProtocolError): self.verify()
+
+
+class DocumentationPushOwnerTests(unittest.TestCase):
+    """Real original schema3/native aggregate; local source primitives are fixtures.
+
+    The separate source guard tests authenticate the real finite controller and
+    lookup graph. These fake API facts cannot qualify a production runtime.
+    """
+    def setUp(self):
+        self.fixture=MainConsumerTests('runTest')
+        self.fixture.generation_name='protected-producer-postmerge-original-e-v1'
+        self.fixture.setUp();self.addCleanup(self.fixture.doCleanups)
+        f=self.fixture;self.module=f.module;self.case=f.case;self.api=f.api;self.adapter=f.adapter
+        self.original_run=self.adapter.capture_integrated(500,self.case.plan,self.case.policy,now=NOW).observations[0].run
+        C=self.module
+        f.tree['tests/platform-profile.json']=C.source_admission.ordinary(C.source_admission.SHARED_PROFILE)
+        raw=(C.ROOT/A.DOCUMENTATION_PUSH_WORKFLOW).read_bytes()
+        f.tree[A.DOCUMENTATION_PUSH_WORKFLOW]=C.source_admission.ordinary(C.source_admission.blob_id(raw))
+        shipping=json.loads((C.ROOT/'.github/test-suites.json').read_bytes())
+        for name in C.DOCUMENTATION_SUITES:
+            f.registry['suites'][name]=deepcopy(shipping['suites'][name])
+            for path in f.registry['suites'][name]['closure']['required']:
+                body=(C.ROOT/path).read_bytes()
+                f.tree[path]=C.source_admission.ordinary(C.source_admission.blob_id(body))
+        f.previous.clear();f.previous.update(deepcopy(f.tree))
+        self.case.plan['owners']['shared-host']['suites']=list(f.registry['suites'])
+        C.producer.selection_profile.return_value={
+            'profile':C.producer.FULL_PROFILE,'suites':list(f.registry['suites']),
+            'selection':{'suites':list(f.registry['suites']),'full_host':True,'include_platform':True,'reason':'fixture-full-owner'}}
+        f.receipt.update(requested_suites=list(f.registry['suites']))
+        self.refresh_receipt()
+        self.case.push.update(workflow_id=7654321,path=A.DOCUMENTATION_PUSH_WORKFLOW)
+        base_json=self.api.json
+        def json_api(endpoint):
+            if endpoint==A.PREFIX+'/actions/workflows/documentation-push-owner.yml':
+                self.api.calls.append(endpoint)
+                return self.api.mutate(endpoint,{'id':7654321,'path':A.DOCUMENTATION_PUSH_WORKFLOW,'state':'active'})
+            return base_json(endpoint)
+        self.api.json=json_api
+        f.environment.update(GITHUB_JOB='documentation-source',GITHUB_WORKFLOW_REF=
+            A.REPOSITORY+'/'+A.DOCUMENTATION_PUSH_WORKFLOW+'@refs/heads/main')
+        item=patch.object(C,'integrated_controller',return_value=self.case.pp.controller_digest)
+        item.start();self.addCleanup(item.stop)
+
+    def refresh_receipt(self):
+        f=self.fixture
+        f.receipt['results']={name:{'status':'passed','fingerprint':P.inputs.suite_fingerprint(
+            f.registry,name,f.tree,f.receipt['environment'])} for name in f.receipt['requested_suites']}
+        f.receipt=FIXTURES.signed(f.receipt,'receipt_digest')
+        self.case.aggregate['results']['shared-host']['receipt']=f.receipt
+        run=replace(self.original_run,final_publisher=replace(self.original_run.final_publisher,
+            receipt_sha256=hashlib.sha256(P.canonical(f.receipt)).hexdigest()))
+        self.case.add_run(run);self.case.runs[100]['pull_requests']=[]
+
+    def lookup(self,clock=lambda:NOW):
+        return self.module.lookup(self.fixture.event,self.fixture.environment,self.adapter,clock=clock)
+
+    def test_actual_original_schema3_and_every_documentation_suite_are_verified_without_consumer_E(self):
+        value=self.lookup();self.assertTrue(value['reused'],value)
+        proof=value['proof'];self.assertEqual(proof['original_commit'],self.case.binding['merge_sha'])
+        self.assertNotEqual(proof['original_commit'],proof['current_commit'])
+        self.assertEqual(proof['original_proof']['receipt_sha256'],hashlib.sha256(P.canonical(self.fixture.receipt)).hexdigest())
+        self.assertLessEqual(self.module.DOCUMENTATION_SUITES,set(proof['reused_suites']))
+        self.assertEqual(proof['executed_suites'],[])
+        self.assertTrue(any(endpoint.endswith('/actions/workflows/documentation-push-owner.yml') for endpoint in self.api.calls))
+        self.assertEqual(self.case.pp.actions_app_id,15368)
+
+    def test_each_missing_selected_documentation_suite_declines_before_original_proof(self):
+        C=self.module;selected=C.producer.selection_profile.return_value['selection']
+        complete=list(selected['suites'])
+        for name in C.DOCUMENTATION_SUITES:
+            selected['suites']=[item for item in complete if item!=name]
+            with self.subTest(name=name),patch.object(self.adapter,'capture_integrated',side_effect=AssertionError('missing owner reached proof')):
+                self.assertFalse(self.lookup()['reused'])
+        selected['suites']=complete
+
+    def test_fixed_filename_registration_unknown_id_path_state_and_bookend_drift_decline(self):
+        for kind in ('id','path','state','late-id'):
+            reads=0
+            def mutate(endpoint,value):
+                nonlocal reads
+                if endpoint.endswith('/actions/workflows/documentation-push-owner.yml'):
+                    reads+=1
+                    if kind=='id' or kind=='late-id' and reads>1:value['id']=7654322
+                    elif kind=='path':value['path']='.github/workflows/other.yml'
+                    elif kind=='state':value['state']='disabled_manually'
+                return value
+            self.api.mutate=mutate
+            with self.subTest(kind=kind):self.assertFalse(self.lookup()['reused'])
+        self.api.mutate=lambda endpoint,value:value
+        self.case.push['workflow_id']=350930890
+        self.assertFalse(self.lookup()['reused'])
+
+    def test_missing_pending_failed_foreign_and_wrong_native_whole_hash_use_actual_fallback(self):
+        runs,jobs,artifacts=deepcopy((self.case.runs,self.case.jobs,self.case.artifacts))
+        for kind in ('missing','pending','failed','foreign','wholehash'):
+            self.case.runs,self.case.jobs,self.case.artifacts=deepcopy((runs,jobs,artifacts))
+            if kind=='missing':self.case.runs.clear()
+            elif kind=='pending':self.case.runs[100].update(status='in_progress',conclusion=None)
+            elif kind=='failed':self.case.runs[100].update(status='completed',conclusion='failure')
+            elif kind=='foreign':self.case.runs[100]['repository']['id']=42
+            else:self.case.jobs[100][-1]['name']=self.case.policy.final_publisher_prefix+'f'*64
+            with self.subTest(kind=kind):self.assertFalse(self.lookup()['reused'])
+
+    def test_changed_wrapper_or_environment_and_final_expiry_cannot_retain_original_proof(self):
+        f=self.fixture;before=deepcopy(f.tree[A.DOCUMENTATION_PUSH_WORKFLOW])
+        # Independently read current S differs from actual trusted D.
+        raw_tree=self.api.immutable_tree
+        def changed(oid):
+            value=raw_tree(oid)
+            if oid==self.case.binding['merge_tree']:
+                next(row for row in value['tree'] if row['path']==A.DOCUMENTATION_PUSH_WORKFLOW)['sha']='f'*40
+            return value
+        self.api.immutable_tree=changed
+        self.assertFalse(self.lookup()['reused']);self.api.immutable_tree=raw_tree
+        self.assertEqual(f.tree[A.DOCUMENTATION_PUSH_WORKFLOW],before)
+        f.receipt['environment']['prepared']['roots'][self.module.inputs.ISOLATED_VENV]='sha256:'+'b'*64
+        self.case.aggregate['results']['shared-host']['receipt']=FIXTURES.signed(f.receipt,'receipt_digest')
+        self.case.aggregate=FIXTURES.signed(self.case.aggregate,'aggregate_digest')
+        self.case.artifacts[100]=self.case.artifacts[100][:1]
+        self.case.artifact(self.original_run,'aggregate',self.case.aggregate)
+        self.assertFalse(self.lookup()['reused'])
+        self.assertFalse(self.lookup(clock=lambda:P._time(self.case.aggregate['expires_at']))['reused'])
+
+
+class AffectedPostmergeConsumerTests(unittest.TestCase):
+    """Actual protected pure plan + original native schema3 on bounded fake trees."""
+    @classmethod
+    def setUpClass(cls):
+        spec=importlib.util.spec_from_file_location('postmerge_affected_plan_fixtures',
+            Path(__file__).with_name('ci-integration-test.py'))
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        cls.planner_case=module.AffectedProtectedAdmissionTests
+        cls.planner_case.setUpClass();cls.addClassCleanup(cls.planner_case.doClassCleanups)
+
+    def setUp(self):
+        from types import SimpleNamespace
+        self.planner=self.planner_case('runTest');self.planner.setUp();self.addCleanup(self.planner.doCleanups)
+        self.real_selection=self.planner_case.profile.__globals__['P'].selection_profile
+        f=MainConsumerTests('runTest');f.generation_name='protected-producer-postmerge-original-e-v1'
+        f.setUp();self.addCleanup(f.doCleanups)
+        self.fixture=f;C=f.module;self.module=C;self.case=f.case;self.api=f.api;self.adapter=f.adapter
+        self.original_run=self.adapter.capture_integrated(500,self.case.plan,self.case.policy,now=NOW).observations[0].run
+        # Retain one complete known native generation on all three maps. No
+        # real historical commit, ambient checkout or candidate import is used.
+        enrolled={path:deepcopy(f.tree[path]) for path in self.case.generation}
+        enrolled[C.TEMPLATE]=deepcopy(enrolled['.github/workflows/parent-qualification.yml'])
+        for tree in (self.planner.old,self.planner.candidate,self.planner.base):tree.update(deepcopy(enrolled))
+        f.registry.clear();f.registry.update(deepcopy(self.planner.registry))
+        f.tree.clear();f.tree.update(deepcopy(self.planner.candidate))
+        f.previous.clear();f.previous.update(deepcopy(self.planner.old))
+        package=C.producer._host_policy.return_value.package_policy()
+        router=self.planner.router
+        self.policy=SimpleNamespace(package_policy=lambda:package,select=router.select,
+            _select_legacy=router._select_legacy,ci_owned=router.ci_owned)
+        C.producer._host_policy.return_value=self.policy
+        def select(policy,registry,candidate,base,trusted,**kwargs):
+            return self.real_selection(policy,registry,candidate,base,trusted,
+                root=self.planner.root,target=kwargs.get('target','main'),read_blob=kwargs.get('read_blob'))
+        C.producer.selection_profile.side_effect=select
+        self.profile=select(self.policy,f.registry,f.tree,f.previous,f.previous)
+        self.case.plan['owners']['shared-host'].update(suites=list(self.profile['suites']),include_platform=False)
+        f.receipt.update(requested_suites=list(self.profile['suites']),include_platform=False)
+        f.receipt['results']={name:{'status':'passed','fingerprint':P.inputs.suite_fingerprint(
+            f.registry,name,f.tree,f.receipt['environment'])} for name in f.receipt['requested_suites']}
+        self.publish(f.receipt)
+        item=patch.object(C,'integrated_controller',return_value=self.case.pp.controller_digest)
+        item.start();self.addCleanup(item.stop)
+
+    def publish(self,receipt):
+        self.fixture.receipt=FIXTURES.signed(receipt,'receipt_digest')
+        self.case.aggregate['results']['shared-host']['receipt']=self.fixture.receipt
+        run=replace(self.original_run,final_publisher=replace(self.original_run.final_publisher,
+            receipt_sha256=hashlib.sha256(P.canonical(self.fixture.receipt)).hexdigest()))
+        self.case.add_run(run);self.case.runs[100]['pull_requests']=[]
+
+    def lookup(self,clock=lambda:NOW):
+        return self.module.lookup(self.fixture.event,self.fixture.environment,self.adapter,clock=clock)
+
+    def test_real_protected_subset_reuses_exact_selected_original_native_schema3_results(self):
+        C=self.module
+        with patch.object(C.execution,'validate_receipt',wraps=C.execution.validate_receipt) as validate:
+            result=self.lookup()
+        self.assertTrue(result['reused'],result)
+        self.assertEqual(len(self.fixture.registry['suites']),60)
+        self.assertEqual(self.profile['selection']['reason'],'protected-affected-dependencies')
+        self.assertNotIn('device-control-plane-full',self.profile['suites'])
+        self.assertTrue(set(self.profile['suites'])<set(self.fixture.registry['suites']))
+        proof=result['proof'];self.assertEqual(proof['reused_suites'],self.profile['suites'])
+        self.assertEqual(proof['executed_suites'],[])
+        self.assertEqual(proof['original_commit'],self.case.binding['merge_sha'])
+        self.assertEqual(proof['original_proof']['receipt_sha256'],hashlib.sha256(P.canonical(self.fixture.receipt)).hexdigest())
+        self.assertTrue(any(call.kwargs.get('require_all') is False for call in validate.call_args_list))
+        self.assertGreaterEqual(C.producer.selection_profile.call_count,2)
+
+    def test_claimed_subset_or_graph_cannot_bypass_independent_selection(self):
+        C=self.module;claim=deepcopy(self.profile['selection'])
+        for change in ('names','label','platform','empty','graph'):
+            selected=deepcopy(claim)
+            if change=='names':selected['suites']=selected['suites'][1:]
+            elif change=='label':selected['affected']['required']=[]
+            elif change=='platform':selected['include_platform']=True
+            elif change=='empty':selected['suites']=[]
+            else:selected['affected']['dependency_digest']='sha256:'+'f'*64
+            with self.subTest(change=change),patch.object(self.policy,'select',return_value=selected), \
+                 patch.object(self.adapter,'capture_integrated',side_effect=AssertionError('forged plan reached proof')):
+                self.assertFalse(self.lookup()['reused'])
+
+    def test_selected_result_membership_status_and_fingerprint_are_enforced_even_with_new_native_hash(self):
+        receipt=deepcopy(self.fixture.receipt);selected=self.profile['suites'][0]
+        omitted=self.profile['selection']['affected']['omitted'][0]
+        for change in ('missing','extra','failed','fingerprint','requested'):
+            changed=deepcopy(receipt)
+            if change=='missing':del changed['results'][selected]
+            elif change=='extra':changed['results'][omitted]={'status':'passed','fingerprint':'sha256:'+'a'*64}
+            elif change=='failed':changed['results'][selected]['status']='failed'
+            elif change=='fingerprint':changed['results'][selected]['fingerprint']='sha256:'+'a'*64
+            else:
+                changed['requested_suites'].remove(selected);del changed['results'][selected]
+            self.publish(changed)
+            with self.subTest(change=change):self.assertFalse(self.lookup()['reused'])
+
+    def test_changed_source_controller_child_scope_and_original_publisher_still_decline(self):
+        C=self.module
+        with patch.object(C,'integrated_controller',side_effect=ValueError('changed protected source')):
+            self.assertFalse(self.lookup()['reused'])
+        child=deepcopy(self.profile);child['selection']['include_platform']=True
+        with patch.object(C.producer,'selection_profile',return_value=child):self.assertFalse(self.lookup()['reused'])
+        self.case.jobs[100][-1]['name']=self.case.policy.final_publisher_prefix+'f'*64
+        self.assertFalse(self.lookup()['reused'])
+
+    def test_original_and_current_independent_plans_and_expiry_must_still_match(self):
+        C=self.module;before=deepcopy(self.profile);after=deepcopy(before)
+        after['selection']['affected']['paths'].append('unreviewed-path')
+        with patch.object(C.producer,'selection_profile',side_effect=(before,after)):
+            self.assertFalse(self.lookup()['reused'])
+        self.assertFalse(self.lookup(clock=lambda:P._time(self.case.aggregate['expires_at']))['reused'])
+
+    def test_full_registry_receipt_keeps_original_full60_requirement(self):
+        C=self.module;full={'profile':C.producer.FULL_PROFILE,'binding':None,'suites':list(self.fixture.registry['suites']),
+            'selection':{'suites':list(self.fixture.registry['suites']),'full_host':True,
+                         'include_platform':False,'reason':'fixture-independent-full-owner'}}
+        self.case.plan['owners']['shared-host']['suites']=full['suites']
+        receipt=deepcopy(self.fixture.receipt);receipt['requested_suites']=full['suites']
+        receipt['results']={name:{'status':'passed','fingerprint':P.inputs.suite_fingerprint(
+            self.fixture.registry,name,self.fixture.tree,receipt['environment'])} for name in full['suites']}
+        self.publish(receipt)
+        with patch.object(C.producer,'selection_profile',return_value=full), \
+             patch.object(C.execution,'validate_receipt',wraps=C.execution.validate_receipt) as validate:
+            result=self.lookup()
+        self.assertTrue(result['reused'],result)
+        self.assertEqual(result['proof']['reused_suites'],full['suites'])
+        self.assertTrue(any(call.kwargs.get('require_all') is True for call in validate.call_args_list))
 
 
 if __name__ == "__main__":

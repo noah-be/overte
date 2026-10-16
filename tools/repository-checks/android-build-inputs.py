@@ -67,6 +67,12 @@ VARIANTS = {
 # package readers, even when an existing workflow separately runs their tests.
 # Do not turn this into tests/**, tools/**, .github/** or all *.json exemptions.
 INDEPENDENT_HOST_PATHS = {
+    '.github/workflows/documentation-push-owner.yml': "100644",
+    'tools/test-evidence/source_admission.py': "100644",
+    'tools/test-evidence/source-admission-test.py': "100644",
+    'tools/repository-checks/workflows/producers/legacy/parent-qualification-metadata-v1.yml': "100644",
+    'tools/repository-checks/workflows/producers/legacy/protected-project-tests-metadata-v1.yml': "100644",
+    'tools/repository-checks/workflows/producers/legacy/repository-checks-metadata-v1.yml': "100644",
     ".github/test-suite-dependencies.json": "100644",
     "tools/test-evidence/affected-test.py": "100644",
     "tools/test-evidence/AFFECTED_SELECTION.md": "100644",

@@ -2329,6 +2329,73 @@ class TerminalRetryTests(unittest.TestCase):
         self.assertTrue(self.retry()["retry"])
         self.assertEqual(self.module.make_plan(self.github, self.policy)["candidate_count"], 0)
 
+    def documentation_completion(self):
+        identifier = 499999999
+        filename = self.module.DOCUMENTATION_PUSH_FILENAME
+        path = ".github/workflows/" + filename
+        self.runs[700] = dict(self.push_run(700, 331326815), workflow_id=identifier, path=path)
+        registration = {"id": identifier, "name": "Documentation checks", "path": path, "state": "active"}
+        numeric = dict(registration)
+        original = self.response
+        def response(suffix="", paginate=False):
+            if suffix == "actions/workflows/" + filename:
+                return copy.deepcopy(registration)
+            if suffix == "actions/workflows/" + str(identifier):
+                return copy.deepcopy(numeric)
+            if suffix.startswith("contents/" + path + "?ref="):
+                raw = self.source_changes.get(path, b"name: Documentation checks\non:\n  push:\n")
+                return {"path": path, "type": "file", "sha": hashlib.sha1(
+                    b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest(), "size": len(raw),
+                    "encoding": "base64", "content": base64.b64encode(raw).decode()}
+            return original(suffix, paginate)
+        self.enterContext(mock.patch.object(self.github, "get", side_effect=response))
+        return registration, numeric
+
+    def test_new_documentation_push_registration_only_wakes_current_full_ancestry_plan(self):
+        self.documentation_completion()
+        self.assertTrue(self.retry()["retry"])
+        self.integrated = False
+        self.assertTrue(self.retry()["retry"], "completion supplies a hint, never integration authority")
+        self.assertEqual(self.module.make_plan(self.github, self.policy)["candidate_count"], 0)
+        self.assertEqual(self.module.make_plan(self.github, self.policy)["held"][self.branch],
+                         ["not_fully_integrated"])
+        self.source_changes[self.runs[700]["path"]] = b"name: Foreign checker\non: push\n"
+        with self.assertRaisesRegex(self.module.CleanupError, "source_name_changed"):
+            self.retry()
+
+    def test_new_documentation_registration_and_native_context_are_exact(self):
+        registration, numeric = self.documentation_completion()
+        for target in self.module.DOCUMENTATION_PUSH_TARGETS:
+            self.runs[700]["head_branch"] = target
+            self.signal["workflow_run"] = copy.deepcopy(self.runs[700])
+            self.assertEqual(self.module.terminal_run(self.github, self.signal)["head_branch"], target)
+        self.runs[700]["head_branch"] = "main"
+        original = dict(self.runs[700])
+        for changes in ({"event": "workflow_dispatch"}, {"event": "pull_request"},
+                        {"head_branch": "android-main"}, {"head_branch": "apple-main"},
+                        {"path": ".github/workflows/documentation-push-owner-other.yml"},
+                        {"name": "Unreviewed checker"}, {"workflow_id": True},
+                        {"head_repository": {"id": 1, "full_name": "foreign/fork"}}):
+            self.runs[700] = dict(original, **changes)
+            with self.subTest(native=changes), self.assertRaises(self.module.CleanupError):
+                self.retry()
+        self.runs[700] = original
+        for object_ in (registration, numeric):
+            saved = dict(object_)
+            for key, value in (("id", 7), ("name", "Unreviewed checker"),
+                               ("path", ".github/workflows/documentation-checks.yml"),
+                               ("state", "disabled_manually")):
+                object_[key] = value
+                with self.subTest(registration=object_ is registration, field=key), \
+                        self.assertRaises(self.module.CleanupError):
+                    self.retry()
+                object_.clear(); object_.update(saved)
+
+    def test_active_new_documentation_push_holds_cleanup_before_a_retry_hint(self):
+        self.documentation_completion()
+        self.active = [dict(self.runs[700], id=701, status="in_progress", conclusion=None)]
+        self.assertEqual(self.retry()["reason"], "terminal_candidates_still_held")
+
     def test_foreign_repositories_events_and_workflow_identities_fail_closed(self):
         original = copy.deepcopy(self.runs[700])
         variants = [dict(event="pull_request"), dict(event="workflow_dispatch"), dict(status="in_progress"),

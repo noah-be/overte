@@ -32,6 +32,7 @@ import sandbox_host as host
 import sandbox_shared as shared
 import ci_profile
 import runtime_ci
+import source_admission
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE = 'tools/repository-checks/workflows/producers/protected-project-tests.yml'
@@ -40,6 +41,13 @@ DESCRIPTOR_JOB = 'project / Publish producer descriptor'
 SHARED_JOB = 'project / Shared tests'
 PUBLISH_PREFIX = 'project / Publish final producer '
 FULL_PROFILE = 'ubuntu24-host-qt5-qt6-v1'
+CURRENT_OWNER_GENERATION = 'protected-producer-seven-target-ci-v1'
+DOCUMENTATION_SUITES = frozenset({'documentation-contracts', 'documentation', 'policy-consistency'})
+WORKFLOW_CONTRACT_SUITES = frozenset({'workflow-contracts'})
+_CURRENT_OWNER_DEMANDS = (DOCUMENTATION_SUITES, WORKFLOW_CONTRACT_SUITES,
+                         DOCUMENTATION_SUITES | WORKFLOW_CONTRACT_SUITES)
+_CURRENT_OWNER_TARGETS = frozenset({'main', 'apple-main', 'apple-ios', 'android-main',
+                                   'android-phone', 'android-vr', 'android-vr-pico'})
 
 
 class PreExecutionUnavailable(host.Unavailable):
@@ -112,9 +120,11 @@ def _event_binding(event, binding):
 
 def _native(environment):
     expected = {'GITHUB_REPOSITORY': 'noah-l-frank/overte', 'GITHUB_REPOSITORY_ID': '1319052603',
-                'GITHUB_ACTIONS': 'true', 'GITHUB_EVENT_NAME': 'pull_request', 'GITHUB_BASE_REF': 'main',
+                'GITHUB_ACTIONS': 'true', 'GITHUB_EVENT_NAME': 'pull_request',
                 'RUNNER_ENVIRONMENT': 'github-hosted', 'ImageOS': 'ubuntu24', 'GITHUB_RUN_ATTEMPT': '1'}
     host.require(all(environment.get(key) == value for key, value in expected.items()), 'unsupported protected producer context')
+    host.require(environment.get('GITHUB_BASE_REF') in source_admission.TARGET_PROFILES,
+                 'unsupported protected producer target')
     ref = environment.get('GITHUB_REF', '')
     match = re.fullmatch(r'refs/pull/([1-9][0-9]*)/merge', ref)
     host.require(match is not None and re.fullmatch(r'[1-9][0-9]*', environment.get('GITHUB_RUN_ID', ''))
@@ -132,10 +142,16 @@ def controller_sources(policy):
     consumer may reconstruct its controller identity. Historical Python is data,
     never code loaded by that consumer.
     """
-    return sorted({*shared.sources(), *policy.package_policy()._policy_inputs(), *attested._CONSUMER_FILES, TEMPLATE,
+    # Policy projection also carries fixed import-only members for its actual-D
+    # manifest. Those bytes belong to CI37 generation, not the producer's fixed
+    # controller identity. Unknown new source dependencies must remain visible.
+    import_only = set(source_admission.IMPORT_MEMBERS) - set(source_admission.CONTROLLERS)
+    projected = set(shared.sources()) - import_only
+    return sorted({source_admission.SELF, inputs.AFFECTED_POLICY, *projected, *policy.package_policy()._policy_inputs(), *attested._CONSUMER_FILES, TEMPLATE,
         'tools/repository-checks/metadata_context.py',
         'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml',
         '.github/workflows/documentation-checks.yml', '.github/workflows/workflow-security.yml',
+        source_admission.DOCUMENTATION_WORKFLOW,
         'tools/native-tests/check.py',
         ci_profile.POLICY, 'tools/test-evidence/ci_profile.py', 'tools/test-evidence/runtime_ci.py',
         *('tools/test-evidence/' + name + '.py' for name in (
@@ -197,6 +213,46 @@ def source_blob(repository, oid):
     return sandbox._git(repository,'cat-file','blob',oid,limit=64_000)
 
 
+def _affected_full_selection(policy, registry, selected, candidate_tree, base_tree, trusted_tree, paths,
+                             regular, *, root, target):
+    """Admit a main-only subset without changing the isolated full runtime.
+
+    The selector's label or supplied names are insufficient. Reconstruct the
+    protected dependency plan and its legacy preparation boundary independently;
+    neither the candidate graph nor a future receipt can select its own work.
+    """
+    try:
+        host.require(target == 'main' and regular is True,
+                     'affected producer requires ordinary main inputs')
+        raw_registry = sandbox._source(root, '.github/test-suites.json')
+        actual_registry = inputs._validate_registry(json.loads(raw_registry, object_pairs_hook=inputs._unique_object))
+        registry_entry = {'mode': '100644', 'type': 'blob', 'sha': hashlib.sha1(
+            b'blob ' + str(len(raw_registry)).encode('ascii') + b'\0' + raw_registry).hexdigest()}
+        host.require(actual_registry == registry and all(
+            tree.get('.github/test-suites.json') == registry_entry for tree in (base_tree, candidate_tree, trusted_tree)),
+            'affected command definitions differ from protected registry bytes')
+        raw = inputs.load_dependencies(root / inputs.AFFECTED_POLICY, registry)
+        native = json.loads(raw)['suites'].get('device-control-plane-full', {})
+        host.require(all(policy.ci_owned(path) for path in native.get('native_independent_paths', ())),
+                     'affected native lookup has an unreviewed independence exception')
+        plan = inputs.plan_affected(registry, raw, base_tree, candidate_tree, trusted_tree)
+        expected = {'suites': plan['required'], 'reason': 'protected-affected-dependencies',
+                    'full_host': True, 'include_platform': False, 'affected': plan}
+        host.require(selected == expected and selected['full_host'] is True
+                     and selected['include_platform'] is False and plan['paths'] == paths,
+                     'affected owner differs from independently derived protected dependencies')
+        names = execution.select_common(registry, plan['required'])
+        host.require(names == plan['required'] and bool(names), 'affected owner is empty or noncanonical')
+        legacy = policy._select_legacy(candidate_tree, paths, regular, base_tree=base_tree,
+            trusted_tree=trusted_tree, candidate_root=root, trusted_root=root, target=target)
+        host.require(legacy['full_host'] is True and legacy['reason'] not in {
+            'unknown-or-nonregular-inventory', 'unowned-inputs', 'reviewed-protected-producer-transition'}
+            and set(names) < set(execution.select_common(registry, legacy['suites'])),
+            'affected owner cannot widen preparation or replace a full installation gate')
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
+        raise PreExecutionUnavailable('affected subset has no independent protected full admission') from error
+
+
 def selection_profile(policy, registry, candidate_tree, base_tree, trusted_tree, *, root=ROOT, target='main', read_blob=None):
     """Derive the owner from complete immutable inputs, never receipt claims."""
     inputs._validate_registry(registry)
@@ -209,7 +265,8 @@ def selection_profile(policy, registry, candidate_tree, base_tree, trusted_tree,
     selected = policy.select(candidate_tree, paths, regular, base_tree=base_tree, trusted_tree=trusted_tree,
                              candidate_root=root, trusted_root=root, target=target)
     if selected.get('reason') == 'protected-affected-dependencies':
-        raise PreExecutionUnavailable('affected subset requires existing nonreusable execution')
+        _affected_full_selection(policy, registry, selected, candidate_tree, base_tree, trusted_tree,
+                                 paths, regular, root=root, target=target)
     names = execution.select_common(registry, selected['suites'])
     profile = FULL_PROFILE
     binding = None
@@ -226,16 +283,45 @@ def selection_profile(policy, registry, candidate_tree, base_tree, trusted_tree,
     return {'selection':selected,'profile':profile,'suites':names,'binding':binding}
 
 
+def protected_source_context(adapter, binding, references, policy):
+    """Exact B commitment to current defaultD; no historical D commit assertion."""
+    target=binding['base_ref']
+    try:
+        source_admission.require(target in source_admission.TARGET_PROFILES, 'unknown protected source target')
+        if set(controller_sources(policy)) != set(source_admission.CONTROLLERS):
+            raise source_admission.SourceUnavailable('producer source graph is not reviewed')
+        branch=adapter._object('branches/'+target)
+        source_admission.require(branch.get('name')==target and branch.get('protected') is True
+            and branch.get('commit',{}).get('sha')==binding['base_sha'], 'protected PR base changed')
+        authority=branch if target=='main' else adapter._object('branches/main')
+        source_admission.require(authority.get('name')=='main' and authority.get('protected') is True
+            and authority.get('commit',{}).get('sha')==references['default'], 'default source protection changed')
+        # These complete API inventories are independent of checkout Git config.
+        from types import SimpleNamespace
+        api=SimpleNamespace(get=adapter._object)
+        base=source_admission.api_tree(api,binding['base_sha'],tree_reader=adapter.api.immutable_tree)
+        default=source_admission.api_tree(api,references['default'],tree_reader=adapter.api.immutable_tree)
+        admitted=source_admission.compatibility(base,default,target,
+            read_actual=lambda name:source_admission.actual_bytes(ROOT,name),
+            actual_imports=source_admission.actual_import_inventory(ROOT))
+        source_admission.require(admitted['controller_digest']==_controller_identity(policy),
+            'source admission differs from actual default controller identity')
+        return {**admitted,'base':binding['base_sha'],'default':references['default']}
+    except (source_admission.SourceUnavailable,host.Unavailable,OSError,ValueError,KeyError,TypeError) as error:
+        raise PreExecutionUnavailable('protected base/default source is not enrolled') from error
+
+
 def prepare(candidate, event, environment, adapter):
     """Independently select a supported protected owner and source generation."""
     number, identifier = _native(environment)
     binding, refs = adapter.current(number)
-    host.require(binding['merge_sha'] == environment['GITHUB_SHA'] and binding['base_ref'] == 'main'
+    host.require(binding['merge_sha'] == environment['GITHUB_SHA'] and binding['base_ref'] == environment.get('GITHUB_BASE_REF') in source_admission.TARGET_PROFILES
                  and binding['head_ref'] == environment.get('GITHUB_HEAD_REF'), 'current PR differs from native invocation')
     _event_binding(event, binding)
     host.require(execution.checkout_identity(ROOT)[0] == refs['default'] and refs['default_ref'] == 'main',
                  'trusted checkout differs from current protected default source')
     policy = _host_policy()
+    source_context = protected_source_context(adapter,binding,refs,policy)
     registry = inputs.load_registry(ROOT / '.github/test-suites.json')
     if policy.additional_suites(policy.candidate_registry(candidate), registry):
         raise PreExecutionUnavailable('new candidate commands need existing monotonic full execution')
@@ -243,18 +329,24 @@ def prepare(candidate, event, environment, adapter):
     if package_plan['host_mode'] != 'full':
         raise PreExecutionUnavailable('the actual required route has no shared host owner')
     selected = policy.candidate_selection(candidate, event, binding['merge_sha'],package_plan['plan'])
-    if execution.platform_suites(candidate, registry['suites']):
+    candidate_tree=inputs.full_tree(candidate,binding['merge_sha'])
+    if not source_admission.shared_platform_supported(selected,binding['base_ref'],candidate_tree.get(source_admission.PROFILE)):
+        raise PreExecutionUnavailable('candidate platform declaration needs existing actual execution')
+    if selected['include_platform'] is True and execution.platform_suites(candidate, registry['suites']):
         raise PreExecutionUnavailable('selected profile needs existing nonreusable execution')
     prepared_selection = selection_profile(policy,registry,inputs.full_tree(candidate,binding['merge_sha']),
-        inputs.full_tree(candidate,binding['base_sha']),inputs.full_tree(ROOT,refs['default']),root=ROOT,target='main',
+        inputs.full_tree(candidate,binding['base_sha']),inputs.full_tree(ROOT,refs['default']),root=ROOT,target=binding['base_ref'],
         read_blob=lambda oid:source_blob(candidate,oid))
     if prepared_selection['selection'] != selected:
         raise PreExecutionUnavailable('independent package/host owner needs existing actual execution')
     names = prepared_selection['suites']
+    if binding['base_ref']!='main' and (prepared_selection['profile']!=FULL_PROFILE
+            or selected['full_host'] is not True or set(names)!=set(registry['suites'])):
+        raise PreExecutionUnavailable('child protected owner needs existing nonreusable execution')
     plan = {'owners': {'shared-host': {'kind': 'shared', 'suites': names,
               'include_platform': selected['include_platform'], 'platform': {}}}}
     blob = sandbox._git(ROOT, 'ls-tree', '-z', refs['default'], '--', TEMPLATE).split(b'\t')[0].split()[-1].decode()
-    controller = _controller_identity(policy)
+    controller = source_context['controller_digest']
     producer = protocol.Policy('noah-l-frank/overte', 1319052603, 15368, '.github/workflows/project-tests.yml',
         blob, environment['GITHUB_REF'], ('pull_request',), controller, sandbox.contract(ROOT)['digest'],
         required_execution_schema=3)
@@ -277,8 +369,9 @@ def prepare(candidate, event, environment, adapter):
     result = {'number': number, 'run_id': identifier, 'binding': binding, 'refs': refs, 'selected': selected,
               'profile':prepared_selection['profile'],
               'profile_binding':prepared_selection['binding'],
-              'registry': registry, 'plan': plan, 'policy': api_policy, 'git_context': expected_git_context(adapter, binding)}
-    _bookend(result, adapter)
+              'registry': registry, 'plan': plan, 'policy': api_policy, 'source_context':source_context,
+              'git_context': expected_git_context(adapter, binding)}
+    _bookend(result, adapter, preexecution=True)
     return result
 
 
@@ -322,9 +415,19 @@ def current_run(context, adapter, role):
     return run
 
 
-def _bookend(context, adapter):
+def _bookend(context, adapter, *, preexecution=False):
     binding, refs = adapter.current(context['number'])
     host.require(binding == context['binding'] and refs == context['refs'], 'PR/default source changed during producer operation')
+    if 'source_context' in context:
+        try:
+            host.require(protected_source_context(adapter,binding,refs,_host_policy())==context['source_context'],
+                         'protected base/default controller source changed')
+        except PreExecutionUnavailable as error:
+            if preexecution:
+                raise
+            # This bookend also runs AFTER run_suites. Never turn a finished
+            # or failed execution into a new legacy execution/fallback attempt.
+            raise host.Unavailable('protected source changed after admission') from error
 
 
 def _descriptor(context, adapter, run):
@@ -408,6 +511,129 @@ def publication(context, descriptor, receipt, run, now, descriptor_expires_at):
         'qualified_at': qualified, 'expires_at': expires}
     value['aggregate_digest'] = protocol.digest(value)
     return value
+
+
+def _owner_target_supported(context):
+    """Use only the actual source admission returned by protected prepare.
+
+    This context is reconstructed internally, never read from candidate JSON.
+    Children retain the existing complete full owner and platform boundary.
+    """
+    target = context['binding']['base_ref']
+    source = context.get('source_context')
+    if target not in _CURRENT_OWNER_TARGETS or type(source) is not dict or type(source.get('schema')) is not int or source['schema'] != 1 \
+            or source.get('kind') != 'protected-default-controller-source-v1' or source.get('target') != target \
+            or source.get('base') != context['binding']['base_sha'] or source.get('default') != context['refs']['default'] \
+            or source.get('controller_digest') != context['policy'].producer.controller_digest \
+            or not isinstance(source.get('lookup_digest'), str) \
+            or re.fullmatch(r'sha256:[0-9a-f]{64}', source['lookup_digest']) is None:
+        return False
+    if target == 'main':
+        return True
+    owner = context['plan']['owners']['shared-host']
+    return (context['profile'] == FULL_PROFILE and context['selected']['full_host'] is True
+        and owner['suites'] == list(context['registry']['suites'])
+        and (owner['include_platform'] is False or source.get('target_profile') == inputs._AFFECTED_SHARED_PROFILE))
+
+
+def _completed_owner_outputs(context, receipt):
+    """Dispatch hints only, emitted after actual selected publication validates."""
+    supported = (_host_policy().package_policy().validate_wiring(context['candidate']) == CURRENT_OWNER_GENERATION
+                 and _owner_target_supported(context))
+    passed = {name for name, result in receipt['results'].items() if result['status'] == 'passed'} if supported else set()
+    return {'documentation_verified': str(DOCUMENTATION_SUITES <= passed).lower(),
+            'workflow_contracts_verified': str(WORKFLOW_CONTRACT_SUITES <= passed).lower()}
+
+
+def verify_current_owners(candidate, event, environment, adapter, *, demanded,
+                          clock=lambda: datetime.now(timezone.utc)):
+    """Authenticate completed owners of this still-running original PR only.
+
+    This fixed outer job may consume its own completed native producer jobs;
+    it cannot make the overall pending run a completed reusable authority.
+    The caller still checks every other required lane independently.
+    """
+    host.require(type(demanded) in {set, frozenset} and demanded in _CURRENT_OWNER_DEMANDS
+                 and environment.get('GITHUB_JOB') == 'repository-checks',
+                 'current owner lookup requires a fixed native outer owner group')
+    protected_admission()
+    candidate = Path(candidate).resolve(strict=True)
+    host.require(candidate == Path(environment['GITHUB_WORKSPACE']).resolve(strict=True) / 'candidate',
+                 'current owner candidate is outside the exact native checkout')
+    context = prepare(candidate, event, environment, adapter)
+    package = _host_policy().package_policy()
+    host.require(package.validate_wiring(candidate) == CURRENT_OWNER_GENERATION
+                 and _owner_target_supported(context)
+                 and demanded <= set(context['plan']['owners']['shared-host']['suites']),
+                 'current owner requires the exact enrolled generation and every actual command')
+
+    def observe():
+        snapshot = adapter.capture(context['number'], context['plan'], context['policy'], now=clock())
+        host.require(snapshot.binding == context['binding'] and snapshot.references == context['refs'],
+                     'current owner source differs from independently selected native context')
+        authority = protocol.select_authority(snapshot.observations, snapshot.binding, context['plan'],
+            context['policy'].producer, inventory_complete=snapshot.inventory_complete, now=clock())
+        host.require(authority['state'] == 'pending' and authority['run_id'] == context['run_id']
+                     and authority['attempt'] == 1,
+                     'current owner is not the unique original current native run')
+        selected = next(item for item in snapshot.observations if item.run.run_id == context['run_id'])
+        run = selected.run
+        host.require(run.status == 'in_progress' and run.conclusion is None and run.attempt == run.latest_attempt == 1
+                     and run.workflow_commit == context['binding']['merge_sha']
+                     and snapshot.source_chains[run.run_id]['producer_commit'] == context['binding']['merge_sha']
+                     and run.final_publisher is not None,
+                     'current owner does not belong to the actual original native merge execution')
+        latest = adapter._object('actions/runs/' + str(run.run_id))
+        host.require(latest.get('id') == run.run_id and latest.get('run_attempt') == 1
+                     and latest.get('status') == run.status and latest.get('conclusion') is None,
+                     'current outer run changed during owner authentication')
+        jobs = adapter._pages(f'actions/runs/{run.run_id}/attempts/1/jobs', 'jobs')
+        matches = [job for job in jobs if job.get('name') == 'repository-checks']
+        host.require(len(matches) == 1, 'current outer aggregate job is missing or ambiguous')
+        outer = adapter._job(matches[0], latest, 15368, final_name='repository-checks')
+        host.require(outer.status == 'in_progress' and outer.conclusion is None
+                     and outer.started_at is not None and outer.completed_at is None
+                     and run.final_publisher.job.completed_at is not None
+                     and protocol._time(run.final_publisher.job.completed_at) <= protocol._time(outer.started_at) <= clock()
+                     and outer.job_id not in {run.publisher.job_id, run.final_publisher.job.job_id,
+                                              *(job.job_id for job in run.owners.values())},
+                     'current outer aggregate did not start after its completed original publisher')
+        return snapshot, selected, outer
+
+    initial, observation, outer = observe()
+    run = observation.run
+    items = initial.artifact_inventories[run.run_id]
+    raw, facts = adapter._artifact(run, 'aggregate', items, clock(), context['binding']['head_sha'])
+    host.require(raw is not None and facts is not None, 'current original aggregate is unavailable')
+    aggregate = protocol.read_artifact(raw, 'aggregate', facts, run, now=clock())
+    receipt = aggregate.get('results', {}).get('shared-host', {}).get('receipt')
+    host.require(type(receipt) is dict and receipt.get('schema') == 3,
+                 'current owner requires an actual isolated original receipt')
+    tree = inputs.full_tree(candidate, context['binding']['merge_sha'])
+    host.require(tree.get('tests/platform-profile.json') == context['source_context']['target_profile'],
+                 'current owner platform declaration differs from its actual protected source admission')
+    shared_context = protocol.SharedContext(context['registry'], tree, receipt['environment'],
+        context['binding']['merge_sha'], context['binding']['merge_tree'], context['git_context'])
+    verified = protocol._verify_original_payload(raw, facts, context['binding'], context['plan'],
+        context['policy'].producer, observation, contexts={'shared-host': shared_context}, now=clock())
+    host.require(receipt['requested_suites'] == context['plan']['owners']['shared-host']['suites']
+                 and demanded <= set(receipt['results']), 'current owner omitted an actual demanded result')
+    if context['profile'] == ci_profile.PROFILE:
+        runtime_ci.validate_environment(receipt['environment'], aggregate['qualified_at'], aggregate['expires_at'], clock(),
+            context['selected'], tree, inputs.full_tree(ROOT, context['refs']['default']), context['registry'], root=ROOT,
+            read_blob=lambda oid:source_blob(candidate, oid))
+    else:
+        attested.validate_environment(receipt['environment'], aggregate['qualified_at'], aggregate['expires_at'],
+                                      clock(), root=ROOT, isolated=True)
+    final, final_observation, final_outer = observe()
+    host.require(final == initial and final_observation == observation and final_outer == outer
+                 and prepare(candidate, event, environment, adapter) == context
+                 and package.validate_wiring(candidate) == CURRENT_OWNER_GENERATION
+                 and clock() < protocol._time(verified['expires_at']),
+                 'current original proof, native jobs, artifacts or protected source changed')
+    return {**verified, 'kind': 'current-original-pr-owners', 'qualification': False, 'reusable': False,
+            'suites': sorted(demanded),
+            'source_chain': final.source_chains[run.run_id], 'outer_job_id': outer.job_id}
 
 
 def _receipt_artifact(context, run, adapter):
@@ -507,7 +733,7 @@ def shared_execution(candidate, event, environment, adapter):
                 raise PreExecutionUnavailable('selected CI37 prepared tools are unavailable') from error
             run = current_run(context, adapter, 'shared')
             _descriptor(context, adapter, run)
-            projection = shared.project_policy(policy_path, shared.sources())
+            projection = shared.project_policy(policy_path, shared.sources(), trusted_source=context['refs']['default'])
             binding = {'source': context['binding']['merge_sha'], 'run_id': context['run_id'], 'run_attempt': 1,
                 'profile': shared.PROFILE, 'snapshot': snapshot['digest'], 'git_context': snapshot['git_context'],
                 'runtime_profile':context['profile'],'selection':context['selected'],
@@ -547,7 +773,7 @@ def main(argv=None):
                  'native event inventory is unavailable')
     event = json.loads(event_path.read_bytes(), object_pairs_hook=inputs._unique_object)
     if args.role == 'descriptor' and (os.environ.get('GITHUB_EVENT_NAME') != 'pull_request'
-            or os.environ.get('GITHUB_BASE_REF') != 'main'
+            or os.environ.get('GITHUB_BASE_REF') not in source_admission.TARGET_PROFILES
             or event.get('pull_request', {}).get('head', {}).get('repo', {}).get('id') != 1319052603):
         _output({'protected_full': 'false'})
         return 0
@@ -593,6 +819,7 @@ def main(argv=None):
     _bookend(context, adapter)
     host.require(current_run(context, adapter, 'publish') == run, 'native publication job changed before output')
     execution._write_receipt(_directory('ci-producer-aggregate') / 'aggregate.json', value)
+    _output(_completed_owner_outputs(context, receipt))
     return 0
 
 

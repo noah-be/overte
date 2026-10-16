@@ -3,7 +3,9 @@
 
 from copy import deepcopy
 import hashlib
+import importlib.util
 import json
+import os
 import subprocess
 from pathlib import Path
 import tempfile
@@ -464,8 +466,10 @@ class DiagnosticActualSourceTests(unittest.TestCase):
         self.write('.github/test-suites.json',json.dumps(self.registry).encode())
         self.write(C.PINNED_SOURCE,(C.ROOT/C.PINNED_SOURCE).read_bytes())
         self.write(C.DATA_PATH,(C.ROOT/C.DATA_PATH).read_bytes())
-        self.policy={**C.load_policy(),'enabled':True,'generation_digest':'sha256:'+'f'*64,
-                     'definition_digest':C.definition_digest(self.registry)}
+        self.policy={key:value for key,value in C.load_policy().items() if key!='generation_kind'}
+        self.policy.update(enabled=True,generation_digest='sha256:'+'f'*64,
+                           epoch='diagnostic-legacy-whole-tree-fixture',
+                           definition_digest=C.definition_digest(self.registry))
         self.write(C.POLICY,json.dumps(self.policy).encode())
         self.git('init','-q','--initial-branch=main')
         self.git('config','user.name','Diagnostic fixture');self.git('config','user.email','fixture@example.invalid')
@@ -554,6 +558,209 @@ class DiagnosticActualSourceTests(unittest.TestCase):
         self.write(C.POLICY,json.dumps({**self.policy,'diagnostic_generation_override':'unreviewed'}).encode())
         self.commit()
         with self.assertRaises(C.CIProfileError):self.binding()
+
+
+class ControllerGenerationTests(unittest.TestCase):
+    """Real small immutable D repository; no runtime/kernel/tool measurement."""
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory(prefix='ci37-controller-manifest-');self.addCleanup(self.temp.cleanup)
+        self.root=Path(self.temp.name)/'trusted';self.root.mkdir()
+        self.registry=inputs.load_registry(C.ROOT/'.github/test-suites.json')
+        policy=C.load_policy(C.ROOT)
+        self.policy={key:value for key,value in policy.items() if key!='generation_digest'}
+        self.policy.update(generation_kind=C.CONTROLLER_KIND,epoch=C.CONTROLLER_EPOCH,enabled=True)
+        required=set(C.controller_paths())|{C.DATA_PATH}
+        for name in C.SUITES:required.update(self.registry['suites'][name]['closure']['required'])
+        self.blobs={}
+        for name in sorted(required):
+            source=C.ROOT/name
+            raw=json.dumps(self.policy,sort_keys=True).encode() if name==C.POLICY else source.read_bytes()
+            path=self.root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(raw)
+            path.chmod(0o755 if source.stat().st_mode&0o111 else 0o644)
+            self.blobs[self.blob(raw)['sha']]=raw
+        self.git('init','--quiet')
+        self.git('add','--all')
+        self.git('-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','--quiet','-m','Immutable protected fixture')
+        self.source=self.git('rev-parse','HEAD').decode().strip()
+        self.manifest=C.capture_controller_manifest(self.root,self.source)
+        self.trusted=deepcopy(self.manifest['entries']);self.candidate=deepcopy(self.trusted)
+        self.selection={'suites':list(C.SUITES),'reason':'reviewed-ci-only-inputs','full_host':False,'include_platform':False}
+
+    @staticmethod
+    def blob(raw):
+        return {'mode':'100644','type':'blob','sha':hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()}
+
+    def git(self,*args):
+        env={name:value for name,value in os.environ.items() if not name.startswith('GIT_')}
+        env.update(GIT_CONFIG_NOSYSTEM='1',GIT_CONFIG_GLOBAL='/dev/null',GIT_TERMINAL_PROMPT='0')
+        return subprocess.check_output(['/usr/bin/git','-c','core.hooksPath=/dev/null',*args],
+            cwd=self.root,env=env,stderr=subprocess.PIPE,timeout=10)
+
+    def binding(self,**kwargs):
+        return C.validate_selection(self.selection,self.candidate,self.trusted,self.registry,
+            root=self.root,read_blob=self.blobs.__getitem__,**kwargs)
+
+    def test_real_immutable_D_manifest_allows_changed_CI_test_without_rebinding_candidate_to_D(self):
+        self.candidate['tests/branch-cleanup-test.py']=self.blob(b'changed candidate test bytes\n')
+        before=self.binding();after=self.binding(controller_manifest=self.manifest)
+        self.assertEqual(before,after)
+        self.assertEqual(before['generation_kind'],C.CONTROLLER_KIND)
+        self.assertNotEqual(C.generation(self.candidate,self.registry),C.generation(self.trusted,self.registry))
+        self.assertEqual(before['generation_digest'],C.controller_generation(self.trusted,self.registry))
+        self.assertNotIn('source_commit',before);self.assertNotIn('source_tree',before)
+        self.assertEqual(C._controller_tree_identity(self.trusted),self.git('rev-parse','HEAD^{tree}').decode().strip())
+        with self.assertRaises(C.CIProfileError):self.binding(controller_manifest={**self.manifest,'source_tree':'f'*40})
+
+    def test_dynamic_controller_generation_changes_after_legitimate_protected_source_update_without_policy_reseal(self):
+        first=self.binding()
+        path=self.root/'tools/test-evidence/runtime_ci.py';path.write_bytes(path.read_bytes()+b'\n# Reviewed controller update\n')
+        self.git('add','--all');self.git('-c','user.name=Fixture','-c','user.email=fixture@example.invalid',
+            'commit','--quiet','-m','Reviewed protected controller update')
+        self.source=self.git('rev-parse','HEAD').decode().strip()
+        self.manifest=C.capture_controller_manifest(self.root,self.source)
+        self.trusted=deepcopy(self.manifest['entries']);self.candidate=deepcopy(self.trusted)
+        next_binding=self.binding()
+        self.assertNotEqual(first['generation_digest'],next_binding['generation_digest'])
+        self.assertEqual(first['policy_digest'],next_binding['policy_digest'])
+        self.assertNotIn('generation_digest',self.policy)
+
+    def test_capture_records_actual_commit_object_identity_before_constructing_manifest(self):
+        import base64
+        raw=self.git('cat-file','commit',self.source)
+        actual=hashlib.sha1(b'commit '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
+        self.assertEqual(actual,self.source)
+        self.assertEqual(self.manifest['source_commit'],actual)
+        self.assertEqual(base64.b64decode(self.manifest['commit_object']),raw)
+        # Even a correctly sized object returned after the actual HEAD check
+        # must independently hash to the admitted native immutable identity.
+        changed=raw[:-1]+(b'X' if raw[-1:]!=b'X' else b'Y')
+        original=C._controller_git
+        def read(root,*args):
+            return changed if args==('cat-file','commit',self.source) else original(root,*args)
+        with patch.object(C,'_controller_git',side_effect=read), \
+             patch.object(C,'_validate_controller_manifest',side_effect=AssertionError('mismatched object reached manifest')) as validate:
+            with self.assertRaisesRegex(C.CIProfileError,'actual controller commit differs'):
+                C.capture_controller_manifest(self.root,self.source)
+            validate.assert_not_called()
+
+    def test_manifest_rebound_actual_source_mode_alias_membership_and_tree_are_rejected(self):
+        import base64
+        for change in ('commit','commit-body','tree','lookup','missing','mode','alias','actual'):
+            manifest=deepcopy(self.manifest)
+            if change=='commit':manifest['source_commit']='f'*40
+            elif change=='commit-body':manifest['commit_object']='not canonical base64'
+            elif change=='tree':manifest['source_tree']='f'*40
+            elif change=='lookup':manifest['entries']['tools/test-evidence/shadow.so']=self.blob(b'shadow')
+            elif change=='missing':del manifest['entries']['tools/test-evidence/producer.py']
+            elif change in ('mode','alias'):
+                manifest['entries']['tools/test-evidence/producer.py']['mode']='100755' if change=='mode' else '120000'
+            else:
+                path=self.root/'tools/test-evidence/producer.py';original=path.read_bytes();path.write_bytes(b'changed actual bytes')
+            if change not in ('commit','commit-body','tree','alias'):
+                manifest['source_tree']=C._controller_tree_identity(manifest['entries'])
+                body=base64.b64decode(manifest['commit_object'])
+                body=b'tree '+manifest['source_tree'].encode()+b'\n'+body.split(b'\n',1)[1]
+                manifest['commit_object']=base64.b64encode(body).decode('ascii')
+                manifest['source_commit']=hashlib.sha1(b'commit '+str(len(body)).encode()+b'\0'+body).hexdigest()
+            with self.subTest(change=change),self.assertRaises(C.CIProfileError):self.binding(controller_manifest=manifest)
+            if change=='actual':path.write_bytes(original)
+        with self.assertRaises(C.CIProfileError):C.capture_controller_manifest(self.root,'f'*40)
+
+    def test_exact_selection_actual_registry_policy_platform_and_Android_pins_remain_mandatory(self):
+        for name in ('.github/test-suites.json',C.POLICY,C.PINNED_SOURCE,'tests/platform-profile.json'):
+            original=deepcopy(self.candidate[name]);self.candidate[name]=self.blob(b'changed declaration')
+            with self.subTest(name=name),self.assertRaises(C.CIProfileError):self.binding()
+            self.candidate[name]=original
+        self.candidate['unknown/alias']={'mode':'120000','type':'blob','sha':'f'*40}
+        with self.assertRaises(C.CIProfileError):self.binding()
+        del self.candidate['unknown/alias']
+        for field,value in (('full_host',True),('include_platform',True),('suites',list(C.SUITES)[1:])):
+            old=self.selection[field];self.selection[field]=value
+            with self.subTest(field=field),self.assertRaises(C.CIProfileError):self.binding()
+            self.selection[field]=old
+        with self.assertRaises(C.CIProfileError):self.binding(target='apple-ios')
+
+    def test_namespace_epoch_and_legacy_whole_tree_semantics_are_not_interchangeable(self):
+        for changed in ({**self.policy,'generation_kind':'other'}, {**self.policy,'epoch':'old-epoch'},
+                        {**self.policy,'generation_digest':'sha256:'+'a'*64}):
+            with self.assertRaises(C.CIProfileError):C._validate_policy(changed)
+        legacy={key:value for key,value in self.policy.items() if key!='generation_kind'}
+        legacy['generation_digest']=C.generation(self.trusted,self.registry)
+        self.assertEqual(C._validate_policy(legacy),legacy)
+        self.candidate['tests/branch-cleanup-test.py']=self.blob(b'candidate differs')
+        with self.assertRaises(C.CIProfileError):self.binding(policy=legacy)
+
+    def test_projection_requires_native_expectedD_then_authenticates_actual_readonly_controller_copy(self):
+        import sandbox_shared as S
+        projection=Path(self.temp.name)/'projection';projection.mkdir()
+        names=C.controller_paths()
+        with patch.object(S,'ROOT',self.root):
+            with self.assertRaises(S.host.Unavailable):S.project_policy(projection,names)
+            with self.assertRaises(C.CIProfileError):S.project_policy(projection,names,trusted_source='f'*40)
+            result=S.project_policy(projection,names,trusted_source=self.source)
+        self.assertIn(C.CONTROLLER_MANIFEST,result)
+        manifest_path=projection/C.CONTROLLER_MANIFEST
+        self.assertEqual(manifest_path.stat().st_mode&0o777,0o444)
+        self.assertEqual(json.loads(manifest_path.read_bytes())['entries'],self.trusted)
+        self.assertEqual(C._validate_controller_manifest(self.manifest,projection),self.trusted)
+        # Real mode/content projection; UID assertion is covered with an
+        # explicit root-owner fixture when this unit process is unprivileged.
+        if os.geteuid()==0:
+            self.assertEqual(C.load_controller_projection(projection),self.manifest)
+        manifest_path.chmod(0o644)
+        with self.assertRaises(C.CIProfileError):C.load_controller_projection(projection)
+
+    def test_capture_validates_controller_manifest_before_any_runtime_measurement(self):
+        import runtime_ci as R
+        self.candidate['tests/branch-cleanup-test.py']=self.blob(b'candidate test changed')
+        with patch.object(R,'_measure_ci_environment',side_effect=lambda binding,**kw:{'selection':binding}) as measure:
+            result=R.capture_ci_environment(self.selection,self.candidate,self.trusted,self.registry,
+                root=self.root,read_blob=self.blobs.__getitem__,controller_manifest=self.manifest)
+            self.assertEqual(result['selection'],self.binding());self.assertEqual(measure.call_count,1)
+            with self.assertRaises(R.CIEnvironmentError):R.capture_ci_environment(
+                self.selection,self.candidate,self.trusted,self.registry,root=self.root,read_blob=self.blobs.__getitem__)
+            self.assertEqual(measure.call_count,1)
+            with self.assertRaises(R.CIEnvironmentError):R.capture_ci_environment(
+                self.selection,self.candidate,self.candidate,self.registry,root=self.root,
+                read_blob=self.blobs.__getitem__,controller_manifest={**self.manifest,'source_tree':'f'*40})
+            self.assertEqual(measure.call_count,1)
+
+    def test_probe_uses_sealed_D_manifest_not_the_candidate_as_its_trusted_tree(self):
+        import runtime_ci as R
+        import sandbox
+        spec=importlib.util.spec_from_file_location('controller_generation_probe',C.ROOT/'tools/test-evidence/sandbox_probe.py')
+        probe=importlib.util.module_from_spec(spec);spec.loader.exec_module(probe)
+        self.candidate['tests/branch-cleanup-test.py']=self.blob(b'changed candidate implementation')
+        binding={'source':'e'*40,'runtime_profile':C.PROFILE,'selection':self.selection,'profile_binding':self.binding()}
+        real_path=Path
+        def path(name):
+            value=str(name)
+            if value=='/overte-policy':return self.root
+            if value.startswith('/overte-policy/'):return self.root/value.removeprefix('/overte-policy/')
+            return real_path(value)
+        with patch.object(probe,'Path',side_effect=path),patch.object(inputs,'full_tree',return_value=self.candidate), \
+             patch.object(C,'load_controller_projection',return_value=self.manifest), \
+             patch.object(sandbox,'_git',side_effect=lambda root,*args,**kwargs:self.blobs[args[2]]), \
+             patch.object(R,'_measure_ci_environment',side_effect=lambda binding,**kw:{'selection':binding}), \
+             patch.object(R,'capture_ci_environment',wraps=R.capture_ci_environment) as capture:
+            self.assertEqual(probe.shared_environment(binding)['selection'],binding['profile_binding'])
+            self.assertEqual(capture.call_args.args[1],self.candidate)
+            self.assertEqual(capture.call_args.args[2],self.trusted)
+            self.assertNotEqual(capture.call_args.args[1],capture.call_args.args[2])
+            self.assertEqual(capture.call_args.kwargs['controller_manifest'],self.manifest)
+            with self.assertRaises(R.CIEnvironmentError):
+                probe.shared_environment({**binding,'profile_binding':{'downgraded':'legacy'}})
+
+    def test_manual_namespace_stays_production_inadmissible_in_controller_mode(self):
+        import runtime_ci as R
+        diagnostic=C.diagnostic_selection(self.selection,self.trusted,self.trusted,self.registry,
+            root=self.root,source=self.source,source_root=self.root,read_blob=self.blobs.__getitem__,
+            controller_manifest=self.manifest)
+        self.assertEqual(diagnostic['kind'],C.DIAGNOSTIC_KIND)
+        self.assertEqual(diagnostic['actual_selection']['generation_kind'],C.CONTROLLER_KIND)
+        with self.assertRaisesRegex(R.CIEnvironmentError,'manual diagnostic'):
+            R.validate_environment({'selection':diagnostic},None,None,None,
+                self.selection,self.trusted,self.trusted,self.registry,root=self.root)
 
 
 if __name__ == "__main__":

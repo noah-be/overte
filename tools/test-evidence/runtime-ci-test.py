@@ -86,6 +86,23 @@ class OriginalCIEnvironmentTests(unittest.TestCase):
         self.assertFalse({'qt','glm','java'} & self.environment.keys())
         self.assertEqual(set(self.environment['native']['crt_stdlib']),set(C._CRT))
 
+    def test_controller_namespace_preserves_whole_original_E_and_rejects_legacy_or_changed_binding(self):
+        self.binding.update(generation_kind=C.ci_profile.CONTROLLER_KIND,epoch=C.ci_profile.CONTROLLER_EPOCH,
+                            generation_digest=HASH)
+        self.environment['selection']=deepcopy(self.binding)
+        original=deepcopy(self.environment)
+        value=self.admit()
+        self.assertEqual(self.environment,original)
+        self.assertEqual(value['environment_digest'],C.digest(original))
+        self.assertEqual(value['selection'],self.binding)
+        for change in ('legacy','digest','epoch','kind'):
+            changed=deepcopy(original)
+            if change=='legacy':del changed['selection']['generation_kind']
+            elif change=='digest':changed['selection']['generation_digest']='sha256:'+'b'*64
+            elif change=='epoch':changed['selection']['epoch']='old-epoch'
+            else:changed['selection']['generation_kind']='unknown-controller-generation'
+            with self.subTest(change=change),self.assertRaises(C.CIEnvironmentError):self.admit(changed)
+
     def test_each_complete_identity_component_is_mandatory(self):
         for key in self.environment:
             changed=deepcopy(self.environment); del changed[key]

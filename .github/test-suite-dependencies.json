@@ -197,7 +197,7 @@
       "setup": [
         "host-full"
       ],
-      "reviewed_reader_digest": "sha256:2059c2575ed1a4b4a77064429615f8e878bd82d1680e9c5a4108fac042dc2395",
+      "reviewed_reader_digest": "sha256:e7309f85f9505b8d0ee5623ca5cbd79e3fde9bff3e4328c9ed62c17a1ee198bb",
       "native_independent_paths": [
         ".github/android-checks.json",
         ".github/android-orchestration.json",
@@ -227,6 +227,8 @@
         ".github/workflows/browser-direct-client.yml",
         ".github/workflows/codeql.yml",
         ".github/workflows/dependency-releases.yml",
+        ".github/workflows/documentation-checks.yml",
+        ".github/workflows/documentation-push-owner.yml",
         ".github/workflows/parent-qualification.yml",
         ".github/workflows/pr-metadata-context.yml",
         ".github/workflows/project-tests.yml",
@@ -235,6 +237,7 @@
         ".github/workflows/shared-sandbox-host-diagnostic.yml",
         ".github/workflows/sync-test-reuse.yml",
         ".github/workflows/sync-validation.yml",
+        ".github/workflows/workflow-security.yml",
         "AGENTS.md",
         "BUILD.md",
         "BUILD_IDE.md",
@@ -566,10 +569,13 @@
         "tools/repository-checks/workflows/packages/repository-checks-direct.yml",
         "tools/repository-checks/workflows/packages/repository-checks.yml",
         "tools/repository-checks/workflows/packages/sync-validation.yml",
+        "tools/repository-checks/workflows/producers/legacy/parent-qualification-metadata-v1.yml",
         "tools/repository-checks/workflows/producers/legacy/parent-qualification-postmerge-v1.yml",
         "tools/repository-checks/workflows/producers/legacy/protected-project-tests-ci37-v1.yml",
+        "tools/repository-checks/workflows/producers/legacy/protected-project-tests-metadata-v1.yml",
         "tools/repository-checks/workflows/producers/legacy/protected-project-tests-postmerge-v1.yml",
         "tools/repository-checks/workflows/producers/legacy/protected-project-tests-v1.yml",
+        "tools/repository-checks/workflows/producers/legacy/repository-checks-metadata-v1.yml",
         "tools/repository-checks/workflows/producers/legacy/repository-checks-protected-ci-v1.yml",
         "tools/repository-checks/workflows/producers/parent-qualification.yml",
         "tools/repository-checks/workflows/producers/project-tests.yml",
@@ -615,6 +621,8 @@
         "tools/test-evidence/sandbox_host_fixture.py",
         "tools/test-evidence/sandbox_probe.py",
         "tools/test-evidence/sandbox_shared.py",
+        "tools/test-evidence/source-admission-test.py",
+        "tools/test-evidence/source_admission.py",
         "tools/test-evidence/test.py",
         "tools/test-evidence/validate-sync-test.py",
         "tools/test-evidence/validate-sync.py",
@@ -858,5 +866,5 @@
     }
   },
   "registry_digest": "sha256:02ab9737123fbf9e319ed0c5155e0d3bfe4682cbba52e100ade069c58714e6a4",
-  "lookup_digest": "sha256:2a807ab061a549a078e631f5105d2d58303e8649531a155b0c9bbe39a64a5ac4"
+  "lookup_digest": "sha256:8f7c1196b5f491da11285e0973450066b0e273f2fe0ffab4f8a94becf65b2c45"
 }
