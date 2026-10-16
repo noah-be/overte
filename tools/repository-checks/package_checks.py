@@ -43,6 +43,7 @@ _PROTECTED_ROUTE_GENERATIONS = frozenset({
     'protected-producer-ci37-v1',
     'protected-producer-metadata-ci-v1',
     'protected-producer-seven-target-ci-v1',
+    'protected-producer-original-default-v1',
 })
 
 
