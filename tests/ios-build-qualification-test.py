@@ -53,6 +53,7 @@ REVIEWED_SANDBOX_CI_PATHS = (
     "tools/test-evidence/sandbox_shared.py",
     "tools/test-evidence/producer_workflow.py",
     "tools/repository-checks/workflows/producers/protected-project-tests.yml",
+    "tools/repository-checks/workflows/producers/repository-checks.yml",
 )
 
 
@@ -1130,6 +1131,7 @@ class HostGenerationTests(unittest.TestCase):
                 ".github/shared-sandbox-extra.json",
                 ".github/workflows/shared-sandbox-host-extra.yml",
                 "tools/repository-checks/workflows/shared-sandbox-extra.yml",
+                "tools/repository-checks/workflows/producers/repository-checks-extra.yml",
                 "tools/test-evidence/sandbox_extra.py",
                 "tools/test-evidence/sandbox_native.h"))
             for changes in cases:

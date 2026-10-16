@@ -55,6 +55,7 @@ CI_HOST_INDEPENDENT_PATHS = frozenset({
     "tools/test-evidence/sandbox_shared.py",
     "tools/test-evidence/producer_workflow.py",
     "tools/repository-checks/workflows/producers/protected-project-tests.yml",
+    "tools/repository-checks/workflows/producers/repository-checks.yml",
     ".github/workflows/android-required.yml",
     ".github/android-owner-transfer.json",
     "tests/android-owner-transfer-test.py",
