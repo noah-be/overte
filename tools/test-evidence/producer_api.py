@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Dormant read-only GitHub adapter for producer.py; no dispatch or retry.
 
-Only independently read API facts create Authenticated* protocol objects. This
-first source contract supports same-fork PRs and local reusable workflows: API
+Only independently read API facts create Authenticated* protocol objects. The
+separate source contracts support open same-fork PRs and integrated source lookup: API
 referenced_workflows identifies the ORIGINAL merge/source, never head_sha or an
 artifact assertion. Unknown sources, incomplete inventories and mixed attempts
 cannot fall back to an older green. Trusted policy is supplied by the controller;
@@ -31,6 +31,12 @@ REPOSITORY = "noah-l-frank/overte"
 PREFIX = "repos/" + REPOSITORY
 WORKFLOWS = frozenset(".github/workflows/" + name + ".yml" for name in (
     "project-tests", "parent-qualification", "sync-validation", "repository-checks"))
+PROTECTED_PUSH_WORKFLOWS = {
+    350930890: (".github/workflows/parent-qualification.yml",
+                frozenset({"main", "android-main", "android-vr", "apple-main"})),
+    330551824: (".github/workflows/project-tests.yml",
+                frozenset({"android-phone", "android-vr-pico", "apple-ios"})),
+}
 _SHA = re.compile(r"[0-9a-f]{40}\Z")
 _DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 
@@ -144,6 +150,7 @@ class AdapterPolicy:
     generations: dict[str, dict]
     publisher_job: str
     owner_jobs: dict[str, str]
+    final_publisher_prefix: str
 
 
 @dataclass(frozen=True)
@@ -180,6 +187,11 @@ def _policy(value, plan, number):
             and all(isinstance(name, str) and name for name in [value.publisher_job, *value.owner_jobs.values()])
             and len({value.publisher_job, *value.owner_jobs.values()}) == 1 + len(value.owner_jobs),
             "trusted exact publisher/owner job names unavailable")
+    require(isinstance(value.final_publisher_prefix, str) and 0 < len(value.final_publisher_prefix) <= 200
+            and not re.search(r"[\x00-\x1f\x7f]", value.final_publisher_prefix)
+            and not any(name.startswith(value.final_publisher_prefix)
+                        for name in [value.publisher_job, *value.owner_jobs.values()]),
+            "trusted distinct final publisher prefix unavailable")
 
 
 class Adapter:
@@ -225,6 +237,99 @@ class Adapter:
         require(value.get("sha") == revision and isinstance(value.get("parents"), list)
                 and all(isinstance(parent, dict) for parent in value["parents"]), "immutable commit identity mismatch")
         return sha(value.get("tree", {}).get("sha")), [sha(parent.get("sha")) for parent in value["parents"]]
+
+    def _associated_prs(self, revision):
+        """The commit association API returns arrays, without an Actions total."""
+        values, seen = [], set()
+        for page in range(1, 11):
+            items = self.api.json(f"{PREFIX}/commits/{sha(revision)}/pulls?per_page=100&page={page}")
+            require(isinstance(items, list) and len(items) <= 100, "merged PR association inventory unavailable")
+            for item in items:
+                require(isinstance(item, dict), "invalid merged PR association")
+                identity = positive(item.get("id"))
+                positive(item.get("number"))
+                require(identity not in seen, "merged PR association repeats an identity")
+                seen.add(identity)
+            values.extend(items)
+            if len(items) < 100:
+                return values
+        raise ApiError("merged PR association exceeds reviewed pagination bound")
+
+    def _integrated_current(self, push_run_id, app_id, now):
+        """Authenticate a normal current protected push without a topic ref.
+
+        This is provenance for looking up an ORIGINAL PR candidate. It is not a
+        receipt for executing the push commit or admission across a sync edge.
+        """
+        positive(push_run_id); positive(app_id)
+        repository = self._object("")
+        require(repository.get("id") == 1319052603 and repository.get("full_name") == REPOSITORY
+                and repository.get("default_branch") == "main", "integrated repository identity changed")
+        latest = self._object(f"actions/runs/{push_run_id}")
+        require(positive(latest.get("run_attempt")) == 1, "protected push original attempt unavailable")
+        run = self._object(f"actions/runs/{push_run_id}/attempts/1")
+        fields = ("id", "workflow_id", "check_suite_id", "event", "path", "head_sha", "head_branch",
+                  "run_attempt", "status", "conclusion", "run_started_at")
+        require(all(run.get(key) == latest.get(key) for key in fields) and run.get("id") == push_run_id
+                and run.get("event") == "push" and type(run.get("workflow_id")) is int
+                and run["workflow_id"] in PROTECTED_PUSH_WORKFLOWS,
+                "protected push run/attempt identity unavailable")
+        for key in ("repository", "head_repository"):
+            value = run.get(key)
+            require(isinstance(value, dict) and value.get("id") == 1319052603
+                    and value.get("full_name") == REPOSITORY, "protected push repository mismatch")
+        path, branches = PROTECTED_PUSH_WORKFLOWS[run["workflow_id"]]
+        target, revision = run.get("head_branch"), sha(run.get("head_sha"))
+        require(target in branches and run.get("path") == path
+                and run.get("status") in P._PENDING | {"completed"}
+                and (run.get("status") == "completed" and run.get("conclusion") == "success"
+                     or run.get("status") in P._PENDING and run.get("conclusion") is None),
+                "protected push source/status unavailable")
+        workflow = self._object(f"actions/workflows/{run['workflow_id']}")
+        require(workflow.get("id") == run["workflow_id"] and workflow.get("path") == path,
+                "protected push workflow registration changed")
+        branch = self._object("branches/" + quote(target, safe=""))
+        require(branch.get("name") == target and branch.get("protected") is True
+                and branch.get("commit", {}).get("sha") == revision
+                and self._ref("heads/" + target) == revision, "protected push is not the exact current target")
+        suite = self._object(f"check-suites/{positive(run.get('check_suite_id'))}")
+        require(suite.get("id") == run["check_suite_id"] and suite.get("head_sha") == revision
+                and suite.get("repository", {}).get("id") == 1319052603
+                and suite.get("app", {}).get("id") == app_id, "protected push check-suite/app mismatch")
+        tree, parents = self._commit(revision)
+        require(len(parents) == 2, "integrated source requires a normal two-parent PR merge")
+        associated = self._associated_prs(revision)
+        require(len(associated) == 1, "integrated source PR is missing or ambiguous")
+        item = associated[0]
+        number = positive(item.get("number"))
+        pr = self._object(f"pulls/{number}")
+        require(pr.get("id") == item["id"] and pr.get("number") == number
+                and pr.get("state") == item.get("state") == "closed" and pr.get("merged") is True
+                and pr.get("merge_commit_sha") == item.get("merge_commit_sha") == revision,
+                "actual merged PR does not introduce this protected push")
+        for side in ("base", "head"):
+            repo = pr.get(side, {}).get("repo", {})
+            require(repo.get("id") == 1319052603 and repo.get("full_name") == REPOSITORY,
+                    "integrated PR is not from the same fork")
+        merged = P._time(pr.get("merged_at"))
+        require(merged <= P._time(pr.get("closed_at")) <= now
+                and merged <= P._time(run.get("run_started_at")) <= now,
+                "integrated PR/push chronology unavailable")
+        binding = {"repository": REPOSITORY, "repository_id": 1319052603, "pull_request": number,
+                   "head_repository_id": 1319052603, "base_ref": pr["base"].get("ref"),
+                   "base_sha": sha(pr["base"].get("sha")), "head_ref": pr["head"].get("ref"),
+                   "head_sha": sha(pr["head"].get("sha")), "merge_sha": revision,
+                   "merge_tree": tree, "merge_parents": parents}
+        P.validate_binding(binding)
+        require(binding["base_ref"] == target, "merged PR targets a different protected branch")
+        integration = {"push_run_id": push_run_id, "push_attempt": 1, "workflow_id": run["workflow_id"],
+                       "workflow_path": path, "target": target, "commit": revision, "tree": tree,
+                       "parents": parents, "pull_request": number, "pr_id": item["id"],
+                       "merged_at": pr["merged_at"], "closed_at": pr["closed_at"],
+                       "push_status": run["status"], "push_conclusion": run.get("conclusion")}
+        references = {"integration": integration, "target": revision, "default_ref": "main",
+                      "default": self._ref("heads/main")}
+        return binding, references
 
     def current(self, number):
         positive(number)
@@ -291,7 +396,7 @@ class Adapter:
             workflows[path] = {key: found[0].get(key) for key in ("mode", "type", "sha")}
         return tree, parents, workflows
 
-    def _chain(self, run, policy, binding):
+    def _chain(self, run, policy, binding, *, integrated=False):
         require(run.get("repository", {}).get("id") == 1319052603
                 and run.get("repository", {}).get("full_name") == REPOSITORY
                 and run.get("head_repository", {}).get("id") == binding["head_repository_id"]
@@ -301,9 +406,16 @@ class Adapter:
                 and run.get("head_sha") == binding["head_sha"] and run.get("head_branch") == binding["head_ref"],
                 "run repository/caller/head identity mismatch")
         associated = run.get("pull_requests")
-        require(isinstance(associated, list) and sum(isinstance(item, dict) and item.get("number") == binding["pull_request"]
-                                                    for item in associated) == 1,
+        require(isinstance(associated, list) and (
+            integrated and (not associated or len(associated) == 1 and isinstance(associated[0], dict)
+                            and associated[0].get("number") == binding["pull_request"])
+            or not integrated and sum(isinstance(item, dict) and item.get("number") == binding["pull_request"]
+                                      for item in associated) == 1),
                 "run's independently associated PR is missing or ambiguous")
+        # Closed same-fork runs legitimately lose this API array. Only the
+        # separate integrated path has independently authenticated the unique
+        # merged PR; its exact original ref and immutable parents/tree below
+        # must still bind the source. OPEN association requirements are intact.
         references = run.get("referenced_workflows")
         require(isinstance(references, list), "original reusable source chain unavailable")
         prefix = REPOSITORY + "/" + policy.producer.workflow_path + "@"
@@ -336,7 +448,7 @@ class Adapter:
                 "producer_ref": source["ref"], "generation": matching[0],
                 "candidate": {"merge_sha": revision, "merge_tree": tree, "merge_parents": parents}}
 
-    def _job(self, value, run, app_id):
+    def _job(self, value, run, app_id, *, final_name=None):
         require(value.get("run_id") == run["id"] and value.get("run_attempt") == run["run_attempt"]
                 and value.get("head_sha") == run["head_sha"], "mixed or foreign job attempt")
         identity = positive(value.get("id"))
@@ -346,6 +458,11 @@ class Adapter:
         require(check.get("id") == identity and check.get("head_sha") == run["head_sha"]
                 and check.get("check_suite", {}).get("id") == run["check_suite_id"]
                 and check.get("app", {}).get("id") == app_id, "job check app/suite identity mismatch")
+        if final_name is not None:
+            require(value.get("name") == check.get("name") == final_name
+                    and all(value.get(key) == check.get(key) for key in
+                            ("status", "conclusion", "started_at", "completed_at")),
+                    "final publisher native job/check commitment differs")
         return P.AuthenticatedJob(identity, value["run_attempt"], value.get("status"), value.get("conclusion"),
                                   value.get("started_at"), value.get("completed_at"))
 
@@ -377,7 +494,7 @@ class Adapter:
         P.read_artifact(raw, kind, facts, run, now=now)
         return raw, facts
 
-    def _observation(self, listed, policy, binding, now):
+    def _observation(self, listed, policy, binding, now, *, integrated=False):
         identity = positive(listed.get("id"))
         latest = self._object(f"actions/runs/{identity}")
         latest_attempt = positive(latest.get("run_attempt"))
@@ -389,7 +506,7 @@ class Adapter:
         fields = ("id", "workflow_id", "check_suite_id", "path", "event", "head_sha", "head_branch", "run_attempt", "status", "conclusion")
         require(all(listed.get(key) == latest.get(key) == attempt.get(key) for key in fields),
                 "latest run/attempt inventory changed or mixed")
-        chain = self._chain(attempt, policy, binding)
+        chain = self._chain(attempt, policy, binding, integrated=integrated)
         suite = self._object(f"check-suites/{positive(attempt.get('check_suite_id'))}")
         require(suite.get("id") == attempt["check_suite_id"] and suite.get("head_sha") == binding["head_sha"]
                 and suite.get("repository", {}).get("id") == 1319052603
@@ -400,7 +517,11 @@ class Adapter:
                                        chain["producer_blob"], chain["producer_commit"], chain["producer_ref"],
                                        attempt["event"], attempt["status"], attempt.get("conclusion"), None, {})
         P._run(source_run, policy.producer)
-        if chain["producer_commit"] != binding["merge_sha"]:
+        candidate = chain["candidate"]
+        matches = (candidate["merge_tree"] == binding["merge_tree"] and
+                   candidate["merge_parents"] == binding["merge_parents"]) if integrated else (
+                       chain["producer_commit"] == binding["merge_sha"])
+        if not matches:
             # Fully classify a different original merge before excluding it.
             # Its source is known, but no artifacts/runtime/results are reused.
             return None, chain, []
@@ -414,29 +535,35 @@ class Adapter:
         for name in [policy.publisher_job, *policy.owner_jobs.values()]:
             require(len(by_name.get(name, [])) <= 1, "selected job name is ambiguous")
             selected[name] = self._job(by_name[name][0], attempt, policy.producer.actions_app_id) if name in by_name else None
+        final_jobs = [job for job in jobs if isinstance(job.get("name"), str)
+                      and job["name"].startswith(policy.final_publisher_prefix)]
+        require(len(final_jobs) <= 1, "final publisher commitment is ambiguous")
+        publication = None
+        if final_jobs:
+            job = final_jobs[0]
+            commitment = job["name"][len(policy.final_publisher_prefix):]
+            require(re.fullmatch(r"[0-9a-f]{64}", commitment) is not None,
+                    "reserved final publisher commitment is malformed")
+            publication = P.AuthenticatedPublication(
+                self._job(job, attempt, policy.producer.actions_app_id, final_name=job["name"]), commitment)
         run = P.AuthenticatedRun(REPOSITORY, 1319052603, suite["app"]["id"], identity, latest_attempt, latest_attempt,
                                  attempt.get("run_started_at"), policy.producer.workflow_path, chain["producer_blob"],
                                  chain["producer_commit"], chain["producer_ref"], attempt["event"], attempt["status"],
                                  attempt.get("conclusion"), selected[policy.publisher_job],
-                                 {name: selected[job] for name, job in policy.owner_jobs.items() if selected[job] is not None})
+                                 {name: selected[job] for name, job in policy.owner_jobs.items() if selected[job] is not None}, publication)
         P._run(run, policy.producer)
         items = self._artifacts(run)
         raw, facts = self._artifact(run, "descriptor", items, now, binding["head_sha"])
         return P.Observation(run, raw, facts), chain, items
 
-    def capture(self, number, plan, policy, *, now=None):
-        """Return a bookended complete API snapshot, or explicit no-reuse gaps."""
-        now = now if now is not None else _now()
-        P._now(now)
-        _policy(policy, plan, number)
-        binding, references = self.current(number)
+    def _capture_inventory(self, binding, policy, now, *, integrated=False):
         endpoint = f"actions/workflows/{policy.caller_workflow_id}/runs?head_sha={binding['head_sha']}"
         observations, chains, inventories, unavailable, other = [], {}, {}, [], {}
         try:
             listed = self._pages(endpoint, "workflow_runs", search=True)
             for item in listed:
                 try:
-                    observation, chain, artifacts = self._observation(item, policy, binding, now)
+                    observation, chain, artifacts = self._observation(item, policy, binding, now, integrated=integrated)
                     if observation is None:
                         other[positive(item.get("id"))] = chain
                         continue
@@ -453,13 +580,48 @@ class Adapter:
                     == [{key: row.get(key) for key in fields} for row in final_list], "authority inventory changed")
         except (ApiError, KeyError, TypeError, ValueError):
             unavailable.append("run-inventory-incomplete-or-changed")
+        return observations, chains, inventories, unavailable, other
+
+    def capture(self, number, plan, policy, *, now=None):
+        """Return a bookended complete API snapshot, or explicit no-reuse gaps."""
+        now = now if now is not None else _now()
+        P._now(now)
+        _policy(policy, plan, number)
+        binding, references = self.current(number)
+        observations, chains, inventories, unavailable, other = self._capture_inventory(binding, policy, now)
         final_binding, final_refs = self.current(number)
         require(final_binding == binding and final_refs == references, "current PR or refs changed during API snapshot")
         return Snapshot(binding, references, observations, not unavailable, tuple(sorted(set(unavailable))), chains, inventories, other)
 
+    def capture_integrated(self, push_run_id, plan, policy, *, now=None):
+        """Look up original source facts; never alias a receipt to the push SHA."""
+        now = now if now is not None else _now()
+        P._now(now)
+        require(isinstance(policy, AdapterPolicy), "trusted controller adapter policy required")
+        P.policy_digest(policy.producer)
+        integrated, references = self._integrated_current(push_run_id, policy.producer.actions_app_id, now)
+        _policy(policy, plan, integrated["pull_request"])
+        observations, chains, inventories, unavailable, other = self._capture_inventory(
+            integrated, policy, now, integrated=True)
+        originals = {item.run.workflow_commit for item in observations}
+        require(len(originals) == 1, "original integrated producer candidate is missing or ambiguous")
+        binding = P.validate_binding({**integrated, "merge_sha": originals.pop()})
+        final_binding, final_refs = self._integrated_current(push_run_id, policy.producer.actions_app_id, now)
+        require(final_binding == integrated and final_refs == references,
+                "merged PR, protected push, protection or current refs changed during API snapshot")
+        return Snapshot(binding, references, observations, not unavailable, tuple(sorted(set(unavailable))), chains, inventories, other)
+
     def verify(self, number, plan, policy, contexts, *, clock=_now):
         """Read both snapshots and validate original aggregate; no implicit rerun."""
-        initial = self.capture(number, plan, policy, now=clock())
+        return self._verify(lambda now: self.capture(number, plan, policy, now=now), plan, policy, contexts, clock)
+
+    def verify_integrated(self, push_run_id, plan, policy, contexts, *, clock=_now):
+        """Verify the original evidence and separately return integration facts."""
+        return self._verify(lambda now: self.capture_integrated(push_run_id, plan, policy, now=now),
+                            plan, policy, contexts, clock)
+
+    def _verify(self, capture, plan, policy, contexts, clock):
+        initial = capture(clock())
         authority = P.select_authority(initial.observations, initial.binding, plan, policy.producer,
                                        inventory_complete=initial.inventory_complete, now=clock())
         require(authority["state"] == "proof-required", "newest producer is absent, pending, failed or unresolved")
@@ -467,7 +629,7 @@ class Adapter:
         artifacts = initial.artifact_inventories[selected.run.run_id]
         raw, artifact = self._artifact(selected.run, "aggregate", artifacts, clock(), initial.binding["head_sha"])
         require(raw is not None and artifact is not None, "newest aggregate proof is missing")
-        final = self.capture(number, plan, policy, now=clock())
+        final = capture(clock())
         require(initial.references == final.references, "current refs changed during aggregate verification")
         # Artifacts authenticate a run, not a publishing job. Retain the complete
         # independently read final inventory too: a new duplicate, deletion or
@@ -481,4 +643,13 @@ class Adapter:
                                    inventory_complete=initial.inventory_complete, final_binding=final.binding,
                                    final_observations=final.observations, final_inventory_complete=final.inventory_complete,
                                    contexts=contexts, now=clock())
-        return {**value, "source_chain": final.source_chains[value["run_id"]]}
+        result = {**value, "source_chain": final.source_chains[value["run_id"]]}
+        if "integration" in final.references:
+            integration = final.references["integration"]
+            merged = P._time(integration["merged_at"])
+            require(P._time(value["qualified_at"]) <= merged and P._time(artifact.created_at) <= merged
+                    and P._time(selected.descriptor_artifact.created_at) <= merged
+                    and P._time(selected.run.final_publisher.job.completed_at) <= merged,
+                    "original evidence was not complete before integration")
+            result["integration"] = integration
+        return result

@@ -16,16 +16,25 @@ candidates and inventory gaps.
 the newest aggregate and its complete selected inner receipts. It returns the
 original qualification time and expiry without extending either.
 
+The separate `Adapter.capture_integrated(push_run_id, plan, policy, now=...)`
+and `Adapter.verify_integrated(push_run_id, plan, policy, contexts, clock=...)`
+look up the original PR source after a normal merge into the exact current
+protected target. The snapshot binding and inner context still identify the
+original tested synthetic PR commit. The result returns independently observed
+`integration` facts separately; it never changes the receipt's candidate to the
+later merge commit or authorizes a sync edge.
+
 `AdapterPolicy` supplies a reviewed protocol `Policy`, the exact outer workflow
-ID/path, complete approved workflow-generation tuples and exact publisher/owner
-job names. A trusted controller must load these from its reviewed checkout. The
+ID/path, complete approved workflow-generation tuples, exact early publisher/owner
+job names and a reserved final publisher prefix. A trusted controller must load
+these from its reviewed checkout. The
 adapter accepts no candidate policy file or JSON-to-authenticated-facts shortcut.
 The injectable API object is an offline-test/trusted-controller boundary, not an
 authentication mechanism for untrusted callers. `SharedContext` must separately
 come from trusted immutable Git and actual runtime capture; receipt JSON cannot
 construct it.
 
-This first contract supports open same-fork PRs whose approved
+The open contract supports same-fork PRs whose approved
 `.github/workflows/repository-checks.yml` calls the local reusable
 `.github/workflows/project-tests.yml`. Foreign heads, other trigger/source
 contracts and unsupported owners remain unavailable. Each approved generation
@@ -78,6 +87,58 @@ descriptor, all selected successful current-attempt jobs and inner source/runtim
 receipts. Missing/pending/failing/skipped owners never satisfy a selected result.
 Verification takes another complete authority snapshot before returning.
 
+The final publisher is a distinct native Actions job named by the exact trusted
+prefix followed by the lowercase 64-character SHA256 of the complete canonical
+shared execution receipt, including `receipt_digest`. Its name, status, result
+and time window must agree with its independently read native check run, under
+the same Actions app, suite, run and original attempt. Missing, malformed,
+duplicate or conflicting reserved names cannot supply proof. The initial and
+final authenticated commitment must remain equal; re-signing a changed receipt
+or replacing its artifact does not replace the native commitment. The terminal
+aggregate currently supports exactly one shared owner. Early descriptors remain
+usable for pending-authority diagnostics without a final publisher.
+
+## Integrated source lookup
+
+The integrated route authenticates an actual first-attempt `push` run from the
+fixed repository and registered `parent-qualification.yml` workflow for `main`,
+`android-main`, `android-vr` or `apple-main`, or `project-tests.yml` for
+`android-phone`, `android-vr-pico` or `apple-ios`. The workflow ID/path, current
+protected branch API, independent Git ref, immutable commit, check suite and
+Actions app must agree. An old tip, dispatch, PR event, foreign run, failed push
+or rerun is unavailable. These facts and the current default-branch ref are
+bookended around source capture and aggregate verification.
+The actual current consumer push may still be queued or in progress with no
+conclusion, or may be completed successfully. It is authenticated provenance,
+not evidence that its selected tests passed. Only the independent original
+producer can supply completed successful proof; this route does not require a
+consumer to finish before looking up that source.
+
+The complete commit-to-PR API inventory must identify exactly one actual merged
+same-fork PR introducing that protected push. The closed PR's actual merge SHA,
+base/head commits and target must match the immutable merge and its two ordered
+parents. Squash, rebase, ambiguous associations and incomplete inventories are
+unsupported. Neither the deleted topic ref nor the former live PR merge ref is
+requested. Closed PR runs can have an empty API `pull_requests` array; only this
+separate route accepts it after authenticating that independent merged-PR chain.
+The open route still requires its original API association.
+
+Every original caller run for the exact PR head is still enumerated, including
+queued, failed and cancelled runs. Its original `referenced_workflows` entry
+must name this PR's exact `refs/pull/<number>/merge` and immutable source. Exactly
+one distinct original candidate can match both the integrated tree and ordered
+parents. A different known original candidate is classified without reading its
+artifacts; an unknown candidate, rerun, mixed generation or changing inventory
+prevents selection. A newer failure or pending source cannot borrow an older
+green. Original qualification, descriptor and aggregate uploads, and the final
+publisher must all finish before integration. Expiry remains the original
+expiry. The controller must still supply the original synthetic candidate's
+independent `SharedContext`; equal trees cannot alias it to the push SHA.
+
+This is dormant provenance capture and original-proof verification. It does not
+establish hosted isolation, qualify an Android owner, relax any of the seven
+protected branches or six sync edges, or activate production reuse.
+
 The default adapter issues GET requests only to `github.com` and
 `noah-l-frank/overte` through a resolved system/hosted-toolcache `gh`. Candidate
 CLI shadows are rejected. Each request has a 45-second deadline, bounded output
@@ -120,14 +181,16 @@ add another policy switch. Its current diagnostic does not qualify production:
    after parent-issued subtree kill and kernel-confirmed `populated=0`. The
    candidate's receipt, exit code, self-digest or stdout cannot supply this proof.
    Retain exact source, selection, controller/runtime policy, attempt and expiry.
-4. Publish an early descriptor and terminal aggregate from an exact approved
+4. Publish an early descriptor, authenticated final receipt commitment and
+   terminal aggregate from an exact approved
    reusable-PR source generation with no unisolated candidate sibling jobs.
    Require successful immutable uploads of the protected files; run-level artifact
    metadata and a publishing timestamp alone do not identify the uploader.
 5. Qualify that source on the actual hosted image, then transfer ordinary shared
    ownership atomically. Preserve selected failures and fallback execution.
    Post-merge/child consumption also needs independent protected integration and
-   input-closure checks; this open-PR adapter does not authorize closed-PR reuse.
+   input-closure checks. The separate integrated lookup authenticates original
+   source provenance; a consumer still needs its own current-context admission.
 
 The current adapter and protocol tests authenticate source/API facts only. They
 do not establish Stage B post-kill isolation, authorize reuse or qualify a new VM.
@@ -143,8 +206,10 @@ python3 tools/test-evidence/registry-test.py
 The `producer-api` suite also runs in the combined host profile. Fake paginated
 API fixtures cover original source versus branch head, foreign/missing workflow
 chains, mixed generations, app and artifact provenance, raw archive tampering,
-latest queued/failed/tied attempts, missing or mixed selected jobs, actual runtime
-drift, changing live refs/inventories, expiry and bounded CLI failures. They run
+latest queued/failed/tied attempts, missing or mixed selected jobs, final native
+receipt commitments, actual runtime drift, changing live refs/inventories,
+deleted-topic integrated lookup, exact merged PR/ordered-parent/protected-push
+bookends, original expiry and bounded CLI failures. They run
 no live request, product build, installation or dispatch.
 
 The source contract follows the official [workflow-run API](https://docs.github.com/en/rest/actions/workflow-runs),
@@ -152,3 +217,7 @@ The source contract follows the official [workflow-run API](https://docs.github.
 [artifact API](https://docs.github.com/en/rest/actions/artifacts),
 [check-suite API](https://docs.github.com/en/rest/checks/suites) and
 [PR event identity](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request).
+The integrated contract additionally follows the official
+[commit-to-PR association API](https://docs.github.com/en/rest/commits/commits#list-pull-requests-associated-with-a-commit),
+[merged PR fields](https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request)
+and [protected branch fields](https://docs.github.com/en/rest/branches/branches#get-a-branch).

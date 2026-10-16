@@ -93,7 +93,8 @@ class FakeApi:
         elif path.startswith("check-runs/"):
             identity = int(path.rsplit("/", 1)[1]); job = next(job for jobs in case.jobs.values() for job in jobs if job["id"] == identity)
             result = {"id": identity, "head_sha": job["head_sha"], "app": {"id": 15368},
-                      "check_suite": {"id": case.runs[job["run_id"]]["check_suite_id"]}}
+                      "check_suite": {"id": case.runs[job["run_id"]]["check_suite_id"]},
+                      **{key: job[key] for key in ("name", "status", "conclusion", "started_at", "completed_at")}}
         elif path.startswith("actions/artifacts/"):
             identity = int(path.rsplit("/", 1)[1])
             result = next(item for items in case.artifacts.values() for item in items if item["id"] == identity)
@@ -123,7 +124,8 @@ class AdapterTests(unittest.TestCase):
                            for index, path in enumerate(sorted(A.WORKFLOWS))}
         self.generation[self.pp.workflow_path]["sha"] = self.pp.workflow_blob
         self.policy = A.AdapterPolicy(self.pp, 99, ".github/workflows/repository-checks.yml", {"reviewed": self.generation},
-                                      "project / Publish producer descriptor", {"shared-host": "project / Shared tests"})
+                                      "project / Publish producer descriptor", {"shared-host": "project / Shared tests"},
+                                      "project / Publish final producer ")
         self.runs, self.jobs, self.artifacts, self.archives, self.originals = {}, {}, {}, {}, {}
         self.aggregate = deepcopy(example.aggregate)
         self.add_run(replace(example.run, workflow_path=self.pp.workflow_path, workflow_commit=self.binding["merge_sha"],
@@ -147,6 +149,14 @@ class AdapterTests(unittest.TestCase):
                                 "check_run_url": f"https://api.github.com/{A.PREFIX}/check-runs/{job.job_id}"}
                                for name, job in [(self.policy.publisher_job, run.publisher),
                                                  *[(self.policy.owner_jobs[name], job) for name, job in run.owners.items()]] if job is not None]
+        if run.final_publisher is not None:
+            publication = run.final_publisher
+            job = publication.job
+            self.jobs[run.run_id].append({"id": job.job_id, "run_id": run.run_id, "run_attempt": job.attempt,
+                "head_sha": self.binding["head_sha"], "name": self.policy.final_publisher_prefix + publication.receipt_sha256,
+                "status": job.status, "conclusion": job.conclusion, "started_at": job.started_at,
+                "completed_at": job.completed_at,
+                "check_run_url": f"https://api.github.com/{A.PREFIX}/check-runs/{job.job_id}"})
         self.artifacts[run.run_id] = []
         if descriptor:
             value = P.descriptor(self.binding, self.plan, self.pp, run)
@@ -233,18 +243,20 @@ class AdapterTests(unittest.TestCase):
         original = self.capture().observations[0].run
         for status, conclusion, descriptor in (("queued", None, False), ("completed", "failure", True)):
             later = replace(original, run_id=101, status=status, conclusion=conclusion,
-                            attempt_started_at="2026-10-15T10:01:00Z", publisher=None, owners={})
+                            attempt_started_at="2026-10-15T10:01:00Z", publisher=None, owners={}, final_publisher=None)
             # Failure with descriptor needs an actual independently bound publisher.
             if descriptor:
                 later = replace(later, publisher=replace(original.publisher, job_id=111,
                                 started_at="2026-10-15T10:01:00Z", completed_at="2026-10-15T10:01:30Z"))
             self.add_run(later, descriptor=descriptor)
             with self.subTest(status=status):
-                self.assertIn(self.authority()["state"], {"unresolved", "failed"})
+                self.assertEqual(self.authority()["state"], "failed" if descriptor else "unresolved")
                 with self.assertRaises(P.ProtocolError): self.verify()
             del self.runs[101]; del self.jobs[101]; del self.artifacts[101]
         tied = replace(original, run_id=102, publisher=replace(original.publisher, job_id=112),
-                       owners={name: replace(job, job_id=122) for name, job in original.owners.items()})
+                       owners={name: replace(job, job_id=122) for name, job in original.owners.items()},
+                       final_publisher=replace(original.final_publisher,
+                                               job=replace(original.final_publisher.job, job_id=132)))
         self.add_run(tied)
         self.assertEqual(self.authority()["state"], "unresolved")
 
@@ -252,7 +264,9 @@ class AdapterTests(unittest.TestCase):
         run = self.capture().observations[0].run
         current = replace(run, attempt=2, latest_attempt=2,
                           publisher=replace(run.publisher, attempt=2,job_id=210),
-                          owners={name: replace(job, attempt=2,job_id=220) for name, job in run.owners.items()})
+                          owners={name: replace(job, attempt=2,job_id=220) for name, job in run.owners.items()},
+                          final_publisher=replace(run.final_publisher,
+                                                  job=replace(run.final_publisher.job, attempt=2, job_id=230)))
         self.add_run(current)
         snapshot = self.capture()
         self.assertFalse(snapshot.inventory_complete)
@@ -260,7 +274,7 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(snapshot.observations,[])
         self.assertFalse(any("/attempts/2" in path for path in self.api.calls))
         with self.assertRaises(P.ProtocolError): self.verify()
-        self.jobs[100][-1]["run_attempt"] = 1
+        next(job for job in self.jobs[100] if job["name"] == self.policy.owner_jobs["shared-host"])["run_attempt"] = 1
         self.assertEqual(self.authority()["state"], "unresolved")
 
     def test_current_merge_uses_supported_commit_ref_without_legacy_payload_field(self):
@@ -341,7 +355,7 @@ class AdapterTests(unittest.TestCase):
         current=self.capture().observations[0].run
         failed=replace(current,run_id=102,conclusion='failure',attempt_started_at='2026-10-15T10:01:00Z',
                        publisher=replace(current.publisher,job_id=112,started_at='2026-10-15T10:01:00Z',
-                                         completed_at='2026-10-15T10:01:30Z'),owners={})
+                                         completed_at='2026-10-15T10:01:30Z'),owners={},final_publisher=None)
         self.add_run(failed)
         with self.assertRaises(P.ProtocolError):self.verify()
 
@@ -371,10 +385,11 @@ class AdapterTests(unittest.TestCase):
         original = deepcopy(self.jobs[100])
         for status, conclusion in (("completed", "failure"), ("completed", "skipped"), ("queued", None)):
             self.jobs[100] = deepcopy(original)
-            self.jobs[100][-1].update(status=status, conclusion=conclusion)
+            owner = next(job for job in self.jobs[100] if job["name"] == self.policy.owner_jobs["shared-host"])
+            owner.update(status=status, conclusion=conclusion)
             with self.subTest(status=status, conclusion=conclusion), self.assertRaises(P.ProtocolError):
                 self.verify()
-        self.jobs[100] = original[:1]
+        self.jobs[100] = [job for job in original if job["name"] != self.policy.owner_jobs["shared-host"]]
         with self.assertRaises(P.ProtocolError): self.verify()
 
     def test_forged_artifact_detail_and_deleted_or_replaced_archive_fail(self):
@@ -451,6 +466,381 @@ class AdapterTests(unittest.TestCase):
             return {"total_count": next(counts), "workflow_runs": values[:100]}
         with patch.object(self.api, "json", side_effect=changing), self.assertRaises(P.ProtocolError):
             self.adapter._pages("actions/workflows/99/runs", "workflow_runs", search=True)
+
+    def test_final_publisher_native_commitment_is_required_and_returned(self):
+        result = self.verify()
+        receipt = self.aggregate["results"]["shared-host"]["receipt"]
+        self.assertEqual(result["final_publisher_job_id"], 130)
+        self.assertEqual(result["receipt_sha256"], hashlib.sha256(P.canonical(receipt)).hexdigest())
+        self.jobs[100] = [job for job in self.jobs[100]
+                          if not job["name"].startswith(self.policy.final_publisher_prefix)]
+        with self.assertRaises(P.ProtocolError): self.verify()
+
+    def test_reserved_final_publisher_malformed_duplicate_or_conflicting_jobs_deny(self):
+        original = deepcopy(self.jobs[100])
+        for mode in ("uppercase", "short", "suffix", "duplicate", "conflicting", "reused-owner"):
+            self.jobs[100] = deepcopy(original)
+            final = self.jobs[100][-1]
+            if mode == "uppercase": final["name"] = self.policy.final_publisher_prefix + "A" * 64
+            elif mode == "short": final["name"] = self.policy.final_publisher_prefix + "a" * 63
+            elif mode == "suffix": final["name"] += " other"
+            elif mode in {"duplicate", "conflicting"}:
+                duplicate = {**final, "id": 131,
+                             "check_run_url": f"https://api.github.com/{A.PREFIX}/check-runs/131"}
+                if mode == "conflicting": duplicate["name"] = self.policy.final_publisher_prefix + "f" * 64
+                self.jobs[100].append(duplicate)
+            else: final["id"] = 120
+            with self.subTest(mode=mode), self.assertRaises(P.ProtocolError): self.verify()
+
+    def test_final_publisher_native_check_name_status_timing_app_and_attempt_are_bound(self):
+        for key, value in (("name", self.policy.final_publisher_prefix + "f" * 64),
+                           ("status", "queued"), ("conclusion", "failure"),
+                           ("started_at", "2026-10-15T10:03:31Z"),
+                           ("completed_at", "2026-10-15T10:04:44Z"), ("app", {"id": 42})):
+            def changed(endpoint, result):
+                if endpoint.endswith("/check-runs/130"): result[key] = value
+                return result
+            self.api.mutate = changed
+            with self.subTest(key=key):
+                self.assertFalse(self.capture().inventory_complete)
+                with self.assertRaises(P.ProtocolError): self.verify()
+        self.api.mutate = lambda endpoint, value: value
+        self.jobs[100][-1]["run_attempt"] = 2
+        with self.assertRaises(P.ProtocolError): self.verify()
+
+    def test_changed_final_native_commitment_between_authority_snapshots_denies(self):
+        count = 0
+        def changed(endpoint, result):
+            nonlocal count
+            if "/actions/runs/100/attempts/1/jobs?" in endpoint:
+                count += 1
+                if count >= 2:
+                    self.jobs[100][-1]["name"] = self.policy.final_publisher_prefix + "f" * 64
+                    result["jobs"][-1] = deepcopy(self.jobs[100][-1])
+            return result
+        self.api.mutate = changed
+        with self.assertRaises(P.ProtocolError): self.verify()
+
+    def test_resigned_whole_receipt_cannot_replace_native_committed_bytes(self):
+        aggregate = deepcopy(self.aggregate)
+        receipt = aggregate["results"]["shared-host"]["receipt"]
+        receipt["completed_at"] = "2026-10-15T10:02:49Z"
+        aggregate["results"]["shared-host"]["receipt"] = FIXTURES.signed(receipt, "receipt_digest")
+        run = self.capture().observations[0].run
+        descriptor_digest = P.descriptor(self.binding, self.plan, self.pp, run)["descriptor_digest"]
+        aggregate["descriptor_digest"] = descriptor_digest
+        self.artifacts[100] = self.artifacts[100][:1]
+        self.artifact(run, "aggregate", FIXTURES.signed(aggregate, "aggregate_digest"))
+        with self.assertRaisesRegex(P.ProtocolError, "commitment"): self.verify()
+
+
+class IntegratedFakeApi(FakeApi):
+    """Closed PR metadata survives deletion; no live topic/PR merge ref exists."""
+    def json(self, endpoint):
+        case, binding = self.case, self.case.binding
+        path = endpoint[len(A.PREFIX):].lstrip("/").split("?", 1)[0]
+        query = parse_qs(urlsplit(endpoint).query)
+        if path == "pulls/17":
+            result = {"id": 1700, "number": 17, "state": "closed", "merged": True,
+                      "merge_commit_sha": case.integrated, "merged_at": case.merged_at, "closed_at": case.merged_at,
+                      **{side: {"repo": {"id": 1319052603, "full_name": A.REPOSITORY},
+                                "ref": binding[side + "_ref"], "sha": binding[side + "_sha"]}
+                         for side in ("base", "head")}}
+        elif path == "commits/" + case.integrated + "/pulls":
+            page = int(query["page"][0])
+            result = deepcopy(case.associated[(page - 1) * 100:page * 100])
+        elif path.startswith("branches/"):
+            self._require(unquote(path[len("branches/"):]) == binding["base_ref"], endpoint)
+            result = {"name": binding["base_ref"], "protected": True, "commit": {"sha": case.integrated}}
+        elif path.startswith("git/ref/"):
+            ref = unquote(path[len("git/ref/"):])
+            self._require(ref in {"heads/main", "heads/" + binding["base_ref"]}, endpoint)
+            revision = case.integrated if ref == "heads/" + binding["base_ref"] else "6" * 40
+            result = {"ref": "refs/" + ref, "object": {"type": "commit", "sha": revision}}
+        elif path == "git/commits/" + case.integrated:
+            result = {"sha": case.integrated, "tree": {"sha": binding["merge_tree"]},
+                      "parents": [{"sha": revision} for revision in binding["merge_parents"]]}
+        elif path == "actions/workflows/" + str(case.push["workflow_id"]):
+            result = {"id": case.push["workflow_id"], "path": case.push["path"]}
+        elif path in {"actions/runs/500", "actions/runs/500/attempts/1"}:
+            result = deepcopy(case.push)
+        elif path == "check-suites/1500":
+            result = {"id": 1500, "head_sha": case.integrated,
+                      "repository": {"id": 1319052603, "full_name": A.REPOSITORY}, "app": {"id": 15368}}
+        else:
+            return super().json(endpoint)
+        self.calls.append(endpoint)
+        return self.mutate(endpoint, deepcopy(result))
+
+    def _require(self, condition, endpoint):
+        if not condition: self._unexpected(endpoint)
+
+
+class IntegratedSourceTests(unittest.TestCase):
+    def setUp(self):
+        self.case = AdapterTests(methodName="runTest")
+        self.case.setUp()
+        self.case.integrated, self.case.merged_at = "9" * 40, "2026-10-15T10:04:50Z"
+        self.case.associated = [{"id": 1700, "number": 17, "state": "closed",
+                                 "merge_commit_sha": self.case.integrated}]
+        self.case.push = {"id": 500, "workflow_id": 350930890, "check_suite_id": 1500,
+                          "path": ".github/workflows/parent-qualification.yml", "event": "push",
+                          "head_sha": self.case.integrated, "head_branch": "main", "run_attempt": 1,
+                          "run_started_at": "2026-10-15T10:04:51Z", "status": "in_progress", "conclusion": None,
+                          **{key: {"id": 1319052603, "full_name": A.REPOSITORY}
+                             for key in ("repository", "head_repository")}}
+        self.case.runs[100]["pull_requests"] = []
+        self.api = IntegratedFakeApi(self.case)
+        self.adapter = A.Adapter(self.api)
+
+    def capture(self):
+        return self.adapter.capture_integrated(500, self.case.plan, self.case.policy, now=NOW)
+
+    def verify(self, *, context=None, clock=lambda: NOW):
+        return self.adapter.verify_integrated(500, self.case.plan, self.case.policy,
+                                              {"shared-host": context or self.case.context}, clock=clock)
+
+    def test_deleted_topic_lookup_preserves_original_candidate_receipt_and_expiry(self):
+        with patch.object(P.execution, "execute", side_effect=AssertionError("no candidate execution")):
+            snapshot, result = self.capture(), self.verify()
+        self.assertTrue(result["verified"])
+        self.assertEqual(snapshot.binding, self.case.binding)
+        self.assertEqual(result["source_chain"]["producer_commit"], self.case.binding["merge_sha"])
+        self.assertEqual(result["integration"]["commit"], self.case.integrated)
+        self.assertNotEqual(result["integration"]["commit"], snapshot.binding["merge_sha"])
+        self.assertEqual(result["expires_at"], self.case.aggregate["expires_at"])
+        self.assertEqual(result["qualified_at"], self.case.aggregate["qualified_at"])
+        self.assertFalse(any("commits/refs/pull/" in endpoint or
+                             "/git/ref/heads/" + self.case.binding["head_ref"] in endpoint
+                             for endpoint in self.api.calls))
+        self.assertTrue(all(endpoint.startswith(A.PREFIX) for endpoint in self.api.calls))
+
+    def test_original_source_context_is_never_aliased_to_integrated_commit(self):
+        with self.assertRaises(P.ProtocolError):
+            self.verify(context=replace(self.case.context, candidate_commit=self.case.integrated))
+
+    def test_current_pending_consumer_is_provenance_not_required_completed_test_proof(self):
+        for status, conclusion in (("queued", None), ("in_progress", None), ("completed", "success")):
+            self.case.push.update(status=status, conclusion=conclusion)
+            with self.subTest(status=status):
+                result = self.verify()
+                self.assertTrue(result["verified"])
+                self.assertEqual(result["integration"]["push_status"], status)
+                self.assertEqual(result["run_id"], 100, "proof belongs to original producer, not consumer500")
+        for conclusion in ("failure", "cancelled", "timed_out", "skipped"):
+            self.case.push.update(status="completed", conclusion=conclusion)
+            with self.subTest(conclusion=conclusion), self.assertRaises(P.ProtocolError): self.capture()
+
+    def test_open_contract_still_rejects_missing_run_pr_association(self):
+        self.assertFalse(self.case.capture().inventory_complete)
+        with self.assertRaises(P.ProtocolError): self.case.verify()
+
+    def test_all_seven_exact_registered_protected_push_profiles_capture(self):
+        for workflow_id, (path, branches) in A.PROTECTED_PUSH_WORKFLOWS.items():
+            for target in sorted(branches):
+                self.case.binding["base_ref"] = target
+                self.case.push.update(workflow_id=workflow_id, path=path, head_branch=target)
+                with self.subTest(target=target):
+                    # This is source capture only: changed target descriptors
+                    # deliberately cannot become reusable proof by mutation.
+                    binding, refs = self.adapter._integrated_current(500, 15368, NOW)
+                    self.assertEqual(binding["base_ref"], target)
+                    self.assertEqual(refs["target"], self.case.integrated)
+
+    def test_push_event_current_protection_source_app_and_first_attempt_are_required(self):
+        cases = (("event", "pull_request"), ("event", "workflow_dispatch"), ("run_attempt", 2),
+                 ("workflow_id", 42), ("path", ".github/workflows/other.yml"),
+                 ("head_branch", "topic"), ("head_sha", "f" * 40),
+                 ("status", "queued-without-contract"), ("conclusion", "failure"))
+        original = deepcopy(self.case.push)
+        for key, value in cases:
+            self.case.push = {**deepcopy(original), key: value}
+            with self.subTest(key=key, value=value), self.assertRaises(P.ProtocolError): self.capture()
+        self.case.push = original
+        for mode in ("fork", "head-fork", "app", "suite", "unprotected", "branch-tip", "independent-ref", "workflow"):
+            def changed(endpoint, result):
+                if "/actions/runs/500" in endpoint and mode in {"fork", "head-fork"}:
+                    result["repository" if mode == "fork" else "head_repository"]["id"] = 42
+                elif endpoint.endswith("/check-suites/1500"):
+                    if mode == "app": result["app"]["id"] = 42
+                    elif mode == "suite": result["head_sha"] = "f" * 40
+                elif endpoint.endswith("/branches/main"):
+                    if mode == "unprotected": result["protected"] = False
+                    elif mode == "branch-tip": result["commit"]["sha"] = "f" * 40
+                elif mode == "independent-ref" and endpoint.endswith("/git/ref/heads/main"):
+                    result["object"]["sha"] = "f" * 40
+                elif mode == "workflow" and endpoint.endswith("/actions/workflows/350930890"):
+                    result["path"] = ".github/workflows/other.yml"
+                return result
+            self.api.mutate = changed
+            with self.subTest(mode=mode), self.assertRaises(P.ProtocolError): self.capture()
+
+    def test_unique_actual_merged_same_fork_pr_and_exact_ordered_parents_are_required(self):
+        for mode in ("unmerged", "open", "foreign-head", "foreign-base", "wrong-pr", "wrong-merge",
+                     "wrong-base", "wrong-head", "target", "parents", "squash", "rebase", "different-tree"):
+            def changed(endpoint, result):
+                if endpoint.endswith("/pulls/17"):
+                    if mode == "unmerged": result["merged"] = False
+                    elif mode == "open": result["state"] = "open"
+                    elif mode in {"foreign-head", "foreign-base"}: result[mode.split("-")[1]]["repo"]["id"] = 42
+                    elif mode == "wrong-pr": result["id"] = 1701
+                    elif mode == "wrong-merge": result["merge_commit_sha"] = "f" * 40
+                    elif mode in {"wrong-base", "wrong-head"}: result[mode.split("-")[1]]["sha"] = "f" * 40
+                    elif mode == "target": result["base"]["ref"] = "android-main"
+                elif endpoint.endswith("/git/commits/" + self.case.integrated):
+                    if mode == "parents": result["parents"].reverse()
+                    elif mode == "squash": result["parents"] = result["parents"][:1]
+                    elif mode == "rebase": result["parents"].append({"sha": "f" * 40})
+                    elif mode == "different-tree": result["tree"]["sha"] = "f" * 40
+                return result
+            self.api.mutate = changed
+            with self.subTest(mode=mode), self.assertRaises(P.ProtocolError): self.capture()
+
+    def test_association_inventory_missing_multiple_duplicate_or_unbounded_deny(self):
+        original = deepcopy(self.case.associated)
+        for items in ([], original + [{**original[0], "id": 1701, "number": 18}], original + original,
+                      [{**original[0], "id": index + 1, "number": index + 1} for index in range(1000)]):
+            self.case.associated = items
+            with self.subTest(count=len(items)), self.assertRaises(P.ProtocolError): self.capture()
+        self.case.associated = original
+        self.api.mutate = lambda endpoint, value: ({"items": value} if "/pulls?" in endpoint else value)
+        with self.assertRaises(P.ProtocolError): self.capture()
+
+    def test_missing_original_ref_unknown_chain_or_conflicting_run_association_deny(self):
+        for mode in ("missing", "ref", "sha", "foreign", "wrong-pr", "multiple-pr"):
+            def changed(endpoint, result):
+                if "/actions/runs/100" in endpoint and "referenced_workflows" in result:
+                    if mode == "missing": result["referenced_workflows"] = []
+                    elif mode == "ref": result["referenced_workflows"][0]["ref"] = "refs/heads/main"
+                    elif mode == "sha": result["referenced_workflows"][0]["sha"] = self.case.integrated
+                    elif mode == "foreign": result["repository"]["id"] = 42
+                    elif mode == "wrong-pr": result["pull_requests"] = [{"number": 18}]
+                    else: result["pull_requests"] = [{"number": 17}, {"number": 18}]
+                return result
+            self.api.mutate = changed
+            with self.subTest(mode=mode), self.assertRaises(P.ProtocolError): self.verify()
+
+    def test_partial_capped_or_changed_original_run_inventory_cannot_choose_old_green(self):
+        for mode in ("partial", "capped", "changed"):
+            count = 0
+            def changed(endpoint, result):
+                nonlocal count
+                if "/actions/workflows/99/runs?" in endpoint:
+                    count += 1
+                    if mode == "partial": result["total_count"] = 2
+                    elif mode == "capped": result["total_count"] = 1000
+                    elif count >= 2:
+                        result["workflow_runs"] = []
+                        result["total_count"] = 0
+                return result
+            self.api.mutate = changed
+            with self.subTest(mode=mode), self.assertRaises(P.ProtocolError): self.verify()
+
+    def test_two_distinct_original_candidates_with_same_tree_and_parents_are_ambiguous(self):
+        original = self.capture().observations[0].run
+        self.case.add_run(replace(original, run_id=101,
+                                 publisher=replace(original.publisher, job_id=111),
+                                 owners={name: replace(job, job_id=121) for name, job in original.owners.items()},
+                                 final_publisher=replace(original.final_publisher,
+                                                         job=replace(original.final_publisher.job, job_id=131))),
+                          descriptor=False)
+        alternate = "f" * 40
+        self.case.originals[alternate] = (self.case.binding["merge_tree"], self.case.binding["merge_parents"][:])
+        self.case.runs[101]["referenced_workflows"][0].update(
+            sha=alternate, path=A.REPOSITORY + "/" + self.case.pp.workflow_path + "@" + alternate)
+        with self.assertRaisesRegex(P.ProtocolError, "ambiguous"): self.capture()
+
+    def test_known_other_original_is_classified_without_its_artifacts_but_unknown_is_not(self):
+        original = self.capture().observations[0].run
+        self.case.add_run(replace(original, run_id=101, conclusion="failure"), descriptor=False)
+        self.case.originals["f" * 40] = ("8" * 40, ["7" * 40, self.case.binding["head_sha"]])
+        self.case.runs[101]["referenced_workflows"][0].update(
+            sha="f" * 40, path=A.REPOSITORY + "/" + self.case.pp.workflow_path + "@" + "f" * 40)
+        snapshot = self.capture()
+        self.assertTrue(snapshot.inventory_complete)
+        self.assertEqual(set(snapshot.other_candidates), {101})
+        self.assertTrue(self.verify()["verified"])
+        self.assertFalse(any("/runs/101/artifacts" in endpoint for endpoint in self.api.calls))
+        self.case.runs[101]["referenced_workflows"] = []
+        self.assertFalse(self.capture().inventory_complete)
+        with self.assertRaises(P.ProtocolError): self.verify()
+
+    def test_newer_pending_failed_cancelled_or_rerun_source_never_uses_older_green(self):
+        original = self.capture().observations[0].run
+        for status, conclusion, attempt in (("queued", None, 1), ("completed", "failure", 1),
+                                             ("completed", "cancelled", 1), ("completed", "success", 2)):
+            later = replace(original, run_id=101, attempt=attempt, latest_attempt=attempt,
+                            status=status, conclusion=conclusion, attempt_started_at="2026-10-15T10:01:00Z",
+                            publisher=None, owners={}, final_publisher=None)
+            if attempt == 1:
+                later = replace(later, publisher=replace(original.publisher, job_id=111,
+                                started_at="2026-10-15T10:01:00Z", completed_at="2026-10-15T10:01:30Z"))
+            self.case.add_run(later, descriptor=attempt == 1)
+            with self.subTest(status=status, attempt=attempt):
+                snapshot = self.capture()
+                authority = P.select_authority(snapshot.observations, snapshot.binding, self.case.plan, self.case.pp,
+                                               inventory_complete=snapshot.inventory_complete, now=NOW)
+                self.assertEqual(authority["state"], "unresolved" if attempt == 2 else
+                                 "pending" if status == "queued" else "failed")
+                with self.assertRaises(P.ProtocolError): self.verify()
+            del self.case.runs[101]; del self.case.jobs[101]; del self.case.artifacts[101]
+
+    def test_current_push_pr_association_protection_and_default_are_bookended(self):
+        for mode in ("pr", "association", "protection", "target", "attempt", "run-status"):
+            counts = {}
+            def changed(endpoint, result):
+                counts[endpoint] = counts.get(endpoint, 0) + 1
+                if counts[endpoint] >= 2:
+                    if mode == "pr" and endpoint.endswith("/pulls/17"): result["head"]["sha"] = "f" * 40
+                    elif mode == "association" and "/commits/" in endpoint and "/pulls?" in endpoint:
+                        result.append({**result[0], "id": 1701, "number": 18})
+                    elif mode == "protection" and endpoint.endswith("/branches/main"): result["protected"] = False
+                    elif mode == "target" and endpoint.endswith("/git/ref/heads/main"):
+                        result["object"]["sha"] = "f" * 40
+                    elif mode == "attempt" and endpoint.endswith("/actions/runs/500"): result["run_attempt"] = 2
+                    elif mode == "run-status" and "/actions/runs/500" in endpoint:
+                        result.update(status="completed", conclusion="success")
+                return result
+            self.api.mutate = changed
+            with self.subTest(mode=mode), self.assertRaises(P.ProtocolError): self.verify()
+
+    def test_default_ref_is_bookended_independently_of_child_target(self):
+        self.case.binding["base_ref"] = "android-main"
+        self.case.push["head_branch"] = "android-main"
+        count = 0
+        def changed(endpoint, result):
+            nonlocal count
+            if endpoint.endswith("/git/ref/heads/main"):
+                count += 1
+                if count >= 2: result["object"]["sha"] = "f" * 40
+            return result
+        self.api.mutate = changed
+        with self.assertRaisesRegex(P.ProtocolError, "current refs changed"): self.capture()
+
+    def test_original_evidence_must_finish_before_merge_and_keep_original_expiry(self):
+        for merged in ("2026-10-15T10:03:00Z", "2026-10-15T10:04:10Z", "2026-10-15T10:04:40Z"):
+            self.case.merged_at = merged
+            with self.subTest(merged=merged), self.assertRaisesRegex(P.ProtocolError, "before integration"):
+                self.verify()
+        self.case.merged_at = "2026-10-15T10:04:50Z"
+        later = NOW.replace(hour=12)
+        with self.assertRaises(P.ProtocolError): self.verify(clock=lambda: later)
+
+    def test_merge_and_push_chronology_and_latest_attempt_bookends_are_required(self):
+        for mode in ("future-merge", "early-close", "early-push", "latest-attempt", "attempt-head"):
+            def changed(endpoint, result):
+                if endpoint.endswith("/pulls/17"):
+                    if mode == "future-merge": result["merged_at"] = "2026-10-15T10:06:00Z"
+                    elif mode == "early-close": result["closed_at"] = "2026-10-15T10:04:40Z"
+                elif "/actions/runs/500" in endpoint:
+                    if mode == "early-push": result["run_started_at"] = "2026-10-15T10:04:40Z"
+                    elif mode == "latest-attempt" and endpoint.endswith("/actions/runs/500"):
+                        result["run_attempt"] = 2
+                    elif mode == "attempt-head" and endpoint.endswith("/attempts/1"):
+                        result["head_sha"] = "f" * 40
+                return result
+            self.api.mutate = changed
+            with self.subTest(mode=mode), self.assertRaises(P.ProtocolError): self.capture()
 
 
 class ReadOnlyBoundaryTests(unittest.TestCase):
