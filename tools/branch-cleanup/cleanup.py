@@ -38,7 +38,8 @@ SCOPES = {
 KINDS = {"feature", "fix", "docs", "refactor", "test", "tests", "task", "ci", "sync", "reconcile", "promote", "build"}
 SHA = re.compile(r"^[0-9a-f]{40}$")
 # A completion is a wake-up only. These are the declared branch-push owners in
-# the seven protected inventories, including legacy owners awaiting propagation.
+# the seven protected inventories and the one reviewed main-only manual owner.
+MANUAL_TERMINAL_WORKFLOW = 386334598
 TERMINAL_WORKFLOWS = {
     330519645: ("Android tests", "android-tests.yml"),
     331117401: ("Android VR integration tests", "android-vr-tests.yml"),
@@ -52,6 +53,7 @@ TERMINAL_WORKFLOWS = {
     350930890: ("Parent qualification", "parent-qualification.yml"),
     330551824: ("Shared project CI", "project-tests.yml"),
     347471831: ("Workflow security", "workflow-security.yml"),
+    386334598: ("Shared sandbox host diagnostic", "shared-sandbox-host-diagnostic.yml"),
 }
 
 
@@ -736,7 +738,7 @@ def same_repository(value):
 
 
 def terminal_run(github, event):
-    """Authenticate a finite push notification; its conclusion proves no integration."""
+    """Authenticate one finite completion; its conclusion proves no integration."""
     require(isinstance(event, dict) and event.get("action") == "completed"
             and same_repository(event.get("repository")), "invalid_terminal_event_repository")
     signal = event.get("workflow_run")
@@ -750,7 +752,9 @@ def terminal_run(github, event):
             and type(actual.get("id")) is int and type(actual.get("run_attempt")) is int
             and type(actual.get("workflow_id")) is int and actual["workflow_id"] in TERMINAL_WORKFLOWS
             and same_repository(actual.get("repository")) and same_repository(actual.get("head_repository"))
-            and actual.get("event") == "push" and actual.get("status") == "completed"
+            and actual.get("event") == ("workflow_dispatch" if actual["workflow_id"] == MANUAL_TERMINAL_WORKFLOW else "push")
+            and (actual["workflow_id"] != MANUAL_TERMINAL_WORKFLOW or actual.get("head_branch") == "main")
+            and actual.get("status") == "completed"
             and isinstance(actual.get("conclusion"), str) and bool(actual["conclusion"])
             and actual.get("head_branch") in PERMANENT and isinstance(actual.get("head_sha"), str)
             and SHA.fullmatch(actual["head_sha"]), "invalid_terminal_push_run")
@@ -775,13 +779,24 @@ def terminal_retry(github, policy, event):
     github.verify_owner()
     actual = terminal_run(github, event)
     indexed = branch_inventory(github.branches())
-    target, revision = actual["head_branch"], actual["head_sha"]
+    target, trigger_revision = actual["head_branch"], actual["head_sha"]
+    revision = indexed[target]["sha"]
     result = {"retry": False, "source_sha": indexed["main"]["sha"], "target": target,
-              "trigger_run": actual["id"], "trigger_attempt": actual["run_attempt"], "hint_count": 0}
-    if indexed[target]["sha"] != revision:
-        return dict(result, reason="terminal_source_not_current")
+              "trigger_run": actual["id"], "trigger_attempt": actual["run_attempt"],
+              "trigger_source_sha": trigger_revision, "target_sha": revision, "hint_count": 0}
+    if trigger_revision != revision:
+        comparison = github.get("compare/" + trigger_revision + "..." + revision + "?per_page=1")
+        require(isinstance(comparison, dict) and isinstance(comparison.get("status"), str)
+                and comparison["status"] in {"ahead", "behind", "identical", "diverged"}
+                and type(comparison.get("behind_by")) is int and comparison["behind_by"] >= 0
+                and isinstance(comparison.get("merge_base_commit"), dict)
+                and isinstance(comparison["merge_base_commit"].get("sha"), str)
+                and SHA.fullmatch(comparison["merge_base_commit"]["sha"]), "invalid_terminal_source_ancestry")
+        if (comparison["status"] != "ahead" or comparison["behind_by"] != 0
+                or comparison["merge_base_commit"]["sha"] != trigger_revision):
+            return dict(result, reason="terminal_source_not_retained")
     path = actual["path"]
-    endpoint = "contents/" + path + "?ref=" + revision
+    endpoint = "contents/" + path + "?ref=" + trigger_revision
     content = github.get(endpoint)
     ImmutableReadCache.validate(ImmutableReadCache.request(endpoint, False), content)
     import base64
