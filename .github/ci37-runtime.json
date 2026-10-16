@@ -44,6 +44,6 @@
     "host-selection",
     "android-owner-transfer"
   ],
-  "definition_digest": "sha256:e7f444643ecdb9fc7e55eb6e3c39fb65d2b92591de58db4c8256559b922ac4a8",
-  "generation_digest": "sha256:8a0e8d00807e47d309d65dd10fa0b3d1197e02025cd6c071c90cb4194561d7dc"
+  "definition_digest": "sha256:17840b8a4fd10209b6780f0d28a3cb6ed0131e59ae6f87db62df1bdb7e64b091",
+  "generation_digest": "sha256:2be8b9dfe715cbdc803c4ce739cd905b0767d03fd461866198f2c566a13db980"
 }

@@ -126,20 +126,20 @@ PROGRAM_INPUTS = (
     'android/vr/common/openxr/README.md',
     'android/phone/device-tests/parity/fixtures/README.md',
 )
-# Reviewed genuine complete parent merges at protected main2478d9e and the
-# prospective sole-owner generation. Common readers change only in the shared
-# runner and execution controller; Android additionally binds all six exact
+# Reviewed complete parent merges at protected main de12c48a and the
+# prospective sole-owner generation. Shared execution controllers and passive
+# runner instrumentation remain bound; Android additionally binds all six exact
 # legacy-retirement/contract handoff files. Only the two separately owned foreign
 # locks are outside this complement; changed locks need mandatory package coverage.
 # These identities are not execution receipts or application-build evidence.
-REVIEWED_PROGRAMS = 'b45803dfe120b41336e2605e1909688952674b857302585b866b30dcc865493f'
+REVIEWED_PROGRAMS = '1b8fc54fefe809da8e882dceed59fbcfca18493c726d4a084c9a2ec88d7355eb'
 REVIEWED_CHILD_PROGRAMS = {
-    'apple-main': '17e5899ba62e8674bc025bcf188a9f3432b4679a4e0567264a15a2592d7b0c73',
-    'apple-ios': 'd250eb3af638bf362034170df5c4f1c4606ecbaa7b3212081aed54609f08a1c4',
-    'android-main': '38069df7942d2f94158929bc9ced136741525f08500e255efc3064b921434019',
-    'android-phone': '1b7ec0c6420e29c255b3d2b1af8e3437c3b0ef8534ce1b817200c4cc597718ce',
-    'android-vr': '38069df7942d2f94158929bc9ced136741525f08500e255efc3064b921434019',
-    'android-vr-pico': 'a719fd3fb3f162c0c819676703866360bf5213e7ac2a64bc20fed1dbd94198dd',
+    'apple-main': '6e26eb5d8eefc936fb95673893ebfdd2111625147a1289b6ed6cb99e7d0b590d',
+    'apple-ios': '8f148a92ea90fb097254907f930e08879f8aaff1a7c47e676f3ab6175e68c51f',
+    'android-main': '01fa71a10006cb726025616e04ca414bd73e30af3285a0506334b0fbefb4771e',
+    'android-phone': 'ff04cc1ce5f26856147683d5efa858c4e018b80efac547447825def0ab6504fe',
+    'android-vr': '01fa71a10006cb726025616e04ca414bd73e30af3285a0506334b0fbefb4771e',
+    'android-vr-pico': '910fde124ad0455bfcf6d933f422f7f04600027e69b19b41f38e464706cef968',
 }
 REVIEWED_PREDECESSORS = {
     'main': '99c83612c366f8863d9b3c9678555cf821cac4ce7663c4187a8e31ede3859974',
