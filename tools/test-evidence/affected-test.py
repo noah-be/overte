@@ -488,6 +488,24 @@ class ShippingPolicyTests(unittest.TestCase):
             tree[path]=dict(expected)
         tree['.github/workflows/codeql.yml']=blob(
             (root/'tools/repository-checks/workflows/metadata-edits/codeql-metadata.yml').read_bytes())
+        if future is not None and tree['tests/platform-profile.json']!=inputs._AFFECTED_SHARED_PROFILE:
+            # Source13 keeps all original owners. Only the installed Android S
+            # fixture applies the separately reviewed exact six-file handoff.
+            owner=json.loads((root/'.github/android-owner-transfer.json').read_bytes())
+            targets={path for group in ('legacy_workflows','source_contracts') for path in owner[group]}
+            self.assertEqual(targets,{'.github/workflows/android-tests.yml','.github/workflows/android-vr-tests.yml',
+                'android/common/tests/android-workflow-contract-test.py',
+                'android/common/tests/ci/validate_ci_contract.py','android/common/tests/ci/test_ci_contract.py',
+                'android/phone/tests/phone-release-metadata-test.py'})
+            for group in ('legacy_workflows','source_contracts'):
+                for path,item in owner[group].items():
+                    self.assertEqual(item['source'],'tools/repository-checks/workflows/android-owned/handoff/'+path)
+                    data=(root/item['source']).read_bytes()
+                    self.assertEqual(tree[item['source']],blob(data))
+                    expected=blob(data,mode=item['mode'])
+                    previous={'mode':item['mode'],'type':'blob','sha':item['reviewed_blob']}
+                    self.assertIn(tree.get(path),(previous,expected))
+                    tree[path]=expected
         return root,registry,raw,tree
 
     def bounded_context(self):
@@ -513,6 +531,10 @@ class ShippingPolicyTests(unittest.TestCase):
                 required.update(entry['path'] for entry in inputs.selected_entries(
                     source,inputs._import_patterns(imports['roots'])))
         tree={path:dict(entry) for path,entry in source.items() if path in required}
+        # This deliberately synthetic fixture exercises main's bounded parser.
+        # Full source/shipping contexts above retain real Android13/19 profiles.
+        self.assertEqual(inputs._AFFECTED_SHARED_PROFILE['sha'],'d63537504c20204de9d35d9be61da72a56df59c3')
+        tree['tests/platform-profile.json']=dict(inputs._AFFECTED_SHARED_PROFILE)
         policy['lookup_digest']=inputs.affected_lookup_digest(tree)
         native=policy['suites']['device-control-plane-full']
         native['reviewed_reader_digest']=inputs.device_reader_digest(tree,native['native_independent_paths'])
@@ -568,6 +590,12 @@ class ShippingPolicyTests(unittest.TestCase):
             self.assertEqual(plan['reasons'][name],
                 'fixed-subject-or-reader-not-reviewed' if name in inputs._AFFECTED_SUBJECTS
                 else 'product-component-or-reader-not-reviewed')
+        if target.startswith('android-'):
+            original=inputs.full_tree(root,'HEAD')
+            owner=json.loads((root/'.github/android-owner-transfer.json').read_bytes())
+            for group in ('legacy_workflows','source_contracts'):
+                for path in owner[group]:
+                    self.assertEqual(base[path],original[path],'preinstallation fixture must retain every actual legacy owner')
 
     def test_actual_child_namespace_cannot_be_claimed_as_main_or_trusted_default(self):
         root,registry,raw,base=self.shipping_context()
