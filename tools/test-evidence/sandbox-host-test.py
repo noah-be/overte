@@ -8,6 +8,8 @@ import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
+import sys
 from types import SimpleNamespace
 import tempfile
 import unittest
@@ -879,6 +881,51 @@ class ProtectionFixtureTests(unittest.TestCase):
 
 
 class FixedResultTests(unittest.TestCase):
+    def test_prepared_java_alias_is_resolved_then_confined_before_freezing(self):
+        import yaml
+        paths = ('.github/workflows/shared-sandbox-host-diagnostic.yml',
+                 'tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml',
+                 'tools/repository-checks/workflows/producers/protected-project-tests.yml')
+        for relative in paths:
+            workflow = yaml.safe_load((H.ROOT / relative).read_text())
+            steps = [step for job in workflow['jobs'].values() for step in job.get('steps', [])]
+            scripts = [step['run'] for step in steps if "<<'PYROOTS'" in step.get('run', '')]
+            self.assertEqual(len(scripts), 1)
+            script = scripts[0]
+            resolver = 'JAVA_HOME="$(readlink -e -- "$JAVA_HOME")"'
+            self.assertLess(script.index(resolver), script.index("<<'PYROOTS'"))
+            self.assertLess(script.index("\nPYROOTS"), script.index('chown -hR'))
+            # Execute the actual shell resolver against a real cache alias.
+            with tempfile.TemporaryDirectory() as temporary:
+                target = Path(temporary) / 'system-jdk'
+                target.mkdir()
+                alias = Path(temporary) / 'cache-x64'
+                alias.symlink_to(target, target_is_directory=True)
+                result = subprocess.run(['bash', '-eu', '-c', resolver + '\nprintf "%s" "$JAVA_HOME"'],
+                    env={'PATH': '/usr/bin:/bin', 'JAVA_HOME': str(alias)}, capture_output=True, text=True, check=True)
+                self.assertEqual(result.stdout, str(target))
+            body = script.split("<<'PYROOTS'\n", 1)[1].split('\nPYROOTS', 1)[0]
+            python = '/opt/hostedtoolcache/Python/3.12.15/x64'
+            node = '/opt/hostedtoolcache/node/22.23.3/x64'
+            # Fake only filesystem presence; execute the production allowlist.
+            cases = {'/usr/lib/jvm/temurin-17-jdk-amd64': True,
+                     '/opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64': True,
+                     '/usr/lib/jvm/unknown': False, '/tmp/system-jdk': False,
+                     '/opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.1-1/x64': False,
+                     '/opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/arm64': False,
+                     python: False, '/usr': False}
+            for java, accepted in cases.items():
+                with (self.subTest(workflow=relative, java=java),
+                      patch.object(sys, 'argv', ['-', python, node, java]),
+                      patch.object(Path, 'is_dir', return_value=True),
+                      patch.object(Path, 'is_symlink', return_value=False),
+                      patch.object(Path, 'resolve', lambda self, strict=False: self)):
+                    if accepted:
+                        exec(compile(body, relative, 'exec'), {})
+                    else:
+                        with self.assertRaises(AssertionError):
+                            exec(compile(body, relative, 'exec'), {})
+
     def test_manual_workflow_matches_template_without_pr_trigger_or_success_skip(self):
         template = (H.ROOT / "tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml").read_text()
         self.assertIn("options: [boundary, shared-host]", template)
