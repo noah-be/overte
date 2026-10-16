@@ -26,12 +26,14 @@ jobs:
         ref: ${{ github.event.repository.default_branch }}
         path: trusted
         persist-credentials: false
+        sparse-checkout-cone-mode: false
         sparse-checkout: |-
           .github
           tools/repository-checks
           tools/test-evidence
           tools/sync-test-reuse
           tools/sbom
+          tools/branch-policy/check.py
           tests/run-project-tests.py
           tests/platform-profile.json
           tests/requirements-host.txt
@@ -84,12 +86,14 @@ jobs:
         ref: ${{ github.event.repository.default_branch }}
         path: trusted
         persist-credentials: false
+        sparse-checkout-cone-mode: false
         sparse-checkout: |-
           .github
           tools/repository-checks
           tools/test-evidence
           tools/sync-test-reuse
           tools/sbom
+          tools/branch-policy/check.py
           tests/run-project-tests.py
           tests/platform-profile.json
           tests/requirements-host.txt
@@ -300,12 +304,14 @@ jobs:
         ref: ${{ github.event.repository.default_branch }}
         path: trusted
         persist-credentials: false
+        sparse-checkout-cone-mode: false
         sparse-checkout: |-
           .github
           tools/repository-checks
           tools/test-evidence
           tools/sync-test-reuse
           tools/sbom
+          tools/branch-policy/check.py
           tests/run-project-tests.py
           tests/platform-profile.json
           tests/requirements-host.txt
@@ -345,12 +351,14 @@ jobs:
         ref: ${{ github.event.repository.default_branch }}
         path: trusted
         persist-credentials: false
+        sparse-checkout-cone-mode: false
         sparse-checkout: |-
           .github
           tools/repository-checks
           tools/test-evidence
           tools/sync-test-reuse
           tools/sbom
+          tools/branch-policy/check.py
           tests/run-project-tests.py
           tests/platform-profile.json
           tests/requirements-host.txt
@@ -394,12 +402,14 @@ jobs:
         ref: ${{ github.event.repository.default_branch }}
         path: trusted
         persist-credentials: false
+        sparse-checkout-cone-mode: false
         sparse-checkout: |-
           .github
           tools/repository-checks
           tools/test-evidence
           tools/sync-test-reuse
           tools/sbom
+          tools/branch-policy/check.py
           tests/run-project-tests.py
           tests/platform-profile.json
           tests/requirements-host.txt
@@ -431,12 +441,14 @@ jobs:
         ref: ${{ github.event.repository.default_branch }}
         path: trusted
         persist-credentials: false
+        sparse-checkout-cone-mode: false
         sparse-checkout: |-
           .github
           tools/repository-checks
           tools/test-evidence
           tools/sync-test-reuse
           tools/sbom
+          tools/branch-policy/check.py
           tests/run-project-tests.py
           tests/platform-profile.json
           tests/requirements-host.txt

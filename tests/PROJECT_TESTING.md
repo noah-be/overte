@@ -577,6 +577,45 @@ runtime-epoch deployment, native publisher qualification, Qt-free reusable
 environment support and post-merge/child consumers remain incomplete. Offline
 fixtures establish none of those hosted qualifications.
 
+The prospective main-only parent consumer is
+[`producers/parent-qualification.yml`](../tools/repository-checks/workflows/producers/parent-qualification.yml),
+with its trusted implementation in
+[`postmerge.py`](../tools/test-evidence/postmerge.py). Its source guard remains
+false. It looks up the exact current protected push before candidate checkout
+or tool setup. Missing, stale, pending, failed, ambiguous, foreign or unsupported
+proof leaves the existing actual test path selected once. The helper executes
+no tests, retries no failed execution and captures no unused consumer runtime.
+
+Admission retains the original PR merge commit and schema-3 receipt. The
+read-only adapter independently authenticates original attempt 1, its complete
+workflow generation, the successful final native publisher's whole-receipt
+hash, original full environment, expiry and current protected integration.
+Both complete source inventories and the original depth-2 Git context are
+checked. Every trusted shared suite must have matching content closure;
+candidate-scoped suites and changed declarations require actual execution.
+The diagnostic consumer report lists reused and executed suites separately and
+cannot become a new qualification artifact or renew original expiry.
+
+`producer_workflow.controller_sources()` declares the finite reviewed producer
+graph. Extra loaded repository modules fail producer admission. The consumer
+reconstructs that identity from the original protected base only when all its
+ordinary source/policy/template entries equal current reviewed immutable bytes;
+it never executes historical Python or trusts a receipt's claimed policy root.
+This is a new controller epoch. Earlier producer generations cannot supply its
+proof. The isolated `/work` safe-directory runtime variant has a separate false
+source capability, preserving legacy runtime admission unchanged.
+
+The two additive complete five-workflow generations permit installing this
+parent while either the legacy or protected project owner is present. All 16
+previous generations remain valid. The later protected-owner installation
+still changes exactly its caller and callee and retains the approved parent.
+No active workflow or production policy is changed here. Hosted boundary,
+full-profile and final-publisher qualification, the protected runtime epoch and
+reviewed source activation are required before either producer or consumer can
+authorize reuse. Qt-free reusable profiles and child consumers remain separate
+work. A successful lookup with no affected package inputs skips candidate
+checkout and Node/Qt setup; affected independent package owners still execute.
+
 The `android-build-inputs` quick suite checks dormant Phone and Pico APK source
 planning with real immutable Git histories, including standalone npm locks,
 native/Java/Gradle/Conan inputs, packaged resources, mode changes and stale reader

@@ -29,6 +29,9 @@ PRODUCER = "overte-attested-shared-reuse-v1"
 # Source-level blocker: enabling JSON policy cannot repair legacy API/source/
 # uploader guarantees. Remove only with reviewed authenticated-owner integration.
 ACTIVATION_READY = False
+# Separate source qualification for the protected /work Git exception. Enabling
+# the legacy JSON policy cannot admit this not-yet-qualified isolated profile.
+ISOLATED_ADMISSION_READY = False
 _DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 _VERSION = re.compile(r"[0-9]+(?:\.[0-9]+)+(?:[-+][A-Za-z0-9_.-]+)?\Z")
 _PYTHON_FLAGS = {
@@ -48,6 +51,9 @@ _CONSUMER_FILES = (
     "tools/sync-test-reuse/gate.py", "tools/sync-test-reuse/differential.py",
     "tools/branch-policy/check.py", "tools/repository-checks/check.py",
     "tools/repository-checks/package_checks.py", "tools/repository-checks/tool_dependencies.py",
+    "tools/test-evidence/postmerge.py", "tools/test-evidence/producer_workflow.py",
+    "tools/test-evidence/producer.py", "tools/test-evidence/producer_api.py",
+    "tools/repository-checks/workflows/producers/parent-qualification.yml",
 )
 
 
@@ -99,8 +105,9 @@ def _bytes(root, relative, maximum=1_000_000):
     return value
 
 
-def load_policy(root=ROOT):
+def load_policy(root=ROOT, *, isolated=False):
     """Read only a trusted checkout's fixed default-off policy, never candidate data."""
+    require(not isolated or ISOLATED_ADMISSION_READY, 'isolated runtime admission is not qualified')
     try:
         value = json.loads(_bytes(Path(root), POLICY, 32_000), object_pairs_hook=inputs._unique_object)
     except (ValueError, UnicodeError):
@@ -116,7 +123,8 @@ def load_policy(root=ROOT):
     require(all(isinstance(item, str) for item in value["flags"].values()), "unsupported runtime flag policy")
     for name, (choices, _) in runtime._CHOICES.items():
         require(value["flags"][name] in choices, "unsupported reviewed runtime variant")
-    require(value["flags"]["git_process_overrides"] == "maintenance-disabled"
+    require(value["flags"]["git_process_overrides"] == (
+                "maintenance-disabled-safe-work" if isolated else "maintenance-disabled")
             and value["flags"]["JAVA_HOME"] == "identified-jdk"
             and value["flags"]["OVERTE_QML_TEST_RUNNER"] in {"Qt5", "Qt6"}
             and value["flags"]["PKG_CONFIG_PATH"] in {"system", "python-base-pkgconfig"}
@@ -134,14 +142,14 @@ def _policy_identity(root, policy, manifests):
     return {"epoch": policy["epoch"], "digest": _digest({"policy": policy, "files": files})}
 
 
-def validate_environment(environment, qualified_at, expires_at, now, *, root=ROOT):
+def validate_environment(environment, qualified_at, expires_at, now, *, root=ROOT, isolated=False):
     """Admit an ORIGINAL recorded identity; this pure check supplies no provenance.
 
     All recorded values remain exact fingerprint inputs. Matching shape, policy
     or this return value cannot authenticate a producer or a passed test.
     """
     root = Path(root)
-    policy = load_policy(root)
+    policy = load_policy(root, isolated=isolated)
     require(isinstance(now, datetime) and now.tzinfo is not None and now.utcoffset().total_seconds() == 0,
             "runtime admission requires an independent current UTC clock")
     qualified, expires = _time(qualified_at), _time(expires_at)

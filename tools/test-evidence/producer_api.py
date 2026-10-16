@@ -153,6 +153,15 @@ class GitHubReadOnly:
     def bytes(self, endpoint):
         return self._request(endpoint, P._MAX_ARCHIVE)
 
+    def immutable_tree(self, tree_sha):
+        """Bounded complete source inventory; no archive or materialized code.
+
+        Overte's full tree exceeds the small metadata response bound. The
+        independently authenticated immutable tree endpoint alone gets 20MB.
+        Truncation and entry structure must still be rejected by the consumer.
+        """
+        return self._json(self._request(PREFIX + '/git/trees/' + sha(tree_sha) + '?recursive=1', 20_000_000))
+
 
 @dataclass(frozen=True)
 class AdapterPolicy:

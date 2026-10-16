@@ -81,7 +81,7 @@ CI_ROLLOUT_PATHS = frozenset({
     'tools/test-evidence/sandbox.py', 'tools/test-evidence/sandbox_host.py',
     'tools/test-evidence/sandbox_host_fixture.py', 'tools/test-evidence/sandbox_probe.py',
     'tools/test-evidence/sandbox_shared.py',
-    'tools/test-evidence/producer_workflow.py',
+    'tools/test-evidence/producer_workflow.py', 'tools/test-evidence/postmerge.py',
 })
 # These product contracts do not consume the admitted CI inputs. Their source,
 # helpers, fixtures, import/include membership AND definitions are bound below.
@@ -108,8 +108,10 @@ PROGRAM_INPUTS = (
     'tools/test-evidence/sandbox_probe.py',
     'tools/test-evidence/sandbox_shared.py',
     'tools/test-evidence/producer_workflow.py',
+    'tools/test-evidence/postmerge.py',
     'tools/repository-checks/workflows/producers/protected-project-tests.yml',
     'tools/repository-checks/workflows/producers/repository-checks.yml',
+    'tools/repository-checks/workflows/producers/parent-qualification.yml',
     # Actual assertions consume these documents; the generic Markdown rule does
     # not exempt them. Their membership, modes and bytes remain immutable inputs.
     'android/vr/common/openxr/README.md',
@@ -121,23 +123,23 @@ PROGRAM_INPUTS = (
 # legacy-retirement/contract handoff files. Only the two separately owned foreign
 # locks are outside this complement; changed locks need mandatory package coverage.
 # These identities are not execution receipts or application-build evidence.
-REVIEWED_PROGRAMS = 'd13648fabb706293b3be33984b0d6257901bc664cf4946ae9b83d4ddcdbfcc7d'
+REVIEWED_PROGRAMS = 'ce8fd47bac93237504dd4e57a13476b8dccb1550564e4e988e1e4e64c603f1e7'
 REVIEWED_CHILD_PROGRAMS = {
-    'apple-main': 'a97236b83c4de2a6706f9236089a8b1a4c60b41a1bce1f283ed3e69b1ecae931',
-    'apple-ios': '45f5fb8a6a678c81dae3e45d48c48af395bace2c2eeecbb063da84e8d8cb57be',
-    'android-main': 'ae7f9427d1e60cc8ccd0a88410f2c06152e29693f9a92ac1aecb5d6629196de8',
-    'android-phone': 'f799f461a7eedf4bbe64cbe97b8508a1f1504ceb8b6538bfa0857479731ea635',
-    'android-vr': 'ae7f9427d1e60cc8ccd0a88410f2c06152e29693f9a92ac1aecb5d6629196de8',
-    'android-vr-pico': 'dc594115b8953c9a35a78acde5e22e3c4c24dbfd6e59a341e658aacf9b4003ae',
+    'apple-main': '7d4118b8b9e2a36ca5019ac52a644f6ec6d9a22e18fb6a367971b0debcc662d4',
+    'apple-ios': 'd6b9e698a16c6244dd8d3f05abf4ada4e6b7856394b5ca1fb6ac58de184ad219',
+    'android-main': 'ff14094a2b691e74ceadced1856ad34544074081a59cb0b15f3b873bde48ac09',
+    'android-phone': '8bda0243f26f78cf9dc85c076b45860a0d8663830c41a0aaacba633cc5665220',
+    'android-vr': 'ff14094a2b691e74ceadced1856ad34544074081a59cb0b15f3b873bde48ac09',
+    'android-vr-pico': '2a426352108051e53f0499dbe676f9d24d0c742b0eb4decd413ee3f8b2482973',
 }
 REVIEWED_PREDECESSORS = {
-    'main': '55efcbbf88531b25a9216840f4cd280607a04b28ede9de17eb01fc59e89736a9',
-    'apple-main': '56ae92bee581c7745f9b929052af2af2b7a76b7c501de6f9305cc4e0fac96b03',
-    'apple-ios': '38f6259026d1efdfd6aa74dbf5eb7a68649bd0ec9f85fb4e5a6ea846349955cc',
-    'android-main': '6d066891333a9c183d39615bab29238d4384065bc6ee1f748902ee6b8cd2fdad',
-    'android-phone': '307362ef96b7bd6db8b262ffdb6aea96901464b11132fa9af69301410e9ff5aa',
-    'android-vr': '6d066891333a9c183d39615bab29238d4384065bc6ee1f748902ee6b8cd2fdad',
-    'android-vr-pico': '7be724f04333d9510a049d38342f8e8475c54a7f909b6f0e790ef0e2ab228da3',
+    'main': 'd13648fabb706293b3be33984b0d6257901bc664cf4946ae9b83d4ddcdbfcc7d',
+    'apple-main': 'a97236b83c4de2a6706f9236089a8b1a4c60b41a1bce1f283ed3e69b1ecae931',
+    'apple-ios': '45f5fb8a6a678c81dae3e45d48c48af395bace2c2eeecbb063da84e8d8cb57be',
+    'android-main': '1c19d5e90cdb606cdc9ea1f3777220f381e716b7874404fd96b5a797e77fac54',
+    'android-phone': 'c4968fe76c3a0e2550ee07cca081d07b0de464b260abccb7e9491099cc1255f3',
+    'android-vr': '1c19d5e90cdb606cdc9ea1f3777220f381e716b7874404fd96b5a797e77fac54',
+    'android-vr-pico': 'ede624f8898e9235a95081a8edcdbee099a0fc05da44f5c854e19dddd828d6b2',
 }
 CONTROL_PLANE = 'tests/device/run_control_plane_tests.py'
 PACKAGE_LOCKS = {
@@ -264,17 +266,20 @@ def _protected_producer_transition(tree, paths, base_tree, trusted_tree, target)
         return False
     policy = package_policy()
     generations = {generation['name']: generation['workflows'] for generation in policy.workflow_generations()}
-    previous = generations.get('android-owned-npm5-sync-ci-v1', {})
-    producer = generations.get('protected-shared-producer-v1', {})
     required = set(policy.CONSUMER_WORKFLOW_PATHS)
-    if set(previous) != required or set(producer) != required \
-            or {path for path in required if previous[path] != producer[path]} != endpoints:
-        return False
-    # Trusted policy validates ordinary entries and complete tuple identities;
-    # individual known files, mixtures and candidate policy cannot qualify.
-    return all(snapshot.get(path) == entry
+    for old_name, new_name in (
+            ('android-owned-npm5-sync-ci-v1', 'protected-shared-producer-v1'),
+            ('postmerge-original-e-v1', 'protected-producer-postmerge-original-e-v1')):
+        previous, producer = generations.get(old_name, {}), generations.get(new_name, {})
+        if set(previous) != required or set(producer) != required \
+                or {path for path in required if previous[path] != producer[path]} != endpoints:
+            continue
+        # Two reviewed complete pairs only, never an arbitrary cross-product.
+        if all(snapshot.get(path) == entry
                for snapshot, workflows in ((trusted_tree, previous), (base_tree, previous), (tree, producer))
-               for path, entry in workflows.items())
+               for path, entry in workflows.items()):
+            return True
+    return False
 
 
 def select(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_root=ROOT,

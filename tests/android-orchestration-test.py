@@ -138,7 +138,7 @@ class RequiredAndroidTests(unittest.TestCase):
         packages = gate.packages()
         name = ("shared-receipt-v1" if producer else "packages-v1") + ("-direct" if direct else "") + "-android"
         if owned:
-            name = "protected-shared-producer-v1" if protected else "android-owned-npm5-sync-ci-v1"
+            name = "protected-producer-postmerge-original-e-v1" if protected else "android-owned-npm5-sync-ci-v1"
         generation = next(item for item in packages.workflow_generations() if item["name"] == name)
         paths = list((ROOT / "tools/repository-checks/workflows").rglob("*.yml"))
         contents = {gate._blob(path.read_bytes())["sha"]: path.read_bytes() for path in paths}
@@ -560,14 +560,16 @@ class RequiredAndroidTests(unittest.TestCase):
         for field, value in (('caller', 'foreign/repository-checks.yml'),
                              ('project', gate.OWNED + '/project-tests.yml')):
             changed = deepcopy(self.policy)
-            prospective = next(g for g in changed['workflow_generations'] if g['name'] == generation['name'])
+            prospective = next(g for g in changed['workflow_generations']
+                if g['caller'] == 'tools/repository-checks/workflows/producers/repository-checks.yml')
             prospective[field] = value
             (self.policy_root / gate.POLICY).write_text(json.dumps(changed))
             with self.subTest(field=field), self.assertRaises(ValueError):
                 gate.load_policy(self.policy_root)
             self.write_policy()
         baseline = gate._policy_identity(self.policy_root)
-        prospective = next(g for g in self.policy['workflow_generations'] if g['name'] == generation['name'])
+        prospective = next(g for g in self.policy['workflow_generations']
+            if g['caller'] == 'tools/repository-checks/workflows/producers/repository-checks.yml')
         for name in ('caller', 'project'):
             path = self.policy_root / prospective[name]
             body = path.read_bytes()

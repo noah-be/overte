@@ -58,6 +58,30 @@ class HostSelectionTests(unittest.TestCase):
             'reason': 'reviewed-protected-producer-transition', 'full_host': True, 'include_platform': True})
         self.assertEqual(len(result['suites']), len(set(result['suites'])))
 
+    def test_consumer_parent_is_preserved_by_the_second_exact_producer_installation_pair(self):
+        policy=HOST.package_policy()
+        generations={g['name']:g['workflows'] for g in policy.workflow_generations()}
+        previous,candidate=deepcopy(self.tree),deepcopy(self.tree)
+        previous.update(deepcopy(generations['postmerge-original-e-v1']))
+        candidate.update(deepcopy(generations['protected-producer-postmerge-original-e-v1']))
+        paths=sorted(path for path in previous.keys() | candidate.keys() if previous.get(path)!=candidate.get(path))
+        selected=self.selected(paths,tree=candidate,trusted_tree=previous,base_tree=previous)
+        self.assertEqual(set(selected['suites']),self.all_names)
+        self.assertEqual(selected['reason'],'reviewed-protected-producer-transition')
+        self.assertTrue(selected['include_platform'])
+        # Neither individually approved endpoint nor the old parent tuple can
+        # be mixed into this complete second installation generation.
+        for side in ('base','candidate'):
+            for path in generations['postmerge-original-e-v1']:
+                snapshots={'base':deepcopy(previous),'candidate':deepcopy(candidate)}
+                snapshots[side][path]={'mode':'100755','type':'blob','sha':'a'*40}
+                with self.subTest(side=side,path=path):
+                    self.assertFalse(HOST._protected_producer_transition(snapshots['candidate'],paths,
+                        snapshots['base'],snapshots['base'],'main'))
+        candidate['.github/workflows/parent-qualification.yml']=deepcopy(generations['protected-shared-producer-v1'][
+            '.github/workflows/parent-qualification.yml'])
+        self.assertFalse(HOST._protected_producer_transition(candidate,paths,previous,previous,'main'))
+
     def test_producer_transition_requires_main_complete_inventory_and_current_trusted_base(self):
         previous, candidate, paths = self.producer_transition()
         for mutation in ('child', 'unknown', 'nonregular', 'missing-base', 'missing-trusted',
@@ -143,8 +167,13 @@ class HostSelectionTests(unittest.TestCase):
         # Immutable Git/API facts are fixtures; this does not qualify execution,
         # runtime admission, source flags, or the native final publisher.
         import producer_workflow as producer
-        previous, candidate_tree, paths = self.producer_transition()
         packages = HOST.package_policy()
+        generations={g['name']:g['workflows'] for g in packages.workflow_generations()}
+        previous,candidate_tree=deepcopy(self.tree),deepcopy(self.tree)
+        previous.update(deepcopy(generations['postmerge-original-e-v1']))
+        candidate_tree.update(deepcopy(generations['protected-producer-postmerge-original-e-v1']))
+        paths=sorted(path for path in previous.keys() | candidate_tree.keys()
+                     if previous.get(path)!=candidate_tree.get(path))
         plan = {'candidate': 'a'*40, 'base': 'd'*40, 'plan': 'c'*64, 'host_mode': 'full',
                 'paths': paths, 'regular': True, 'unknown': False}
         repository = {'full_name': 'noah-l-frank/overte', 'id': 1319052603}
@@ -183,7 +212,8 @@ class HostSelectionTests(unittest.TestCase):
             for path in ('.github/test-suites.json', 'tests/platform-profile.json'):
                 endpoint = candidate/path
                 endpoint.parent.mkdir(parents=True, exist_ok=True)
-                endpoint.write_bytes((ROOT/path).read_bytes())
+                endpoint.write_bytes(HOST.subprocess.check_output([
+                    'git', 'cat-file', 'blob', candidate_tree[path]['sha']], cwd=ROOT))
             # program_digest reads the registry by immutable blob identity.
             HOST.subprocess.check_call(['git', 'init', '-q', '--initial-branch=main', str(candidate)])
             HOST.subprocess.check_output(['git', 'hash-object', '-w', '--', '.github/test-suites.json'], cwd=candidate)
@@ -591,8 +621,9 @@ class HostSelectionTests(unittest.TestCase):
         self.assertTrue(selected['full_host'])
 
     def test_exact_ci_admissions_do_not_waive_neighboring_tests_or_runtime_readers(self):
-        self.assertEqual(len(HOST.CI_ROLLOUT_PATHS),43)
-        for path in ('tools/test-evidence/new-reader.py','tests/project-suite-self-test-extra.py',
+        self.assertEqual(len(HOST.CI_ROLLOUT_PATHS),44)
+        for path in ('tools/test-evidence/new-reader.py','tools/test-evidence/postmerge_extra.py',
+                     'tests/project-suite-self-test-extra.py',
                      '.github/workflows/repository-checks-extra.yml'):
             self.assertTrue(self.selected([path])['include_platform'],path)
         for path in ('tests/run-project-tests.py','tools/test-evidence/execution.py',
@@ -607,9 +638,10 @@ class HostSelectionTests(unittest.TestCase):
                  'tools/test-evidence/sandbox.py', 'tools/test-evidence/sandbox_host.py',
                  'tools/test-evidence/sandbox_host_fixture.py', 'tools/test-evidence/sandbox_probe.py',
                  'tools/test-evidence/sandbox_shared.py',
-                 'tools/test-evidence/producer_workflow.py',
+                 'tools/test-evidence/producer_workflow.py', 'tools/test-evidence/postmerge.py',
                  'tools/repository-checks/workflows/producers/protected-project-tests.yml',
-                 'tools/repository-checks/workflows/producers/repository-checks.yml')
+                 'tools/repository-checks/workflows/producers/repository-checks.yml',
+                 'tools/repository-checks/workflows/producers/parent-qualification.yml')
         selected = self.selected(paths)
         self.assertEqual(set(selected['suites']), self.ci_quick)
         self.assertFalse(selected['include_platform'])
@@ -617,9 +649,10 @@ class HostSelectionTests(unittest.TestCase):
         for path in ('.github/shared-sandbox.json', 'tools/test-evidence/sandbox.py',
                      'tools/test-evidence/sandbox_host.py', 'tools/test-evidence/sandbox_host_fixture.py',
                      'tools/test-evidence/sandbox_probe.py', 'tools/test-evidence/sandbox_shared.py',
-                     'tools/test-evidence/producer_workflow.py',
+                     'tools/test-evidence/producer_workflow.py', 'tools/test-evidence/postmerge.py',
                      'tools/repository-checks/workflows/producers/protected-project-tests.yml',
-                     'tools/repository-checks/workflows/producers/repository-checks.yml'):
+                     'tools/repository-checks/workflows/producers/repository-checks.yml',
+                     'tools/repository-checks/workflows/producers/parent-qualification.yml'):
             candidate = deepcopy(self.tree)
             candidate[path] = {'mode': '100644', 'type': 'blob', 'sha': 'b' * 40}
             with self.subTest(controller=path):
