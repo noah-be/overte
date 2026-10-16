@@ -83,6 +83,28 @@ class SourceAdmissionTests(SourceFixture,unittest.TestCase):
         self.assertEqual(set(S.CONTROLLERS),set(P.controller_sources(P._host_policy())))
         self.assertEqual(len(S.TARGET_PROFILES),7)
         self.assertEqual(len(set(S.TARGET_PROFILES.values())),3)
+    def test_controller_identity_excludes_only_fixed_import_projection_members(self):
+        import producer_workflow as P
+        import postmerge
+        reviewed = set(S.CONTROLLERS)
+        projected = set(P.shared.sources())
+        import_only = set(S.IMPORT_MEMBERS) - reviewed
+        policy = P._host_policy()
+        self.assertEqual(len(reviewed), 64)
+        self.assertEqual(len(projected), 81)
+        self.assertEqual(len(import_only), 17)
+        self.assertEqual(projected - reviewed, import_only)
+        self.assertEqual(set(P.controller_sources(policy)), reviewed)
+        for extra in ('tools/test-evidence/unreviewed-controller.py',
+                      'tools/repository-checks/unreviewed-controller.py'):
+            with self.subTest(extra=extra), patch.object(P.shared, 'sources',
+                    return_value=sorted(projected | {extra})):
+                self.assertEqual(set(P.controller_sources(policy)), reviewed | {extra})
+                with self.assertRaisesRegex(postmerge.A.ApiError,
+                        'integrated controller graph is not independently reviewed'):
+                    postmerge.integrated_controller(policy, self.base, self.base,
+                        self.default, self.target, ROOT)
+
     def test_all_seven_exact_enrollments_hash_actual_D_not_android_B(self):
         import producer as P
         expected=P.digest({name:{'mode':entry['mode'],'sha256':hashlib.sha256(self.bodies[name]).hexdigest()}

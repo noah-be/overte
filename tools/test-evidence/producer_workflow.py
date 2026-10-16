@@ -142,7 +142,12 @@ def controller_sources(policy):
     consumer may reconstruct its controller identity. Historical Python is data,
     never code loaded by that consumer.
     """
-    return sorted({source_admission.SELF, inputs.AFFECTED_POLICY, *shared.sources(), *policy.package_policy()._policy_inputs(), *attested._CONSUMER_FILES, TEMPLATE,
+    # Policy projection also carries fixed import-only members for its actual-D
+    # manifest. Those bytes belong to CI37 generation, not the producer's fixed
+    # controller identity. Unknown new source dependencies must remain visible.
+    import_only = set(source_admission.IMPORT_MEMBERS) - set(source_admission.CONTROLLERS)
+    projected = set(shared.sources()) - import_only
+    return sorted({source_admission.SELF, inputs.AFFECTED_POLICY, *projected, *policy.package_policy()._policy_inputs(), *attested._CONSUMER_FILES, TEMPLATE,
         'tools/repository-checks/metadata_context.py',
         'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml',
         '.github/workflows/documentation-checks.yml', '.github/workflows/workflow-security.yml',
