@@ -177,7 +177,8 @@ class LanguageSelectionTests(unittest.TestCase):
 
     def test_result_generations_advance_without_allowing_deployed_rollbacks(self):
         generations = CODEQL.result_workflow_blobs()
-        self.assertEqual(len(generations), 3)
+        self.assertEqual(generations, (CODEQL._RESULTS_WORKFLOW, CODEQL._RETARGET_RESULTS_WORKFLOW,
+                                      CODEQL._PINNED_RESULTS_WORKFLOW, CODEQL._METADATA_RESULTS_WORKFLOW))
         for old_index, old in enumerate(generations):
             for new_index, new in enumerate(generations):
                 before, after = self.pinned_trees()
@@ -397,6 +398,171 @@ class LanguageSelectionTests(unittest.TestCase):
                     self.assertEqual(plan["reasons"][0]["code"], "unavailable-complete-inventory")
 
 
+class NpmLockSelectionTests(unittest.TestCase):
+    def trees(self, workflow=None):
+        before = reviewed_tree()
+        before['.github/workflows/codeql.yml']['sha'] = workflow or CODEQL._PINNED_RESULTS_WORKFLOW
+        before.update({path: entry() for path in CODEQL._PINNED_NPM_LOCKS})
+        after = deepcopy(before)
+        for path in CODEQL._PINNED_NPM_LOCKS:
+            after[path] = entry('b')
+        return before, after
+
+    def test_only_two_existing_lockfiles_omit_analysis_under_both_pinned_recipes(self):
+        self.assertEqual(CODEQL._PINNED_NPM_LOCKS, {
+            'browser-client/package-lock.json', 'script-archive/marketplace/S3Server/package-lock.json'})
+        for workflow in (CODEQL._PINNED_RESULTS_WORKFLOW, CODEQL._METADATA_RESULTS_WORKFLOW):
+            for event in ('pull_request', 'push'):
+                before, after = self.trees(workflow)
+                with self.subTest(workflow=workflow, event=event):
+                    plan = CODEQL.select_languages(before, after, event=event)
+                    self.assertEqual(plan['languages'], [])
+                    self.assertEqual(plan['reasons'], [{'code': 'reviewed-pinned-npm-lock', 'path': path}
+                                                       for path in sorted(CODEQL._PINNED_NPM_LOCKS)])
+
+    def test_lockfiles_cannot_hide_source_manifests_or_unknown_neighbors(self):
+        for path, expected in (
+                ('browser-client/main.ts', ['javascript-typescript']),
+                ('tools/helper.py', ['python']),
+                ('browser-client/package.json', ['javascript-typescript']),
+                ('script-archive/marketplace/S3Server/package.json', ['javascript-typescript']),
+                ('other/package-lock.json', ['javascript-typescript']),
+                ('browser-client/package-lock.json.backup', list(CODEQL.LANGUAGES)),
+                ('.github/codeql/custom.ql', list(CODEQL.LANGUAGES))):
+            before, after = self.trees()
+            after[path] = entry('c')
+            with self.subTest(path=path):
+                self.assertEqual(CODEQL.select_languages(before, after)['languages'], expected)
+
+    def test_membership_modes_and_aliases_require_conservative_checks(self):
+        for path in CODEQL._PINNED_NPM_LOCKS:
+            for mutation in ('added', 'deleted', 'renamed', 'before-mode', 'after-mode', 'alias', 'gitlink'):
+                before, after = self.trees()
+                if mutation == 'added': del before[path]
+                elif mutation == 'deleted': del after[path]
+                elif mutation == 'renamed': after[path + '.other.json'] = after.pop(path)
+                elif mutation == 'before-mode': before[path] = entry(mode='100755')
+                elif mutation == 'after-mode': after[path] = entry('b', '100755')
+                else: after[path] = entry('b', '120000' if mutation == 'alias' else '160000')
+                expected = list(CODEQL.LANGUAGES) if mutation in ('alias', 'gitlink') else ['javascript-typescript']
+                with self.subTest(path=path, mutation=mutation):
+                    self.assertEqual(CODEQL.select_languages(before, after)['languages'], expected)
+
+    def test_pins_configuration_packs_and_unchanged_aliases_precede_lock_exceptions(self):
+        for workflow in (CODEQL._REVIEWED_CONTROLS['.github/workflows/codeql.yml'], CODEQL._SELECTIVE_WORKFLOW,
+                         CODEQL._RESULTS_WORKFLOW, CODEQL._RETARGET_RESULTS_WORKFLOW):
+            before, after = self.trees(workflow)
+            self.assertEqual(CODEQL.select_languages(before, after)['languages'], ['javascript-typescript'])
+        for path, mode in (('.github/codeql/codeql-config.yml', '100644'), ('qlpack.yml', '100644'),
+                           ('unchanged/source.py', '120000'), ('unchanged/submodule', '160000')):
+            before, after = self.trees()
+            if path in before: after[path] = entry('c', mode)
+            else: before[path] = after[path] = entry(mode=mode)
+            with self.subTest(path=path):
+                self.assertTrue(CODEQL.select_languages(before, after)['full_scan'])
+        before, after = self.trees()
+        after['.github/workflows/codeql.yml']['sha'] = CODEQL._METADATA_RESULTS_WORKFLOW
+        self.assertTrue(CODEQL.select_languages(before, after)['full_scan'])
+
+    def test_unknown_context_and_schedule_keep_full_analysis(self):
+        before, after = self.trees()
+        for event in ('schedule', 'workflow_dispatch', 'pull_request_target', 'unknown'):
+            self.assertTrue(CODEQL.select_languages(before, after, event=event)['full_scan'])
+        for left, right in ((None, after), (before, None), ({}, after)):
+            self.assertTrue(CODEQL.select_languages(left, right)['full_scan'])
+
+
+class PythonControlSelectionTests(unittest.TestCase):
+    controls = ('tools/repository-checks/check.py', 'tools/repository-checks/codeql.py',
+                'tools/test-evidence/inputs.py')
+
+    def trees(self, workflow=None):
+        before = reviewed_tree() | {path: entry() for path in self.controls}
+        before['.github/workflows/codeql.yml']['sha'] = workflow or CODEQL._PINNED_RESULTS_WORKFLOW
+        return before, deepcopy(before)
+
+    def test_only_three_existing_ordinary_controls_need_fresh_python_under_both_pinned_recipes(self):
+        self.assertEqual(CODEQL._PINNED_PYTHON_CONTROLS, set(self.controls))
+        for workflow in (CODEQL._PINNED_RESULTS_WORKFLOW, CODEQL._METADATA_RESULTS_WORKFLOW):
+            for path in self.controls:
+                for event in ('pull_request', 'push'):
+                    before, after = self.trees(workflow); after[path] = entry('b')
+                    with self.subTest(workflow=workflow, path=path, event=event):
+                        plan = CODEQL.select_languages(before, after, event=event,
+                            read_blob=lambda _: self.fail('Python selection must not load candidate source'))
+                        self.assertEqual(plan['languages'], ['python'])
+                        self.assertEqual(plan['reasons'], [{'code': 'reviewed-pinned-python-control', 'path': path}])
+                        self.assertFalse(plan['full_scan'])
+
+    def test_global_controls_queries_and_pack_roots_override_the_exception(self):
+        for subject in self.controls:
+            for path in ('AGENTS.md', '.gitattributes', 'custom/query.ql', 'custom/model.qll',
+                         'custom/security.qls', 'custom/codeql-config.yml', 'custom/qlpack.yml'):
+                before, after = self.trees(); after[subject] = entry('b'); after[path] = entry('c')
+                with self.subTest(subject=subject, path=path):
+                    self.assertEqual(CODEQL.select_languages(before, after)['languages'], list(CODEQL.LANGUAGES))
+            for manifest in ('qlpack.yml', str(Path(subject).parent / 'qlpack.yml')):
+                before, after = self.trees(); before[manifest] = after[manifest] = entry()
+                after[subject] = entry('b')
+                with self.subTest(subject=subject, manifest=manifest):
+                    self.assertEqual(CODEQL.select_languages(before, after)['reasons'][0]['code'], 'shared-analysis-control')
+
+    def test_membership_modes_and_unchanged_aliases_cannot_inherit_python_control_ownership(self):
+        for path in self.controls:
+            for mutation in ('addition', 'deletion', 'rename', 'before-mode', 'after-mode',
+                             'symlink', 'gitlink', 'unchanged-alias', 'unchanged-gitlink'):
+                before, after = self.trees(); after[path] = entry('b')
+                if mutation == 'addition': del before[path]
+                elif mutation == 'deletion': del after[path]
+                elif mutation == 'rename': after[path + '.renamed.py'] = after.pop(path)
+                elif mutation == 'before-mode': before[path] = entry(mode='100755')
+                elif mutation == 'after-mode': after[path] = entry('b', mode='100755')
+                elif mutation in ('symlink', 'gitlink'):
+                    after[path] = entry('b', mode='120000' if mutation == 'symlink' else '160000')
+                else:
+                    before['unrelated'] = after['unrelated'] = entry(mode='120000' if mutation == 'unchanged-alias' else '160000')
+                with self.subTest(path=path, mutation=mutation):
+                    self.assertTrue(CODEQL.select_languages(before, after)['full_scan'])
+
+    def test_unpinned_changed_or_unknown_controls_and_extractor_options_stay_full(self):
+        for workflow in (CODEQL._REVIEWED_CONTROLS['.github/workflows/codeql.yml'], CODEQL._SELECTIVE_WORKFLOW,
+                         CODEQL._RESULTS_WORKFLOW, CODEQL._RETARGET_RESULTS_WORKFLOW):
+            before, after = self.trees(workflow); after[self.controls[0]] = entry('b')
+            self.assertTrue(CODEQL.select_languages(before, after)['full_scan'])
+        for side in ('before', 'after'):
+            for path in CODEQL._REVIEWED_CONTROLS:
+                before, after = self.trees(); after[self.controls[0]] = entry('b')
+                (before if side == 'before' else after)[path] = entry('c')
+                with self.subTest(side=side, path=path):
+                    self.assertEqual(CODEQL.select_languages(before, after)['reasons'][0]['code'], 'unreviewed-analysis-configuration')
+        before, after = self.trees(); after[self.controls[0]] = entry('b')
+        after['.github/workflows/codeql.yml']['sha'] = CODEQL._METADATA_RESULTS_WORKFLOW
+        self.assertTrue(CODEQL.select_languages(before, after)['full_scan'])
+        for name in ('LGTM_INDEX_FILETYPES', 'CODEQL_EXTRACTOR_JAVASCRIPT_OPTION_TEST',
+                     'CODEQL_EXTRACTOR_PYTHON_OPTION_TEST'):
+            before, after = self.trees(); after[self.controls[0]] = entry('b')
+            with self.subTest(name=name), patch.dict(CODEQL.os.environ, {name: 'unreviewed'}):
+                self.assertTrue(CODEQL.select_languages(before, after)['full_scan'])
+
+    def test_mixed_delta_unions_every_language_and_unknown_input_without_prefix_waivers(self):
+        for path, expected in (('browser/src/main.ts', list(CODEQL.LANGUAGES)),
+                               ('other.py', ['python']), ('docs/design.md', ['python']),
+                               ('.github/test-suites.json', ['python']),
+                               ('.github/ci37-runtime.json', list(CODEQL.LANGUAGES)),
+                               ('tools/repository-checks/check.py.unknown', list(CODEQL.LANGUAGES)),
+                               ('tools/test-evidence/inputs.py.unknown', list(CODEQL.LANGUAGES))):
+            before, after = self.trees(); after[self.controls[0]] = entry('b')
+            if path == '.github/test-suites.json': before[path] = entry()
+            after[path] = entry('c')
+            with self.subTest(path=path):
+                self.assertEqual(CODEQL.select_languages(before, after)['languages'], expected)
+        before, after = self.trees(); after[self.controls[0]] = entry('b')
+        for event in ('schedule', 'workflow_dispatch', 'pull_request_target'):
+            self.assertTrue(CODEQL.select_languages(before, after, event=event)['full_scan'])
+        for left, right in ((None, after), (before, None), ({}, after)):
+            self.assertTrue(CODEQL.select_languages(left, right)['full_scan'])
+
+
 class NativeLeafSelectionTests(unittest.TestCase):
     def setUp(self):
         self.before = reviewed_tree()
@@ -562,6 +728,29 @@ class ImmutableRepositoryTests(unittest.TestCase):
                    (ROOT/'tools/repository-checks/workflows/metadata-edits/codeql-pinned.yml').read_text())
         self.write('native/Example.cpp','int value = 1;\n')
         return self.commit()
+
+    def test_python_control_uses_complete_target_delta_and_never_loads_candidate_controllers(self):
+        self.write('.github/workflows/codeql.yml',
+                   (ROOT/'tools/repository-checks/workflows/metadata-edits/codeql-pinned.yml').read_text())
+        base = self.commit()
+        self.write('tools/test-evidence/inputs.py', 'raise RuntimeError("never import candidate controls")\n')
+        head = self.commit()
+        merge = self.git('commit-tree', self.git('rev-parse', head+'^{tree}'), '-p', base, '-p', head,
+                         '-m', 'Ordinary Python controller merge fixture')
+        self.assertEqual(CODEQL.select_repository(self.root, base, merge)['languages'], ['python'])
+        self.write('browser/main.ts', 'export const changedEarlier = true;\n')
+        first_head = self.commit()
+        self.write('tools/test-evidence/inputs.py', 'raise RuntimeError("corrective source still never imports")\n')
+        second_head = self.commit()
+        current_merge = self.git('commit-tree', self.git('rev-parse', second_head+'^{tree}'),
+                                '-p', base, '-p', second_head, '-m', 'Whole PR retains earlier JavaScript change')
+        # The prior-head delta is insufficient input for a PR decision.
+        self.assertEqual(CODEQL.select_repository(self.root, first_head, second_head)['languages'], ['python'])
+        plan = CODEQL.select_repository(self.root, base, current_merge)
+        self.assertEqual(plan['languages'], list(CODEQL.LANGUAGES))
+        self.assertEqual({row['path'] for row in plan['changes']}, {'browser/main.ts', 'tools/test-evidence/inputs.py'})
+        self.write('tools/test-evidence/inputs.py', 'uncommitted candidate data never changes selection\n')
+        self.assertEqual(CODEQL.select_repository(self.root, base, current_merge), plan)
 
     def test_real_native_blob_selection_ignores_dirty_checkout_and_bounds_unknown_inputs(self):
         base=self.pinned_native_base()
@@ -766,6 +955,38 @@ class SelectedResultTests(unittest.TestCase):
             'category': '/language:python', 'state': 'open', 'analysis_key': RESULTS.ANALYSIS_KEY}]}
         with self.assertRaisesRegex(RESULTS.ResultError, 'open CodeQL finding'): self.verify()
 
+    def test_lock_only_real_git_still_requires_a_fresh_successful_native_selector(self):
+        path = 'browser-client/package-lock.json'
+        self.pinned_policy_candidate(path, existing_sources={path: '{"lockfileVersion":3,"packages":{}}\n'})
+        self.env['CODEQL_EXPECTED_LANGUAGES'] = '[]'
+        selector = deepcopy(self.jobs[-1])
+        self.jobs, self.analyses = [selector], []
+        self.assertEqual(self.verify()['languages'], [])
+        self.assertFalse(any('/code-scanning/' in call for call in self.api.calls))
+        for mutation in ('missing', 'failure', 'skipped', 'stale-head', 'wrong-attempt', 'duplicate'):
+            self.jobs = [deepcopy(selector)]
+            if mutation == 'missing': self.jobs.clear()
+            elif mutation in ('failure', 'skipped'): self.jobs[0]['conclusion'] = mutation
+            elif mutation == 'stale-head': self.jobs[0]['head_sha'] = self.base
+            elif mutation == 'wrong-attempt': self.jobs[0]['run_attempt'] = 2
+            else: self.jobs.append(deepcopy(selector))
+            with self.subTest(mutation=mutation), self.assertRaises(RESULTS.ResultError): self.verify()
+
+    def test_lock_change_with_javascript_still_checks_current_analysis_and_findings(self):
+        path = 'script-archive/marketplace/S3Server/package-lock.json'
+        self.pinned_policy_candidate(path, {'browser/main.ts': 'const changed = true;\n'},
+                                     existing_sources={path: '{"lockfileVersion":3,"packages":{}}\n'})
+        self.env['CODEQL_EXPECTED_LANGUAGES'] = '[]'
+        with self.assertRaises(RESULTS.ResultError): self.verify()
+        self.env['CODEQL_EXPECTED_LANGUAGES'] = '["javascript-typescript"]'
+        self.jobs[0]['name'] = 'CodeQL (javascript-typescript)'
+        self.analyses[0].update(environment='{"language":"javascript-typescript"}', category='/language:javascript-typescript')
+        self.assertEqual(self.verify()['languages'], ['javascript-typescript'])
+        self.alerts = [{'number': 9, 'state': 'open', 'tool': {'name': 'CodeQL'}}]
+        self.instances = {9: [{'ref': self.env['GITHUB_REF'], 'commit_sha': self.candidate,
+            'category': '/language:javascript-typescript', 'state': 'open', 'analysis_key': RESULTS.ANALYSIS_KEY}]}
+        with self.assertRaisesRegex(RESULTS.ResultError, 'open CodeQL finding'): self.verify()
+
     def test_pinned_policy_json_uses_python_results_bound_to_actual_candidate_and_extractor(self):
         old_candidate = self.candidate
         self.pinned_policy_candidate()
@@ -803,6 +1024,20 @@ class SelectedResultTests(unittest.TestCase):
         self.instances = {9: [{'ref': self.env['GITHUB_REF'], 'commit_sha': self.candidate,
             'category': '/language:python', 'state': 'open', 'analysis_key': RESULTS.ANALYSIS_KEY}]}
         with self.assertRaisesRegex(RESULTS.ResultError, 'open CodeQL finding'): self.verify()
+
+    def test_pinned_python_control_still_requires_current_analysis_and_cannot_hide_failed_or_pending_jobs(self):
+        self.pinned_policy_candidate('tools/test-evidence/inputs.py', replacement='raise RuntimeError("never import")\n')
+        self.assertEqual(self.verify()['languages'], ['python'])
+        self.env['CODEQL_EXPECTED_LANGUAGES'] = '[]'
+        with self.assertRaisesRegex(RESULTS.ResultError, 'independent immutable selection'): self.verify()
+        self.env['CODEQL_EXPECTED_LANGUAGES'] = '["python"]'
+        original = deepcopy(self.jobs)
+        for conclusion, status in (('failure', 'completed'), (None, 'in_progress')):
+            self.jobs = deepcopy(original); self.jobs[0].update(conclusion=conclusion, status=status)
+            with self.subTest(conclusion=conclusion, status=status), self.assertRaises(RESULTS.ResultError): self.verify()
+        self.jobs = original
+        self.analyses[0]['commit_sha'] = self.base
+        with self.assertRaises(RESULTS.ResultError): self.verify()
 
     def test_pinned_result_verifier_independently_rejects_every_older_result_workflow(self):
         self.pinned_policy_candidate()
@@ -1174,6 +1409,344 @@ class SelectedResultTests(unittest.TestCase):
                 self.refs['heads/main'] = self.base
                 with self.assertRaisesRegex(RESULTS.ResultError, 'advanced'): self.verify()
 
+
+
+class FakeMetadataCodeQLApi:
+    """Complete immutable/API fixture; never queries a host or executes source."""
+    def __init__(self, case):
+        self.case, self.calls = case, []
+        self.mutate = lambda endpoint, value: value
+
+    def immutable_blob(self, oid):
+        self.calls.append('immutable-blob/' + oid)
+        return self.case.blobs[oid]
+
+    def immutable_tree(self, oid):
+        self.calls.append('immutable-tree/' + oid)
+        c = self.case
+        value = {'sha': oid, 'truncated': False,
+                 'tree': [{'path': path, **value} for path, value in
+                          (c.base_tree if oid == c.base_tree_sha else c.candidate_tree).items()]}
+        return self.mutate('immutable-tree/' + oid, deepcopy(value))
+
+    def json(self, endpoint):
+        from urllib.parse import parse_qs, urlsplit
+        self.calls.append(endpoint)
+        assert endpoint == RESULTS.PREFIX or endpoint.startswith(RESULTS.PREFIX + '/')
+        parsed = urlsplit(endpoint[len(RESULTS.PREFIX):])
+        path, query, c = parsed.path.lstrip('/'), parse_qs(parsed.query), self.case
+        b = c.binding
+        def page(values, field):
+            assert query.get('per_page') == ['100']
+            start = (int(query['page'][0]) - 1) * 100
+            values = deepcopy(values[start:start + 100])
+            return {'total_count': c.inventory_total if field == 'workflow_runs' and
+                    c.inventory_total is not None else len(c.runs) if field == 'workflow_runs'
+                    else len(c.jobs[int(path.split('/')[2])]) if field == 'jobs'
+                    else len(c.artifacts[int(path.split('/')[2])]), field: values}
+        if not path:
+            value = c.repository
+        elif path == 'actions/workflows/codeql.yml':
+            value = {'id': 7, 'path': RESULTS.WORKFLOW, 'state': 'active'}
+        elif path == 'pulls/42':
+            value = {'number': 42, 'state': 'open', **{side: {'ref': b[side + '_ref'],
+                'sha': b[side + '_sha'], 'repo': c.repository} for side in ('base', 'head')}}
+        elif path == 'commits/refs/pull/42/merge':
+            value = {'sha': b['merge_sha'], 'commit': {'tree': {'sha': b['merge_tree']}},
+                     'parents': [{'sha': oid} for oid in b['merge_parents']]}
+        elif path.startswith('git/ref/'):
+            ref = path[len('git/ref/'):]
+            oid = c.default if ref == 'heads/main' else b['head_sha']
+            value = {'ref': 'refs/' + ref, 'object': {'type': 'commit', 'sha': oid}}
+        elif path.startswith('git/commits/'):
+            oid = path.rsplit('/', 1)[1]
+            assert oid in {b['base_sha'], b['merge_sha'], '8' * 40}
+            value = {'sha': oid, 'tree': {'sha': c.base_tree_sha if oid == b['base_sha'] else b['merge_tree']},
+                     'parents': [{'sha': p} for p in ([] if oid == b['base_sha'] else b['merge_parents'])]}
+        elif path.startswith('git/trees/'):
+            oid = path.rsplit('/', 1)[1]
+            if oid == b['merge_tree']:
+                tree = [{'path': '.github', 'mode': '040000', 'type': 'tree', 'sha': '1' * 40}]
+            elif oid == '1' * 40:
+                tree = [{'path': 'workflows', 'mode': '040000', 'type': 'tree', 'sha': '2' * 40}]
+            elif oid == '2' * 40:
+                tree = [{'path': p.rsplit('/', 1)[1], **v} for p, v in c.workflows.items()]
+            elif oid == c.base_tree_sha:
+                tree = [{'path': 'tools', 'mode': '040000', 'type': 'tree', 'sha': '3' * 40}]
+            elif oid == '3' * 40:
+                tree = [{'path': 'repository-checks', 'mode': '040000', 'type': 'tree', 'sha': '4' * 40}]
+            else:
+                assert oid == '4' * 40
+                tree = [{'path': 'metadata_context.py', **c.source[c.marker.SOURCE]}]
+            value = {'sha': oid, 'truncated': False, 'tree': tree}
+        elif path == 'actions/workflows/7/runs':
+            assert query.get('head_sha') == [b['head_sha']] and set(query) == {'head_sha', 'per_page', 'page'}
+            value = page(list(c.runs.values()), 'workflow_runs')
+        elif path.startswith('actions/runs/'):
+            parts = path.split('/')
+            run_id = int(parts[2])
+            if parts[-1] == 'jobs':
+                value = page(c.jobs[run_id], 'jobs')
+            elif parts[-1] == 'artifacts':
+                value = page(c.artifacts[run_id], 'artifacts')
+            else:
+                value = c.runs[run_id]
+        elif path.startswith('check-suites/'):
+            run = next(x for x in c.runs.values() if x['check_suite_id'] == int(path.rsplit('/', 1)[1]))
+            value = {'id': run['check_suite_id'], 'head_sha': b['head_sha'],
+                     'repository': c.repository, 'app': {'id': 15368}}
+        elif path.startswith('check-runs/'):
+            job = next(j for jobs in c.jobs.values() for j in jobs if j['id'] == int(path.rsplit('/', 1)[1]))
+            value = {'id': job['id'], 'head_sha': b['head_sha'], 'app': {'id': 15368},
+                     'check_suite': {'id': c.runs[job['run_id']]['check_suite_id']},
+                     **{key: job[key] for key in ('name', 'status', 'conclusion', 'started_at', 'completed_at')}}
+        elif path == 'code-scanning/analyses':
+            assert query['ref'] == ['refs/pull/42/merge'] and query['tool_name'] == ['CodeQL']
+            start = (int(query['page'][0]) - 1) * 100
+            value = c.analyses[start:start + 100]
+        elif path.startswith('code-scanning/analyses/'):
+            value = next(x for x in c.analyses if x['id'] == int(path.rsplit('/', 1)[1]))
+        elif path == 'code-scanning/alerts':
+            value = c.alerts
+        elif path.endswith('/instances'):
+            value = c.instances[int(path.split('/')[2])]
+        else:
+            raise AssertionError('unexpected fixed CodeQL metadata endpoint: ' + path)
+        return self.mutate(endpoint, deepcopy(value))
+
+
+class MetadataResultTests(unittest.TestCase):
+    """Sealed source boundary plus real native adapter/result validation."""
+    def setUp(self):
+        from types import SimpleNamespace
+        self.A, self.postmerge, _ = RESULTS._metadata_modules()
+        self.repository = {'id': RESULTS.REPOSITORY_ID, 'full_name': RESULTS.REPOSITORY, 'default_branch': 'main'}
+        self.binding = {'repository': RESULTS.REPOSITORY, 'repository_id': RESULTS.REPOSITORY_ID,
+            'head_repository_id': RESULTS.REPOSITORY_ID, 'pull_request': 42, 'base_ref': 'main',
+            'head_ref': 'fix/main/example', 'base_sha': 'a' * 40, 'head_sha': 'b' * 40,
+            'merge_sha': 'c' * 40, 'merge_tree': 'd' * 40, 'merge_parents': ['a' * 40, 'b' * 40]}
+        self.default, self.base_tree_sha = self.binding['base_sha'], 'e' * 40
+        ordinary = lambda oid: {'mode': '100644', 'type': 'blob', 'sha': oid}
+        self.workflows = {RESULTS.WORKFLOW: ordinary(CODEQL._METADATA_RESULTS_WORKFLOW),
+                         self.A.METADATA_WORKFLOW: ordinary(CODEQL._METADATA_SOURCE_WORKFLOW)}
+        self.source = {self.A.METADATA_SOURCE: ordinary('f' * 40)}
+        self.base_tree = {**reviewed_tree(), **deepcopy(self.workflows), **deepcopy(self.source)}
+        self.base_tree.update({'tools/repository-checks/workflows/metadata-edits/' + name: deepcopy(value)
+            for name, value in [('codeql-metadata.yml', self.workflows[RESULTS.WORKFLOW]),
+                                ('pr-metadata-context.yml', self.workflows[self.A.METADATA_WORKFLOW])]})
+        self.candidate_tree = deepcopy(self.base_tree)
+        self.candidate_tree['tools/check.py'] = entry('b')
+        self.native = {'number': 42, 'base': 'a' * 40, 'head': 'b' * 40, 'merge': 'c' * 40,
+                       'run_id': 13, 'helper_blob': 'f' * 40}
+        self.marker = SimpleNamespace(SOURCE_READY=True, SOURCE=self.A.METADATA_SOURCE,
+                                      native=lambda *a, **k: deepcopy(self.native))
+        self.env = {'GITHUB_JOB': 'select'}
+        edge = {'path': RESULTS.REPOSITORY + '/' + self.A.METADATA_WORKFLOW + '@' + 'c' * 40,
+                'sha': 'c' * 40, 'ref': 'refs/pull/42/merge'}
+        run = {'id': 12, 'workflow_id': 7, 'check_suite_id': 112, 'path': RESULTS.WORKFLOW,
+            'event': 'pull_request', 'head_sha': 'b' * 40, 'head_branch': 'fix/main/example', 'run_attempt': 1,
+            'status': 'completed', 'conclusion': 'success', 'run_started_at': '2026-10-15T21:00:00Z',
+            'updated_at': '2026-10-15T21:01:00Z', 'repository': self.repository,
+            'head_repository': self.repository, 'pull_requests': [{'number': 42}], 'referenced_workflows': [edge]}
+        self.runs = {12: run, 13: {**deepcopy(run), 'id': 13, 'check_suite_id': 113,
+            'status': 'in_progress', 'conclusion': None, 'run_started_at': '2026-10-15T21:04:00Z',
+            'updated_at': '2026-10-15T21:04:21Z'}}
+        def job(identity, run_id, name, start, end, steps):
+            return {'id': identity, 'run_id': run_id, 'run_attempt': 1, 'name': name, 'head_sha': 'b' * 40,
+                'status': 'completed', 'conclusion': 'success', 'started_at': start, 'completed_at': end,
+                'check_run_url': f'https://api.github.com/{RESULTS.PREFIX}/check-runs/{identity}', 'steps': steps}
+        def step(name, start, end):
+            return {'name': name, 'status': 'completed', 'conclusion': 'success',
+                    'started_at': start, 'completed_at': end}
+        self.jobs = {12: [job(80, 12, 'Select affected CodeQL languages', '2026-10-15T21:00:00Z',
+                             '2026-10-15T21:00:01Z', []),
+            job(81, 12, 'CodeQL (python)', '2026-10-15T21:00:01Z', '2026-10-15T21:00:21Z',
+                [step('Require reviewed CodeQL extractor version', '2026-10-15T21:00:02Z', '2026-10-15T21:00:03Z'),
+                 step('Analyze', '2026-10-15T21:00:10Z', '2026-10-15T21:00:20Z')])],
+            13: [job(140, 13, self.A.METADATA_JOB, '2026-10-15T21:04:01Z', '2026-10-15T21:04:20Z',
+                [step(self.A.METADATA_STEP, '2026-10-15T21:04:02Z', '2026-10-15T21:04:19Z')])]}
+        self.analyses = [{'id': 91, 'ref': 'refs/pull/42/merge', 'commit_sha': 'c' * 40,
+            'analysis_key': RESULTS.ANALYSIS_KEY, 'environment': '{"language":"python"}',
+            'category': '/language:python', 'error': '', 'rules_count': 43,
+            'created_at': '2026-10-15T21:00:15Z', 'tool': {'name': 'CodeQL', 'version': '2.27.2'}}]
+        self.artifacts, self.alerts, self.instances = {12: [], 13: []}, [], {}
+        self.inventory_total, self.blobs = None, {}
+        self.api = FakeMetadataCodeQLApi(self)
+
+    def verify(self):
+        with patch.object(RESULTS, '_metadata_modules', return_value=(self.A, self.postmerge, self.marker)), \
+                patch.object(self.postmerge, '_source_qualified', return_value=True), \
+                patch.object(RESULTS.codeql.inputs, 'full_tree', return_value=deepcopy(self.base_tree)):
+            return RESULTS.MetadataVerifier(ROOT, {}, self.env, api=self.api).verify(processing_seconds=0)
+
+    def test_future_recipe_is_exact_and_keeps_existing_pinned_language_selection(self):
+        for name, oid in [('codeql-metadata.yml', CODEQL._METADATA_RESULTS_WORKFLOW),
+                          ('pr-metadata-context.yml', CODEQL._METADATA_SOURCE_WORKFLOW)]:
+            raw = (ROOT / 'tools/repository-checks/workflows/metadata-edits' / name).read_bytes()
+            self.assertEqual(hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest(), oid)
+        for path, expected in [('.github/branch-cleanup.json', []),
+                               ('.github/test-suites.json', ['python']),
+                               ('browser/main.ts', ['javascript-typescript'])]:
+            before = deepcopy(self.base_tree)
+            before[path] = entry('a')
+            after = deepcopy(before)
+            after[path] = entry('b')
+            with self.subTest(path=path):
+                self.assertEqual(CODEQL.select_languages(before, after)['languages'], expected)
+        previous = deepcopy(self.base_tree)
+        previous[RESULTS.WORKFLOW]['sha'] = CODEQL._PINNED_RESULTS_WORKFLOW
+        self.assertTrue(CODEQL.select_languages(previous, self.base_tree)['full_scan'])
+
+    def test_same_merge_original_native_analysis_is_freshly_revalidated_without_qualification(self):
+        result = self.verify()
+        self.assertEqual(result['metadata_only'], 'true')
+        self.assertFalse(result['qualification'])
+        self.assertEqual(result['merge_sha'], self.binding['merge_sha'])
+        self.assertEqual(result['original_run_id'], 12)
+        self.assertEqual(result['languages'], ['python'])
+        self.assertEqual(result['analyses'], [{'id': 91, 'category': '/language:python', 'rules_count': 43, 'job_id': 81}])
+        self.assertEqual(self.api.calls.count(RESULTS.PREFIX + '/pulls/42'), 2)
+        self.assertEqual(sum('/actions/workflows/7/runs?' in x for x in self.api.calls), 2)
+        self.assertEqual(sum('/actions/runs/13/artifacts?' in x for x in self.api.calls), 2)
+
+    def test_disabled_source_and_unprotected_workflow_decline_before_security_lookup(self):
+        self.marker.SOURCE_READY = False
+        with self.assertRaisesRegex(RESULTS.ResultError, 'not qualified'): self.verify()
+        self.assertFalse(self.api.calls)
+        self.marker.SOURCE_READY = True
+        for path in ('tools/repository-checks/workflows/metadata-edits/codeql-metadata.yml',
+                     'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml'):
+            old = self.base_tree[path]
+            self.base_tree[path] = entry('9')
+            with self.subTest(path=path), self.assertRaisesRegex(RESULTS.ResultError, 'protected metadata workflow'):
+                self.verify()
+            self.base_tree[path] = old
+
+    def test_first_workflow_activation_requires_both_real_original_languages_and_protected_templates(self):
+        self.base_tree[RESULTS.WORKFLOW]['sha'] = CODEQL._PINNED_RESULTS_WORKFLOW
+        del self.base_tree[self.A.METADATA_WORKFLOW]
+        self.jobs[12].append({**deepcopy(self.jobs[12][1]), 'id': 82, 'name': 'CodeQL (javascript-typescript)',
+                             'check_run_url': f'https://api.github.com/{RESULTS.PREFIX}/check-runs/82'})
+        self.analyses.append({**deepcopy(self.analyses[0]), 'id': 92, 'category': '/language:javascript-typescript',
+                              'environment': '{"language":"javascript-typescript"}'})
+        result = self.verify()
+        self.assertEqual(result['languages'], list(CODEQL.LANGUAGES))
+        self.assertEqual({x['id'] for x in result['analyses']}, {91, 92})
+        self.base_tree['tools/repository-checks/workflows/metadata-edits/codeql-metadata.yml'] = entry('9')
+        with self.assertRaisesRegex(RESULTS.ResultError, 'protected metadata workflow'): self.verify()
+
+    def test_query_configuration_cannot_be_authorized_by_conservative_full_language_selection(self):
+        path = '.github/codeql/codeql-config.yml'
+        for side in ('base', 'candidate'):
+            tree = self.base_tree if side == 'base' else self.candidate_tree
+            previous = tree[path]
+            tree[path] = entry('9')
+            with self.subTest(side=side), self.assertRaisesRegex(RESULTS.ResultError, 'analysis configuration'):
+                self.verify()
+            tree[path] = previous
+
+    def test_empty_language_set_still_needs_original_native_merge_pointer(self):
+        self.candidate_tree = deepcopy(self.base_tree)
+        self.jobs[12] = [self.jobs[12][0]]
+        self.analyses = []
+        self.assertEqual(self.verify()['languages'], [])
+        self.runs[12]['referenced_workflows'] = []
+        with self.assertRaisesRegex(RESULTS.ResultError, 'native merge source'): self.verify()
+
+    def test_native_leaf_bytes_are_authenticated_and_large_or_excessive_reads_stay_conservative(self):
+        for change in ('valid', 'forged', 'oversize', 'too-many'):
+            self.setUp()
+            self.candidate_tree = deepcopy(self.base_tree)
+            self.jobs[12], self.analyses = [self.jobs[12][0]], []
+            for index in range(33 if change == 'too-many' else 1):
+                path = f'native/Fixture{index}.cpp'
+                for tree, value in ((self.base_tree, index * 2), (self.candidate_tree, index * 2 + 1)):
+                    raw = f'int value = {value};\n'.encode()
+                    if change == 'oversize': raw += b' ' * 64_000
+                    oid = hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
+                    tree[path] = {'mode': '100644', 'type': 'blob', 'sha': oid}
+                    self.blobs[oid] = raw if change != 'forged' else b'int forged = 1;\n'
+            if change == 'valid': self.assertEqual(self.verify()['languages'], [])
+            else:
+                with self.subTest(change=change), self.assertRaises(ValueError): self.verify()
+            self.assertLessEqual(sum(call.startswith('immutable-blob/') for call in self.api.calls),
+                                 CODEQL._NATIVE_BLOB_COUNT)
+
+    def test_newer_ordinary_failure_pending_unknown_and_rerun_never_fall_back_to_green(self):
+        for status, conclusion, attempt in [('completed', 'failure', 1), ('queued', None, 1),
+                ('completed', 'success', 2), ('mystery', None, 1)]:
+            self.runs[14] = {**deepcopy(self.runs[12]), 'id': 14, 'run_started_at': '2026-10-15T21:02:00Z',
+                             'status': status, 'conclusion': conclusion, 'run_attempt': attempt}
+            self.jobs[14], self.artifacts[14] = [], []
+            with self.subTest(status=status, attempt=attempt), self.assertRaises(ValueError): self.verify()
+
+    def test_newest_ordinary_timestamp_ties_are_not_resolved_by_run_identity(self):
+        for status, conclusion in [('completed', 'success'), ('completed', 'failure'), ('in_progress', None)]:
+            self.runs[14] = {**deepcopy(self.runs[12]), 'id': 14, 'status': status, 'conclusion': conclusion}
+            self.jobs[14], self.artifacts[14] = [], []
+            with self.subTest(status=status, conclusion=conclusion), \
+                    self.assertRaisesRegex(RESULTS.ResultError, 'ordering is ambiguous'): self.verify()
+
+    def test_original_and_current_native_source_must_be_same_merge_not_just_same_head(self):
+        for run_id in (12, 13):
+            for change in ('missing', 'other-M', 'mixed', 'foreign'):
+                old = deepcopy(self.runs[run_id]['referenced_workflows'])
+                refs = self.runs[run_id]['referenced_workflows']
+                if change == 'missing': refs.clear()
+                elif change == 'other-M': refs[0]['sha'] = '8' * 40
+                elif change == 'mixed': refs.append(dict(refs[0], sha='8' * 40))
+                else: refs[0]['path'] = 'foreign/repo/.github/workflows/foreign.yml@' + 'c' * 40
+                with self.subTest(run_id=run_id, change=change), self.assertRaises(ValueError): self.verify()
+                self.runs[run_id]['referenced_workflows'] = old
+
+    def test_original_version_analysis_window_native_check_and_open_findings_remain_required(self):
+        for change in ('version', 'version-step', 'window', 'analysis-M', 'check', 'finding', 'extra-language'):
+            self.setUp()
+            if change == 'version': self.analyses[0]['tool']['version'] = '2.27.3'
+            elif change == 'version-step': self.jobs[12][1]['steps'].pop(0)
+            elif change == 'window': self.analyses[0]['created_at'] = '2026-10-15T21:03:00Z'
+            elif change == 'analysis-M': self.analyses[0]['commit_sha'] = '8' * 40
+            elif change == 'check':
+                self.api.mutate = lambda e, v: {**v, 'app': {'id': 42}} if e.endswith('/check-runs/81') else v
+            elif change == 'extra-language':
+                self.jobs[12].append({**deepcopy(self.jobs[12][1]), 'id': 82, 'name': 'CodeQL (javascript-typescript)'})
+            else:
+                self.alerts = [{'number': 9, 'state': 'open', 'tool': {'name': 'CodeQL'}}]
+                self.instances[9] = [{'ref': 'refs/pull/42/merge', 'commit_sha': 'c' * 40,
+                                     'category': '/language:python', 'state': 'open'}]
+            with self.subTest(change=change), self.assertRaises(ValueError): self.verify()
+
+    def test_incomplete_inventory_and_metadata_producer_or_artifact_never_qualify(self):
+        for change in ('truncated', 'producer', 'artifact', 'marker-skipped'):
+            self.setUp()
+            if change == 'truncated': self.inventory_total = 3
+            elif change == 'producer':
+                self.jobs[13].append({**deepcopy(self.jobs[13][0]), 'id': 141, 'name': 'CodeQL (python)'})
+            elif change == 'artifact': self.artifacts[13] = [{'id': 900, 'name': 'unrelated'}]
+            else: self.jobs[13][0]['steps'][0]['conclusion'] = 'skipped'
+            with self.subTest(change=change), self.assertRaises(ValueError): self.verify()
+
+    def test_final_bookends_reject_candidate_default_inventory_jobs_and_metadata_mutations(self):
+        for change in ('default', 'merge', 'run-inventory', 'metadata-job', 'analysis'):
+            self.setUp()
+            reads = 0
+            def mutate(endpoint, value):
+                nonlocal reads
+                suffix = {'default': '/git/ref/heads/main', 'merge': '/commits/refs/pull/42/merge',
+                          'run-inventory': '/actions/workflows/7/runs?',
+                          'metadata-job': '/actions/runs/13/attempts/1/jobs?',
+                          'analysis': '/code-scanning/analyses?'}[change]
+                if suffix in endpoint:
+                    reads += 1
+                    if reads == 2:
+                        if change == 'default': value['object']['sha'] = '8' * 40
+                        elif change == 'merge': value['sha'] = '8' * 40
+                        elif change == 'run-inventory': value['workflow_runs'][0]['updated_at'] = '2026-10-15T21:05:00Z'
+                        elif change == 'metadata-job': value['jobs'][0]['steps'][0]['number'] = 2
+                        else: value[0]['rules_count'] = 1
+                return value
+            self.api.mutate = mutate
+            with self.subTest(change=change), self.assertRaises(ValueError): self.verify()
 
 
 if __name__ == "__main__":

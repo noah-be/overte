@@ -56,7 +56,10 @@ class WorkflowGenerationTests(TemporaryGit, unittest.TestCase):
         # Immutable historical fixtures must survive later template edits and
         # remain available in shallow source snapshots without Git history.
         for oid in ('93f35c99ec6580b8796420997b1dcc586b7bfd95',
-                    '861db7b76a11b9b8772e91cb24ec7cb9d918e339'):
+                    '861db7b76a11b9b8772e91cb24ec7cb9d918e339',
+                    '6684e18785719813c51f9e3f5481a82ca40f0baf',
+                    '84d98cac819755f98eecffba847e0bbcf667a6ca',
+                    'c1d3d14a9098de214b6544dca8dcba0072090c6b'):
             self.assertIn(oid, self.contents)
             self.assertEqual(blob(self.contents[oid])['sha'], oid)
 
@@ -120,7 +123,7 @@ class WorkflowGenerationTests(TemporaryGit, unittest.TestCase):
         previous = next(g for g in self.generations if g['name'] == 'android-owned-npm5-sync-ci-v1')
         prospective = next(g for g in self.generations if g['name'] == 'protected-shared-producer-v1')
         self.assertEqual(set(prospective['workflows']), set(PACKAGES.CONSUMER_WORKFLOW_PATHS))
-        self.assertEqual(len(self.generations), 19)
+        self.assertEqual(len(self.generations), 20)
         for path in prospective['workflows']:
             if path not in {'.github/workflows/repository-checks.yml', '.github/workflows/project-tests.yml'}:
                 self.assertEqual(prospective['workflows'][path], previous['workflows'][path])
@@ -147,6 +150,52 @@ class WorkflowGenerationTests(TemporaryGit, unittest.TestCase):
             "repository": {"full_name": PACKAGES.REPOSITORY, "id": PACKAGES.REPOSITORY_ID},
             "generations": [forged]}).encode())
         with self.assertRaises(ValueError): PACKAGES.validate_wiring(root)
+
+    def test_metadata_generation_requires_the_complete_six_ordinary_immutable_entries(self):
+        generation = next(row for row in self.generations if row['name'] == 'protected-producer-metadata-ci-v1')
+        original = generation['workflows']
+        self.assertEqual(set(original), set(PACKAGES.METADATA_WORKFLOW_PATHS))
+        self.assertEqual(PACKAGES.validate_tree_wiring(original), generation['name'])
+        for path in original:
+            known_other = next(value for row in self.generations for value in row['workflows'].values()
+                               if value != original[path])
+            for change in ('missing', 'neighbor', 'mixed-known', 'executable', 'symlink', 'gitlink', 'unknown'):
+                tree = deepcopy(original)
+                if change == 'missing': del tree[path]
+                elif change == 'neighbor': tree[path + '.neighbor.yml'] = tree.pop(path)
+                elif change == 'mixed-known': tree[path] = deepcopy(known_other)
+                elif change == 'executable': tree[path]['mode'] = '100755'
+                elif change == 'symlink': tree[path]['mode'] = '120000'
+                elif change == 'gitlink': tree[path].update(mode='160000', type='commit')
+                else: tree[path]['sha'] = 'a' * 40
+                with self.subTest(path=path, change=change), self.assertRaises(ValueError):
+                    PACKAGES.validate_tree_wiring(tree)
+
+    def test_metadata_candidate_and_immutable_base_cannot_omit_or_alias_the_sixth_workflow(self):
+        generation = next(row for row in self.generations if row['name'] == 'protected-producer-metadata-ci-v1')
+        helper = '.github/workflows/pr-metadata-context.yml'
+        for change in ('valid', 'missing', 'mixed-known', 'executable', 'symlink'):
+            root = self.materialize(generation)
+            path = root / helper
+            if change == 'missing': path.unlink()
+            elif change == 'mixed-known': path.write_bytes(self.contents[self.generations[0]['workflows'][PACKAGES.WORKFLOW_PATHS[0]]['sha']])
+            elif change == 'executable': path.chmod(0o755)
+            elif change == 'symlink': path.unlink(); path.symlink_to(ROOT / PACKAGES.PRODUCER_TEMPLATE)
+            with self.subTest(change=change):
+                if change == 'valid':
+                    self.assertEqual(PACKAGES.validate_wiring(root), generation['name'])
+                    self.assertTrue(PACKAGES.consumer_generation(root))
+                else:
+                    with self.assertRaises(ValueError): PACKAGES.validate_wiring(root)
+                    with self.assertRaises(ValueError): PACKAGES.consumer_generation(root)
+        root = self.materialize(generation)
+        self.initialize(root)
+        self.git(root, 'add', '.')
+        self.git(root, 'commit', '-qm', 'Complete six-workflow immutable fixture')
+        self.assertTrue(PACKAGES.consumer_base(root, self.git(root, 'rev-parse', 'HEAD')))
+        self.git(root, 'rm', helper)
+        self.git(root, 'commit', '-qm', 'Missing sixth workflow immutable negative')
+        self.assertFalse(PACKAGES.consumer_base(root, self.git(root, 'rev-parse', 'HEAD')))
 
     def test_unrelated_source_and_sparse_candidate_do_not_change_generation_identity(self):
         root = self.materialize(self.generations[2])
@@ -294,6 +343,18 @@ class ProtectedProducerPermissionTests(unittest.TestCase):
         permissions = {'contents': 'read', 'actions': 'read', 'pull-requests': 'read', 'checks': 'read'}
         expected = deepcopy(old)
         expected['jobs']['project']['permissions'] = permissions
+        expected['jobs']['metadata-source'] = {
+            'name': 'Authenticate PR text edit',
+            'if': "github.event_name == 'pull_request' && github.base_ref == 'main' && github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)",
+            'uses': './.github/workflows/pr-metadata-context.yml',
+        }
+        route = expected['jobs']['route']
+        route['needs'] = 'metadata-source'
+        route['if'] = "always() && (needs.metadata-source.result == 'success' || needs.metadata-source.result == 'skipped')"
+        route['permissions'] = {'contents': 'read', 'actions': 'read', 'pull-requests': 'read'}
+        event = next(step for step in route['steps'] if step.get('id') == 'event')
+        event['env'] = {'GH_TOKEN': '${{ github.token }}',
+                        'NATIVE_METADATA_INTENT': '${{ needs.metadata-source.outputs.metadata_intent }}'}
         self.assertEqual(prospective, expected)
         self.assertEqual(prospective['permissions'], {'contents': 'read'})
         self.assertEqual(prospective['jobs']['project']['uses'], './.github/workflows/project-tests.yml')

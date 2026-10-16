@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dormant shared sandbox plans and supervisor controls, never reusable proof.
+"""Shared sandbox plans and supervisor controls, never reusable proof.
 
 The legacy execute/capture entrypoints cannot launch a production sandbox or
 issue an execution receipt. A bwrap exit is not proof that its PID namespace is
@@ -30,7 +30,7 @@ ROOT = Path(__file__).resolve().parents[2]
 POLICY = ".github/shared-sandbox.json"
 # Protected producer source capability only. The legacy entrypoints below stay
 # unavailable even after a separately reviewed activation of this capability.
-ACTIVATION_READY = False
+ACTIVATION_READY = True
 REQUIREMENTS = (
     "separate-host-uid-without-sudo",
     "mandatory-user-mount-pid-ipc-uts-network-namespaces",

@@ -535,6 +535,202 @@ class AdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(P.ProtocolError, "commitment"): self.verify()
 
 
+class MetadataFakeApi(FakeApi):
+    def json(self, endpoint):
+        path = endpoint[len(A.PREFIX):].lstrip("/").split("?", 1)[0]
+        trees = {
+            "3" * 40: [{"path": "tools", "mode": "040000", "type": "tree", "sha": "4" * 40}],
+            "4" * 40: [{"path": "repository-checks", "mode": "040000", "type": "tree", "sha": "5" * 40}],
+            "5" * 40: [{"path": "metadata_context.py", "mode": "100644", "type": "blob", "sha": "6" * 40}],
+        }
+        if path.startswith("git/trees/") and path.rsplit("/", 1)[1] in trees:
+            identity = path.rsplit("/", 1)[1]
+            self.calls.append(endpoint)
+            return self.mutate(endpoint, {"sha": identity, "truncated": False, "tree": deepcopy(trees[identity])})
+        return super().json(endpoint)
+
+
+class MetadataNonproducerTests(unittest.TestCase):
+    """Finite native classification fixtures are not hosted qualification proof."""
+    def setUp(self):
+        self.case = AdapterTests()
+        self.case.setUp()
+        c = self.case
+        c.generation = {**deepcopy(c.generation),
+            ".github/workflows/browser-client.yml": {"mode": "100644", "type": "blob", "sha": "1" * 40},
+            A.METADATA_WORKFLOW: {"mode": "100644", "type": "blob", "sha": "2" * 40}}
+        self.sources = {A.METADATA_SOURCE: {"mode": "100644", "type": "blob", "sha": "6" * 40}}
+        c.policy = replace(c.policy, metadata_generations={"metadata-v1": deepcopy(c.generation)},
+                           metadata_sources={"metadata-v1": self.sources})
+        c.originals[c.binding["base_sha"]] = ("3" * 40, ["7" * 40])
+        c.runs[101] = {**deepcopy(c.runs[100]), "id": 101, "check_suite_id": 1101,
+            "status": "in_progress", "conclusion": None, "run_started_at": "2026-10-15T10:04:00Z",
+            "referenced_workflows": [{"path": A.REPOSITORY + "/" + A.METADATA_WORKFLOW + "@" + c.binding["merge_sha"],
+                                      "sha": c.binding["merge_sha"], "ref": c.pp.workflow_ref}]}
+        c.jobs[101] = [{"id": 140, "run_id": 101, "run_attempt": 1, "head_sha": c.binding["head_sha"],
+            "name": A.METADATA_JOB, "status": "completed", "conclusion": "success",
+            "started_at": "2026-10-15T10:04:01Z", "completed_at": "2026-10-15T10:04:20Z",
+            "check_run_url": f"https://api.github.com/{A.PREFIX}/check-runs/140",
+            "steps": [{"number": 1, "name": A.METADATA_STEP, "status": "completed", "conclusion": "success",
+                       "started_at": "2026-10-15T10:04:02Z", "completed_at": "2026-10-15T10:04:19Z"}]}]
+        c.artifacts[101] = []
+        c.api = MetadataFakeApi(c)
+        c.adapter = A.Adapter(c.api)
+
+    def test_completed_native_marker_excludes_active_metadata_run_without_granting_a_result(self):
+        c = self.case
+        value = c.capture()
+        self.assertTrue(value.inventory_complete)
+        self.assertEqual([row.run.run_id for row in value.observations], [100])
+        self.assertEqual(set(value.metadata_nonproducers), {101})
+        marker = value.metadata_nonproducers[101]
+        self.assertEqual(marker["candidate"]["merge_sha"], c.binding["merge_sha"])
+        self.assertNotIn("verified", marker)
+        self.assertNotIn("environment", marker)
+        self.assertEqual(c.verify()["run_id"], 100)
+
+    def test_optional_policy_is_off_by_default_and_cannot_be_partial_or_arbitrary(self):
+        c = self.case
+        c.policy = replace(c.policy, metadata_generations=None, metadata_sources=None)
+        self.assertFalse(c.capture().inventory_complete)
+        self.setUp(); c = self.case
+        for shape in ("missing-sources", "missing-workflow", "extra-source", "alias", "duplicate-pair"):
+            policy = deepcopy(c.policy)
+            if shape == "missing-sources": policy = replace(policy, metadata_sources=None)
+            elif shape == "missing-workflow": policy.metadata_generations["metadata-v1"].pop(A.METADATA_WORKFLOW)
+            elif shape == "extra-source": policy.metadata_sources["metadata-v1"]["arbitrary.py"] = self.sources[A.METADATA_SOURCE]
+            elif shape == "alias": policy.metadata_sources["metadata-v1"][A.METADATA_SOURCE]["mode"] = "120000"
+            else:
+                policy.metadata_generations["duplicate"] = deepcopy(policy.metadata_generations["metadata-v1"])
+                policy.metadata_sources["duplicate"] = deepcopy(policy.metadata_sources["metadata-v1"])
+            with self.subTest(shape=shape), self.assertRaises(P.ProtocolError):
+                c.adapter.capture(17, c.plan, policy, now=NOW)
+
+    def test_missing_or_forged_source_marker_cannot_hide_an_unknown_run(self):
+        for shape in ("missing-edge", "wrong-edge", "duplicate-edge", "mixed-edge", "wrong-helper", "alias-parent",
+                      "wrong-caller", "foreign-head", "wrong-parents", "unknown-generation", "child-target"):
+            self.setUp(); c = self.case
+            if shape == "missing-edge": c.runs[101]["referenced_workflows"] = []
+            elif shape == "wrong-edge": c.runs[101]["referenced_workflows"][0]["sha"] = "8" * 40
+            elif shape == "duplicate-edge": c.runs[101]["referenced_workflows"] *= 2
+            elif shape == "mixed-edge": c.runs[101]["referenced_workflows"].append({"path": "other/repo/.github/workflows/x.yml@" + c.binding["merge_sha"], "sha": c.binding["merge_sha"], "ref": c.pp.workflow_ref})
+            elif shape == "wrong-helper":
+                c.api.mutate = lambda e,v: ({**v, "tree": [{**v["tree"][0], "sha": "9" * 40}]} if e.endswith("/git/trees/" + "5" * 40) else v)
+            elif shape == "alias-parent":
+                c.api.mutate = lambda e,v: ({**v, "tree": [{**v["tree"][0], "mode": "120000", "type": "blob"}]} if e.endswith("/git/trees/" + "4" * 40) else v)
+            elif shape == "wrong-caller": c.runs[101]["workflow_id"] = 98
+            elif shape == "foreign-head": c.runs[101]["head_repository"]["id"] = 123
+            elif shape == "wrong-parents":
+                c.api.mutate = lambda e,v: ({**v, "parents": list(reversed(v["parents"]))} if e.endswith("/git/commits/" + c.binding["merge_sha"]) else v)
+            elif shape == "unknown-generation": c.generation[A.METADATA_WORKFLOW]["sha"] = "9" * 40
+            else: c.binding["base_ref"] = "apple-ios"
+            with self.subTest(shape=shape):
+                # Direct classification avoids current() rejecting an intentionally
+                # malformed live fixture before the source-classification boundary.
+                try: marker = c.adapter._metadata_observation(c.runs[101], c.policy, c.binding, NOW)
+                except P.ProtocolError: marker = None
+                self.assertIsNone(marker)
+
+    def test_native_job_check_step_status_time_and_attempt_must_all_match(self):
+        for shape in ("pending-marker", "failed-step", "missing-step", "duplicate-step", "future-time",
+                      "wrong-app", "wrong-suite", "check-name", "check-status", "mixed-job", "rerun"):
+            self.setUp(); c = self.case
+            job = c.jobs[101][0]
+            if shape == "pending-marker": job.update(status="in_progress", conclusion=None, completed_at=None)
+            elif shape == "failed-step": job["steps"][0]["conclusion"] = "failure"
+            elif shape == "missing-step": job["steps"] = []
+            elif shape == "duplicate-step": job["steps"] *= 2
+            elif shape == "future-time": job["completed_at"] = "2026-10-15T12:00:00Z"
+            elif shape == "wrong-app": c.api.mutate = lambda e,v: ({**v, "app": {"id": 42}} if e.endswith("/check-runs/140") else v)
+            elif shape == "wrong-suite": c.api.mutate = lambda e,v: ({**v, "check_suite": {"id": 1111}} if e.endswith("/check-runs/140") else v)
+            elif shape == "check-name": c.api.mutate = lambda e,v: ({**v, "name": "forged"} if e.endswith("/check-runs/140") else v)
+            elif shape == "check-status": c.api.mutate = lambda e,v: ({**v, "conclusion": "failure"} if e.endswith("/check-runs/140") else v)
+            elif shape == "mixed-job": job["run_attempt"] = 2
+            else: c.runs[101]["run_attempt"] = 2
+            with self.subTest(shape=shape): self.assertFalse(c.capture().inventory_complete)
+
+    def test_any_producer_job_or_artifact_including_unrelated_or_duplicate_denies_exclusion(self):
+        for shape in ("descriptor", "shared", "publisher", "artifact", "unrelated", "duplicate"):
+            self.setUp(); c = self.case
+            if shape in {"descriptor", "shared", "publisher"}:
+                name = {"descriptor": c.policy.publisher_job, "shared": c.policy.owner_jobs["shared-host"],
+                        "publisher": c.policy.final_publisher_prefix + "a" * 64}[shape]
+                c.jobs[101].append({**deepcopy(c.jobs[101][0]), "id": 141, "name": name,
+                                   "status": "queued", "conclusion": None, "started_at": None, "completed_at": None})
+            else:
+                c.artifacts[101] = [{"id": 1011, "name": "unrelated" if shape == "unrelated" else "ci-descriptor-101-1"}]
+                if shape == "duplicate": c.artifacts[101].append({"id": 1012, "name": "ci-descriptor-101-1"})
+            with self.subTest(shape=shape):
+                value = c.capture()
+                self.assertFalse(value.inventory_complete)
+                self.assertNotIn(101, value.metadata_nonproducers)
+
+    def test_metadata_marker_does_not_replace_pending_or_failed_real_producer(self):
+        for status, conclusion, expected in (("in_progress", None, "pending"), ("completed", "failure", "failed")):
+            self.setUp(); c = self.case
+            c.runs[100].update(status=status, conclusion=conclusion)
+            self.assertEqual(c.authority()["state"], expected)
+            with self.assertRaises(P.ProtocolError): c.verify()
+
+    def test_skipped_metadata_edge_preserves_ordinary_proof_and_failure_before_shared_work(self):
+        c = self.case
+        c.runs[100]["referenced_workflows"].extend(deepcopy(c.runs[101]["referenced_workflows"]))
+        skipped = {**deepcopy(c.jobs[101][0]), "id": 142, "run_id": 100,
+                   "status": "completed", "conclusion": "skipped", "started_at": None,
+                   "completed_at": None, "steps": [],
+                   "check_run_url": f"https://api.github.com/{A.PREFIX}/check-runs/142"}
+        c.jobs[100].append(skipped)
+        self.assertEqual(c.verify()["run_id"], 100)
+        # An ordinary failure after its descriptor but before shared execution
+        # still classifies through the producer path, never as a metadata run.
+        c.runs[100].update(status="completed", conclusion="failure")
+        c.jobs[100] = [job for job in c.jobs[100] if job["name"] in {c.policy.publisher_job, A.METADATA_JOB}]
+        self.assertEqual(c.authority()["state"], "failed")
+        with self.assertRaises(P.ProtocolError): c.verify()
+
+    def test_metadata_jobs_and_artifacts_are_rechecked_inside_each_capture(self):
+        for shape in ("producer-job", "artifact"):
+            self.setUp(); c = self.case
+            reads = 0
+            def mutate(endpoint, value):
+                nonlocal reads
+                suffix = "/actions/runs/101/attempts/1/jobs?" if shape == "producer-job" else "/actions/runs/101/artifacts?"
+                if suffix in endpoint:
+                    reads += 1
+                    if reads == 2:
+                        field = "jobs" if shape == "producer-job" else "artifacts"
+                        item = {**deepcopy(c.jobs[101][0]), "id": 141, "name": c.policy.owner_jobs["shared-host"]} if field == "jobs" else {"id": 1011, "name": "ci-aggregate-101-1"}
+                        value[field].append(item); value["total_count"] += 1
+                return value
+            c.api.mutate = mutate
+            with self.subTest(shape=shape): self.assertFalse(c.capture().inventory_complete)
+
+    def test_metadata_snapshot_must_also_match_across_aggregate_verification(self):
+        c = self.case
+        reads = 0
+        def mutate(endpoint, value):
+            nonlocal reads
+            if "/actions/runs/101/attempts/1/jobs?" in endpoint:
+                reads += 1
+                if reads >= 3: value["jobs"][0]["steps"][0]["number"] = 2
+            return value
+        c.api.mutate = mutate
+        with self.assertRaisesRegex(P.ProtocolError, "metadata non-producer inventory changed"):
+            c.verify()
+
+    def test_separate_codeql_caller_uses_typed_two_workflow_policy_without_producer_facts(self):
+        c = self.case
+        path = ".github/workflows/codeql.yml"
+        c.generation[path] = {"mode": "100644", "type": "blob", "sha": "9" * 40}
+        policy = A.MetadataPolicy(77, path, {"metadata-v1": {p: c.generation[p] for p in (path, A.METADATA_WORKFLOW)}},
+                                  {"metadata-v1": self.sources})
+        c.runs[101].update(path=path, workflow_id=77)
+        marker = c.adapter.metadata_observation(c.runs[101], c.binding, policy, now=NOW)
+        self.assertEqual(marker["generation"], "metadata-v1")
+        c.jobs[101].append({**deepcopy(c.jobs[101][0]), "id": 141, "name": "CodeQL (python)", "status": "queued", "conclusion": None})
+        self.assertIsNone(c.adapter.metadata_observation(c.runs[101], c.binding, policy, now=NOW))
+
+
 class IntegratedFakeApi(FakeApi):
     """Closed PR metadata survives deletion; no live topic/PR merge ref exists."""
     def detail(self, number):
@@ -1136,10 +1332,10 @@ class MainConsumerTests(unittest.TestCase):
         self.registry = old.registry
         self.tree = deepcopy(old.tree)
         generations = json.loads((postmerge.ROOT / '.github/package-workflow-generations.json').read_text())['generations']
-        self.generation_name = getattr(self,'generation_name','protected-producer-ci37-v1')
+        self.generation_name = getattr(self,'generation_name','protected-producer-metadata-ci-v1')
         generation = next(item for item in generations if item['name'] == self.generation_name)
         self.generations = {item['name']:deepcopy(item['workflows']) for item in generations}
-        if self.generation_name == 'protected-producer-ci37-v1':
+        if self.generation_name == 'protected-producer-metadata-ci-v1':
             # Derive the actual prospective native tuple from its reviewed
             # sources. A stale hard-coded historical tuple must not hide a
             # missing admission of the installed producer generation.
@@ -1147,7 +1343,8 @@ class MainConsumerTests(unittest.TestCase):
                 '.github/workflows/repository-checks.yml':'tools/repository-checks/workflows/producers/repository-checks.yml',
                 '.github/workflows/parent-qualification.yml':postmerge.TEMPLATE,
                 '.github/workflows/sync-validation.yml':'.github/workflows/sync-validation.yml',
-                '.github/workflows/browser-client.yml':'.github/workflows/browser-client.yml'}
+                '.github/workflows/browser-client.yml':'.github/workflows/browser-client.yml',
+                A.METADATA_WORKFLOW:'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml'}
             workflows={}
             for target,relative in sources.items():
                 path=postmerge.ROOT/relative
@@ -1254,9 +1451,9 @@ class MainConsumerTests(unittest.TestCase):
             self.case.aggregate,self.case.artifacts,self.case.archives = original
 
     def test_current_canonical_producer_generation_reaches_original_native_commitment(self):
-        self.assertEqual(self.real_package.validate_tree_wiring(self.tree),'protected-producer-ci37-v1')
+        self.assertEqual(self.real_package.validate_tree_wiring(self.tree),'protected-producer-metadata-ci-v1')
         self.assertEqual(self.tree['.github/workflows/project-tests.yml']['sha'],
-                         self.generations['protected-producer-ci37-v1']['.github/workflows/project-tests.yml']['sha'])
+                         self.generations['protected-producer-metadata-ci-v1']['.github/workflows/project-tests.yml']['sha'])
         value=self.lookup()
         self.assertTrue(value['reused'],value)
         proof=value['proof']
@@ -1372,7 +1569,7 @@ class MainCI37ConsumerTests(unittest.TestCase):
                                      object_pairs_hook=C.inputs._unique_object)
         self.registry.clear(); self.registry.update(actual_registry)
         workflow_entries = {path:deepcopy(self.tree[path]) for path in (*A.WORKFLOWS,
-            '.github/workflows/browser-client.yml', C.TEMPLATE)}
+            '.github/workflows/browser-client.yml', A.METADATA_WORKFLOW, C.TEMPLATE)}
         # This is the complete inventory of a small fake repository, carrying
         # every real definition's required leaf. No sparse inventory is admitted
         # as a production tree and no real checkout is executed by these tests.
@@ -1557,7 +1754,7 @@ class MainCI37ConsumerTests(unittest.TestCase):
 
 class MainConsumerSourceTests(unittest.TestCase):
     def test_previous_complete_consumer_generations_remain_reusable(self):
-        for generation in ('postmerge-original-e-v1','protected-producer-postmerge-original-e-v1'):
+        for generation in ('postmerge-original-e-v1','protected-producer-postmerge-original-e-v1','protected-producer-ci37-v1'):
             fixture=MainConsumerTests();fixture.generation_name=generation
             try:
                 fixture.setUp()
@@ -1670,14 +1867,26 @@ class MainConsumerSourceTests(unittest.TestCase):
             changed=['.github/workflows/parent-qualification.yml']
             if after in {'protected-producer-postmerge-original-e-v1','protected-producer-ci37-v1'}:
                 changed.insert(0,'.github/workflows/project-tests.yml')
-                source = (C.ROOT/'tools/repository-checks/workflows/producers/legacy/protected-project-tests-postmerge-v1.yml'
-                          if after=='protected-producer-postmerge-original-e-v1' else C.ROOT/C.producer.TEMPLATE)
-                project_blob=subprocess.check_output(['git','hash-object','--stdin'],input=source.read_bytes()).decode().strip()
                 if after=='protected-producer-postmerge-original-e-v1':
+                    source=C.ROOT/'tools/repository-checks/workflows/producers/legacy/protected-project-tests-postmerge-v1.yml'
+                    project_blob=subprocess.check_output(['git','hash-object','--stdin'],input=source.read_bytes()).decode().strip()
                     self.assertEqual(project_blob,'861db7b76a11b9b8772e91cb24ec7cb9d918e339')
+                else:
+                    # Historical generations keep their reviewed bytes when the
+                    # current dormant template gains a new execution reader.
+                    project_blob='c1d3d14a9098de214b6544dca8dcba0072090c6b'
                 self.assertEqual(current[after]['.github/workflows/project-tests.yml']['sha'],project_blob)
             self.assertEqual([p for p in current[after] if current[after][p]!=current[before][p]],changed)
-            self.assertEqual(current[after]['.github/workflows/parent-qualification.yml']['sha'],blob)
+            self.assertEqual(current[after]['.github/workflows/parent-qualification.yml']['sha'],
+                             '84d98cac819755f98eecffba847e0bbcf667a6ca')
+        latest=current['protected-producer-metadata-ci-v1']
+        self.assertEqual(latest['.github/workflows/parent-qualification.yml']['sha'],blob)
+        for active,template in (
+                ('.github/workflows/project-tests.yml',C.producer.TEMPLATE),
+                ('.github/workflows/pr-metadata-context.yml',
+                 'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml')):
+            actual=subprocess.check_output(['git','hash-object','--stdin'],input=(C.ROOT/template).read_bytes()).decode().strip()
+            self.assertEqual(latest[active]['sha'],actual)
 
     def test_disabled_cli_has_zero_api_and_writes_no_shared_pass_or_legacy_receipt(self):
         import postmerge as C
@@ -1690,6 +1899,279 @@ class MainConsumerSourceTests(unittest.TestCase):
                 self.assertEqual(C.main(['--report',str(report)]),0)
             self.assertEqual(output.read_text(),'shared_reused=false\npackage_work=true\n')
             self.assertEqual(json.loads(report.read_text()),{'reused':False,'reason':'protected-consumer-not-qualified'})
+
+
+class MetadataRetentionConsumerTests(unittest.TestCase):
+    """Actual retention/API/receipt validators over a small fake-native source.
+
+    The two-suite registry and local controller/runtime admission are fixtures,
+    not a complete shipping inventory or hosted qualification. Routing, tuple
+    admission, metadata classification, native checker facts and whole-receipt
+    verification remain real. No consumer environment or workload is created.
+    """
+    class SourceApi(FakeApi):
+        def source_tree(self, identity):
+            case = self.case
+            nodes = {}
+            for root, source in (("6" * 40, case.previous), (case.binding["merge_tree"], case.tree)):
+                directories = {"": root}
+                for path in source:
+                    pieces = path.split("/")
+                    for size in range(1, len(pieces)):
+                        prefix = "/".join(pieces[:size])
+                        directories[prefix] = hashlib.sha1((root + ":" + prefix).encode()).hexdigest()
+                for prefix, oid in directories.items():
+                    entries = []
+                    for child, child_oid in directories.items():
+                        if child and child.rpartition("/")[0] == prefix:
+                            entries.append({"path": child.rsplit("/", 1)[-1], "mode": "040000",
+                                            "type": "tree", "sha": child_oid})
+                    entries.extend({"path": path.rsplit("/", 1)[-1], **entry}
+                                   for path, entry in source.items() if path.rpartition("/")[0] == prefix)
+                    nodes[oid] = {"sha": oid, "truncated": False, "tree": entries}
+            return nodes.get(identity)
+
+        def json(self, endpoint):
+            path = endpoint[len(A.PREFIX):].lstrip("/").split("?", 1)[0]
+            if path == "actions/workflows/repository-checks.yml":
+                self.calls.append(endpoint)
+                return self.mutate(endpoint, {"id": 99, "path": ".github/workflows/repository-checks.yml"})
+            if path.startswith("git/trees/"):
+                value = self.source_tree(path.rsplit("/", 1)[-1])
+                if value is not None:
+                    self.calls.append(endpoint)
+                    return self.mutate(endpoint, deepcopy(value))
+            return super().json(endpoint)
+
+        def immutable_tree(self, identity):
+            self.case.assertion(identity in {"6" * 40, self.case.binding["merge_tree"]})
+            source = self.case.previous if identity == "6" * 40 else self.case.tree
+            endpoint = A.PREFIX + "/git/trees/" + identity + "?recursive=1"
+            self.calls.append(endpoint)
+            return self.mutate(endpoint, {"sha": identity, "truncated": False,
+                "tree": [{"path": path, **entry} for path, entry in source.items()]})
+
+        def immutable_blob(self, identity):
+            raise AssertionError("the full-profile fixture does not read data-admission blobs")
+
+    def setUp(self):
+        import postmerge as C
+        from types import SimpleNamespace
+        self.module = C
+        self.case = AdapterTests(); self.case.setUp()
+        c = self.case
+        self.registry = deepcopy(c.context.registry)
+        c.assertion = self.assertTrue
+        c.originals[c.binding["base_sha"]] = ("6" * 40, ["7" * 40])
+        real_host = C.producer._host_policy()
+        real_package = real_host.package_policy()
+        generations = real_package.workflow_generations()
+        self.assertEqual(len(generations), 20)
+        generation = next(row for row in generations if row["name"] == "protected-producer-metadata-ci-v1")
+        sources = {".github/workflows/project-tests.yml": C.producer.TEMPLATE,
+            ".github/workflows/repository-checks.yml": "tools/repository-checks/workflows/producers/repository-checks.yml",
+            ".github/workflows/parent-qualification.yml": C.TEMPLATE,
+            ".github/workflows/sync-validation.yml": ".github/workflows/sync-validation.yml",
+            ".github/workflows/browser-client.yml": ".github/workflows/browser-client.yml",
+            A.METADATA_WORKFLOW: "tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml"}
+        def blob(relative):
+            path = C.ROOT / relative
+            self.assertFalse(path.is_symlink())
+            self.assertEqual(path.stat().st_mode & 0o777, 0o644)
+            raw = path.read_bytes()
+            return {"mode": "100644", "type": "blob",
+                    "sha": hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()}
+        workflows = {path: blob(relative) for path, relative in sources.items()}
+        self.assertEqual(workflows, generation["workflows"])
+        c.tree = {**deepcopy(c.context.tree), **workflows,
+            C.producer.TEMPLATE: workflows[".github/workflows/project-tests.yml"],
+            sources[A.METADATA_WORKFLOW]: workflows[A.METADATA_WORKFLOW],
+            A.METADATA_SOURCE: blob(A.METADATA_SOURCE),
+            ".github/test-suites.json": {"mode": "100644", "type": "blob", "sha": "1" * 40},
+            "tests/platform-profile.json": {"mode": "100644", "type": "blob", "sha": "2" * 40},
+            ".github/branch-cleanup.json": {"mode": "100644", "type": "blob", "sha": "3" * 40}}
+        for path in C._METADATA_OUTER_RECIPES:
+            c.tree[path] = blob(path)
+        c.previous = deepcopy(c.tree)
+        c.tree[".github/branch-cleanup.json"]["sha"] = "4" * 40
+        repository = {"full_name": A.REPOSITORY, "id": 1319052603}
+        self.event = {"action": "edited", "number": 17, "repository": repository,
+            "changes": {"title": {"from": "Previous title"}},
+            "pull_request": {"number": 17, "state": "open", "title": "Current title",
+                **{side: {"repo": deepcopy(repository), "ref": c.binding[side + "_ref"],
+                           "sha": c.binding[side + "_sha"]} for side in ("base", "head")}}}
+        self.environment = {"GITHUB_JOB": "route"}
+        native = {"number": 17, "run_id": 101, "merge": c.binding["merge_sha"], "base": c.binding["base_sha"]}
+        helper = SimpleNamespace(SOURCE_READY=True, native=lambda *args, **kwargs: deepcopy(native))
+        package = SimpleNamespace(validate_tree_wiring=real_package.validate_tree_wiring,
+            workflow_generations=real_package.workflow_generations, load=real_package.load,
+            select=real_package.select, tools=real_package.tools, S3=real_package.S3, BROWSER=real_package.BROWSER,
+            _trusted_bytes=lambda name, **kwargs: b'{"schema":1,"platform":"shared","suites":[]}'
+                if name == "tests/platform-profile.json" else real_package._trusted_bytes(name, **kwargs))
+        policy = SimpleNamespace(package_policy=lambda: package, ci_owned=real_host.ci_owned)
+        self.selected = {"profile": C.producer.FULL_PROFILE, "suites": list(self.registry["suites"]),
+            "selection": {"suites": list(self.registry["suites"]), "full_host": True,
+                "include_platform": False, "reason": "fixture-complete-full-owner"}}
+        self.api = self.SourceApi(c); self.adapter = A.Adapter(self.api)
+        self.controller = c.pp.controller_digest
+        self.patches = [patch.object(C, "_source_qualified", return_value=True),
+            patch.object(C, "_metadata_module", return_value=helper),
+            patch.object(C.execution, "checkout_identity", return_value=(c.binding["base_sha"], "6" * 40)),
+            patch.object(C.inputs, "full_tree", side_effect=lambda *args: deepcopy(c.previous)),
+            patch.object(C.inputs, "load_registry", return_value=self.registry),
+            patch.object(C.producer, "_host_policy", return_value=policy),
+            patch.object(C.producer, "selection_profile", return_value=self.selected),
+            patch.object(C, "original_controller", return_value=self.controller),
+            patch.object(C.sandbox, "contract", return_value={"digest": c.pp.runtime_contract}),
+            patch.object(C.attested, "validate_environment", return_value={"environment_digest": "sha256:" + "1" * 64}),
+            patch.object(C.execution, "capture_execution_environment", side_effect=AssertionError("unused consumer E")),
+            patch.object(C.execution, "execute", side_effect=AssertionError("no metadata workload"))]
+        for item in self.patches:
+            item.start(); self.addCleanup(item.stop)
+        c.plan, c.policy = C._policy(policy, self.registry, c.binding, self.controller, self.adapter, C.ROOT,
+                                    self.selected["selection"])
+        c.pp = c.policy.producer
+        c.generation = {path: c.tree[path] for path in A.WORKFLOWS}
+        self.git = C.producer.expected_git_context(self.adapter, c.binding)
+        self.receipt = deepcopy(c.aggregate["results"]["shared-host"]["receipt"])
+        self.receipt.update(schema=3, git_context=self.git, environment=FIXTURES.isolated_codec_environment())
+        self.receipt["results"] = {name: {"status": "passed", "fingerprint": P.inputs.suite_fingerprint(
+            self.registry, name, c.tree, self.receipt["environment"])} for name in self.registry["suites"]}
+        self.receipt = FIXTURES.signed(self.receipt, "receipt_digest")
+        c.aggregate["results"]["shared-host"]["receipt"] = self.receipt
+        old = FIXTURES.ProducerProtocolTests(); old.setUp()
+        self.run = replace(old.run, workflow_path=c.pp.workflow_path, workflow_blob=c.pp.workflow_blob,
+            workflow_commit=c.binding["merge_sha"], workflow_ref=c.pp.workflow_ref, event="pull_request",
+            final_publisher=replace(old.run.final_publisher,
+                receipt_sha256=hashlib.sha256(P.canonical(self.receipt)).hexdigest()))
+        c.aggregate["descriptor_digest"] = P.descriptor(c.binding, c.plan, c.pp, self.run)["descriptor_digest"]
+        c.aggregate = FIXTURES.signed(c.aggregate, "aggregate_digest")
+        c.add_run(self.run)
+        for index, name in enumerate(("native", "android", "project / tool-dependencies", "project / package-checks"), 150):
+            c.jobs[100].append(self.job(index, 100, name, skipped=True))
+        for index, (path, (name, steps)) in enumerate(C._METADATA_OUTER_RECIPES.items(), 160):
+            c.jobs[100].append(self.job(index, 100, name, steps=steps))
+            c.runs[100]["referenced_workflows"].append(self.reference(path))
+        c.runs[101] = {**deepcopy(c.runs[100]), "id": 101, "check_suite_id": 1101,
+            "status": "in_progress", "conclusion": None, "run_started_at": "2026-10-15T10:04:00Z",
+            "referenced_workflows": [self.reference(A.METADATA_WORKFLOW)]}
+        c.jobs[101] = [self.job(140, 101, A.METADATA_JOB, steps=(A.METADATA_STEP,), late=True)]
+        c.artifacts[101] = []
+
+    def reference(self, path):
+        return {"path": A.REPOSITORY + "/" + path + "@" + self.case.binding["merge_sha"],
+                "sha": self.case.binding["merge_sha"], "ref": self.case.pp.workflow_ref}
+
+    def job(self, identity, run, name, *, skipped=False, steps=(), late=False):
+        start, end = ("2026-10-15T10:04:01Z", "2026-10-15T10:04:20Z") if late else (
+            "2026-10-15T10:02:00Z", "2026-10-15T10:03:00Z")
+        return {"id": identity, "run_id": run, "run_attempt": 1, "head_sha": self.case.binding["head_sha"],
+            "name": name, "status": "completed", "conclusion": "skipped" if skipped else "success",
+            "started_at": None if skipped else start, "completed_at": None if skipped else end,
+            "check_run_url": f"https://api.github.com/{A.PREFIX}/check-runs/{identity}",
+            "steps": [{"number": number, "name": label, "status": "completed", "conclusion": "success",
+                       "started_at": start, "completed_at": end} for number, label in enumerate(steps, 1)]}
+
+    def verify(self, *, clock=lambda: NOW):
+        return self.module.verify_metadata(self.event, self.environment, self.adapter, clock=clock)
+
+    def test_same_m_retains_original_e_native_receipt_and_actual_checker_jobs_without_execution(self):
+        C = self.module
+        with patch.object(C, "metadata_selection", wraps=C.metadata_selection) as selection, \
+                patch.object(C, "metadata_outer_jobs", wraps=C.metadata_outer_jobs) as outer, \
+                patch.object(self.adapter, "verify", wraps=self.adapter.verify) as original:
+            value = self.verify()
+        self.assertEqual(selection.call_count, 1)
+        self.assertEqual(outer.call_count, 2)
+        self.assertEqual(original.call_count, 1)
+        self.assertEqual(outer.call_args.args[5], "true")
+        self.assertEqual(value["metadata_only"], "true")
+        self.assertIs(value["qualification"], False)
+        self.assertEqual(value["executed_suites"], [])
+        self.assertEqual(value["retained_suites"], list(self.registry["suites"]))
+        self.assertEqual(set(value["retained_checker_jobs"]), set(C._METADATA_OUTER_RECIPES))
+        proof = value["original_proof"]
+        self.assertTrue(proof["verified"])
+        self.assertEqual(proof["run_id"], 100)
+        self.assertEqual(proof["receipt_sha256"], hashlib.sha256(P.canonical(self.receipt)).hexdigest())
+        self.assertEqual(proof["expires_at"], self.case.aggregate["expires_at"])
+        self.assertEqual(proof["source_chain"]["producer_commit"], self.case.binding["merge_sha"])
+        self.assertEqual(C.attested.validate_environment.call_args.args[0], self.receipt["environment"])
+        C.execution.capture_execution_environment.assert_not_called()
+        C.execution.execute.assert_not_called()
+
+    def test_failed_docs_or_security_command_cannot_be_retained(self):
+        for path, (name, _) in self.module._METADATA_OUTER_RECIPES.items():
+            job = next(row for row in self.case.jobs[100] if row["name"] == name)
+            job["steps"][0]["conclusion"] = "failure"
+            with self.subTest(path=path), self.assertRaisesRegex(P.ProtocolError, "checker command"):
+                self.verify()
+            job["steps"][0]["conclusion"] = "success"
+
+    def test_executed_external_owner_or_package_delta_is_not_metadata_retention(self):
+        c = self.case
+        for name in ("native", "android", "project / tool-dependencies", "project / package-checks"):
+            job = next(row for row in c.jobs[100] if row["name"] == name)
+            before = deepcopy(job)
+            job.update(conclusion="success", started_at="2026-10-15T10:02:00Z", completed_at="2026-10-15T10:03:00Z")
+            with self.subTest(owner=name), self.assertRaisesRegex(P.ProtocolError, "executed external owner"):
+                self.verify()
+            job.clear(); job.update(before)
+        path = "script-archive/marketplace/S3Server/package-lock.json"
+        c.previous[path] = {"mode": "100644", "type": "blob", "sha": "5" * 40}
+        c.tree[path] = {"mode": "100644", "type": "blob", "sha": "6" * 40}
+        with self.assertRaisesRegex(P.ProtocolError, "CI-owned|package/tool"):
+            self.verify()
+
+    def test_missing_metadata_marker_and_pending_real_producer_never_retain_success(self):
+        references = self.case.runs[101]["referenced_workflows"]
+        self.case.runs[101]["referenced_workflows"] = []
+        with self.assertRaisesRegex(P.ProtocolError, "authenticated one-way"):
+            self.verify()
+        self.case.runs[101]["referenced_workflows"] = references
+        marker = self.case.jobs[101][0]
+        marker["steps"][0]["conclusion"] = "failure"
+        with self.assertRaisesRegex(P.ProtocolError, "authenticated one-way"):
+            self.verify()
+        marker["steps"][0]["conclusion"] = "success"
+        self.case.runs[100].update(status="in_progress", conclusion=None)
+        with self.assertRaisesRegex(P.ProtocolError, "newest original producer"):
+            self.verify()
+
+    def test_resigned_original_e_cannot_change_native_whole_receipt_commitment(self):
+        changed = deepcopy(self.receipt)
+        changed["environment"]["prepared"]["roots"][self.module.inputs.ISOLATED_CACERTS] = "sha256:" + "b" * 64
+        changed["results"] = {name: {"status": "passed", "fingerprint": P.inputs.suite_fingerprint(
+            self.registry, name, self.case.tree, changed["environment"])} for name in self.registry["suites"]}
+        self.case.aggregate["results"]["shared-host"]["receipt"] = FIXTURES.signed(changed, "receipt_digest")
+        self.case.aggregate = FIXTURES.signed(self.case.aggregate, "aggregate_digest")
+        self.case.artifacts[100] = self.case.artifacts[100][:1]
+        self.case.artifact(self.run, "aggregate", self.case.aggregate)
+        with self.assertRaisesRegex(P.ProtocolError, "native|receipt"):
+            self.verify()
+
+    def test_final_trusted_source_and_expiry_are_bookended_after_original_verification(self):
+        C, c = self.module, self.case
+        with patch.object(C.execution, "checkout_identity", side_effect=(
+                (c.binding["base_sha"], "6" * 40), ("9" * 40, "6" * 40))), \
+                patch.object(self.adapter, "verify", wraps=self.adapter.verify) as original:
+            with self.assertRaisesRegex(P.ProtocolError, "actual trusted controller"):
+                self.verify()
+            self.assertEqual(original.call_count, 1)
+        expired = False
+        reads = 0
+        def controller(*args, **kwargs):
+            nonlocal expired, reads
+            reads += 1
+            if reads == 2:
+                expired = True
+            return self.controller
+        with patch.object(C, "original_controller", side_effect=controller), \
+                patch.object(self.adapter, "verify", wraps=self.adapter.verify) as original:
+            with self.assertRaisesRegex(P.ProtocolError, "actual trusted controller"):
+                self.verify(clock=lambda: P._time(c.aggregate["expires_at"]) if expired else NOW)
+            self.assertEqual(original.call_count, 1)
+            self.assertEqual(reads, 2)
 
 
 if __name__ == "__main__":

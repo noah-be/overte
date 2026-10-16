@@ -494,8 +494,10 @@ no revision, suite list, command or environment input. Only its own immutable
 protected-main source executes, using the streamed snapshot and its explicit
 shallow commit/ordered-parent context. Matching the canonical depth-2 checkout,
 only the target and its at most seven immediate ordered parents enter the private
-Git store; missing grandparents remain explicit shallow boundaries. The ordinary production executor,
-post-capture and all reuse/Android activation guards remain disabled.
+Git store; missing grandparents remain explicit shallow boundaries. Legacy
+execution and post-capture remain disabled. The separate protected source capabilities
+permit a controlled native attempt only after the reviewed workflow installation;
+the deployed legacy owners do not invoke them. Android activation remains disabled.
 
 The shared-host adapter calls the existing trusted process controller with the
 complete common registry commands, preserving QML assertions and the 900-second
@@ -589,7 +591,8 @@ the existing mandatory nonreusable path selected; a started suite failure,
 cancellation, timeout or changed post-execution environment cannot retry through
 that path. Reports and command files stay outside candidate mounts, and only
 the finished receipt becomes upload-readable after all scopes are empty.
-Production guards remain false; approved dormant wiring grants no execution or reuse authority.
+The reviewed protected source capabilities and isolated policy permit a controlled
+first native attempt. They supply no successful admission, execution or publisher.
 Actual boundary/full-profile qualification, exact protected generation and
 runtime-epoch deployment, native publisher qualification, Qt-free reusable
 environment support and post-merge/child consumers remain incomplete. Offline
@@ -598,8 +601,9 @@ fixtures establish none of those hosted qualifications.
 The prospective main-only parent consumer is
 [`producers/parent-qualification.yml`](../tools/repository-checks/workflows/producers/parent-qualification.yml),
 with its trusted implementation in
-[`postmerge.py`](../tools/test-evidence/postmerge.py). Its source guard remains
-false. It looks up the exact current protected push before candidate checkout
+[`postmerge.py`](../tools/test-evidence/postmerge.py). Its source capability is
+enabled, while the deployed legacy parent does not invoke it. It looks up the
+exact current protected push before candidate checkout
 or tool setup. Missing, stale, pending, failed, ambiguous, foreign or unsupported
 proof leaves the existing actual test path selected once. The helper executes
 no tests, retries no failed execution and captures no unused consumer runtime.
@@ -620,24 +624,24 @@ reconstructs that identity from the original protected base only when all its
 ordinary source/policy/template entries equal current reviewed immutable bytes;
 it never executes historical Python or trusts a receipt's claimed policy root.
 This is a new controller epoch. Earlier producer generations cannot supply its
-proof. The isolated `/work` safe-directory runtime variant has a separate false
-source capability, preserving legacy runtime admission unchanged.
+proof. The isolated `/work` safe-directory runtime variant has a separate enabled
+source capability; legacy runtime admission remains unavailable and unchanged.
 
 The additive complete five-workflow generations permit installing this parent
 while either the legacy or protected project owner is present. All 18 protected
 previous generations remain valid, alongside the new CI37 producer tuple. The later protected-owner installation
 still changes exactly its caller and callee and retains the approved parent.
-The active manual diagnostic matches its canonical source; production reuse
-remains disabled. Hosted boundary,
+The active manual diagnostic matches its canonical source. The actual protected
+producer/consumer endpoints are not installed. Hosted boundary,
 full-profile and final-publisher qualification, the protected runtime epoch and
-reviewed source activation are required before either producer or consumer can
+the exact reviewed workflow installation are required before either producer or consumer can
 authorize reuse. Child consumers remain separate work. A successful lookup
 with no affected package inputs skips candidate
 checkout and Node/Qt setup; affected independent package owners still execute.
 
 The separate source-only CI37 profile is prepared in
 [`ci_profile.py`](../tools/test-evidence/ci_profile.py),
-[`runtime_ci.py`](../tools/test-evidence/runtime_ci.py) and the disabled
+[`runtime_ci.py`](../tools/test-evidence/runtime_ci.py) and the separate
 [CI37 policy](../.github/ci37-runtime.json). Its environment has schema 2 and
 profile `ubuntu24-ci37-v1`; legacy full Qt environment schema 1 remains separate
 from the isolated full environment schema 3. Execution receipt schema 3 remains
@@ -679,8 +683,8 @@ The native publisher still binds the whole original schema-3 receipt. The main
 consumer independently derives both original and current 37-owner plans and uses
 only authenticated original E. It creates no consumer environment or proof.
 
-Source and policy flags remain false. The finite source/definition generation
-must be refreshed after reviewed composition; changed implementation bytes
+Source and policy flags permit a controlled native attempt. The production
+generation binds the exact prospective installed workflow tree; changed implementation bytes
 conservatively require actual fallback. The dormant protected producer selects
 its profile before Java setup. Protected CI37 uses three prepared roots; the
 full profile retains its existing four roots and Java/Qt prerequisites. A
@@ -690,15 +694,19 @@ prepared Java mount or Java environment/PATH entry; the system
 `/usr` tree remains read-only. The CI37 schema asserts no Java capability.
 The canonical manual diagnostic has a separate fixed `ci37` choice, using the
 same protected source and cleanup checks with exactly 37 commands and actual E
-before/after. Its dedicated diagnostic capture still requires the exact finite
-generation while allowing the source/policy production gates to stay false.
+before/after. Parent and probe independently bind the complete actual immutable
+protected source, registry and real policy bytes. Its distinct diagnostic
+selection derives that source's generation without changing the shipping future
+generation. Production admission rejects that diagnostic selection even if the
+two generation digests coincide.
 Its result always has `authority: none`, `production_qualified: false` and
 `reusable: false`. The active manual workflow includes the reviewed canonical
 choice. No hosted CI37 capture, qualification, runtime
 cost or speedup is established.
 
 After final source composition, refresh host reader metadata/`REVIEWED_PROGRAMS`
-first, then CI37 definition/generation digests, write the disabled CI37 policy,
+first, then the prospective installed graph and CI37 definition/generation digests,
+write the CI37 policy,
 and refresh Android lock-reader anchors last. The exact CI37 JSON is outside
 the product-reader digest. CI37 generation retains the exact Android
 orchestration policy's path/mode/type but omits its SHA to break the second
@@ -1401,6 +1409,45 @@ verifier and independent sync gate reject reverting it. The metadata classifier
 is a finite shared analysis control. Neither this staged template nor its source
 admission activates it; active workflows and existing security assertions remain
 unchanged until separately reviewed deployment and hosted qualification.
+
+The separate dormant `metadata-edits/codeql-metadata.yml` and protected
+repository caller prepare authenticated retention for complete title/body edits
+on same-fork `main` PRs. Their small reusable metadata job supplies GitHub's
+native original merge-source reference. Its isolated standard-library helper
+reads only the immutable protected base and marks a one-way non-producer
+invocation; neither its output nor a previous green aggregate grants authority.
+After that marker, unavailable proof fails the small selector instead of
+starting another producer. The metadata source capability is enabled, but no
+active workflow deploys this lane. It cannot accept legacy green jobs as
+protected execution evidence.
+
+Repository retention initially covers only independently selected CI work with
+no native, Android, npm, tool-package or browser owner. It requires the exact
+complete six-workflow generation, the original same-merge protected schema-3
+receipt, original environment, native whole-receipt publisher commitment and
+unchanged controller, expiry and live candidate bookends. Documentation and
+selected workflow-security jobs retain their actual same-merge native source,
+successful steps and check records. CodeQL separately rechecks the original
+same-merge selected analyses, pinned extractor version and fresh open findings,
+including a native source record when no language was selected. Complete run
+inventories keep ordinary missing, pending or failed producers blocking; only
+authenticated metadata non-producers are excluded. No consumer environment,
+renewed proof, fabricated omitted-suite result or scanner execution is created.
+General product/package contexts and child branches still need separate
+authority. Local fixtures establish no hosted deployment qualification.
+
+The finite installation selector also admits the exact current
+`android-owned-npm5-sync-ci-v1` to `protected-producer-metadata-ci-v1`
+transition together with the exact pinned CodeQL successor. Only the caller,
+project, parent, new metadata workflow and CodeQL active endpoints may differ;
+the complete protected base must equal the trusted tree. The old CodeQL blob
+is `6d55d0fe4e9edc86204c66e1fa3967681793a2cd` and its metadata successor is
+`3a273057a38255ca368d3028594fb94227ba7c3b`. This selects every trusted host
+suite once so the first native producer receipt and first ordinary CodeQL
+analyses can bind the same merge. Capabilities and enabled policies still need
+their reviewed stable protected source beforehand. Selection grants no runtime
+admission, qualification or permission to omit a required result. The earlier
+three producer pairs and separate parent-installed metadata pair remain valid.
 
 The active workflow exactly matches `metadata-edits/codeql-pinned.yml` and pins
 the official CodeQL 2.27.2 Linux bundle through the pinned init action's `tools` URL. Init still

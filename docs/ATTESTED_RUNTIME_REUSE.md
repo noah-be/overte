@@ -1,4 +1,4 @@
-# Dormant reuse of the original tested environment
+# Reuse of the original tested environment
 
 [`attested.py`](../tools/test-evidence/attested.py) prepares a cheap terminal for
 complete shared-suite reuse. It does not install or measure an unused consumer's
@@ -7,22 +7,23 @@ fingerprints retain the **exact original recorded execution environment**. The
 result explicitly has `consumer_environment: null` and `execution: null`; it
 does not claim tests ran on the consumer VM.
 
-The fixed trusted [admission policy](../.github/attested-runtime.json) ships with
-`enabled: false`. No active workflow calls this module, no public CLI or enable
-flag exists, and existing sync validation retains fresh actual-environment
-measurement and full fallback behavior. Enabling the policy alone is not a safe
-activation procedure: the additional source-level `ACTIVATION_READY = False`
-guard rejects the terminal even with enabled trusted policy. Removing it requires
-reviewed authenticated producer integration and a new qualification of those
-changed controller bytes.
+The trusted [admission policy](../.github/attested-runtime.json) enables the
+isolated protected profile for a controlled first native attempt. This is source
+preparation, not evidence that an environment passed admission or tests. The
+deployed legacy project, parent and CodeQL endpoints do not call the protected
+producer or consumer. Their existing execution paths remain authoritative until
+the exact reviewed installation. The legacy terminal separately retains
+`ACTIVATION_READY = False`; no public CLI or enable flag can activate it.
 
 ## Protected supervisor capability
 
 The separate protected producer and original-PR main consumer use
 `producer_workflow.PRODUCTION_READY`, `sandbox.ACTIVATION_READY`,
 `attested.ISOLATED_ADMISSION_READY` and, for consumption,
-`postmerge.SOURCE_READY`. These source capabilities are still false in this
-preparation. They cannot be enabled by candidate JSON or CLI arguments.
+`postmerge.SOURCE_READY`. Together with `metadata_context.SOURCE_READY` and
+`ci_profile.SOURCE_READY`, these six capabilities enable only the reviewed native
+attempt and its authenticated consumers. Candidate JSON and CLI arguments cannot
+supply source authority, runtime evidence or a successful publisher.
 `sandbox.ACTIVATION_READY` applies only to the protected supervisor; the legacy
 `sandbox.execute` and `sandbox.capture_after_execution` entrypoints always fail.
 The legacy `attested.ACTIVATION_READY` terminal remains false and is independent
@@ -48,15 +49,27 @@ protected before/after runtime measurements, kernel-confirmed empty scopes or
 final publication. Policy denial before suites selects existing actual
 execution. Started-suite, cleanup and post-measurement failures remain failures.
 
-Actual hosted boundary and complete shared-suite qualification must precede
-activation. This source preparation supplies neither a qualified image nor a
-qualification timestamp. The final enabled policy and source flags themselves
-must be included in the later original execution's runtime/controller identity.
+Actual hosted boundary and complete shared-suite compatibility must precede
+installing the protected workflow endpoints. This source preparation supplies
+neither a qualified image nor a qualification timestamp. The enabled policy and
+source flags must be included in the original execution's runtime/controller identity.
 The manual diagnostic records environment digests and suite/cleanup results;
 it does not call the future enabled isolated admission policy. Its success alone
 therefore cannot qualify that policy. The first authenticated native producer
 must admit its actual original environment before starting any suite and must
-complete protected execution/publication before reuse can be claimed.
+complete protected execution/publication before reuse can be claimed. No earlier
+native receipt is needed to attempt this first execution. A successful legacy
+fallback does not establish this qualification; installation acceptance requires
+the genuine protected receipt and native whole-receipt publisher commitment.
+
+The manual `ci37` diagnostic independently binds its actual immutable protected
+source, complete registry and actual policy bytes in the parent and read-only
+probe. Its distinct `ci37-actual-source-diagnostic-v1` selection measures that
+source while production policy pins the prospective installed workflow tree.
+It does not modify that policy or supply production admission authority. Even
+when both generation digests coincide, production validation rejects the
+diagnostic selection. The ordinary producer and original-E consumer always
+require the shipping production generation.
 
 ## Admission is separate from producer authentication
 
@@ -86,13 +99,22 @@ variants are rejected. Original versions, binary hashes, package inventories,
 backends, image/kernel and namespace identities remain unchanged fingerprint
 inputs; supported versions are not declared equivalent to each other.
 
+Both protected profiles provision the distribution's CMake/CTest and Ninja in
+`/usr/bin` (`cmake` and `ninja-build`). The isolated PATH includes only the
+prepared Python/Node/JDK tools and system executables; an outer runner's
+`command -v` can instead find `/usr/local/bin` tools. Preparation checks the
+actual `/usr/bin` executables, installs missing packages and rejects an
+incomplete installation before the runtime probe. It does not expose additional
+tool directories or establish hosted compatibility by itself.
+
 The current recursive exact requirement pins must match the original installed
 Python package inventory. Every actual producer/controller/requirement file hash
 must also match the current trusted files. The runtime capture now includes the
 admission module and policy bytes themselves. An epoch, policy, requirement or
 controller change therefore invalidates earlier proof. There is no implicit
-compatibility allowlist. Turning the disabled policy on first requires a new
-qualification containing those enabled policy bytes.
+compatibility allowlist. An enabled policy permits an authenticated attempt;
+qualification still requires the actual environment to pass admission and the
+complete protected execution and native publication to finish successfully.
 
 The original qualification must follow the reviewed epoch's `not_before`, stay
 within its maximum 72-hour lifetime and remain unexpired through terminal

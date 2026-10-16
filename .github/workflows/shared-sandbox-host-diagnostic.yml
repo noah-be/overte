@@ -78,6 +78,7 @@ jobs:
           set -euo pipefail
           sudo -n /usr/bin/apt-get update
           sudo -n /usr/bin/apt-get install --no-install-recommends -y \
+            cmake ninja-build \
             qml-module-qttest qtdeclarative5-dev-tools qt6-base-dev qt6-base-dev-tools libglm-dev \
             qtdeclarative5-dev qml-module-qtquick2 qml-module-qtquick-controls2 qml-module-qtquick-layouts qml-module-qtquick-window2 \
             qt6-declarative-dev qt6-declarative-dev-tools qt6-webchannel-dev libqt5webchannel5-dev \
@@ -86,6 +87,9 @@ jobs:
             qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts \
             qml6-module-qtquick-templates qml6-module-qtquick-window \
             qml6-module-qt-labs-settings qml6-module-qtquick-dialogs qml6-module-qttest
+          for tool in bash cmake ctest c++ git jq ninja pkg-config unshare; do
+            test -x "/usr/bin/$tool" || { printf 'Missing fixed system prerequisite: %s\n' "$tool" >&2; exit 1; }
+          done
           test ! -e /opt/overte-ci
           sudo -n /usr/bin/install -d -m 755 -o "$UID" /opt/overte-ci
           python3 -m venv /opt/overte-ci/venv
@@ -127,14 +131,17 @@ jobs:
         run: |
           set -euo pipefail
           missing=()
-          if ! command -v cmake >/dev/null || ! command -v ctest >/dev/null; then missing+=(cmake); fi
-          if ! command -v ninja >/dev/null; then missing+=(ninja-build); fi
-          if ! command -v make >/dev/null || ! command -v gmake >/dev/null; then missing+=(make); fi
-          if ! command -v g++ >/dev/null || ! command -v gcc >/dev/null; then missing+=(g++); fi
+          if ! test -x /usr/bin/cmake || ! test -x /usr/bin/ctest; then missing+=(cmake); fi
+          if ! test -x /usr/bin/ninja; then missing+=(ninja-build); fi
+          if ! test -x /usr/bin/make || ! test -x /usr/bin/gmake; then missing+=(make); fi
+          if ! test -x /usr/bin/g++ || ! test -x /usr/bin/gcc || ! test -x /usr/bin/c++ || ! test -x /usr/bin/cc; then missing+=(g++); fi
           if ((${#missing[@]})); then
             sudo -n /usr/bin/apt-get update
             sudo -n /usr/bin/apt-get install --no-install-recommends -y "${missing[@]}"
           fi
+          for tool in bash cmake ctest c++ cc gcc g++ git jq ninja make gmake as ld ar ranlib sha256sum env ldd dpkg-query unshare; do
+            test -x "/usr/bin/$tool" || { printf 'Missing fixed system prerequisite: %s\n' "$tool" >&2; exit 1; }
+          done
           test ! -e /opt/overte-ci
           sudo -n /usr/bin/install -d -m 755 -o "$UID" /opt/overte-ci
           python3 -m venv /opt/overte-ci/venv

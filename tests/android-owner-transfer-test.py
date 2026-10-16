@@ -230,7 +230,11 @@ class AndroidOwnerTransferTests(unittest.TestCase):
             forged[path]["sha"] = "a" * 40
             with self.subTest(path=path), self.assertRaises(ValueError):
                 gate.validate_tree_wiring(forged)
-        self.assertEqual(len(gate.packages().workflow_generations()), 19)
+        generations = gate.packages().workflow_generations()
+        self.assertEqual(len(generations),20)
+        prior = next(row for row in generations if row['name']=='protected-producer-ci37-v1')
+        self.assertEqual(len(prior['workflows']),5)
+        self.assertEqual(gate.packages().validate_tree_wiring(prior['workflows']),prior['name'])
 
     def test_partial_selected_host_does_not_execute_product_or_claim_reuse(self):
         self.prepare_project()

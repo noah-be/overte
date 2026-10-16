@@ -1746,11 +1746,14 @@ class ProtectedSelectedProducerTests(unittest.TestCase):
                 if step.get('with',{}).get('path')=='trusted':
                     step['with']['sparse-checkout-cone-mode']=False
                     step['with']['sparse-checkout']=step['with']['sparse-checkout'].replace(
-                        'tools/sbom\n','tools/sbom\ntools/branch-policy/check.py\n')
+                        'tools/sbom\n','tools/sbom\ntools/branch-policy/check.py\ntools/native-tests/check.py\n')
             self.assertEqual(new['jobs'][name],expected)
         steps={row['name']:row for row in new['jobs']['project-tests']['steps']}
-        self.assertEqual(steps['Install QML and portable C++ contract prerequisites'],next(
-            row for row in old['jobs']['project-tests']['steps'] if row['name']=='Install QML and portable C++ contract prerequisites'))
+        original=deepcopy(steps['Install QML and portable C++ contract prerequisites'])
+        original['run']=original['run'].replace('  cmake ninja-build \\\n','')
+        original['run']=original['run'].split('for tool in bash cmake ctest',1)[0]
+        self.assertEqual(original,next(row for row in old['jobs']['project-tests']['steps']
+            if row['name']=='Install QML and portable C++ contract prerequisites'))
         self.assertEqual(steps['Run independently selected host contracts']['if'],"steps.protected.outputs.protected_executed != 'true'")
         root=steps['Execute the selected protected shared owner']
         self.assertEqual(root['if'],"needs.route.outputs.protected_full == 'true'")

@@ -510,13 +510,13 @@ def run_host(*, profile=FULL_ENVIRONMENT):
     selected = profile_binding = None
     if quick:
         # A manual fixed inventory has no PR impact claim. Its complete source
-        # and definitions still need the exact finite CI37 generation. This
+        # and definitions still bind the exact actual immutable source. This
         # diagnostic-only path cannot enable the production runtime profile.
         selected = {'suites': list(ci_profile.SUITES), 'reason': 'reviewed-ci-only-inputs',
                     'full_host': False, 'include_platform': False}
         tree = inputs.full_tree(ROOT, os.environ['GITHUB_SHA'])
-        profile_binding = ci_profile.validate_selection(selected, tree, tree, registry,
-            policy=ci_profile.load_policy(ROOT), require_enabled=False,root=ROOT,
+        profile_binding = ci_profile.diagnostic_selection(selected, tree, tree, registry,
+            source=os.environ['GITHUB_SHA'],source_root=ROOT,root=ROOT,
             read_blob=lambda oid:sandbox._git(ROOT,'cat-file','blob',oid,limit=64_000))
     # This fixed profile runs mandatory shared contracts, never npm Browser,
     # standalone browser journeys, platform profiles, native-ctest or app builds.

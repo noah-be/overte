@@ -10,11 +10,13 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 
 import attested
 import ci_profile
@@ -28,9 +30,9 @@ import sandbox
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE = 'tools/repository-checks/workflows/producers/parent-qualification.yml'
-SOURCE_READY = False
+SOURCE_READY = True
 GENERATIONS = {'postmerge-original-e-v1', 'protected-producer-postmerge-original-e-v1',
-               'protected-producer-ci37-v1'}
+               'protected-producer-ci37-v1', 'protected-producer-metadata-ci-v1'}
 
 
 def _source_qualified():
@@ -118,8 +120,10 @@ def _policy(policy, registry, binding, controller, adapter, root, selected):
             generations['generation-' + P.digest(projection).removeprefix('sha256:')] = projection
     caller = adapter._object('actions/workflows/repository-checks.yml')
     A.require(caller.get('path') == '.github/workflows/repository-checks.yml', 'original producer caller unavailable')
+    metadata_workflows, metadata_sources = producer.metadata_generations(policy, root=root)
     result = A.AdapterPolicy(original, A.positive(caller.get('id')), '.github/workflows/repository-checks.yml',
-        generations, producer.DESCRIPTOR_JOB, {'shared-host': producer.SHARED_JOB}, producer.PUBLISH_PREFIX)
+        generations, producer.DESCRIPTOR_JOB, {'shared-host': producer.SHARED_JOB}, producer.PUBLISH_PREFIX,
+        metadata_workflows, metadata_sources)
     plan = {'owners': {'shared-host': {'kind': 'shared', 'suites': selected['suites'],
                                      'include_platform': selected['include_platform'], 'platform': {}}}}
     A._policy(result, plan, binding['pull_request'])
@@ -226,6 +230,204 @@ def verify_main(event, environment, adapter, *, root=ROOT, clock=lambda: datetim
         'original_proof': verified, 'original_environment_digest': admission['environment_digest'],
         'runtime_admission': runtime_admission, 'reused_suites': reused_suites, 'executed_suites': [],
         'package_work': package_work}
+
+
+def _metadata_module(root=ROOT):
+    spec = importlib.util.spec_from_file_location('trusted_native_metadata_context',
+        Path(root) / 'tools/repository-checks/metadata_context.py')
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def metadata_selection(event, binding, previous, current, local, registry, policy, *, root=ROOT, read_blob=None):
+    """A finite positive owner class, derived from complete immutable maps.
+
+    Native, Android, package/tool and browser execution are deliberately outside
+    this initial owner. Their absence is proved from current inputs; no receipt
+    or previous aggregate output chooses or narrows this scope.
+    """
+    package = policy.package_policy()
+    checks = package.load('metadata_current_repository_policy', 'tools/repository-checks/check.py')
+    config, branches = checks.configuration()
+    paths = sorted(path for path in previous.keys() | current.keys() if previous.get(path) != current.get(path))
+    A.require(paths and all(entry is None or entry.get('mode') == '100644' and entry.get('type') == 'blob'
+        for path in paths for entry in (previous.get(path), current.get(path))), 'metadata delta is not ordinary')
+    A.require(all(policy.ci_owned(path) for path in paths), 'metadata initial class requires CI-owned inputs')
+    route = checks.plan(event, paths, config, branches, True)
+    selected_packages = package.select(paths, True, legacy_mode=route['mode'],
+        legacy_projects=route.get('tool_projects', '').split(',') if route.get('tool_projects') else (),
+        include_browser=True)
+    A.require(selected_packages == {'host_mode': 'full', 'tool_projects': [], 'package_set': []},
+              'metadata initial class cannot retain package/tool execution')
+    A.require(not checks.direct_browser_required(config, event)
+        and binding['base_ref'] not in config.get('browser_client_required_branches', []),
+        'metadata initial class cannot retain browser execution')
+    native = package.load('metadata_current_native_policy', 'tools/native-tests/check.py').plan(paths, True)
+    A.require(native['mode'] == 'skip', 'metadata initial class cannot retain native execution')
+    roots = (*package.tools().PROJECTS, package.S3, package.BROWSER, 'browser-direct-client')
+    A.require(not any(any(path == prefix or path.startswith(prefix + '/') for prefix in roots) for path in paths),
+              'metadata package input closure changed')
+    for tree in (previous, current):
+        A.require(not any(path == 'android' or path.startswith('android/') or path in {
+            '.github/workflows/android-tests.yml', '.github/workflows/android-vr-tests.yml'} for path in tree),
+            'metadata initial class cannot retain Android execution')
+        for relative in ('.github/test-suites.json', 'tests/platform-profile.json'):
+            A.require(tree.get(relative) == local.get(relative), 'metadata command or platform inventory changed')
+    A.require(json.loads(package._trusted_bytes('tests/platform-profile.json')) ==
+        {'schema': 1, 'platform': 'shared', 'suites': []}, 'metadata platform declarations are not empty')
+    A.require(all(suite['scope'] == 'content' for suite in registry['suites'].values()),
+              'metadata requires the reviewed content-scoped registry')
+    selected = producer.selection_profile(policy, registry, current, previous, local,
+        root=root, target='main', read_blob=read_blob)
+    return {'selection': selected, 'route': route, 'native': native, 'paths': paths,
+            'package_work': False, 'android_required': False, 'browser_required': False}
+
+
+_METADATA_OUTER_RECIPES = {
+    '.github/workflows/documentation-checks.yml': (
+        'documentation / documentation', (
+            'Verify documentation checker behavior', 'Check every workspace document and incoming link',
+            'Verify policy-derived branch and suite displays')),
+    '.github/workflows/workflow-security.yml': (
+        'workflow-security / Actionlint, Zizmor, and Gitleaks', (
+            'Verify immutable action references', 'Install checksum-verified static analyzers',
+            'Lint workflow syntax and runner labels', 'Audit workflow security',
+            'Scan workflow files for secrets with redacted output', 'Verify fail-closed workflow contracts')),
+}
+
+
+def metadata_outer_jobs(adapter, run_id, binding, current, local, security, *, root=ROOT):
+    """Authenticate actual same-M checker jobs, independently of old PASS text."""
+    run = adapter._object(f'actions/runs/{run_id}/attempts/1')
+    jobs = adapter._pages(f'actions/runs/{run_id}/attempts/1/jobs', 'jobs')
+    A.require(run.get('id') == run_id and run.get('run_attempt') == 1
+        and run.get('head_sha') == binding['head_sha'] and run.get('status') == 'completed'
+        and run.get('conclusion') == 'success', 'metadata original outer execution is unavailable')
+    references = run.get('referenced_workflows')
+    A.require(type(references) is list, 'metadata original reusable source inventory unavailable')
+    for label in ('native', 'android', 'project / tool-dependencies', 'project / package-checks'):
+        matches = [job for job in jobs if job.get('name') == label]
+        A.require(len(matches) == 1, 'metadata absent owner native record is missing or ambiguous')
+        fact = adapter._job(matches[0], run, 15368, final_name=label)
+        A.require(fact.status == 'completed' and fact.conclusion == 'skipped',
+                  'metadata initial class cannot retain an executed external owner')
+    A.require(not any(isinstance(job.get('name'), str) and
+        job['name'].startswith(('direct-browser', 'browser-client')) and job.get('conclusion') != 'skipped'
+        for job in jobs), 'metadata initial class cannot retain a browser owner')
+    retained = {}
+    for path, (name, steps) in _METADATA_OUTER_RECIPES.items():
+        required = path.endswith('/documentation-checks.yml') or security == 'true'
+        if not required:
+            # A previously executed security owner is never silently narrowed.
+            A.require(not any(job.get('name') == name and job.get('conclusion') != 'skipped' for job in jobs),
+                      'metadata original security owner differs from current route')
+            continue
+        A.require(current.get(path) == local.get(path) and current.get(path, {}).get('mode') == '100644',
+                  'metadata checker workflow differs from current reviewed recipe')
+        matching = [item for item in references if type(item) is dict and item.get('path') ==
+            A.REPOSITORY + '/' + path + '@' + binding['merge_sha']]
+        A.require(len(matching) == 1 and matching[0].get('sha') == binding['merge_sha']
+            and matching[0].get('ref') == f"refs/pull/{binding['pull_request']}/merge",
+            'metadata checker has no original same-M reusable source')
+        source_reference = matching[0]
+        candidates = [job for job in jobs if job.get('name') == name]
+        A.require(len(candidates) == 1, 'metadata checker job missing or ambiguous')
+        job = candidates[0]
+        fact = adapter._job(job, run, 15368, final_name=name)
+        A.require(fact.status == 'completed' and fact.conclusion == 'success', 'metadata checker did not pass')
+        A.require(type(job.get('steps')) is list and all(type(step) is dict for step in job['steps']),
+                  'metadata checker native steps unavailable')
+        for label in steps:
+            matching = [step for step in job['steps'] if step.get('name') == label]
+            A.require(len(matching) == 1 and matching[0].get('status') == 'completed'
+                and matching[0].get('conclusion') == 'success'
+                and P._time(fact.started_at) <= P._time(matching[0].get('started_at'))
+                <= P._time(matching[0].get('completed_at')) <= P._time(fact.completed_at),
+                'metadata checker command did not succeed in its authenticated job')
+        retained[path] = {'job': job, 'native': vars(fact), 'reference': source_reference}
+    return {'run': run, 'jobs': jobs, 'retained': retained}
+
+
+def verify_metadata(event, environment, adapter, *, root=ROOT, clock=lambda: datetime.now(timezone.utc)):
+    """Retain same-PR protected proof; never capture a consumer E or emit PASS."""
+    A.require(_source_qualified(), 'protected metadata retention is not qualified')
+    helper = _metadata_module(root)
+    A.require(helper.SOURCE_READY is True, 'metadata source capability is disabled')
+    native = helper.native(event, environment, root=root, caller='.github/workflows/repository-checks.yml')
+    A.require(environment.get('GITHUB_JOB') == 'route', 'metadata retention requires the reviewed routing job')
+    binding, refs = adapter.current(native['number'])
+    producer._event_binding(event, binding)
+    A.require(binding['merge_sha'] == native['merge'] and binding['base_ref'] == refs['default_ref'] == 'main'
+        and refs['default'] == binding['base_sha'] == native['base'], 'metadata current default/candidate differs')
+    previous_sha, previous = full_tree(adapter, binding['base_sha'])
+    tree_sha, current = full_tree(adapter, binding['merge_sha'])
+    local = inputs.full_tree(root, 'HEAD')
+    A.require(previous == local and execution.checkout_identity(root) == (binding['base_sha'], previous_sha)
+        and tree_sha == binding['merge_tree'], 'metadata actual trusted source differs from protected main')
+    policy = producer._host_policy()
+    package = policy.package_policy()
+    A.require(package.validate_tree_wiring(current) == 'protected-producer-metadata-ci-v1',
+              'metadata requires the exact complete six-file source generation')
+    controller = original_controller(policy, previous, local, root)
+    registry = inputs.load_registry(Path(root) / '.github/test-suites.json')
+    owners = metadata_selection(event, binding, previous, current, local, registry, policy,
+        root=root, read_blob=adapter.api.immutable_blob)
+    selected_profile = owners['selection']
+    selected = selected_profile['selection']
+    plan, api_policy = _policy(policy, registry, binding, controller, adapter, root, selected)
+    snapshot = adapter.capture(native['number'], plan, api_policy, now=clock())
+    A.require(snapshot.binding == binding and snapshot.references == refs
+        and native['run_id'] in snapshot.metadata_nonproducers,
+        'current invocation is not an authenticated one-way metadata non-producer')
+    authority = P.select_authority(snapshot.observations, binding, plan, api_policy.producer,
+        inventory_complete=snapshot.inventory_complete, now=clock())
+    A.require(authority['state'] == 'proof-required', 'newest original producer is not qualified')
+    observation = next(value for value in snapshot.observations if value.run.run_id == authority['run_id'])
+    raw, facts = adapter._artifact(observation.run, 'aggregate', snapshot.artifact_inventories[authority['run_id']],
+                                   clock(), binding['head_sha'])
+    A.require(raw is not None and facts is not None, 'original protected aggregate unavailable')
+    aggregate = P.read_artifact(raw, 'aggregate', facts, observation.run, now=clock())
+    receipt = aggregate.get('results', {}).get('shared-host', {}).get('receipt')
+    A.require(type(receipt) is dict and receipt.get('schema') == 3, 'original protected receipt unavailable')
+    original_git = producer.expected_git_context(adapter, binding)
+    execution.validate_receipt(receipt, registry, current,
+        require_all=selected_profile['profile'] != ci_profile.PROFILE, expected_git_context=original_git)
+    A.require(receipt['requested_suites'] == selected['suites']
+        and receipt['include_platform'] == selected['include_platform'], 'metadata owner inventory differs')
+    environment_original = receipt['environment']
+    if selected_profile['profile'] == ci_profile.PROFILE:
+        admitted = runtime_ci.plan_original_reuse(environment_original, aggregate.get('qualified_at'),
+            aggregate.get('expires_at'), clock(), selected, selected, current, current, local,
+            registry, receipt['results'], root=root, read_blob=adapter.api.immutable_blob)['admission']
+    else:
+        admitted = attested.validate_environment(environment_original, aggregate.get('qualified_at'),
+            aggregate.get('expires_at'), clock(), root=root, isolated=True)
+        reused = inputs.plan_reuse(registry, current, current, receipt['results'], environment_original, environment_original)
+        A.require(not reused['required'] and set(reused['reused']) == set(registry['suites']),
+                  'metadata complete shared owner is not reusable')
+    outer_before = metadata_outer_jobs(adapter, observation.run.run_id, binding, current, local,
+                                       owners['route']['security'], root=root)
+    context = P.SharedContext(registry, current, environment_original, binding['merge_sha'], tree_sha, original_git)
+    verified = adapter.verify(native['number'], plan, api_policy, {'shared-host': context}, clock=clock)
+    A.require(verified['run_id'] == observation.run.run_id
+        and verified['receipt_sha256'] == hashlib.sha256(P.canonical(receipt)).hexdigest()
+        and verified['aggregate_digest'] == aggregate['aggregate_digest']
+        and metadata_outer_jobs(adapter, observation.run.run_id, binding, current, local,
+                                owners['route']['security'], root=root) == outer_before
+        and adapter.current(native['number']) == (binding, refs) and clock() < P._time(verified['expires_at']),
+        'metadata original execution or current source changed')
+    A.require(_source_qualified() and helper.SOURCE_READY is True
+        and helper.native(event, environment, root=root, caller='.github/workflows/repository-checks.yml') == native
+        and execution.checkout_identity(root) == (binding['base_sha'], previous_sha)
+        and inputs.full_tree(root, 'HEAD') == local
+        and original_controller(policy, previous, local, root) == controller
+        and clock() < P._time(verified['expires_at']),
+        'metadata actual trusted controller changed before retention')
+    return {'kind': 'same-pr-metadata-retention', 'qualification': False, 'metadata_only': 'true',
+        'binding': binding, 'original_proof': verified, 'original_environment_digest': admitted['environment_digest'],
+        'retained_suites': selected['suites'], 'executed_suites': [], 'retained_checker_jobs': outer_before['retained']}
 
 
 def lookup(event, environment, adapter=None, *, root=ROOT, clock=lambda: datetime.now(timezone.utc)):

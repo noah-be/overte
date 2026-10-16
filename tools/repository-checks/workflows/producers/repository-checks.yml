@@ -22,7 +22,18 @@ concurrency:
   group: repository-checks-${{ github.event.pull_request.number || github.ref }}-${{ github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body) && github.run_id || 'qualification' }}
   cancel-in-progress: true
 jobs:
+  metadata-source:
+    name: Authenticate PR text edit
+    if: github.event_name == 'pull_request' && github.base_ref == 'main' && github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)
+    uses: ./.github/workflows/pr-metadata-context.yml
+
   route:
+    needs: metadata-source
+    if: always() && (needs.metadata-source.result == 'success' || needs.metadata-source.result == 'skipped')
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
     name: Select required repository checks
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -56,6 +67,9 @@ jobs:
           tools/ios-build-qualification
     - name: Recognize only complete title or body edit events
       id: event
+      env:
+        GH_TOKEN: ${{ github.token }}
+        NATIVE_METADATA_INTENT: ${{ needs.metadata-source.outputs.metadata_intent }}
       run: >-
         python3 trusted/tools/repository-checks/check.py metadata-event
         --event "$GITHUB_EVENT_PATH" --event-name "$GITHUB_EVENT_NAME" --output "$GITHUB_OUTPUT"

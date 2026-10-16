@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prospective protected reusable-PR producer; production admission is disabled.
+"""Protected reusable-PR producer; source capability is not qualification.
 
 Only native server context and the fixed read-only API establish invocation
 facts. No CLI argument supplies an endpoint, command, policy flag or proof.
@@ -35,7 +35,7 @@ import runtime_ci
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE = 'tools/repository-checks/workflows/producers/protected-project-tests.yml'
-PRODUCTION_READY = False
+PRODUCTION_READY = True
 DESCRIPTOR_JOB = 'project / Publish producer descriptor'
 SHARED_JOB = 'project / Shared tests'
 PUBLISH_PREFIX = 'project / Publish final producer '
@@ -133,6 +133,10 @@ def controller_sources(policy):
     never code loaded by that consumer.
     """
     return sorted({*shared.sources(), *policy.package_policy()._policy_inputs(), *attested._CONSUMER_FILES, TEMPLATE,
+        'tools/repository-checks/metadata_context.py',
+        'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml',
+        '.github/workflows/documentation-checks.yml', '.github/workflows/workflow-security.yml',
+        'tools/native-tests/check.py',
         ci_profile.POLICY, 'tools/test-evidence/ci_profile.py', 'tools/test-evidence/runtime_ci.py',
         *('tools/test-evidence/' + name + '.py' for name in (
             'attested', 'execution', 'inputs', 'runtime', 'sandbox', 'sandbox_host',
@@ -164,6 +168,26 @@ def _controller_identity(policy):
                      'loaded controller differs from immutable trusted source')
         identity[name] = {'mode': mode.decode(), 'sha256': hashlib.sha256(raw).hexdigest()}
     return protocol.digest(identity)
+
+
+def metadata_generations(policy, *, root=ROOT):
+    """Finite future workflow/helper pairs from the actual trusted source.
+
+    A disabled marker has no old positive evidence. Future changes to an enabled
+    marker must explicitly retain its old reviewed pair before deployment.
+    """
+    package = policy.package_policy()
+    tree = inputs.full_tree(root, 'HEAD')
+    helper = tree.get(producer_api.METADATA_SOURCE)
+    if not (type(helper) is dict and helper.get('mode') == '100644' and helper.get('type') == 'blob'):
+        return None, None
+    template = tree.get('tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml')
+    generations = {row['name']: row['workflows'] for row in package.workflow_generations()
+        if set(row['workflows']) == producer_api.METADATA_WORKFLOWS
+        and row['workflows'].get(producer_api.METADATA_WORKFLOW) == template}
+    if not generations:
+        return None, None
+    return generations, {name: {producer_api.METADATA_SOURCE: helper} for name in generations}
 
 
 def source_blob(repository, oid):
@@ -245,9 +269,10 @@ def prepare(candidate, event, environment, adapter):
             generations['generation-' + protocol.digest(projection).removeprefix('sha256:')] = projection
     caller = adapter._object('actions/workflows/repository-checks.yml')
     host.require(caller.get('path') == '.github/workflows/repository-checks.yml', 'caller workflow ID unavailable')
+    metadata_workflows, metadata_sources = metadata_generations(policy)
     api_policy = producer_api.AdapterPolicy(producer, producer_api.positive(caller.get('id')),
         '.github/workflows/repository-checks.yml', generations, DESCRIPTOR_JOB,
-        {'shared-host': SHARED_JOB}, PUBLISH_PREFIX)
+        {'shared-host': SHARED_JOB}, PUBLISH_PREFIX, metadata_workflows, metadata_sources)
     producer_api._policy(api_policy, plan, number)
     result = {'number': number, 'run_id': identifier, 'binding': binding, 'refs': refs, 'selected': selected,
               'profile':prepared_selection['profile'],
@@ -507,8 +532,8 @@ def main(argv=None):
     parser.add_argument('role', choices=('descriptor', 'shared', 'publish'))
     parser.add_argument('--candidate', type=Path, required=True)
     args = parser.parse_args(argv)
-    # Deliberately unreachable until the actual kernel boundary, complete E,
-    # prepared profile and original publisher source have all been qualified.
+    # A controlled first native attempt may establish the first qualified E and
+    # completed publisher. Source capability alone supplies neither proof.
     try:
         protected_admission()
     except PreExecutionUnavailable:

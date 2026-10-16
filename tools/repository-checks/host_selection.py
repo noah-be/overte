@@ -60,6 +60,7 @@ CI_POLICY = frozenset({
 # tests/**: those roots also contain real product readers and import candidates.
 CI_ROLLOUT_PATHS = frozenset({
     'tools/test-evidence/affected-test.py',
+    ".github/workflows/pr-metadata-context.yml",
     '.github/android-checks.json', '.github/android-orchestration.json', '.github/android-owner-transfer.json',
     '.github/attested-runtime.json', '.github/sync-test-reuse.json', '.github/ci37-runtime.json',
     '.github/workflows/dependency-releases.yml', '.github/workflows/repository-checks.yml',
@@ -128,29 +129,29 @@ PROGRAM_INPUTS = (
     'android/vr/common/openxr/README.md',
     'android/phone/device-tests/parity/fixtures/README.md',
 )
-# Reviewed complete parent merges at protected main 5a9f18be and the
+# Reviewed complete parent merges at protected main 19636184 and the
 # prospective sole-owner generation. Shared execution controllers and passive
 # runner instrumentation remain bound; Android additionally binds all six exact
 # legacy-retirement/contract handoff files. Only the two separately owned foreign
 # locks are outside this complement; changed locks need mandatory package coverage.
 # These identities are not execution receipts or application-build evidence.
-REVIEWED_PROGRAMS = '1294d2d232b6b639a9a194933acc4770c5979526c35a594d71f9aa6d7db9196b'
+REVIEWED_PROGRAMS = 'f176815fd0cf042620023bd8f4a4d69bab0cb72ba8bb5cdda4380d42568edd5b'
 REVIEWED_CHILD_PROGRAMS = {
-    'apple-main': 'f206a151e7002fc01d82905aa266abcec803d4eb749029798f6898079f905133',
-    'apple-ios': '5f5a50074beba254ee9fbe938164ca07946079ecae4bacdd123dbff9a23b1749',
-    'android-main': 'd1332945752d28db759d8fbee8af819cae28e3aeddaf2fa0836b23a73230db7a',
-    'android-phone': 'a2113991e9a66bc95223e25a9e5878d4c95b0f79e5ffb7ddb6f0161d1958c640',
-    'android-vr': 'd1332945752d28db759d8fbee8af819cae28e3aeddaf2fa0836b23a73230db7a',
-    'android-vr-pico': 'ee1d6ca8990d50d0e3f0a1795bcd9006ffd4b1f0c8af94bc0c13a89cda977bde',
+    'apple-main': 'ecbc6db19231488b0b7b2694f66775af2c4d26efdb03ccb9dde249356f84d114',
+    'apple-ios': '0539cdfdde0528b306270ce3dcbaadf64508eb33323981c16a0cfd8678a00f98',
+    'android-main': 'f2eb6f7631bb5413eb53eb90b29d5088a20427baa4826f40044c5817b5c7e95a',
+    'android-phone': '9336b7aa5bcdfcba91f630a58803263af0b3285e055c1ff1ee21d7496dadff07',
+    'android-vr': 'f2eb6f7631bb5413eb53eb90b29d5088a20427baa4826f40044c5817b5c7e95a',
+    'android-vr-pico': '7c22880a90518f282dbb48ccfd4aafbd19bc2522601effc8069d4f28f2e54379',
 }
 REVIEWED_PREDECESSORS = {
-    'main': '065f7486b7ba2179d04977858657ceb75050be251a9eeab1b60c8fef2b0ed18e',
-    'apple-main': 'ccbd0a128812e2f1791116b4db74b375cfc66a6d6a82662009ef23de7b693f45',
-    'apple-ios': 'd90b7e0a86b0bfc0cc269800802d2c6ef21df06c8a0d2137e631bbb903d1adfd',
-    'android-main': '38e0eb43f38e66505b9524809eb8c84a867842ca6f9eaf813ff9aeaa8c209dcb',
-    'android-phone': 'fa896c826bd2c98e3d023961776296c3d91d511b5425ad23efe45c5d33392b6f',
-    'android-vr': '38e0eb43f38e66505b9524809eb8c84a867842ca6f9eaf813ff9aeaa8c209dcb',
-    'android-vr-pico': '1b7b5b5ee55bd603c0b0b3d89407b38f9d3b72bfe67a79c2581976873baead57',
+    'main': '1294d2d232b6b639a9a194933acc4770c5979526c35a594d71f9aa6d7db9196b',
+    'apple-main': 'f206a151e7002fc01d82905aa266abcec803d4eb749029798f6898079f905133',
+    'apple-ios': '5f5a50074beba254ee9fbe938164ca07946079ecae4bacdd123dbff9a23b1749',
+    'android-main': '05df16f08173e7365dcc508239a8fc006d8e3110bde3d886fa823281f649eeff',
+    'android-phone': 'a6775a9dbcb1c1d6cefca7dc549c48db31378de82e1d04aed82dade01f0ce639',
+    'android-vr': '05df16f08173e7365dcc508239a8fc006d8e3110bde3d886fa823281f649eeff',
+    'android-vr-pico': 'f330d4e3053b16c3252851ce361385b72a813fb077a4a291f3dabb156f4fc5c1',
 }
 CONTROL_PLANE = 'tests/device/run_control_plane_tests.py'
 PACKAGE_LOCKS = {
@@ -266,26 +267,46 @@ def _protected_producer_transition(tree, paths, base_tree, trusted_tree, target)
     This is selection, never activation or execution evidence. The ordinary
     complete-tuple wiring check still runs independently before selection.
     """
-    endpoints = {'.github/workflows/repository-checks.yml', '.github/workflows/project-tests.yml'}
-    if target != 'main' or not isinstance(paths, (tuple, list)) or len(paths) != len(endpoints) \
-            or set(paths) != endpoints or not isinstance(base_tree, dict) \
+    producer_endpoints = {'.github/workflows/repository-checks.yml', '.github/workflows/project-tests.yml'}
+    metadata_endpoints = {*producer_endpoints, '.github/workflows/parent-qualification.yml',
+                          '.github/workflows/pr-metadata-context.yml'}
+    codeql_path = '.github/workflows/codeql.yml'
+    joint_endpoints = {*metadata_endpoints, codeql_path}
+    if target != 'main' or not isinstance(paths, (tuple, list)) \
+            or len(paths) != len(set(paths)) \
+            or set(paths) not in (producer_endpoints, metadata_endpoints, joint_endpoints) \
+            or not isinstance(base_tree, dict) \
             or not isinstance(trusted_tree, dict) or trusted_tree != base_tree:
         return False
     # No path hint may conceal a source/controller/profile/registry change.
     changed = {path for path in base_tree.keys() | tree.keys() if base_tree.get(path) != tree.get(path)}
-    if changed != endpoints:
+    if changed != set(paths):
         return False
     policy = package_policy()
     generations = {generation['name']: generation['workflows'] for generation in policy.workflow_generations()}
-    required = set(policy.CONSUMER_WORKFLOW_PATHS)
-    for old_name, new_name in (
-            ('android-owned-npm5-sync-ci-v1', 'protected-shared-producer-v1'),
-            ('postmerge-original-e-v1', 'protected-producer-postmerge-original-e-v1'),
-            ('postmerge-original-e-v1', 'protected-producer-ci37-v1')):
+    consumers = set(policy.CONSUMER_WORKFLOW_PATHS)
+    for old_name, new_name, endpoints, candidate_paths, joint_codeql in (
+            ('android-owned-npm5-sync-ci-v1', 'protected-shared-producer-v1', producer_endpoints, consumers, False),
+            ('postmerge-original-e-v1', 'protected-producer-postmerge-original-e-v1', producer_endpoints, consumers, False),
+            ('postmerge-original-e-v1', 'protected-producer-ci37-v1', producer_endpoints, consumers, False),
+            ('postmerge-original-e-v1', 'protected-producer-metadata-ci-v1', metadata_endpoints,
+             set(policy.METADATA_WORKFLOW_PATHS), False),
+            ('android-owned-npm5-sync-ci-v1', 'protected-producer-metadata-ci-v1', joint_endpoints,
+             set(policy.METADATA_WORKFLOW_PATHS), True)):
         previous, producer = generations.get(old_name, {}), generations.get(new_name, {})
-        if set(previous) != required or set(producer) != required \
-                or {path for path in required if previous[path] != producer[path]} != endpoints:
+        if set(paths) != endpoints or set(previous) != consumers or set(producer) != candidate_paths \
+                or {path for path in consumers | candidate_paths if previous.get(path) != producer.get(path)} \
+                    != endpoints - ({codeql_path} if joint_codeql else set()) \
+                or any(base_tree.get(path) is not None for path in candidate_paths - consumers):
             continue
+        if joint_codeql:
+            # One exact deployment gives the original full producer and CodeQL
+            # the SAME native M. Both recipes retain reviewed extractor 2.27.2;
+            # this widens selection, never admission or passing evidence.
+            ordinary = lambda oid: {'mode': '100644', 'type': 'blob', 'sha': oid}
+            if base_tree.get(codeql_path) != ordinary('6d55d0fe4e9edc86204c66e1fa3967681793a2cd') \
+                    or tree.get(codeql_path) != ordinary('3a273057a38255ca368d3028594fb94227ba7c3b'):
+                continue
         # Reviewed complete pairs only, never an arbitrary cross-product.
         if all(snapshot.get(path) == entry
                for snapshot, workflows in ((trusted_tree, previous), (base_tree, previous), (tree, producer))
@@ -304,7 +325,8 @@ def select(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_
                             'reviewed-protected-producer-transition'}:
         return legacy
     registry = inputs.load_registry(ROOT / '.github/test-suites.json')
-    affected = affected_selection(registry, tree, base_tree, trusted_tree, paths)
+    affected = affected_selection(registry, tree, base_tree, trusted_tree, paths,
+                                  allow_full_host=legacy['full_host'])
     if affected is None:
         return legacy
     if affected['reason'] == 'protected-dependencies-unavailable':
@@ -371,12 +393,17 @@ def _select_legacy(tree, paths, regular, *, unknown=False, trusted_tree=None, ca
     return {'suites': names, 'reason': reason, 'full_host': True, 'include_platform': True}
 
 
-def affected_selection(registry, tree, base_tree, trusted_tree, paths):
+def affected_selection(registry, tree, base_tree, trusted_tree, paths, *, allow_full_host=True):
     """Use only an already protected graph; missing legacy graphs retain legacy routing.
 
     A graph/source rollout cannot certify itself. Every unavailable or changed
     protected authority keeps the complete existing gate, before any execution.
     """
+    # Every currently supported graph subset needs complete host preparation.
+    # It cannot improve an independently proved Qt-free route, so do not read
+    # or hash that graph merely to reject its broader setup afterwards.
+    if allow_full_host is False:
+        return None
     snapshots = (tree, base_tree, trusted_tree)
     if all(isinstance(snapshot, dict) and inputs.AFFECTED_POLICY not in snapshot for snapshot in snapshots):
         return None

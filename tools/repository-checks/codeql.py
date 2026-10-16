@@ -50,6 +50,10 @@ _RETARGET_RESULTS_WORKFLOW = "8333afd10d6f32841def51970f59f038b3881d11"
 # Exact staged successor pins the extractor whose finite JSON readers were
 # reviewed at github/codeql a7057b836bf29767461026718b14d20790b9085f.
 _PINNED_RESULTS_WORKFLOW = "6d55d0fe4e9edc86204c66e1fa3967681793a2cd"
+# Dormant same-M metadata successor. Its tiny reusable job exposes native M on
+# every main PR invocation; it does not replace an analysis or security gate.
+_METADATA_RESULTS_WORKFLOW = "3a273057a38255ca368d3028594fb94227ba7c3b"
+_METADATA_SOURCE_WORKFLOW = "d04a6dc70213d8b549bac30c11cc15eaf0182dea"
 _PYTHON_POLICY_JSONS = frozenset({
     ".github/test-suite-dependencies.json",
     ".github/android-orchestration.json", ".github/test-suites.json",
@@ -59,6 +63,12 @@ _PYTHON_POLICY_JSONS = frozenset({
 _INERT_CI_JSONS = frozenset({
     ".github/branch-cleanup.json", ".github/issue-policy.json",
     ".github/repository-health.json", ".github/dependency-releases.json",
+})
+# The pinned no-build extractors do not read these dependency resolution files.
+# Their independent npm owners still require package/security/function checks.
+_PINNED_NPM_LOCKS = frozenset({
+    "browser-client/package-lock.json",
+    "script-archive/marketplace/S3Server/package-lock.json",
 })
 # Exact 2.27.2 default extractor discovery at a7057b836bf29767461026718b14d20790b9085f:
 # JS may sniff headers, but these suffixes never produce extracted source. Python
@@ -74,6 +84,14 @@ _GLOBAL_PATHS = {
     "AGENTS.md", ".gitattributes", ".gitignore", ".gitmodules", ".codeqlignore", ".tool-versions",
     "tools/repository-checks/codeql.py", "tools/repository-checks/check.py", "tools/test-evidence/inputs.py",
 }
+# These exact controls execute from protected policy, never the candidate.
+# Pinned AutoBuild/FileExtractor at a7057b836 excludes .py from JS discovery;
+# even Node shebang detection requires a suffix-free file. Python still scans
+# their changed source. New paths, modes, packs and analysis controls stay full.
+_PINNED_PYTHON_CONTROLS = frozenset({
+    "tools/repository-checks/check.py", "tools/repository-checks/codeql.py",
+    "tools/test-evidence/inputs.py",
+})
 _PYTHON_EXTENSIONS = {".py", ".pyw", ".pyi", ".thrift"}
 _JAVASCRIPT_EXTENSIONS = {
     ".js", ".jsx", ".mjs", ".cjs", ".es6", ".es", ".xsjs", ".xsjslib",
@@ -92,7 +110,14 @@ _OBJECT = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
 
 def result_workflow_blobs():
     """Finite trusted selected-result generations; never candidate anchors."""
-    return (_RESULTS_WORKFLOW, _RETARGET_RESULTS_WORKFLOW, _PINNED_RESULTS_WORKFLOW)
+    return (_RESULTS_WORKFLOW, _RETARGET_RESULTS_WORKFLOW, _PINNED_RESULTS_WORKFLOW,
+            _METADATA_RESULTS_WORKFLOW)
+
+
+def pinned_workflow_entries():
+    """Finite successors retaining the exact reviewed 2.27.2 extractor."""
+    return [{'mode': '100644', 'type': 'blob', 'sha': oid}
+            for oid in (_PINNED_RESULTS_WORKFLOW, _METADATA_RESULTS_WORKFLOW)]
 
 
 def result_workflow_rollback(base_entry, candidate_entry):
@@ -110,9 +135,9 @@ def _pinned_policy_json(change, base_tree, candidate_tree):
     ancestor configuration readers use only package.json and tsconfig names.
     Any workflow/configuration drift is rejected before this proof is used.
     """
-    pinned = {"mode": "100644", "type": "blob", "sha": _PINNED_RESULTS_WORKFLOW}
     return (change['path'] in _PYTHON_POLICY_JSONS
-            and all(tree.get('.github/workflows/codeql.yml') == pinned for tree in (base_tree, candidate_tree))
+            and all(tree.get('.github/workflows/codeql.yml') in pinned_workflow_entries()
+                    for tree in (base_tree, candidate_tree))
             and all(isinstance(change[side], dict) and change[side]['mode'] == '100644'
                     and change[side]['type'] == 'blob' for side in ('before', 'after')))
 
@@ -125,9 +150,24 @@ def _pinned_ci_metadata(change, base_tree, candidate_tree):
     leaves; the fixed no-build workflow executes no candidate generators.
     Whole-tree aliases, packs and actual analysis controls are checked first.
     """
-    pinned = {"mode": "100644", "type": "blob", "sha": _PINNED_RESULTS_WORKFLOW}
     return (change['path'] in _INERT_CI_JSONS
-            and all(tree.get('.github/workflows/codeql.yml') == pinned for tree in (base_tree, candidate_tree))
+            and all(tree.get('.github/workflows/codeql.yml') in pinned_workflow_entries()
+                    for tree in (base_tree, candidate_tree))
+            and all(isinstance(change[side], dict) and change[side]['mode'] == '100644'
+                    and change[side]['type'] == 'blob' for side in ('before', 'after')))
+
+
+def _pinned_npm_lock(change, base_tree, candidate_tree):
+    """Two existing ordinary lockfiles supply no pinned analysis inputs.
+
+    AutoBuild's JSON allowlist excludes package-lock.json. Dependency discovery
+    reads package.json, and its resolver consumes that parsed manifest without
+    reading npm locks. Python does not extract these leaves. Whole-tree packs,
+    aliases and changed analysis configuration are rejected before this proof.
+    """
+    return (change['path'] in _PINNED_NPM_LOCKS
+            and all(tree.get('.github/workflows/codeql.yml') in pinned_workflow_entries()
+                    for tree in (base_tree, candidate_tree))
             and all(isinstance(change[side], dict) and change[side]['mode'] == '100644'
                     and change[side]['type'] == 'blob' for side in ('before', 'after')))
 
@@ -140,10 +180,10 @@ def _pinned_native_source(change, base_tree, candidate_tree, read_blob):
     retain full scans. No candidate file is opened, imported or executed here.
     """
     path = PurePosixPath(change['path'])
-    pinned = {'mode': '100644', 'type': 'blob', 'sha': _PINNED_RESULTS_WORKFLOW}
     if (path.suffix not in _PINNED_NATIVE_EXTENSIONS or path.name.startswith('.')
             or not callable(read_blob)
-            or any(tree.get('.github/workflows/codeql.yml') != pinned for tree in (base_tree, candidate_tree))
+            or any(tree.get('.github/workflows/codeql.yml') not in pinned_workflow_entries()
+                   for tree in (base_tree, candidate_tree))
             or any(type(change[side]) is not dict or change[side]['mode'] != '100644'
                    or change[side]['type'] != 'blob' for side in ('before', 'after'))):
         return False
@@ -212,6 +252,24 @@ def _global_input(path: str, pack_roots=()) -> bool:
                    for part in relative.parts[:-1])
             or name in _PACK_MANIFESTS | {"codeql-config.yml", "codeql-config.yaml"}
             or relative.suffix.lower() in _QUERY_EXTENSIONS or name.endswith(".dbscheme.stats"))
+
+
+def _pinned_python_control(change, base_tree, candidate_tree, pack_roots):
+    """Only existing ordinary Python controls outside every custom query pack.
+
+    Complete workflow/configuration and alias guards run before this exception.
+    The same pinned workflow must remain on both sides: a deployment cannot
+    certify itself. Candidate controller bytes are source, never selection code.
+    """
+    workflow = '.github/workflows/codeql.yml'
+    return (change['path'] in _PINNED_PYTHON_CONTROLS
+            and base_tree.get(workflow) == candidate_tree.get(workflow)
+            and base_tree.get(workflow) in pinned_workflow_entries()
+            and not any(PurePosixPath(change['path']).is_relative_to(root) for root in pack_roots)
+            and not any(name.startswith(('LGTM_INDEX_', 'CODEQL_EXTRACTOR_JAVASCRIPT_OPTION_',
+                                         'CODEQL_EXTRACTOR_PYTHON_OPTION_')) for name in os.environ)
+            and all(type(change[side]) is dict and change[side]['mode'] == '100644'
+                    and change[side]['type'] == 'blob' for side in ('before', 'after')))
 
 
 def _python_requirements_manifest(name: str) -> bool:
@@ -293,15 +351,19 @@ def select_languages(base_tree: dict | None, candidate_tree: dict | None, *, eve
     # its whole directory is shared control, including removed/renamed packs.
     pack_roots = {PurePosixPath(path).parent for path in base_tree.keys() | candidate_tree.keys()
                   if PurePosixPath(path).name.lower() in _PACK_MANIFESTS}
+    python_controls = set()
     for change in changes:
         if _global_input(change['path'], pack_roots):
-            return _result(LANGUAGES, [{"code": "shared-analysis-control", "path": change['path']}], changes)
+            if not _pinned_python_control(change, base_tree, candidate_tree, pack_roots):
+                return _result(LANGUAGES, [{"code": "shared-analysis-control", "path": change['path']}], changes)
+            python_controls.add(change['path'])
     languages, reasons = set(), []
     for change in changes:
         path = change["path"]
         inert_metadata = _pinned_ci_metadata(change, base_tree, candidate_tree)
+        inert_lock = _pinned_npm_lock(change, base_tree, candidate_tree)
         inert_native = _pinned_native_source(change, base_tree, candidate_tree, read_blob)
-        if inert_metadata or inert_native:
+        if inert_metadata or inert_lock or inert_native:
             selected = ()
         elif _pinned_policy_json(change, base_tree, candidate_tree):
             selected = ("python",)
@@ -311,7 +373,9 @@ def select_languages(base_tree: dict | None, candidate_tree: dict | None, *, eve
             return _result(LANGUAGES, [{"code": "unknown-analysis-input", "path": path}], changes)
         languages.update(selected)
         reasons.append({"code": ("reviewed-pinned-native-source" if inert_native else
+                                 "reviewed-pinned-npm-lock" if inert_lock else
                                  "reviewed-pinned-ci-metadata" if inert_metadata else
+                                 "reviewed-pinned-python-control" if path in python_controls else
                                  "language-input" if selected else "markdown-only-input"), "path": path})
     return _result(languages, reasons, changes)
 

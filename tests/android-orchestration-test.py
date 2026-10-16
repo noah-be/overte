@@ -138,7 +138,7 @@ class RequiredAndroidTests(unittest.TestCase):
         packages = gate.packages()
         name = ("shared-receipt-v1" if producer else "packages-v1") + ("-direct" if direct else "") + "-android"
         if owned:
-            name = "protected-producer-ci37-v1" if protected else "android-owned-npm5-sync-ci-v1"
+            name = "protected-producer-metadata-ci-v1" if protected else "android-owned-npm5-sync-ci-v1"
         generation = next(item for item in packages.workflow_generations() if item["name"] == name)
         paths = list((ROOT / "tools/repository-checks/workflows").rglob("*.yml"))
         contents = {gate._blob(path.read_bytes())["sha"]: path.read_bytes() for path in paths}
@@ -544,11 +544,24 @@ class RequiredAndroidTests(unittest.TestCase):
     def test_protected_producer_pair_is_additive_and_rejects_mixed_or_foreign_controls(self):
         old = self.workflow_files()
         self.assertEqual(gate.validate_tree_wiring(gate._sources(self.candidate).entries, policy_root=self.policy_root), old['name'])
+        # Retain the exact historical five-file tuple; the current canonical
+        # producer is its separate six-file metadata successor.
+        packages = gate.packages()
+        prior = next(row for row in packages.workflow_generations() if row['name']=='protected-producer-ci37-v1')
+        self.assertEqual(packages.validate_tree_wiring(prior['workflows']),prior['name'])
+        self.assertEqual(len(prior['workflows']),5)
         generation = self.workflow_files(protected=True)
+        self.assertEqual(set(generation['workflows']),set(packages.METADATA_WORKFLOW_PATHS))
+        self.assertEqual(len(generation['workflows']),6)
         entries = gate._sources(self.candidate).entries
         self.assertEqual(gate.validate_tree_wiring(entries, policy_root=self.policy_root), generation['name'])
         gate.validate_owned_generation(self.candidate, 'android-phone', policy_root=self.policy_root)
         self.assertTrue(gate.has_staged_caller(self.candidate, policy_root=self.policy_root))
+        for path in generation['workflows']:
+            missing = deepcopy(entries)
+            del missing[path]
+            with self.subTest(missing=path), self.assertRaises(ValueError):
+                gate.validate_tree_wiring(missing,policy_root=self.policy_root)
         for path in ('.github/workflows/repository-checks.yml', '.github/workflows/project-tests.yml'):
             for replacement in (old['workflows'][path], {'mode': '100644', 'type': 'blob', 'sha': 'a' * 40},
                                 {**generation['workflows'][path], 'mode': '100755'},

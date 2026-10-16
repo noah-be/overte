@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Dormant original-environment admission; never capture an unused consumer VM.
+"""Original-environment admission; never capture an unused consumer VM.
 
 Environment admission and source planning do NOT authenticate JSON. The terminal
 revalidates the existing legacy gate's API facts twice; it does not strengthen
-that gate's archive/source/uploader guarantees. Activation remains blocked on
-their separate implementation and review, even if trusted policy is enabled.
+that gate's archive/source/uploader guarantees. Its legacy activation remains
+blocked even when the separate isolated producer policy is enabled.
 There is no CLI switch, implicit execution, fallback, dispatch or workflow hook.
 """
 
@@ -32,7 +32,7 @@ ACTIVATION_READY = False
 # Separate source qualification for the protected /work profile. Its trusted
 # policy must also bind the exact namespace locale and safe-directory override;
 # this capability never enables the legacy terminal above.
-ISOLATED_ADMISSION_READY = False
+ISOLATED_ADMISSION_READY = True
 _DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 _VERSION = re.compile(r"[0-9]+(?:\.[0-9]+)+(?:[-+][A-Za-z0-9_.-]+)?\Z")
 _PYTHON_FLAGS = {

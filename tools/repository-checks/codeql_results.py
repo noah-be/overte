@@ -258,8 +258,7 @@ class Verifier:
                     allowed.add(old)
                 require(tree.get(path) in [{'mode': '100644', 'type': 'blob', 'sha': value} for value in allowed],
                         'analysis workflow or configuration is not approved')
-        self.pinned = trees[-1].get(WORKFLOW) == {
-            'mode': '100644', 'type': 'blob', 'sha': codeql._PINNED_RESULTS_WORKFLOW}
+        self.pinned = trees[-1].get(WORKFLOW) in codeql.pinned_workflow_entries()
         plan = codeql.select_repository(self.root, self.base, self.source, event=self.event_name)
         require(plan['languages'] == self.expected, 'caller language plan differs from independent immutable selection')
         return plan['languages']
@@ -368,6 +367,244 @@ class Verifier:
         require(self.jobs(before, selected) == windows, 'selected job execution changed during verification')
         require(self.context() == before, 'server candidate or run context changed during verification')
         return {'schema': 1, 'run_id': self.run_id, 'run_attempt': self.attempt, 'languages': selected,
+                'analyses': [{'id': chosen[x]['id'], 'category': chosen[x]['category'],
+                              'rules_count': chosen[x]['rules_count'], 'job_id': windows[x][2]} for x in selected],
+                'open_selected_findings': 0}
+
+
+def _metadata_modules():
+    # These are protected checkout modules, never modules from the PR tree.
+    sys.path.insert(0, str(ROOT / 'tools/test-evidence'))
+    sys.path.insert(0, str(ROOT / 'tools/repository-checks'))
+    import producer_api
+    import postmerge
+    import metadata_context
+    return producer_api, postmerge, metadata_context
+
+
+def _metadata_blob_reader(api):
+    """Keep API native-leaf discovery finite; larger inputs retain full scans."""
+    cache = {}
+    def read(oid):
+        if oid not in cache:
+            require(len(cache) < codeql._NATIVE_BLOB_COUNT, 'metadata native blob inventory exceeds its bound')
+            raw = api.immutable_blob(oid)
+            require(type(raw) is bytes and len(raw) <= 64_000, 'metadata immutable blob exceeds its bound')
+            cache[oid] = raw
+        return cache[oid]
+    return read
+
+
+class _OriginalAnalysis:
+    """Shared immutable result checks with an explicit authenticated old run.
+
+    No old Actions environment is constructed, and no current-run context check
+    is bypassed. MetadataVerifier independently authenticates both invocations
+    before supplying these narrow, immutable analysis inputs.
+    """
+    get, obj, pages = Verifier.get, Verifier.obj, Verifier.pages
+    jobs, analyses, open_alerts = Verifier.jobs, Verifier.analyses, Verifier.open_alerts
+
+    def __init__(self, api, binding, run_id):
+        self.api, self.run_id, self.attempt, self.pinned = api, run_id, 1, True
+        self.source, self.head = binding['merge_sha'], binding['head_sha']
+        self.ref = f"refs/pull/{binding['pull_request']}/merge"
+
+
+class MetadataVerifier:
+    """Revalidate original CodeQL proof for exactly the same live main PR M.
+
+    This future-only entrypoint never runs a scanner or falls back to producing
+    results. Complete all-status inventory and native reusable source edges are
+    mandatory, including when the independently selected language set is empty.
+    """
+    get, obj, pages = Verifier.get, Verifier.obj, Verifier.pages
+
+    def __init__(self, root, event, environment, *, api=None, clock=time.monotonic, sleep=time.sleep):
+        self.root, self.event, self.env = Path(root), event, environment
+        self.api = api if api is not None else default_api()
+        self.clock, self.sleep = clock, sleep
+
+    def _trusted(self, marker, postmerge):
+        require(marker.SOURCE_READY is True and postmerge._source_qualified() is True,
+                'metadata source and original evidence consumers are not qualified')
+        native = marker.native(self.event, self.env, root=self.root, caller=WORKFLOW)
+        require(self.env.get('GITHUB_JOB') == 'select', 'metadata verification requires its original selector job')
+        tree = codeql.inputs.full_tree(self.root, 'HEAD')
+        ordinary = lambda oid: {'mode': '100644', 'type': 'blob', 'sha': oid}
+        workflows = {WORKFLOW: ordinary(codeql._METADATA_RESULTS_WORKFLOW),
+                     '.github/workflows/pr-metadata-context.yml': ordinary(codeql._METADATA_SOURCE_WORKFLOW)}
+        for active, template in ((WORKFLOW, 'codeql-metadata.yml'),
+                                 ('.github/workflows/pr-metadata-context.yml', 'pr-metadata-context.yml')):
+            require(tree.get('tools/repository-checks/workflows/metadata-edits/' + template) == workflows[active],
+                    'protected metadata workflow generation is unavailable')
+        helper = tree.get(marker.SOURCE)
+        require(helper == ordinary(native['helper_blob']), 'protected marker source identity differs')
+        return native, workflows, {marker.SOURCE: helper}
+
+    def _run(self, listed, binding, workflow_id, *, current=False):
+        identity = positive(listed.get('id'))
+        latest = self.obj(f'actions/runs/{identity}')
+        attempt = self.obj(f'actions/runs/{identity}/attempts/1')
+        require(positive(latest.get('run_attempt')) == 1,
+                'original CodeQL attempt is unavailable or changed')
+        fields = ('id', 'workflow_id', 'check_suite_id', 'path', 'event', 'head_sha', 'head_branch',
+                  'run_attempt', 'status', 'conclusion', 'run_started_at', 'updated_at')
+        require(all(listed.get(key) == latest.get(key) == attempt.get(key) for key in fields)
+                and all(latest.get(key) == attempt.get(key) for key in
+                        ('referenced_workflows', 'repository', 'head_repository', 'pull_requests')),
+                'CodeQL all-status run inventory changed')
+        repository(latest.get('repository'))
+        repository(latest.get('head_repository'))
+        require(latest.get('workflow_id') == workflow_id and latest.get('path') == WORKFLOW
+                and latest.get('event') == 'pull_request' and latest.get('head_sha') == binding['head_sha']
+                and latest.get('head_branch') == binding['head_ref'], 'ordinary CodeQL run source differs')
+        prs = latest.get('pull_requests')
+        require(type(prs) is list and len(prs) == 1 and type(prs[0]) is dict
+                and prs[0].get('number') == binding['pull_request'], 'ordinary CodeQL PR association differs')
+        if current:
+            require((latest.get('status'), latest.get('conclusion')) in
+                    {('in_progress', None), ('completed', 'success')}, 'current metadata invocation failed or is pending')
+        else:
+            require(latest.get('status') in {'queued', 'in_progress', 'waiting', 'pending', 'requested', 'completed'}
+                    and ((latest['status'] == 'completed' and latest.get('conclusion') in
+                          {'success', 'failure', 'cancelled', 'timed_out', 'action_required', 'neutral', 'skipped', 'stale'})
+                         or latest['status'] != 'completed' and latest.get('conclusion') is None),
+                    'ordinary CodeQL status is unknown')
+        timestamp(latest.get('run_started_at'))
+        timestamp(latest.get('updated_at'))
+        return latest
+
+    def _native_source(self, adapter, run, binding, workflows):
+        references = run.get('referenced_workflows')
+        revision = binding['merge_sha']
+        ref = f"refs/pull/{binding['pull_request']}/merge"
+        paths = {REPOSITORY + '/' + path + '@' + revision for path in workflows}
+        require(type(references) is list and 1 <= len(references) <= len(paths)
+                and all(type(item) is dict and item.get('sha') == revision and item.get('ref') == ref
+                        and item.get('path') in paths for item in references)
+                and len({item['path'] for item in references}) == len(references)
+                and any(item['path'] == REPOSITORY + '/.github/workflows/pr-metadata-context.yml@' + revision
+                        for item in references), 'original CodeQL native merge source is missing or mixed')
+        tree, parents, actual = adapter._workflow_tuple(revision, paths=set(workflows))
+        require(tree == binding['merge_tree'] and parents == binding['merge_parents'] and actual == workflows,
+                'original CodeQL immutable workflow tuple or ordered source differs')
+        return references
+
+    def _inventory(self, adapter, binding, policy, now):
+        endpoint = f"actions/workflows/{policy.caller_workflow_id}/runs?head_sha={binding['head_sha']}"
+        records = self.pages(endpoint, field='workflow_runs')
+        metadata, ordinary = {}, []
+        for listed in records:
+            observed = adapter.metadata_observation(listed, binding, policy, now=now)
+            if observed is None:
+                ordinary.append(self._run(listed, binding, policy.caller_workflow_id))
+            else:
+                metadata[positive(listed.get('id'))] = observed
+        return records, metadata, ordinary
+
+    def verify(self, *, processing_seconds=PROCESSING_SECONDS):
+        require(type(processing_seconds) in (int, float) and 0 <= processing_seconds <= PROCESSING_SECONDS,
+                'invalid result-processing bound')
+        A, postmerge, marker = _metadata_modules()
+        native, workflows, sources = self._trusted(marker, postmerge)
+        adapter = A.Adapter(self.api)
+        before = adapter.current(native['number'])
+        binding, references = before
+        require(binding['base_ref'] == references['default_ref'] == 'main'
+                and binding['base_sha'] == references['default'] == native['base']
+                and binding['head_sha'] == native['head'] and binding['merge_sha'] == native['merge'],
+                'metadata event, protected default or live candidate changed')
+        workflow = self.obj('actions/workflows/codeql.yml')
+        require(workflow.get('path') == WORKFLOW and workflow.get('state') == 'active',
+                'current CodeQL workflow is unavailable')
+        policy = A.MetadataPolicy(positive(workflow.get('id')), WORKFLOW,
+                                  {'codeql-metadata-v1': workflows}, {'codeql-metadata-v1': sources})
+        # Re-read both complete immutable API trees; candidate data never supplies
+        # policy, languages, an old run ID or an analysis identity.
+        _, base_tree = postmerge.full_tree(adapter, binding['base_sha'])
+        candidate_tree_sha, candidate_tree = postmerge.full_tree(adapter, binding['merge_sha'])
+        require(candidate_tree_sha == binding['merge_tree'], 'candidate source inventory differs')
+        require(all(candidate_tree.get(path) == expected for path, expected in workflows.items())
+                and base_tree.get(WORKFLOW) in codeql.pinned_workflow_entries(),
+                'metadata reuse requires the protected reviewed native-source workflow')
+        for path, oid in codeql._REVIEWED_CONTROLS.items():
+            if path != WORKFLOW:
+                require(all(tree.get(path) == {'mode': '100644', 'type': 'blob', 'sha': oid}
+                            for tree in (base_tree, candidate_tree)), 'analysis configuration is not approved')
+        selected = codeql.select_languages(base_tree, candidate_tree, event='pull_request',
+                                          read_blob=_metadata_blob_reader(self.api))['languages']
+        selected = languages(selected)
+        now = datetime.now(timezone.utc)
+        snapshot = self._inventory(adapter, binding, policy, now)
+        records, metadata, ordinary = snapshot
+        current = [item for item in records if item.get('id') == native['run_id']]
+        require(len(current) == 1 and native['run_id'] in metadata
+                and metadata[native['run_id']]['candidate']['merge_sha'] == binding['merge_sha'],
+                'current invocation is not an authenticated metadata nonproducer')
+        current_run = self._run(current[0], binding, policy.caller_workflow_id, current=True)
+        self._native_source(adapter, current_run, binding, workflows)
+        require(ordinary, 'original ordinary CodeQL qualification is unavailable')
+        newest = max(timestamp(item['run_started_at']) for item in ordinary)
+        originals = [item for item in ordinary if timestamp(item['run_started_at']) == newest]
+        require(len(originals) == 1, 'latest ordinary CodeQL run ordering is ambiguous')
+        original = originals[0]
+        require(original['id'] != native['run_id'] and original['status'] == 'completed'
+                and original['conclusion'] == 'success'
+                and timestamp(original['run_started_at']) <= timestamp(original['updated_at'])
+                    < timestamp(current_run['run_started_at']) <= timestamp(current_run['updated_at']) <= now,
+                'latest ordinary CodeQL run is failed, pending or unavailable')
+        self._native_source(adapter, original, binding, workflows)
+        suite = self.obj(f"check-suites/{positive(original.get('check_suite_id'))}")
+        repository(suite.get('repository'))
+        require(suite.get('id') == original['check_suite_id'] and suite.get('head_sha') == binding['head_sha']
+                and suite.get('app', {}).get('id') == 15368, 'original CodeQL native check suite differs')
+        proof = _OriginalAnalysis(self.api, binding, original['id'])
+        context = {'start': timestamp(original['run_started_at'])}
+        windows = proof.jobs(context, selected)
+        job_records = proof.pages(f"actions/runs/{original['id']}/attempts/1/jobs", field='jobs')
+        require({job.get('name') for job in job_records if job.get('name') in
+                 {'CodeQL (' + language + ')' for language in codeql.LANGUAGES}} ==
+                {'CodeQL (' + language + ')' for language in selected},
+                'original selected language execution differs')
+        checks = {job['id']: vars(adapter._job(job, original, 15368, final_name=job['name']))
+                  for job in job_records if job.get('name') in
+                  {'Select affected CodeQL languages', *('CodeQL (' + x + ')' for x in selected)}}
+        require(all(context['start'] <= timestamp(job['started_at']) <= timestamp(job['completed_at'])
+                    <= timestamp(original['updated_at']) for job in job_records if job['id'] in checks),
+                'original selected job is outside its completed native run')
+        deadline = self.clock() + processing_seconds
+        while selected:
+            chosen = proof.analyses(selected, windows)
+            if len(chosen) == len(selected):
+                break
+            require(self.clock() < deadline, 'original selected analysis is missing after bounded processing wait')
+            self.sleep(min(5, max(0, deadline - self.clock())))
+        else:
+            chosen = {}
+        if selected:
+            proof.open_alerts(selected)
+            for record in chosen.values():
+                require(proof.obj(f"code-scanning/analyses/{positive(record.get('id'))}") == record,
+                        'original analysis changed during verification')
+            require(proof.analyses(selected, windows) == chosen, 'original analysis inventory changed')
+            proof.open_alerts(selected)
+        require(proof.jobs(context, selected) == windows, 'original job execution changed')
+        final_jobs = proof.pages(f"actions/runs/{original['id']}/attempts/1/jobs", field='jobs')
+        require(final_jobs == job_records and
+                {job['id']: vars(adapter._job(job, original, 15368, final_name=job['name']))
+                 for job in final_jobs if job['id'] in checks} == checks,
+                'original native jobs or checks changed')
+        require(self._run(original, binding, policy.caller_workflow_id) == original,
+                'original CodeQL attempt changed')
+        require(self._inventory(adapter, binding, policy, now) == snapshot,
+                'ordinary inventory or authenticated metadata observations changed')
+        require(adapter.current(native['number']) == before and
+                self._trusted(marker, postmerge) == (native, workflows, sources),
+                'live candidate, protected source or default branch changed')
+        return {'schema': 1, 'kind': 'revalidated-original-codeql', 'metadata_only': 'true',
+                'qualification': False, 'merge_sha': binding['merge_sha'],
+                'original_run_id': original['id'], 'run_attempt': 1, 'languages': selected,
                 'analyses': [{'id': chosen[x]['id'], 'category': chosen[x]['category'],
                               'rules_count': chosen[x]['rules_count'], 'job_id': windows[x][2]} for x in selected],
                 'open_selected_findings': 0}
