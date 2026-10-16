@@ -724,6 +724,19 @@ def verify_qualification_source(source, revision, *, root=ROOT):
 
 
 def validate_runtime(result, binding, environment, uid, gid):
+    def fields(checks, message, details=None):
+        failed = [name for name, valid in checks.items() if not valid]
+        if failed:
+            raise Unavailable(message + ": " + json.dumps({"failed": failed, **(details or {})},
+                                                        sort_keys=True, ensure_ascii=True))
+
+    def names(keys):
+        # Report bounded public variable names, never unexpected values. Odd
+        # or oversized keys receive only a digest; JSON escapes all controls.
+        return [key if type(key) is str and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,63}", key)
+                else "sha256:" + hashlib.sha256(str(key).encode()).hexdigest()
+                for key in sorted(keys, key=str)[:16]]
+
     if not (result["exit_code"] == 0 and result["reason"] is None
             and result["cleanup"] == {"kernel_populated": 0, "subtree_kill": True}):
         detail = {"exit_code": result["exit_code"], "reason": result["reason"], "cleanup": result["cleanup"],
@@ -731,21 +744,42 @@ def validate_runtime(result, binding, environment, uid, gid):
         raise Unavailable("protected runtime probe did not finish in an empty owned scope: "
                           + json.dumps(detail, sort_keys=True, ensure_ascii=True))
     observed = result["observation"]
-    require(type(observed) is dict and observed.get("schema") == 1 and observed.get("authority") == "none"
-            and observed.get("measurement") == "protected-boundary-profile" and observed.get("reusable") is False
-            and observed.get("runtime_compatibility") == "unqualified", "unqualified runtime observation is missing")
+    ordinary = type(observed) is dict
+    fields({"observation": ordinary, "schema": ordinary and observed.get("schema") == 1,
+            "authority": ordinary and observed.get("authority") == "none",
+            "measurement": ordinary and observed.get("measurement") == "protected-boundary-profile",
+            "reusable": ordinary and observed.get("reusable") is False,
+            "runtime_compatibility": ordinary and observed.get("runtime_compatibility") == "unqualified"},
+           "unqualified runtime observation is missing")
     identity, process = observed.get("identity"), observed.get("process")
-    require(type(identity) is dict and identity.get("binding") == binding and identity.get("environment") == environment
-            and identity.get("prefix") == "/opt/overte-ci/venv" and type(identity.get("files")) is dict
-            and len(identity["files"]) >= 8
-            and all(type(value) is str and re.fullmatch(r"[0-9a-f]{64}", value) for value in identity["files"].values()),
-            "runtime probe is not bound to the actual source, run, snapshot, projection and profile")
-    require(type(process) is dict and type(process.get("status")) is dict, "runtime process protection observation is missing")
+    ordinary = type(identity) is dict
+    actual_binding = identity.get("binding") if ordinary else None
+    actual_environment = identity.get("environment") if ordinary else None
+    files = identity.get("files") if ordinary else None
+    differences = {}
+    if type(actual_environment) is dict:
+        expected, actual = set(environment), set(actual_environment)
+        differences = {"missing": names(expected - actual), "extra": names(actual - expected),
+                       "different": names(key for key in expected & actual if environment[key] != actual_environment[key]),
+                       "expected_count": len(expected), "actual_count": len(actual)}
+    fields({"identity": ordinary, "binding": actual_binding == binding,
+            "environment": actual_environment == environment,
+            "prefix": ordinary and identity.get("prefix") == "/opt/overte-ci/venv",
+            "files": type(files) is dict, "file_count": type(files) is dict and len(files) >= 8,
+            "file_digests": type(files) is dict and all(type(value) is str and re.fullmatch(r"[0-9a-f]{64}", value)
+                                                       for value in files.values())},
+           "runtime probe is not bound to the actual source, run, snapshot, projection and profile",
+           {"environment_keys": differences, "file_count": len(files) if type(files) is dict else None,
+            "binding_fields": [key for key in binding if type(actual_binding) is not dict
+                               or actual_binding.get(key) != binding[key]]})
+    fields({"process": type(process) is dict,
+            "status": type(process) is dict and type(process.get("status")) is dict},
+           "runtime process protection observation is missing")
     status = process["status"]
-    require(status.get("NoNewPrivs") == "1" and status.get("Uid", "").split() == [str(uid)] * 4
-            and status.get("Gid", "").split() == [str(gid)] * 4
-            and all(status.get(key) == "0000000000000000" for key in ("CapInh", "CapPrm", "CapEff", "CapBnd", "CapAmb")),
-            "protected runtime probe retained host privileges")
+    fields({"NoNewPrivs": status.get("NoNewPrivs") == "1", "Uid": status.get("Uid", "").split() == [str(uid)] * 4,
+            "Gid": status.get("Gid", "").split() == [str(gid)] * 4,
+            **{key: status.get(key) == "0000000000000000" for key in ("CapInh", "CapPrm", "CapEff", "CapBnd", "CapAmb")}},
+           "protected runtime probe retained host privileges")
     return "sha256:" + hashlib.sha256(json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 

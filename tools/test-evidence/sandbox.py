@@ -47,7 +47,7 @@ _POLICY_FILES = (POLICY, "tools/test-evidence/sandbox.py", "tools/test-evidence/
 _SYSTEM_DIRECTORIES = ("/usr",)
 _SYSTEM_FILES = ("/etc/os-release", "/etc/ld.so.cache", "/etc/localtime", "/var/lib/dpkg/status")
 _ENVIRONMENT = {
-    "HOME": "/home/candidate", "TMPDIR": "/tmp", "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
+    "HOME": "/home/candidate", "TMPDIR": "/tmp", "PWD": "/work", "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
     "PATH": "/opt/overte-ci/venv/bin:/usr/bin:/bin", "VIRTUAL_ENV": "/opt/overte-ci/venv",
     "QT_QPA_PLATFORM": "offscreen", "QT_QUICK_BACKEND": "software",
     "OVERTE_QML_TEST_RUNNER": "/usr/lib/qt6/bin/qmltestrunner",

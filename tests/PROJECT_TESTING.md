@@ -479,6 +479,9 @@ Separate protected probes run before work and after every workload is gone;
 source, run attempt, snapshot, projection and the effective diagnostic runtime
 must agree. This small stdlib profile is explicitly not the complete portable
 host environment identity. Production launch/post-capture remain denied.
+Its exact environment includes `PWD=/work`, which Bubblewrap also sets for the
+fixed working directory. Mismatches remain failures; bounded diagnostics name
+the failing fields and variable keys/counts without printing environment values.
 Live Ubuntu qualification, complete shared-host suite/toolchain compatibility,
 publisher credential isolation and authenticated reuse publication remain
 required before any successful result can authorize reuse.
