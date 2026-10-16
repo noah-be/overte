@@ -2203,7 +2203,7 @@ class MainConsumerSourceTests(unittest.TestCase):
             with patch.dict(os.environ,{'GITHUB_OUTPUT':str(output)}),patch.object(C,'SOURCE_READY',False), \
                     patch.object(C.A,'Adapter',side_effect=AssertionError('zero API')):
                 self.assertEqual(C.main(['--report',str(report)]),0)
-            self.assertEqual(output.read_text(),'shared_reused=false\npackage_work=true\n')
+            self.assertEqual(output.read_text(),'shared_reused=false\npackage_work=true\nno_execution=false\n')
             self.assertEqual(json.loads(report.read_text()),{'reused':False,'reason':'protected-consumer-not-qualified'})
 
 
