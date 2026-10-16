@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Complete dormant Android ownership-transfer tests; no Android/product builds."""
 from contextlib import redirect_stderr, redirect_stdout
-from copy import deepcopy
+from copy import copy, deepcopy
 import importlib.util
 import io
 import json
@@ -296,6 +296,48 @@ class AndroidOwnerTransferTests(unittest.TestCase):
         before.entries = previous
         with self.assertRaisesRegex(ValueError, "unreviewed predecessor"):
             handoff.validate_sources(self.source(), "android-phone", policy_root=self.policy_root, previous=before)
+
+    def test_android_main_sync_registration_cannot_bypass_complete_owner_validation(self):
+        transfer = handoff.policy()
+        paths = set(transfer["legacy_workflows"]) | set(transfer["source_contracts"])
+        sync = json.loads((ROOT / ".github/sync-test-reuse.json").read_text())
+        self.assertEqual(set(sync["reconciliation_repair_paths"]["android-main"]), paths)
+        self.assertEqual(len(paths), 6)
+        self.fixture.workflow_files(); self.fixture.merge()
+        event = deepcopy(self.fixture.event)
+        event["pull_request"]["base"]["ref"] = "android-main"
+        gate.validate_execution_generation(self.candidate, event, policy_root=self.policy_root)
+        plan = gate.candidate_plan(self.candidate, event, self.fixture.sha, policy_root=self.policy_root)
+        self.assertTrue(plan["required"])
+        self.assertEqual(len(gate.android().plan(self.candidate, "android-main", views=plan["views"])["executions"]), 40)
+        # The sync registration permits inspection, never arbitrary repaired bytes.
+        # Mutate immutable Git entries so this exercises the real generation and
+        # source validators without executing candidate commands or building SDKs.
+        source = self.source()
+        previous = gate._sources(self.candidate, event["pull_request"]["base"]["sha"])
+        targets = paths | {".github/workflows/repository-checks.yml", gate.WORKFLOW,
+                           ".github/workflows/project-tests.yml"}
+        for target in sorted(targets):
+            for mutation in ("altered", "missing", "symlink"):
+                changed = copy(source)
+                changed.entries = deepcopy(source.entries)
+                if mutation == "missing":
+                    changed.entries.pop(target)
+                elif mutation == "symlink":
+                    changed.entries[target]["mode"] = "120000"
+                else:
+                    changed.entries[target]["sha"] = "a" * 40
+                with self.subTest(target=target, mutation=mutation), \
+                        patch.object(gate, "_sources", side_effect=lambda _candidate, commit=None:
+                                     previous if commit is not None else changed), \
+                        self.assertRaises(ValueError):
+                    gate.validate_execution_generation(self.candidate, event, policy_root=self.policy_root)
+        trusted = gate.load_policy()
+        self.assertEqual(trusted["required_branches"], [])
+        self.assertEqual(trusted["activation_blockers"], ["prospective-generation-hosted-qualification"])
+        self.assertFalse(gate.ACTIVATION_READY)
+        with self.assertRaisesRegex(ValueError, "activation blocked"):
+            gate.admit(self.candidate, event, policy_root=self.policy_root)
 
     def test_profile_minimum_and_unknown_extra_are_complete_and_no_alias_is_allowed(self):
         self.fixture.workflow_files()

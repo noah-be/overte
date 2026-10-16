@@ -1431,6 +1431,7 @@
           ".github/android-owner-transfer.json",
           ".github/android-orchestration.json",
           ".github/android-checks.json",
+          ".github/sync-test-reuse.json",
           ".github/package-workflow-generations.json",
           "tools/repository-checks/workflows/android-owned/project-tests.yml",
           "tools/repository-checks/workflows/android-owned/android-required.yml"
