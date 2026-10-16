@@ -81,6 +81,7 @@ CI_ROLLOUT_PATHS = frozenset({
     'tools/test-evidence/sandbox.py', 'tools/test-evidence/sandbox_host.py',
     'tools/test-evidence/sandbox_host_fixture.py', 'tools/test-evidence/sandbox_probe.py',
     'tools/test-evidence/sandbox_shared.py',
+    'tools/test-evidence/producer_workflow.py',
 })
 # These product contracts do not consume the admitted CI inputs. Their source,
 # helpers, fixtures, import/include membership AND definitions are bound below.
@@ -106,6 +107,8 @@ PROGRAM_INPUTS = (
     'tools/test-evidence/sandbox_host.py', 'tools/test-evidence/sandbox_host_fixture.py',
     'tools/test-evidence/sandbox_probe.py',
     'tools/test-evidence/sandbox_shared.py',
+    'tools/test-evidence/producer_workflow.py',
+    'tools/repository-checks/workflows/producers/protected-project-tests.yml',
     # Actual assertions consume these documents; the generic Markdown rule does
     # not exempt them. Their membership, modes and bytes remain immutable inputs.
     'android/vr/common/openxr/README.md',
