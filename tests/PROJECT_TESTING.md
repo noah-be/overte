@@ -782,6 +782,10 @@ also permits omission when dependency changes exceed the focused security-fix
 profiles. The full package checks must still succeed in the required repository
 aggregate. Missing package ownership, mixed product/configuration changes,
 nonordinary modes and historical native/iOS reader changes retain their gates.
+The existing full S3 package job provides that required ownership. A full Browser
+profile alone does not: the historical separate Browser run is not represented
+by the package job's required receipt. That full-owner integration remains open;
+the selector must not invent a required package result to omit other work.
 
 The iOS qualification verifier has a staged `inputSelection` setting in its
 trusted policy. An absent or false setting preserves the deployed workflow's

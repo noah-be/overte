@@ -161,6 +161,10 @@ or a complete required JavaScript package check for another lock graph change.
 The latter keeps the full package build/function/security obligations and both
 reviewed iOS reader boundaries. It never treats an unsupported dependency graph
 as the focused security-fix profile or a passing package result.
+The existing S3 full package job meets this ownership condition. A full Browser
+profile handled only by the separate historical Browser workflow is insufficient:
+its full result must first be wired into the required aggregate. Until then that
+case retains conservative iOS selection.
 
 The iOS route independently loads the trusted required package controller,
 validates the complete five-workflow generation and recomputes the exact package

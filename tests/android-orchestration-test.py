@@ -441,12 +441,41 @@ class RequiredAndroidTests(unittest.TestCase):
         self.assertTrue(result["required"])
         self.assertIsNone(result["lock_package_plan"])
 
-    def test_nonordinary_lock_entries_missing_inputs_and_unknown_npm_keep_complete_union(self):
+    def test_full_foreign_package_requires_actual_selected_job_before_android_omission(self):
+        self.lock_sources()
+        base=self.git("rev-parse","HEAD")
+        for path,malformed in (("browser-client/package-lock.json",False),
+                ("script-archive/marketplace/S3Server/package-lock.json",False),
+                ("browser-client/package-lock.json",True)):
+            self.git("reset","--hard",base);self.lock_anchor()
+            contents='{"unexpected":true}\n' if malformed else self.updated_lock(path,unsupported=True)
+            result=self.merge(path,contents)
+            package=gate.packages().candidate_plan(self.candidate,self.event,self.sha)
+            project=str(Path(path).parent)
+            with self.subTest(path=path,malformed=malformed):
+                selected=package["dependency_profiles"]["projects"][project]
+                self.assertEqual(selected["profile"],"full");self.assertTrue(selected["required"])
+                if project not in package["package_set"]:
+                    # The historical full Browser workflow has no bound
+                    # required package result here. Its profile alone cannot
+                    # waive Android; wiring that full owner remains separate.
+                    self.assertTrue(result["required"])
+                    self.assertIsNone(result["lock_package_plan"])
+                    continue
+                self.assertFalse(result["required"]);self.assertEqual(result["views"],[])
+                self.assertEqual(result["lock_package_plan"],package["plan"])
+                missing=deepcopy(package);missing["package_set"]=[]
+                packages=gate.packages()
+                with patch.object(gate,"packages",return_value=packages), \
+                        patch.object(packages,"candidate_plan",return_value=missing):
+                    self.assertTrue(self.plan()["required"])
+
+    def test_nonordinary_lock_entries_and_missing_inputs_keep_complete_union(self):
         self.lock_sources()
         base = self.git("rev-parse", "HEAD")
         browser = "browser-client/package-lock.json"
         supported = self.updated_lock(browser)
-        for mutation in ("unsupported", "malformed", "mode", "symlink", "delete", "missing-base", "executable-base"):
+        for mutation in ("mode", "symlink", "delete", "missing-base", "executable-base"):
             with self.subTest(mutation=mutation):
                 self.git("reset", "--hard", base)
                 target = self.candidate / browser
@@ -459,9 +488,7 @@ class RequiredAndroidTests(unittest.TestCase):
                 self.lock_anchor()
                 self.anchor()
                 contents, mode = supported, None
-                if mutation == "unsupported": contents = self.updated_lock(browser, unsupported=True)
-                elif mutation == "malformed": contents = '{"unexpected":true}\n'
-                elif mutation == "mode": mode = 0o755
+                if mutation == "mode": mode = 0o755
                 elif mutation == "symlink": mode = "symlink"
                 elif mutation == "delete": contents = None
                 elif mutation == "executable-base": mode = 0o644
