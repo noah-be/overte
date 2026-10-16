@@ -1013,6 +1013,7 @@ class CurrentAndroidNativeOwnerTests(unittest.TestCase):
         packages=gate.packages()
         manifest=json.loads((ROOT/'.github/package-workflow-generations.json').read_bytes())['generations']
         old=next(row for row in manifest if row['name']=='android-owned-npm5-sync-ci-v1')
+        bootstrap=next(row for row in manifest if row['name']=='npm-consumers-sync-ci-v1')
         future=deepcopy(manifest[-1]);future['name']=gate.CURRENT_SOURCE_GENERATION
         future['workflows']['.github/workflows/repository-checks.yml']={'mode':'100644','type':'blob','sha':'e'*40}
         before=deepcopy(old['workflows']);current=deepcopy(future['workflows'])
@@ -1046,7 +1047,7 @@ class CurrentAndroidNativeOwnerTests(unittest.TestCase):
         # source tests. These spies isolate this new caller's actual API/local
         # source binding and require D alone to supply executable authority.
         with patch.object(gate,'packages',return_value=packages), \
-             patch.object(packages,'workflow_generations',return_value=[old,future]), \
+             patch.object(packages,'workflow_generations',return_value=[bootstrap,old,future]), \
              patch.object(execution,'checkout_identity',return_value=(self.default,trees[self.default])), \
              patch.object(inputs,'full_tree',return_value=default), \
              patch.object(gate,'_sources',side_effect=lambda candidate,commit=None:SimpleNamespace(entries=before if commit else current)), \
@@ -1054,11 +1055,28 @@ class CurrentAndroidNativeOwnerTests(unittest.TestCase):
              patch.object(S,'actual_import_inventory',return_value={}), \
              patch.object(gate,'validate_owned_generation') as handoff:
             def source():return self.actual_source('/candidate',self.event,self.sha,env,adapter,ROOT)
-            for target in gate.CURRENT_SOURCE_TARGETS:
-                self.binding['base_ref']=target;self.event['pull_request']['base']['ref']=target;env['GITHUB_BASE_REF']=target
-                self.assertEqual(source()[2:4],(current,default))
-                self.assertEqual(compatibility.call_args.args,(default,default,'main'))
-                self.assertEqual(handoff.call_args.kwargs['before_sha'],self.base)
+            for prior in (bootstrap,old):
+                before.clear();before.update(deepcopy(prior['workflows']))
+                for target in gate.CURRENT_SOURCE_TARGETS:
+                    with self.subTest(predecessor=prior['name'],target=target):
+                        self.binding['base_ref']=target;self.event['pull_request']['base']['ref']=target;env['GITHUB_BASE_REF']=target
+                        self.assertEqual(source()[2:4],(current,default))
+                        self.assertEqual(compatibility.call_args.args,(default,default,'main'))
+                        self.assertEqual(handoff.call_args.kwargs['before_sha'],self.base)
+            # A bootstrap is a complete independently authenticated tuple.
+            # Its individual known files/modes cannot be mixed or projected.
+            before.clear();before.update(deepcopy(bootstrap['workflows']))
+            for change in ('mixed','mode','missing'):
+                path='.github/workflows/project-tests.yml';saved=deepcopy(before)
+                if change=='mixed':before[path]=deepcopy(old['workflows'][path])
+                elif change=='mode':before[path]['mode']='100755'
+                else:before.pop(path)
+                with self.subTest(bootstrap=change),self.assertRaises(ValueError):source()
+                before.clear();before.update(saved)
+            # The existing immutable handoff still has authority over the six
+            # actual legacy source owners, including on a row13 predecessor.
+            with patch.object(gate,'validate_owned_generation',side_effect=ValueError('legacy owner missing')),self.assertRaises(ValueError):source()
+            before.clear();before.update(deepcopy(old['workflows']))
             live_labels.append({'name':'unrelated-label'})
             self.assertEqual(source()[2:4],(current,default))
             for labels in ([{'name':'android-long-diagnostics'}],[{'name':'duplicate'},{'name':'duplicate'}],['invalid']):

@@ -608,7 +608,7 @@ def _current_source(candidate, event, sha, environment, adapter, policy_root):
     # B is authenticated data and may be a finite historical recipe on first
     # install. D alone supplies executable controllers; handoff checks B below.
     A.require(packages().validate_tree_wiring(before) in {
-        "android-owned-npm5-sync-ci-v1",CURRENT_SOURCE_GENERATION},
+        "npm-consumers-sync-ci-v1","android-owned-npm5-sync-ci-v1",CURRENT_SOURCE_GENERATION},
         'current Android predecessor is not a finite protected recipe')
     A.require(validate_tree_wiring(current,policy_root=root)==CURRENT_SOURCE_GENERATION,
         'current Android owner requires the exact complete new generation')
