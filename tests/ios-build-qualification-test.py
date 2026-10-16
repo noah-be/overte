@@ -1103,16 +1103,23 @@ class HostGenerationTests(unittest.TestCase):
             sources[project + "/package-lock.json"] = self.npm_lock(project, definition["old"])
         self.base = self.commit(self.base, sources)
         snapshot = consumers._snapshot(self.root, self.base)
-        trusted_source = (ROOT / "tools/repository-checks/npm_consumers.py").read_text()
         for project, definition in self.npm_policies.items():
             complement = consumers._digest(consumers._complement(snapshot, project))
             lock = json.loads(sources[project + "/package-lock.json"])
             graph = consumers._digest(consumers._graph(lock, definition["node"]))
-            trusted_source = trusted_source.replace(definition["complement"], complement)
-            trusted_source = trusted_source.replace(definition["graph"], graph)
-            trusted_source = trusted_source.replace('"entries": ' + str(definition["entries"]), '"entries": 2')
-        target = self.trusted / "tools/repository-checks/npm_consumers.py"
-        target.parent.mkdir(parents=True, exist_ok=True); target.write_text(trusted_source)
+            definition.update({"complement": complement, "graph": graph, "entries": 2})
+        # Review only the disposable policy data in memory. Keep the actual
+        # immutable selector implementation and avoid rewriting tool source.
+        consumers.PROJECTS = copy.deepcopy(self.npm_policies)
+        original_selector = self.host.selector
+
+        def fixture_selector(policy_root):
+            module = original_selector(policy_root)
+            module.npm_selector = lambda: consumers
+            return module
+
+        selector_patch = patch.object(self.host, "selector", side_effect=fixture_selector)
+        selector_patch.start(); self.addCleanup(selector_patch.stop)
         target = self.trusted / ".github/repository-checks.json"
         target.write_text(json.dumps({"repository": CHECK.REPOSITORY, "repository_id": CHECK.REPOSITORY_ID,
                                       "required_contexts": ["repository-checks"]}))
