@@ -43,6 +43,7 @@ VARIANTS = ["complete-reviewed-launcher", "Qt6Core/Gui/Qml/Concurrent/WebChannel
 # test receipt, shared-owner handoff or application-build selection authority.
 REVIEWED_CI_HOST_BOUNDARY = "eb10f2ce89017a4efc75001773c1da415994dc2f4d542fb2804183bc2f77ba15"
 CI_HOST_INDEPENDENT_PATHS = frozenset({
+    'tools/repository-checks/workflows/sync-ci-selection.yml',
     'tools/repository-checks/npm_consumers.py',
     'tools/repository-checks/npm-source-map-tests.cjs',
     'tools/repository-checks/npm-proxy-addr-tests.cjs',

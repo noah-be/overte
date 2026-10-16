@@ -580,7 +580,7 @@ class CanonicalTemplateTests(unittest.TestCase):
             self.assertEqual(BROWSER._blob(outer), '7f7ec83f15581ebc9cd693201aac1d8cd77d944f')
             spec = importlib.util.spec_from_file_location('npm_pair_contract', ROOT / 'tools/repository-checks/package_checks.py')
             packages = importlib.util.module_from_spec(spec); spec.loader.exec_module(packages)
-            self.assertEqual(packages.validate_wiring(ROOT), 'npm-consumers-v1')
+            self.assertIn(packages.validate_wiring(ROOT), ('npm-consumers-v1', 'npm-consumers-sync-ci-v1'))
             self.assertTrue(packages.consumer_generation(ROOT))
             self.assertEqual(targets, [])
         else:

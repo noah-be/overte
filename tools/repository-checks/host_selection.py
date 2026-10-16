@@ -99,17 +99,28 @@ PROGRAM_INPUTS = (
     'android/vr/common/openxr/README.md',
     'android/phone/device-tests/parity/fixtures/README.md',
 )
-# Main358937 and six main649 CI-only topic previews, preserving both child npm
-# locks, product sources and profiles. These are reader identities, not passing
-# test receipts. The changed control-plane launcher still selects its real owner.
-REVIEWED_PROGRAMS = 'e5c142d70a46be66a725bcdf652c78dab1cf17346cf2c5020c0ba272cd8ba0b4'
+# Reviewed genuine complete parent merges at protected main2bef5593 and the
+# opt-in sync execution successor. Their complete reader delta is precisely
+# validate-sync.py. Only the two separately owned foreign locks are outside this
+# reader complement; changed locks still need mandatory package coverage.
+# These identities are not execution receipts or application-build evidence.
+REVIEWED_PROGRAMS = '2482e27f5bb625e9d0763d73f5cabd3a83653b90db1cd290511c336576e05243'
 REVIEWED_CHILD_PROGRAMS = {
-    'apple-main': '8be34fee156fbac2fd1f82db5d1f526194afa457e028314eddbebf6a4227c078',
-    'apple-ios': 'e8a35177e412e00bed9d0674842584e15bfee1f107e602618b7bdb28612cbb75',
-    'android-main': 'a43c20a42b2990d9abb473c4419ffc6f6cd22e1b86eef3ee1d891c65f52d482e',
-    'android-phone': '64823eb0cbc70a3fc65790b6f228b4df33136094e773862d717ab9b0639eddc8',
-    'android-vr': '118fe7cb0d84e930a487e74a9ba7ad6cec8ba41a60d3f9e6a2b95e9cdf2d2baa',
-    'android-vr-pico': '939f06ce47bb28c6efae3f97fdd26482a904b92286b5bb923cbbca082fcef79d',
+    'android-main': '800883906b2769263a6f67d46e922287c160cbf0ea5e863c1d3d505eec6fe783',
+    'android-phone': '1ca73473506a290eede5099198850eead38c9b9326e895750eb2937bee23a57e',
+    'android-vr': '800883906b2769263a6f67d46e922287c160cbf0ea5e863c1d3d505eec6fe783',
+    'android-vr-pico': '398387a25115acc134bc080e09084490a4515c8c7cd86e8e0ecc50a7475258e1',
+    'apple-ios': 'c0e16b46f25d22eef8242914fe090059c37e631b02d4d10d8bb36b37cf94cd40',
+    'apple-main': '70891038cb1845e99ef258d0488266414b5b3ec5bf3c3fbc642d5069d6029b07',
+}
+REVIEWED_PREDECESSORS = {
+    'android-main': '5eea9379d3f089125de652235a21ec228ebdf0e052dee82d3411adcd10b4c2de',
+    'android-phone': '1e1d32d15dcec7a58a67a661c49725391fcf53a3c933b897e640a601dfe5ed4c',
+    'android-vr': '5eea9379d3f089125de652235a21ec228ebdf0e052dee82d3411adcd10b4c2de',
+    'android-vr-pico': 'd84aa4ee8f3a8bea58a48c75ab314a3258d27a57b40b4e31dfac2811eeefbc89',
+    'apple-ios': '3d15f1094bc5bfc0a69fa5ed73142f6aa3cb87dfc791bf9775f1c2e088c7df2c',
+    'apple-main': 'f785ccfa7561f72fb9f8acf1bd5fabe6c1a14eb007cca8e77212c0d4679034f7',
+    'main': '64c80e2a372ca4aa9d67b69560f262daad3b5fa35827021992581d1236f72487',
 }
 CONTROL_PLANE = 'tests/device/run_control_plane_tests.py'
 PACKAGE_LOCKS = {
@@ -117,6 +128,10 @@ PACKAGE_LOCKS = {
     'script-archive/marketplace/S3Server/package-lock.json':
         ('script-archive/marketplace/S3Server', 'proxy-addr-express-v1'),
 }
+CI_EXECUTABLE_PATHS = frozenset({
+    'tests/project-suite-self-test.py', 'tests/repository-health-test.py',
+    'tests/run-project-tests.py',
+})
 
 
 def package_owned_paths(plan):
@@ -152,9 +167,12 @@ def program_digest(tree, root=ROOT):
     # current delta would miss historical child search-path differences.
     if any(entry['mode'] not in {'100644', '100755'} or entry['type'] != 'blob' for entry in tree.values()):
         raise ValueError('host inventory contains an unreviewed nonregular input')
+    if any(entry['mode'] != '100644' or entry['type'] != 'blob'
+           for path, entry in tree.items() if path in PACKAGE_LOCKS):
+        raise ValueError('separate package locks must remain ordinary non-executable blobs')
     owned = {entry['path'] for entry in inputs.selected_entries(tree, list(PROGRAM_INPUTS))}
     entries = [{'path': path, **entry} for path, entry in sorted(tree.items())
-               if path in owned or not ci_owned(path)]
+               if path not in PACKAGE_LOCKS and (path in owned or not ci_owned(path))]
     if any(entry['mode'] not in {'100644', '100755'} or entry['type'] != 'blob' for entry in entries):
         raise ValueError('host program closure contains an unreviewed nonregular input')
     registry_entry = tree.get('.github/test-suites.json', {})
@@ -178,22 +196,56 @@ def ci_owned(path):
             or path.endswith('.md') or path.endswith('.mdx'))
 
 
+def _regular_ci_delta(tree, base_tree, paths, package_paths):
+    """Distinguish reviewed CI executables from documentation-safe inputs.
+
+    The ordinary package/router flag intentionally rejects every executable.
+    This separate proof admits only the finite unchanged executable modes,
+    binds the complete actual delta, and keeps package ownership independent.
+    """
+    if not isinstance(base_tree, dict) or not isinstance(tree, dict) or not paths:
+        return False
+    changed = {path for path in base_tree.keys() | tree.keys()
+               if base_tree.get(path) != tree.get(path)}
+    if changed != set(paths) or not changed & CI_EXECUTABLE_PATHS:
+        return False
+    if any(not (ci_owned(path) or path in package_paths) for path in changed):
+        return False
+    for path in changed:
+        old, new = base_tree.get(path), tree.get(path)
+        expected = '100755' if path in CI_EXECUTABLE_PATHS else '100644'
+        if path in CI_EXECUTABLE_PATHS and (old is None or new is None):
+            return False
+        for entry in (old, new):
+            if entry is not None and (entry.get('mode') != expected or entry.get('type') != 'blob'):
+                return False
+    return True
+
+
+def regular_ci_inventory(plan, base_tree, candidate_tree):
+    """Use only an independently recomputed complete trusted package plan."""
+    if not isinstance(plan, dict) or plan.get('unknown') is not False:
+        return False
+    return plan.get('regular') is True or _regular_ci_delta(
+        candidate_tree, base_tree, plan.get('paths', ()), package_owned_paths(plan))
+
+
 def select(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_root=ROOT,
            trusted_root=ROOT, target='main', base_tree=None, package_paths=()):
     registry = inputs.load_registry(ROOT / '.github/test-suites.json')
     names = list(registry['suites'])
     reason = 'unowned-inputs'
     if not isinstance(package_paths, (tuple, list)) or any(path not in PACKAGE_LOCKS for path in package_paths):
-        raise ValueError('host package normalization requires finite separately owned lock paths')
-    if unknown or not regular or not paths:
+        raise ValueError('host package ownership requires finite separately owned lock paths')
+    if unknown or not paths or (not regular and not _regular_ci_delta(tree, base_tree, paths, package_paths)):
         reason = 'unknown-or-nonregular-inventory'
     elif not all(isinstance(path, str) and (ci_owned(path) or path in package_paths) for path in paths):
         reason = 'unowned-inputs'
     else:
         try:
-            # Keep the reviewed historical program identity. Only the separate
-            # required npm owner covers these exact lock deltas; all other
-            # candidate files and the trusted production reader graph stay bound.
+            # These exact foreign lock bytes are not product reader inputs.
+            # Changed locks still require their separate mandatory owner and
+            # ordinary entries on both sides; unchanged locks need no new run.
             reviewed_tree = tree
             if package_paths:
                 if base_tree is None or any(
@@ -201,14 +253,13 @@ def select(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_
                         or snapshot[path].get('mode') != '100644'
                         or snapshot[path].get('type') != 'blob'
                         for snapshot in (tree, base_tree) for path in package_paths):
-                    raise ValueError('package lock normalization requires ordinary inputs on both sides')
-                reviewed_tree = dict(tree)
-                for path in package_paths:
-                    reviewed_tree[path] = dict(base_tree[path])
+                    raise ValueError('package lock ownership requires ordinary inputs on both sides')
             expected = REVIEWED_PROGRAMS if target == 'main' else REVIEWED_CHILD_PROGRAMS.get(target)
-            reviewed = expected is not None and program_digest(reviewed_tree, candidate_root) == expected
+            reviewed = expected is not None and program_digest(reviewed_tree, candidate_root) in {
+                expected, REVIEWED_PREDECESSORS.get(target)}
             if trusted_tree is not None:
-                reviewed &= program_digest(trusted_tree, trusted_root) == REVIEWED_PROGRAMS
+                reviewed &= program_digest(trusted_tree, trusted_root) in {
+                    REVIEWED_PROGRAMS, REVIEWED_PREDECESSORS['main']}
         except (ValueError, OSError, subprocess.SubprocessError):
             reviewed = False
         if reviewed:

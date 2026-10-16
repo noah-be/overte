@@ -84,7 +84,28 @@ class HostSelectionTests(unittest.TestCase):
         self.assertFalse(selected['include_platform'])
         self.assertEqual(selected['package_owned_paths'], sorted(paths))
         self.assertNotIn('results', selected)
-        self.assertNotEqual(HOST.program_digest(candidate), HOST.REVIEWED_PROGRAMS)
+        self.assertEqual(HOST.program_digest(candidate), HOST.REVIEWED_PROGRAMS)
+
+    def test_ci_only_after_integrated_npm_update_keeps_the_same_reader_boundary(self):
+        reviewed = deepcopy(self.tree)
+        for path in HOST.PACKAGE_LOCKS:
+            reviewed[path]['sha'] = 'a' * 40
+        previous = deepcopy(self.tree)
+        candidate = deepcopy(previous)
+        changed = 'tools/branch-cleanup/cleanup.py'
+        candidate[changed]['sha'] = 'b' * 40
+        with patch.object(HOST, 'REVIEWED_PROGRAMS', HOST.program_digest(reviewed)):
+            result = self.selected([changed], tree=candidate, base_tree=previous, trusted_tree=reviewed)
+        self.assertFalse(result['full_host'])
+        self.assertFalse(result['include_platform'])
+        self.assertNotIn('package_owned_paths', result)
+        # A reader identity is not permission to omit changed package checks.
+        for path in HOST.PACKAGE_LOCKS:
+            self.assertTrue(self.selected([changed, path], tree=candidate, base_tree=reviewed)['full_host'])
+        appium = 'tests/device/ios/package-lock.json'
+        drift = deepcopy(candidate)
+        drift[appium] = {'mode': '100644', 'type': 'blob', 'sha': 'c' * 40}
+        self.assertNotEqual(HOST.program_digest(drift), HOST.program_digest(candidate))
 
     def test_owned_locks_do_not_hide_historical_or_new_product_differences(self):
         path = 'browser-client/package-lock.json'
@@ -129,6 +150,67 @@ class HostSelectionTests(unittest.TestCase):
         tree=deepcopy(self.tree)
         del tree['tests/device/contracts/tablet/pages.json']
         self.assertNotEqual(HOST.program_digest(tree), HOST.REVIEWED_PROGRAMS)
+
+    def test_finite_ci_executables_have_separate_complete_ordinary_inventory(self):
+        previous = deepcopy(self.tree)
+        paths = sorted(HOST.CI_EXECUTABLE_PATHS)
+        for path in paths:
+            self.assertEqual(previous[path]['mode'], '100755')
+            previous[path]['sha'] = 'b' * 40
+        plan = {'unknown': False, 'regular': False, 'paths': paths}
+        self.assertTrue(HOST.regular_ci_inventory(plan, previous, self.tree))
+        selected = self.selected(paths, regular=False, base_tree=previous)
+        self.assertFalse(selected['full_host'])
+        self.assertFalse(selected['include_platform'])
+        self.assertIn('project-runner', selected['suites'])
+        for changes in ({'unknown': True}, {'paths': paths[:-1]}):
+            self.assertFalse(HOST.regular_ci_inventory({**plan, **changes}, previous, self.tree))
+        self.assertFalse(HOST.regular_ci_inventory(plan, None, self.tree))
+        drift = deepcopy(previous)
+        drift['unowned/input.py'] = {'mode': '100644', 'type': 'blob', 'sha': 'c' * 40}
+        self.assertFalse(HOST.regular_ci_inventory(plan, drift, self.tree))
+        self.assertTrue(self.selected(paths, regular=False, base_tree=drift)['full_host'])
+
+    def test_ci_executable_waiver_rejects_modes_missing_files_and_unknown_executables(self):
+        path = 'tests/project-suite-self-test.py'
+        previous = deepcopy(self.tree)
+        previous[path]['sha'] = 'b' * 40
+        plan = {'unknown': False, 'regular': False, 'paths': [path]}
+        for side in ('base', 'candidate'):
+            for mode in ('missing', '100644', '120000', '160000'):
+                base, candidate = deepcopy(previous), deepcopy(self.tree)
+                changed = base if side == 'base' else candidate
+                if mode == 'missing':
+                    del changed[path]
+                else:
+                    changed[path]['mode'] = mode
+                    changed[path]['type'] = 'commit' if mode == '160000' else 'blob'
+                with self.subTest(side=side, mode=mode):
+                    self.assertFalse(HOST.regular_ci_inventory(plan, base, candidate))
+        for extra in ('tools/branch-cleanup/cleanup.py', 'docs/NEW.md'):
+            candidate = deepcopy(self.tree)
+            candidate[extra] = {'mode': '100755', 'type': 'blob', 'sha': 'c' * 40}
+            self.assertFalse(HOST.regular_ci_inventory({**plan, 'paths': [path, extra]}, previous, candidate))
+
+    def test_two_separate_npm_owners_compose_with_the_finite_executable_inventory(self):
+        previous, candidate = deepcopy(self.tree), deepcopy(self.tree)
+        executable = 'tests/project-suite-self-test.py'
+        previous[executable]['sha'] = 'b' * 40
+        plan = self.package_plan()
+        for path in HOST.PACKAGE_LOCKS:
+            item = self.package_plan(path)
+            plan['dependency_profiles']['projects'].update(item['dependency_profiles']['projects'])
+            candidate[path]['sha'] = 'c' * 40
+        plan.update({'unknown': False, 'regular': False,
+                     'paths': [executable, *HOST.PACKAGE_LOCKS],
+                     'package_set': [value[0] for value in HOST.PACKAGE_LOCKS.values()]})
+        self.assertTrue(HOST.regular_ci_inventory(plan, previous, candidate))
+        result = self.selected(plan['paths'], regular=False, tree=candidate, base_tree=previous,
+                               package_paths=HOST.package_owned_paths(plan))
+        self.assertFalse(result['full_host'])
+        self.assertEqual(set(result['package_owned_paths']), set(HOST.PACKAGE_LOCKS))
+        plan['package_set'] = []
+        self.assertFalse(HOST.regular_ci_inventory(plan, previous, candidate))
 
     def test_cleanup_and_ci_tests_keep_ci_contracts_and_omit_production_contracts(self):
         for paths in (['tools/branch-cleanup/cleanup.py'], ['tests/branch-cleanup-test.py'],
@@ -264,7 +346,11 @@ class HostSelectionTests(unittest.TestCase):
     def test_six_child_graphs_are_target_specific_and_initial_launcher_owner_is_required(self):
         targets=set(HOST.REVIEWED_CHILD_PROGRAMS)
         self.assertEqual(targets,{'apple-main','apple-ios','android-main','android-phone','android-vr','android-vr-pico'})
-        self.assertEqual(len(set(HOST.REVIEWED_CHILD_PROGRAMS.values())),6)
+        # Genuine full parent integration brings the common reporter fix to VR;
+        # its product reader graph then equals Android-main's graph. Contextual
+        # execution/provenance still belongs to each independently checked target.
+        self.assertEqual(HOST.REVIEWED_CHILD_PROGRAMS['android-main'], HOST.REVIEWED_CHILD_PROGRAMS['android-vr'])
+        self.assertEqual(len(set(HOST.REVIEWED_CHILD_PROGRAMS.values())),5)
         # Portable graph fixtures do not require historical objects in shallow CI.
         # The six actual immutable topic trees are separately checked locally.
         for index,target in enumerate(sorted(targets)):
@@ -284,6 +370,16 @@ class HostSelectionTests(unittest.TestCase):
                     self.assertFalse(later['full_host'])
                     self.assertFalse(later['include_platform'])
                     self.assertTrue(self.selected(['tools/branch-cleanup/cleanup.py'],tree=child,target='main')['include_platform'])
+
+    def test_only_explicitly_reviewed_predecessor_reader_generations_remain_compatible(self):
+        previous = deepcopy(self.tree)
+        previous['tools/test-evidence/validate-sync.py']['sha'] = 'b' * 40
+        with patch.dict(HOST.REVIEWED_PREDECESSORS, {'main': HOST.program_digest(previous)}):
+            selected = self.selected(['tools/branch-cleanup/cleanup.py'], tree=previous)
+            self.assertFalse(selected['full_host'])
+            changed = deepcopy(previous)
+            changed['libraries/shared/src/new-reader.cpp'] = {'mode': '100644', 'type': 'blob', 'sha': 'c' * 40}
+            self.assertTrue(self.selected(['tools/branch-cleanup/cleanup.py'], tree=changed)['full_host'])
 
     def test_immutable_launcher_difference_requires_owner_even_without_caller_path_hint(self):
         previous=deepcopy(self.tree);previous[HOST.CONTROL_PLANE]['sha']='b'*40

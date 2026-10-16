@@ -83,7 +83,7 @@ checks. Both input trees must still match this reader boundary; new application
 readers invalidate the exception even for a later CI-only change.
 
 The own iOS host run also has an independent, narrower negative dependency
-boundary in `host.py`. Exactly 113 reviewed CI paths may change while both the
+boundary in `host.py`. Exactly 114 reviewed CI paths may change while both the
 protected base and merge candidate retain the complete reviewed complement of
 11,168 ordinary Git entries, including historical child differences, test
 discovery, imports, helpers, product sources, consumed documentation and modes.
@@ -101,7 +101,13 @@ changed control-plane launcher. A changed iOS reader complement conservatively
 restores the complete own iOS host run until that graph is reviewed again.
 
 Five additional finite CI paths cover `npm_consumers.py`, its two CJS probes and
-the paired `workflows/npm-consumers/` Browser/repository templates. The two locks
+the paired `workflows/npm-consumers/` Browser/repository templates. The exact
+staged `tools/repository-checks/workflows/sync-ci-selection.yml` template is also
+independent CI: the protected iOS launcher does not import or discover it, and
+ordinary YAML is outside its repository-wide native source scan. The template
+is absent from the protected reader tree, so admitting this one path leaves both
+reviewed complement identities unchanged. Sibling paths and executable YAML
+remain conservative inputs. The two locks
 `browser-client/package-lock.json` and
 `script-archive/marketplace/S3Server/package-lock.json` form a separate conditional
 class. They are not independent-host files and remain present in ordinary app

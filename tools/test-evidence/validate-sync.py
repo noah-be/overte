@@ -7,11 +7,15 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 import argparse
+import hashlib
 import importlib.util
 import json
 import os
+import signal
+import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 import xml.etree.ElementTree as ET
 
 import execution
@@ -21,6 +25,7 @@ import runtime
 
 ROOT = Path(__file__).resolve().parents[2]
 PRODUCER = "overte-trusted-sync-validation-v1"
+CI_EXECUTION_PRODUCER = "overte-trusted-sync-ci-execution-v1"
 _CANDIDATE_PRIVATE_ENVIRONMENT = (
     "GH_TOKEN", "GITHUB_TOKEN", "GITHUB_ENV", "GITHUB_OUTPUT", "GITHUB_PATH", "GITHUB_STATE",
     "GITHUB_STEP_SUMMARY", "ACTIONS_RUNTIME_TOKEN", "ACTIONS_ID_TOKEN_REQUEST_TOKEN",
@@ -152,6 +157,185 @@ def _parent_provenance(evidence, reused):
     )} | {"reused_results": {name: evidence["results"]["suites"][name] for name in reused}}
 
 
+def _ci_policy():
+    paths = ("tools/test-evidence/validate-sync.py", "tools/test-evidence/execution.py",
+             "tools/test-evidence/inputs.py", "tools/test-evidence/runtime.py",
+             "tools/sync-test-reuse/gate.py", "tools/sync-test-reuse/differential.py",
+             "tools/repository-checks/host_selection.py", "tools/repository-checks/package_checks.py",
+             "tools/repository-checks/npm_consumers.py", "tests/run-project-tests.py",
+             ".github/test-suites.json", ".github/package-workflow-generations.json",
+             ".github/repository-checks.json")
+    result = {}
+    for relative in paths:
+        path = ROOT / relative
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > 1_000_000:
+            if relative == ".github/repository-checks.json":
+                # Bind absence/unsafe ownership configuration while selecting
+                # complete fallback; it can never admit the affected lane.
+                result[relative] = None
+                continue
+            raise ValidationError("trusted synchronization selection policy is unavailable")
+        result[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return result
+
+
+def _repository_owner_policy():
+    path = ROOT / ".github/repository-checks.json"
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > 1_000_000 \
+            or path.stat().st_mode & 0o111:
+        raise ValidationError("mandatory repository owner configuration is unavailable")
+    return json.loads(path.read_text(), object_pairs_hook=inputs._unique_object)
+
+
+def _ci_selection(args, request, candidate, initial, registry, api):
+    """Plan from trusted policy and immutable inputs; never certify execution."""
+    bounded = args.mode == "reuse" and request.profile in ("documentation", "tool-dependencies")
+    result = {"schema": 1, "kind": "sync-ci-selection", "reusable": False,
+              "repository": request.repository, "repository_id": request.repository_id,
+              "pull_request": request.number, "base": request.base_sha, "head": request.head_sha,
+              "candidate": initial[0], "tree": initial[1], "parent": request.parent_sha,
+              "target": request.base, "profile": request.profile, "requested_mode": args.mode,
+              "lane": "legacy-bounded" if bounded else "complete",
+              "full_host": not bounded, "suites": [], "omitted_suites": [],
+              "external_package_set": [], "package_plan": None,
+              "registry": execution.digest(registry), "policy": _ci_policy()}
+    if not bounded and not request.repair_paths:
+        try:
+            host = _trusted_module("sync_ci_host_policy", ROOT / "tools/repository-checks/host_selection.py")
+            packages = host.package_policy()
+            packages.validate_wiring(candidate)
+            if not packages.consumer_generation(candidate):
+                raise ValidationError("complete required package owner is unavailable")
+            event = {"repository": api.json(f"repos/{request.repository}"),
+                     "pull_request": api.json(f"repos/{request.repository}/pulls/{request.number}")}
+            owner_config = _repository_owner_policy()
+            if not isinstance(owner_config, dict) or owner_config.get("repository") != request.repository \
+                    or type(owner_config.get("repository_id")) is not int \
+                    or owner_config["repository_id"] != request.repository_id \
+                    or not isinstance(owner_config.get("required_contexts"), list) \
+                    or "repository-checks" not in owner_config["required_contexts"] \
+                    or not (packages.activated(event) or packages.has_staged_caller(candidate)):
+                raise ValidationError("the exact package owner has no mandatory repository aggregate")
+            plan = packages.candidate_plan(candidate, event, initial[0])
+            if plan.get("unknown") is not False or plan.get("consumer_generation") is not True \
+                    or (plan.get("base"), plan.get("head"), plan.get("candidate"), plan.get("tree")) != (
+                        request.base_sha, request.head_sha, initial[0], initial[1]) \
+                    or set(plan["paths"]) != set(request.changed_paths):
+                raise ValidationError("required package plan differs from the live synchronization")
+            # The exact five-file caller is independently enforced by the
+            # required repository aggregate, including external npm receipts.
+            tree = inputs.full_tree(candidate, initial[0])
+            base_tree = inputs.full_tree(candidate, request.base_sha)
+            selected = host.select(tree, plan["paths"], host.regular_ci_inventory(plan, base_tree, tree),
+                unknown=plan["unknown"], trusted_tree=inputs.full_tree(ROOT, "HEAD"), candidate_root=candidate,
+                trusted_root=ROOT, target=request.base, base_tree=base_tree,
+                package_paths=host.package_owned_paths(plan))
+            if selected["include_platform"] is not False or not selected["suites"] \
+                    or host.additional_suites(host.candidate_registry(candidate), registry):
+                raise ValidationError("complete product/shared fallback remains required")
+            if len(set(selected["suites"])) != len(selected["suites"]) \
+                    or any(name not in registry["suites"] for name in selected["suites"]):
+                raise ValidationError("affected synchronization suite inventory is invalid")
+            result.update(lane="affected-ci", full_host=selected["full_host"], suites=selected["suites"],
+                omitted_suites=[name for name in registry["suites"] if name not in selected["suites"]],
+                external_package_set=plan["package_set"], package_plan=plan["plan"],
+                dependency_selection=selected, package_policy=plan["policy"])
+        except (OSError, ValueError, KeyError, TypeError, AttributeError, ImportError, subprocess.SubprocessError):
+            # No successful diagnostic, unknown reader or missing package owner
+            # can authorize omitting complete fallback and its product checks.
+            pass
+    result["selection"] = execution.digest(result)
+    return result
+
+
+def select_sync(args, *, api=None):
+    """Early prerequisite selection with the same live topology/source bookends."""
+    gate = _gate(); config = gate.load_config(); api = api or gate.GitHubApi()
+    request = _request(args, gate, config, api)
+    candidate = Path(args.candidate).resolve(strict=True)
+    initial = execution.checkout_identity(candidate)
+    if initial[0] != request.merge_sha:
+        raise ValidationError("selection checkout is not the exact synchronization candidate")
+    registry = inputs.load_registry(ROOT / ".github/test-suites.json")
+    result = _ci_selection(args, request, candidate, initial, registry, api)
+    if execution.checkout_identity(candidate) != initial:
+        raise ValidationError("candidate changed during synchronization selection")
+    _recheck(api, gate, request)
+    return result
+
+
+def _ci_commands(selection, registry):
+    return {name: registry["suites"][name]["command"] for name in selection["suites"]}
+
+
+def _execute_ci(candidate, initial, selection, registry, junit, receipt_path):
+    """Observe every selected invocation without creating reusable fingerprints."""
+    controller = execution._runner()
+    commands = _ci_commands(selection, registry)
+    suites = [controller.Suite(name, registry["suites"][name]["layer"], tuple(
+        sys.executable if index == 0 and value == "python" else value
+        for index, value in enumerate(command))) for name, command in commands.items()]
+    observations, cancelled, previous = [], [], {}
+    def interrupted(signum, _frame):
+        if not cancelled:
+            cancelled.append(signum)
+    started = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    old_root = controller.ROOT
+    controller.ROOT = candidate
+    try:
+        for signum in (signal.SIGINT, signal.SIGTERM):
+            previous[signum] = signal.signal(signum, interrupted)
+        with execution.candidate_process_environment():
+            status = controller.run_suites(SimpleNamespace(timeout=240, host_timeout=900,
+                native_build_dir=None, junit=junit, fail_fast=False), suites, cancelled,
+                result_callback=observations.append)
+    finally:
+        controller.ROOT = old_root
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+    if execution.checkout_identity(candidate) != initial:
+        raise ValidationError("candidate changed during affected synchronization execution")
+    actual_names = [item["name"] for item in observations]
+    complete = actual_names == list(commands) and all(item["status"] == "passed" for item in observations)
+    status = status or (0 if complete and not cancelled else 1)
+    receipt = {"schema": 1, "producer": CI_EXECUTION_PRODUCER, "reusable": False,
+        "candidate_commit": initial[0], "candidate_tree": initial[1], "selection": selection["selection"],
+        "registry": execution.digest(registry), "include_platform": False,
+        "requested_suites": list(commands), "results": [
+            {"name": item["name"], "status": item["status"], "command": commands.get(item["name"])}
+            for item in observations], "conclusion": "success" if status == 0 else "failure",
+        "started_at": started, "completed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")}
+    receipt["receipt_digest"] = execution.digest(receipt)
+    execution._write_receipt(receipt_path, receipt)
+    return status, receipt
+
+
+def _verify_ci_execution(observed, selection, registry, initial):
+    fields = {"schema", "producer", "reusable", "candidate_commit", "candidate_tree", "selection", "registry",
+              "include_platform", "requested_suites", "results", "conclusion", "started_at", "completed_at", "receipt_digest"}
+    if not isinstance(observed, dict) or set(observed) != fields:
+        raise ValidationError("affected synchronization execution receipt format is invalid")
+    unsigned = dict(observed); claimed = unsigned.pop("receipt_digest")
+    commands = _ci_commands(selection, registry)
+    if type(observed["schema"]) is not int or observed["schema"] != 1 \
+            or observed["producer"] != CI_EXECUTION_PRODUCER or observed["reusable"] is not False \
+            or observed["include_platform"] is not False or observed["conclusion"] != "success" \
+            or (observed["candidate_commit"], observed["candidate_tree"]) != initial \
+            or observed["selection"] != selection["selection"] or observed["registry"] != execution.digest(registry) \
+            or claimed != execution.digest(unsigned) or observed["requested_suites"] != list(commands) \
+            or observed["results"] != [{"name": name, "status": "passed", "command": command}
+                                       for name, command in commands.items()]:
+        raise ValidationError("affected synchronization execution lacks exact selected successful coverage")
+    for field in ("started_at", "completed_at"):
+        if not isinstance(observed[field], str):
+            raise ValidationError("affected synchronization execution time is invalid")
+        stamp = datetime.fromisoformat(observed[field].replace("Z", "+00:00"))
+        if stamp.tzinfo is None or stamp.utcoffset().total_seconds() != 0:
+            raise ValidationError("affected synchronization execution time is unqualified")
+    if observed["started_at"] > observed["completed_at"]:
+        raise ValidationError("affected synchronization execution time order is invalid")
+
+
 def validate_sync(args, *, api=None):
     """Validate a synchronization and return an independently checked receipt.
 
@@ -172,12 +356,32 @@ def validate_sync(args, *, api=None):
     started = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     evidence, observed, reused, executed, projects = None, None, [], [], []
     external_packages = []
+    selection = None
+    if getattr(args, "expected_selection", ""):
+        selection = _ci_selection(args, request, candidate, initial, registry, api)
+        if args.expected_selection != selection["selection"]:
+            raise ValidationError("synchronization selection differs from the prerequisite plan")
+    affected = selection is not None and selection["lane"] == "affected-ci"
     bounded = args.mode == "reuse" and request.profile in ("documentation", "tool-dependencies")
-    if args.mode == "reuse":
+    if args.mode == "reuse" or affected:
         # Keep every branch differential assertion even when all common suites
         # have matching proof. Bounded profiles share this one invocation.
         _candidate_differential(candidate, request, gate, api)
-    if bounded:
+    if affected:
+        # Recompute after the differential and again at final validation. A
+        # preparation output never selects the commands or certifies execution.
+        if _ci_selection(args, request, candidate, initial, registry, api) != selection:
+            raise ValidationError("affected synchronization selection changed before execution")
+        execution_path = Path(args.receipt).with_name(Path(args.receipt).name + ".ci-execution.json")
+        status, returned = _execute_ci(candidate, initial, selection, registry, args.junit, execution_path)
+        observed = _read_execution(execution_path, returned)
+        if status != 0:
+            raise ValidationError("an affected synchronization suite failed")
+        _verify_ci_execution(observed, selection, registry, initial)
+        executed = list(selection["suites"])
+        external_packages = list(selection["external_package_set"])
+        mode = "affected-ci"
+    elif bounded:
         with candidate_environment():
             if request.profile == "tool-dependencies":
                 paths = list(request.changed_paths)
@@ -258,6 +462,12 @@ def validate_sync(args, *, api=None):
         mode = "partial-reuse" if reused and executed else "reuse" if reused else "fallback"
     if execution.checkout_identity(candidate) != initial:
         raise ValidationError("candidate source changed during synchronization validation")
+    if selection is not None:
+        final_selection = _ci_selection(args, request, candidate, initial, registry, api)
+        if final_selection != selection:
+            raise ValidationError("synchronization selection changed during final validation")
+        if affected:
+            _verify_ci_execution(observed, final_selection, registry, initial)
     _recheck(api, gate, request)
     result = {
         "schema": 1, "producer": PRODUCER, "repository": request.repository,
@@ -276,6 +486,8 @@ def validate_sync(args, *, api=None):
         # The required project aggregate owns these checks. This consumer does
         # not claim their execution or fabricate a successful JUnit case.
         result["external_package_set"] = external_packages
+    if selection is not None:
+        result["ci_selection"] = selection
     result["receipt_digest"] = execution.digest(result)
     execution._write_receipt(args.receipt, result)
     return result
@@ -292,8 +504,21 @@ def main(argv=None):
         parser.add_argument("--" + name, required=True)
     parser.add_argument("--junit", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)
+    parser.add_argument("--select-only", action="store_true")
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--expected-selection", default="")
     args = parser.parse_args(argv)
     try:
+        if args.select_only:
+            if args.output is None or args.expected_selection:
+                raise ValidationError("prerequisite selection requires an output and no claimed selection")
+            selected = select_sync(args)
+            with args.output.open("a") as output:
+                for key, value in (("selection", selected["selection"]), ("lane", selected["lane"]),
+                                   ("full_host", str(selected["full_host"]).lower())):
+                    output.write(key + "=" + value + "\n")
+            print(json.dumps(selected, sort_keys=True))
+            return 0
         result = validate_sync(args)
     except (ValidationError, execution.ExecutionError, inputs.InputError, runtime.RuntimeIdentityError,
             OSError, ValueError, KeyError, TypeError):

@@ -885,10 +885,13 @@ directory-wide exemption for `tools/test-evidence` or `tests` is added.
 For mixed CI and npm-lock changes, the trusted package plan can separately own
 the two reviewed security updates or formatting-only changes. The shared host
 controller validates that plan's candidate/tree/base binding and complete
-consumer generation. It normalizes only those admitted ordinary lock entries
-to their historical base values when comparing the reviewed host reader
-identity. Every other file, mode, import/discovery member and product definition
-remains bound. The independently required package lane still installs, audits
+consumer generation. Exactly these two foreign lock paths are excluded from the
+reviewed product reader identity; changed locks still require their own mandatory
+owner and ordinary entries on both snapshots. An unchanged lock after integration
+does not cause a later CI-only PR to fall back to full host execution. Every
+other file, mode, import/discovery member and product definition remains bound,
+including the independently consumed `tests/device/ios/package-lock.json`.
+The independently required package lane still installs, audits
 and tests the changed dependencies; the host selection reports their external
 ownership without inventing a successful or reusable test. Missing package
 ownership, unsupported dependencies, absent/nonregular base entries and product
@@ -940,6 +943,26 @@ creator and full-inventory receipt checks. Until authenticated partial-evidence
 reuse is implemented, synchronization consumers treat an absent/partial parent
 qualification as unavailable and execute their required shared and platform
 tests. PR/push evidence reuse remains a separate unfinished optimization.
+
+The complete `npm-consumers-sync-ci-v1` successor admits the staged
+`tools/repository-checks/workflows/sync-ci-selection.yml` caller. It adds an
+independent affected-CI execution lane; it does not reuse a partial parent
+report. The trusted validator checks live topology and exact merge parents,
+recomputes the required npm plan and both immutable reader inventories, and
+selects prerequisites before Java/Qt setup. The three finite executable CI
+scripts retain their exact ordinary `100755` modes on both trees. This separate
+inventory proof does not change the router's conservative documentation rules.
+
+That caller passes the trusted selection digest back to execution. Selection is
+recomputed before and after actual execution, and a separate nonreusable receipt
+requires exact successful coverage of every selected command. Omitted groups
+carry their negative dependency proof, not a fabricated pass. Independently
+mandatory npm owners stay external and are not executed twice. Attested product
+repairs, unknown readers, unsupported package ownership, changed test commands,
+mode changes or incomplete inventories retain complete shared/platform fallback.
+Legacy callers without the selection binding retain their previous behavior.
+The changed complete device-control-plane launcher still requires its real Qt
+and portable C++ contracts; selected host setup is not an application build.
 
 The shared application-script group is a host group: its native chat wrapper
 requires Qt Quick Test and its other native wrappers exercise Qt/QML and C++

@@ -1599,6 +1599,32 @@ class NpmConsumerSelectionTests(unittest.TestCase):
         caller = yaml.safe_load((ROOT / PACKAGES.CONSUMER_TEMPLATES / 'repository-checks.yml').read_text())
         self.assertIn("package_host_mode == 'full'", caller['jobs']['project']['if'])
 
+    def test_selective_sync_successor_requires_the_complete_five_workflow_owner(self):
+        self.install_consumer_callers()
+        sync = self.root / '.github/workflows/sync-validation.yml'
+        previous = (PACKAGES.TEMPLATES / 'sync-validation.yml').read_bytes()
+        if sync.read_bytes() != previous:
+            sync.write_bytes(previous)
+            self.base = self.commit()
+        self.assertEqual(PACKAGES.validate_wiring(self.root), 'npm-consumers-v1')
+        sync.write_bytes((ROOT / 'tools/repository-checks/workflows/sync-ci-selection.yml').read_bytes())
+        self.update()
+        plan = self.automatic_plan()
+        self.assertEqual(PACKAGES.validate_wiring(self.root), 'npm-consumers-sync-ci-v1')
+        self.assertTrue(plan['consumer_generation'])
+        self.assertEqual(set(plan['package_set']), {CONSUMERS.S3, CONSUMERS.BROWSER})
+        self.assertEqual(PACKAGES.browser_outputs(plan)['browser_npm_only'], 'true')
+        needs = PackageChecksTests.needs(self, plan)
+        self.assertEqual(PACKAGES.verify(needs, plan), PACKAGES.receipt(plan))
+        browser = self.root / '.github/workflows/browser-client.yml'
+        browser.unlink()
+        with self.assertRaises(ValueError):
+            PACKAGES.validate_wiring(self.root)
+        browser.write_bytes((ROOT / PACKAGES.CONSUMER_TEMPLATES / 'browser-client.yml').read_bytes())
+        sync.write_bytes(sync.read_bytes() + b'\n# Unapproved caller\n')
+        with self.assertRaises(ValueError):
+            PACKAGES.validate_wiring(self.root)
+
 
 class CandidateTests(unittest.TestCase):
     def test_exact_merge_paths_and_stale_candidate_rejection(self):
