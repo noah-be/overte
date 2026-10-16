@@ -1345,5 +1345,19 @@ configuration. The reviewed extractor has no generic JSON extraction and its
 single-file TypeScript parser cannot read imported JSON; its ancestor readers
 recognize package/tsconfig files rather than these two policy leaves. Python and
 the policy governance tests remain required. Additions, removals, aliases, mode
-changes, older or unknown workflow/configuration, all other JSON, YAML, package
+changes, older or unknown workflow/configuration, other JSON, YAML, package
 locks and mixed JavaScript inputs keep their existing conservative owners.
+
+The same dormant pinned generation admits four further existing ordinary
+`100644` metadata leaves: `.github/branch-cleanup.json`, `.github/issue-policy.json`,
+`.github/repository-health.json` and `.github/dependency-releases.json`. Only when
+both immutable trees use the exact pinned workflow and unchanged configuration
+do these leaves contribute no CodeQL language. Neither pinned extractor reads
+these generic JSON files, and no candidate generator runs during the fixed
+no-build analysis. Their governance and functional tests remain required.
+Mixed Python, JavaScript, package or analysis-control changes retain their
+existing language owners. Unknown siblings, additions, deletions, renames,
+aliases, mode changes and query-pack inputs cannot inherit this exception.
+YAML remains a JavaScript analysis input. This source preparation changes no
+active workflow; the pinned workflow still needs separate deployment and hosted
+qualification before either JSON optimization applies.
