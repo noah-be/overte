@@ -95,7 +95,28 @@ jobs:
           PYTHON_ROOT="$(python3 -c 'import sys; print(sys.base_prefix)')"
           NODE_ROOT="$(node -p 'require("path").dirname(require("path").dirname(process.execPath))')"
           test -n "$JAVA_HOME"
+          python3 -I - "$PYTHON_ROOT" "$NODE_ROOT" "$JAVA_HOME" <<'PYROOTS'
+          from pathlib import Path
+          import re
+          import sys
+          roots = [Path('/opt/overte-ci'), *(Path(value) for value in sys.argv[1:])]
+          assert len(roots) == 4 and len(set(roots)) == 4, 'ambiguous prepared tool roots'
+          for index, path in enumerate(roots):
+              assert path.is_absolute() and path.is_dir() and not path.is_symlink()
+              assert path == path.resolve(strict=True), 'prepared tool root contains an alias'
+              if index in (1, 2):
+                  assert path.is_relative_to('/opt/hostedtoolcache') and len(path.parts) == 6
+                  assert path.parts[3] == ('Python' if index == 1 else 'node')
+                  assert re.fullmatch(r'3[.]12[.][0-9]+' if index == 1 else r'22[.][0-9]+[.][0-9]+', path.parts[4])
+              elif index == 3:
+                  assert (path.is_relative_to('/opt/hostedtoolcache') and len(path.parts) == 6
+                          or path.is_relative_to('/usr/lib/jvm') and len(path.parts) == 5)
+          assert all(not left.is_relative_to(right) and not right.is_relative_to(left)
+                     for i, left in enumerate(roots) for right in roots[i + 1:])
+          PYROOTS
           sudo -n /usr/bin/chown -hR root:root -- /opt/overte-ci "$PYTHON_ROOT" "$NODE_ROOT" "$JAVA_HOME"
+          # Preserve executable/read bits and do not follow descendant aliases.
+          sudo -n /usr/bin/chmod -R go-w -- /opt/overte-ci "$PYTHON_ROOT" "$NODE_ROOT" "$JAVA_HOME"
       - name: Ensure the required namespace tool is available
         run: |
           set -euo pipefail

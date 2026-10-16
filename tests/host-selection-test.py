@@ -410,14 +410,15 @@ class HostSelectionTests(unittest.TestCase):
                  'tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml',
                  'tools/test-evidence/sandbox-test.py', 'tools/test-evidence/sandbox-host-test.py',
                  'tools/test-evidence/sandbox.py', 'tools/test-evidence/sandbox_host.py',
-                 'tools/test-evidence/sandbox_host_fixture.py', 'tools/test-evidence/sandbox_probe.py')
+                 'tools/test-evidence/sandbox_host_fixture.py', 'tools/test-evidence/sandbox_probe.py',
+                 'tools/test-evidence/sandbox_shared.py')
         selected = self.selected(paths)
         self.assertEqual(set(selected['suites']), self.ci_quick)
         self.assertFalse(selected['include_platform'])
         self.assertIn('test-evidence', selected['suites'])
         for path in ('.github/shared-sandbox.json', 'tools/test-evidence/sandbox.py',
                      'tools/test-evidence/sandbox_host.py', 'tools/test-evidence/sandbox_host_fixture.py',
-                     'tools/test-evidence/sandbox_probe.py'):
+                     'tools/test-evidence/sandbox_probe.py', 'tools/test-evidence/sandbox_shared.py'):
             candidate = deepcopy(self.tree)
             candidate[path]['sha'] = 'b' * 40
             with self.subTest(controller=path):

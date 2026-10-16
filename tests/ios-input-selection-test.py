@@ -46,6 +46,7 @@ REVIEWED_SANDBOX_CI_PATHS = (
     "tools/test-evidence/sandbox-host-test.py",
     "tools/test-evidence/sandbox_host_fixture.py",
     "tools/test-evidence/sandbox_probe.py",
+    "tools/test-evidence/sandbox_shared.py",
 )
 
 

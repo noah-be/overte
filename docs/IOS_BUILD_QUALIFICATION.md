@@ -83,7 +83,7 @@ checks. Both input trees must still match this reader boundary; new application
 readers invalidate the exception even for a later CI-only change.
 
 The own iOS host run also has an independent, narrower negative dependency
-boundary in `host.py`. Exactly 139 reviewed CI paths may change while both the
+boundary in `host.py`. Exactly 140 reviewed CI paths may change while both the
 protected base and merge candidate retain the complete reviewed complement of
 11,168 ordinary Git entries, including historical child differences, test
 discovery, imports, helpers, product sources, consumed documentation and modes.
@@ -129,12 +129,13 @@ their existing identities. This admits only their ordinary `100644` staging
 sources; it does not exempt the executable Android product targets, unknown
 siblings, mode changes or symbolic links, and does not activate the staged owner.
 
-Nine exact sandbox CI controls are separately reviewed:
+Ten exact sandbox CI controls are separately reviewed:
 `.github/shared-sandbox.json`, `.github/workflows/shared-sandbox-host-diagnostic.yml`,
 `tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml`, and
 `tools/test-evidence/sandbox.py`, `sandbox-test.py`, `sandbox_host.py`,
-`sandbox-host-test.py`, `sandbox_host_fixture.py`, and `sandbox_probe.py`.
-All nine are absent from the protected iOS tree. Its fixed launcher and imports
+`sandbox-host-test.py`, `sandbox_host_fixture.py`, `sandbox_probe.py`, and
+`sandbox_shared.py`.
+All ten are absent from the protected iOS tree. Its fixed launcher and imports
 neither execute nor read them, its two discovery directories do not include
 these paths, and its repository-wide native scan excludes their JSON, YAML and
 Python suffixes. Both existing immutable complement identities therefore remain
