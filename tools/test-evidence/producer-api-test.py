@@ -2923,8 +2923,20 @@ class RetainedDefaultMetadataTests(unittest.TestCase):
             'tree':[{'path':path,**entry} for path,entry in self.local.items()]} if oid==self.default_tree else original_tree(oid))
         C.execution.checkout_identity.return_value=(self.default,self.default_tree)
         C.inputs.full_tree.side_effect=lambda *args:deepcopy(self.local)
-        self.source_guard=self.enterContext(patch.object(C.producer,'protected_source_context',return_value=self.source))
-        self.controller_guard=self.enterContext(patch.object(C,'integrated_controller',return_value=f.controller))
+        self.source_guard=self.enterContext(patch.object(C.producer,'reuse_source_context',return_value=self.source))
+        self.controller_guard=self.enterContext(patch.object(C,'integrated_controller_for_reuse',return_value=f.controller))
+        # These fixtures isolate complete source reconstruction. Native receipt
+        # authentication still executes the real class verifier at both ends.
+        self.enterContext(patch.object(C.producer,'reuse_source_profile',
+            side_effect=lambda *args,**kwargs:(deepcopy(f.selected),deepcopy(self.local))))
+        self.enterContext(patch.object(C.producer,'selection_profile_for_reuse',return_value=f.selected))
+        def original_source(adapter,invocation,plan,policy,context,receipt,binding,*,integrated,root,clock):
+            A.require(not integrated and receipt.get('schema')==4
+                and context.protected_source==self.retained and binding==c.binding,
+                'explicit source reconstruction seam differs')
+            verified=A.Adapter.verify(adapter,invocation,plan,policy,{'shared-host':context},clock=clock)
+            return verified,object()
+        self.enterContext(patch.object(C.producer,'verify_original_source',side_effect=original_source))
         c.plan,c.policy=C._policy(self.policy,f.registry,c.binding,f.controller,f.adapter,C.ROOT,
             f.selected['selection'],template=C.producer.PLATFORM_TEMPLATE)
         c.pp=c.policy.producer;c.generation={path:c.tree[path] for path in A.WORKFLOWS}

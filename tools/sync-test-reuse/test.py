@@ -2242,6 +2242,7 @@ class NativeRetainedParentEvidenceTests(unittest.TestCase):
             final_publisher=replace(native.original_run.final_publisher,
                 receipt_sha256=hashlib.sha256(C.P.canonical(self.receipt)).hexdigest()))
         case.add_run(run);case.runs[100]['pull_requests']=[]
+        case.runs[100]['display_title']=C.A.ORDINARY_RUN_NAME
         platform=deepcopy(case.jobs[100][1]);platform.update(id=140,name=C.producer.PLATFORM_JOB,
             check_run_url=f'https://api.github.com/{C.A.PREFIX}/check-runs/140')
         platform['steps']=[{'name':'Execute and verify the complete Android platform inventory',

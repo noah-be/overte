@@ -590,10 +590,13 @@ urllib.request.build_opener=lambda *args:Opener()
 spec=importlib.util.spec_from_file_location('actual_metadata_bootstrap',root/'tools/repository-checks/metadata_context.py')
 m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 os.environ['GH_TOKEN']='fixed-fake-fixture-token'
-event={'pull_request':{'base':{'ref':'android-main'}}}
+event={'action':'edited','number':23,'repository':{'full_name':m.REPOSITORY,'id':m.REPOSITORY_ID},
+ 'changes':{'title':{'from':'Old'}},'pull_request':{'number':23,'state':'open','title':'Current',
+ 'base':{'ref':'android-main','sha':'b'*40,'repo':{'full_name':m.REPOSITORY,'id':m.REPOSITORY_ID}},
+ 'head':{'ref':'fix/android/source-fixture','sha':'c'*40}}}
 native={'base':'b'*40,'checkout':sys.argv[2]}
 try:
- value=m._protected_readers(event,{},native,root)
+ value=m._protected_readers(event,{'GITHUB_EVENT_NAME':'pull_request','GITHUB_JOB':'recognize'},native,root)
  class Registration:
   def _object(self,endpoint): return {'id':99,'path':'.github/workflows/repository-checks.yml','state':'active'}
  native['helper_blob']=value[2][m.SOURCE]['sha']
