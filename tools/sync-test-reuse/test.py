@@ -1815,8 +1815,8 @@ class NativeParentEvidenceTests(unittest.TestCase):
     def setUp(self):
         self.fixture = self.fixtures.MainConsumerTests()
         self.fixture.generation_name = 'protected-producer-postmerge-original-e-v1'
-        self.fixture.setUp()
         self.addCleanup(self.fixture.doCleanups)
+        self.fixture.setUp()
         self.controller = self.fixture.module
         self.case = self.fixture.case
         self.case.push.update(status='completed', conclusion='success')
@@ -2046,7 +2046,7 @@ class NativeRetainedParentEvidenceTests(unittest.TestCase):
         cls.sources=importlib.util.module_from_spec(spec);spec.loader.exec_module(cls.sources)
 
     def setUp(self):
-        native=NativeParentEvidenceTests();native.setUp();self.addCleanup(native.doCleanups)
+        native=NativeParentEvidenceTests();self.addCleanup(native.doCleanups);native.setUp()
         self.native=native;self.controller=C=native.controller
         self.fixture=f=native.fixture;self.case=case=native.case
         # Restore actual registry parsing before creating the sealed small
@@ -2055,7 +2055,7 @@ class NativeRetainedParentEvidenceTests(unittest.TestCase):
             if item.attribute=='load_registry': C.inputs.load_registry.side_effect=item.temp_original
         holder=(self.sources.SevenTargetProfileTests() if getattr(self,'ci_original',False)
             else self.sources.ControllerGenerationTests())
-        holder.setUp();self.addCleanup(holder.doCleanups)
+        self.addCleanup(holder.doCleanups);holder.setUp()
         source=holder.f if getattr(self,'ci_original',False) else holder
         self.source=source;self.root=source.root;self.registry=source.registry
         if getattr(self,'ci_original',False):
@@ -2081,9 +2081,14 @@ class NativeRetainedParentEvidenceTests(unittest.TestCase):
         document['generations'].append({'name':C.producer.PLATFORM_GENERATION,'workflows':self.generation})
         (self.root/'.github/package-workflow-generations.json').write_bytes(C.inputs._canonical(document))
         self.platforms={}
+        # Hosted PR checkouts contain only the merge candidate and its parents.
+        # Recover the exact reviewed profile bytes from the current handoff
+        # policy instead of requiring unrelated historical Git objects.
+        profiles=json.loads((C.ROOT/'.github/android-owner-transfer.json').read_bytes())['profiles']
         for branch in ('android-main','android-phone'):
             oid=C.source_admission.TARGET_PROFILES[branch]
-            raw=C.ci_profile._controller_git(C.ROOT,'cat-file','blob',oid)
+            raw=(json.dumps({'schema':1,'platform':'android',
+                'suites':profiles[branch]['required_suites']},indent=2)+'\n').encode()
             self.assertEqual(C.source_admission.blob_id(raw),oid)
             self.platforms[branch]=(raw,json.loads(raw)['suites'])
             for item in self.platforms[branch][1]:
@@ -2395,7 +2400,7 @@ class NativeOriginalLookupCompatibilityTests(unittest.TestCase):
     def setUp(self):
         self.f=NativeRetainedParentEvidenceTests();self.f.ci_original=True
         self.f.ci_android=self._testMethodName=='test_android_CI2_original_source_is_reused_without_claiming_platform_execution'
-        self.f.setUp();self.addCleanup(self.f.doCleanups)
+        self.addCleanup(self.f.doCleanups);self.f.setUp()
         self.C=self.f.controller;self.original=deepcopy(self.f.retained)
         self.environment=deepcopy(self.f.environment)
 
