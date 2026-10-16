@@ -1167,10 +1167,13 @@ class CurrentAndroidNativeOwnerTests(unittest.TestCase):
             with self.assertRaises(ValueError):self.verify()
         imports.assert_not_called()
 
-    def test_dispatch_preserves_old14_admission_and_cannot_enable_current40(self):
-        with patch.object(gate,'_source_generation',return_value='android-owned-npm5-sync-ci-v1'), \
-             patch.object(gate,'verify_current_owner',side_effect=AssertionError('no unrequested40')):
-            self.assertIsNone(gate.current_source_owner('/candidate',self.event,self.sha,self.needs,self.environment))
+    def test_dispatch_preserves_legacy_admission_even_with_current_source_capability(self):
+        for generation in ('npm-consumers-sync-ci-v1','android-owned-npm5-sync-ci-v1'):
+            with self.subTest(generation=generation), \
+                 patch.object(gate,'SOURCE_CAPABILITY',True), \
+                 patch.object(gate,'_source_generation',return_value=generation), \
+                 patch.object(gate,'verify_current_owner',side_effect=AssertionError('no unrequested40')):
+                self.assertIsNone(gate.current_source_owner('/candidate',self.event,self.sha,self.needs,self.environment))
         with patch.object(gate,'_source_generation',return_value=gate.CURRENT_SOURCE_GENERATION), \
              patch.object(gate,'verify_current_owner',return_value={'verified':True}) as current:
             self.assertEqual(gate.current_source_owner('/candidate',self.event,self.sha,self.needs,self.environment),{'verified':True})

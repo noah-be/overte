@@ -234,12 +234,12 @@ initial repository closure is conservative because fixtures read the complete
 trusted controller, registry, sync policy and recursive requirement graph.
 
 The Android40 current-source owner is separate from common-host reuse. Its
-`SOURCE_CAPABILITY` is default off and applies only to the four fixed Android
+`SOURCE_CAPABILITY` permits the first current attempt only on the four fixed Android
 targets under the complete `protected-producer-original-default-v1` generation.
 It describes reviewed current execution code, not a previous hosted PASS. The
 legacy Android activation flag and required-branch policy retain their existing
-meaning. Protected D supplies every controller; an authenticated old14 B may be
-the predecessor of the first exact22 installation, subject to the existing
+meaning. Protected D supplies every controller; an authenticated pre-owner13 or
+old14 B may precede the first exact22 installation, subject to the existing
 immutable handoff checks. Candidate controller code is never imported.
 Before importing the repository execution/API graph, a pinned standard-library
 guard authenticates the actual protected D checkout, its complete controller
@@ -261,4 +261,7 @@ Only the shared API's authenticated metadata non-producer may be excluded;
 its exact reviewed native-intent type has a stable inventory projection while
 its complete live source and job restrictions are rechecked at both bookends.
 No actual Android workload or hosted qualification is asserted by this source
-implementation; activation and complete workflow enrollment remain separate.
+implementation; complete workflow installation and hosted acceptance remain
+separate. The source phase uses the complete pre-owner13 recipe across all
+seven branches, preserving the six original Android ownership files until
+their verified direct-parent installation transfers ownership to exact22.

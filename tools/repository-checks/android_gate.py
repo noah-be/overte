@@ -47,7 +47,7 @@ BLOCKERS = {"extended-tier-prerequisite-transfer", "advisory-profile-owner-hando
 ACTIVATION_READY = False
 # A reviewed current-source attempt capability, never historical qualification.
 # Legacy admission/targets remain separate and unchanged.
-SOURCE_CAPABILITY = False
+SOURCE_CAPABILITY = True
 SOURCE_GUARD_BLOB = '71bb88f704e3f96444c3dbf94916f9f871c08720'
 CURRENT_SOURCE_GENERATION = "protected-producer-original-default-v1"
 CURRENT_SOURCE_TARGETS = frozenset({"android-main", "android-vr", "android-vr-pico", "android-phone"})
