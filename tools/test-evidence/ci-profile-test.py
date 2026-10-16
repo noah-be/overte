@@ -624,6 +624,25 @@ class ControllerGenerationTests(unittest.TestCase):
         self.assertEqual(first['policy_digest'],next_binding['policy_digest'])
         self.assertNotIn('generation_digest',self.policy)
 
+    def test_capture_records_actual_commit_object_identity_before_constructing_manifest(self):
+        import base64
+        raw=self.git('cat-file','commit',self.source)
+        actual=hashlib.sha1(b'commit '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
+        self.assertEqual(actual,self.source)
+        self.assertEqual(self.manifest['source_commit'],actual)
+        self.assertEqual(base64.b64decode(self.manifest['commit_object']),raw)
+        # Even a correctly sized object returned after the actual HEAD check
+        # must independently hash to the admitted native immutable identity.
+        changed=raw[:-1]+(b'X' if raw[-1:]!=b'X' else b'Y')
+        original=C._controller_git
+        def read(root,*args):
+            return changed if args==('cat-file','commit',self.source) else original(root,*args)
+        with patch.object(C,'_controller_git',side_effect=read), \
+             patch.object(C,'_validate_controller_manifest',side_effect=AssertionError('mismatched object reached manifest')) as validate:
+            with self.assertRaisesRegex(C.CIProfileError,'actual controller commit differs'):
+                C.capture_controller_manifest(self.root,self.source)
+            validate.assert_not_called()
+
     def test_manifest_rebound_actual_source_mode_alias_membership_and_tree_are_rejected(self):
         import base64
         for change in ('commit','commit-body','tree','lookup','missing','mode','alias','actual'):

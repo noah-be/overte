@@ -169,7 +169,9 @@ def capture_controller_manifest(root, trusted_source):
              'controller commit object exceeds its bound')
     commit=_controller_git(root,'cat-file','commit',trusted_source)
     _require(len(commit)==int(size),'controller commit object size changed')
-    value={'schema':1,'kind':CONTROLLER_KIND,'source_commit':trusted_source,'source_tree':tree,
+    actual_commit=hashlib.sha1(b'commit '+str(len(commit)).encode()+b'\0'+commit).hexdigest()
+    _require(actual_commit==trusted_source,'actual controller commit differs from admitted native source')
+    value={'schema':1,'kind':CONTROLLER_KIND,'source_commit':actual_commit,'source_tree':tree,
            'commit_object':base64.b64encode(commit).decode('ascii'),'entries':entries}
     _validate_controller_manifest(value,root)
     return value
