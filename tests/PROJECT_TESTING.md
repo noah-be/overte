@@ -1240,6 +1240,15 @@ mandatory on every selected PR. No branch-name waiver or evidence reuse is added
 
 ## Staged selection for CI-only changes
 
+The retained-source Android parent recipe first authenticates a small dispatch
+plan on `android-main` and `android-vr`. It starts a separate platform job only
+when that independently derived plan selects Android commands; common tests and
+selected platform tests then run in parallel. Package and documentation routes
+retain their own required owners. Main and Apple parents skip this dispatch job
+because their reviewed platform profile is empty. The final parent check
+recomputes the candidate and complete plan; dispatch outputs are never test
+evidence, and a required platform failure still blocks qualification.
+
 The staged host workflow in `tools/repository-checks/workflows/host/project-tests.yml`
 uses the default branch's trusted `host_selection.py` controller. It recomputes
 the exact package/candidate plan before selection and again before execution.

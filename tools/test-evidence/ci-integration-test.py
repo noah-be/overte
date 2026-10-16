@@ -1706,9 +1706,16 @@ class AndroidPlatformPartitionTests(unittest.TestCase):
                     P.current_platform_context(Path('/unexecuted'),event,environment,adapter)
             derive.return_value=profile
             selected['full_host']=True;selected['reason']='reviewed-ci-with-control-plane-update'
-            with patch.object(postmerge,'integrated_controller',return_value='sha256:'+'e'*64) as full_guard:
-                context=P.current_platform_context(Path('/unexecuted'),event,environment,adapter)
-                self.assertIsNone(context['platform_partition']);full_guard.assert_called_once()
+            full_profile={**profile,'profile':P.FULL_PROFILE,'binding':None}
+            derive.return_value=full_profile
+            context=P.current_platform_context(Path('/unexecuted'),event,environment,adapter)
+            self.assertIsNone(context['platform_partition']);strict.assert_not_called()
+            for field,value in (('profile',C.PROFILE),('binding',{'generation_kind':C.SEVEN_CONTROLLER_KIND}),
+                    ('selection',{**selected,'include_platform':True})):
+                derive.return_value={**full_profile,field:value}
+                with self.subTest(full_field=field),self.assertRaises(H.Unavailable):
+                    P.current_platform_context(Path('/unexecuted'),event,environment,adapter)
+            derive.return_value=profile
             selected['full_host']=False
             selected['include_platform']=True
             with self.assertRaisesRegex(AssertionError,'strict execution'):

@@ -606,21 +606,24 @@ def current_platform_context(candidate, event, environment, adapter, *, root=ROO
     else:
         selected = policy.select(current, paths, regular, base_tree=previous, trusted_tree=local,
             candidate_root=root, trusted_root=root, target=target)
-    if selected is not None and (selected['include_platform'] is True or selected['full_host'] is True):
+    if selected is not None and selected['include_platform'] is True:
         # A real platform owner must independently re-enter the unchanged strict
         # source and selection admission before setup or command execution.
         controller = postmerge.integrated_controller(policy, previous, current, local, target, root)
         profile = selection_profile(policy, registry, current, previous, local, root=root, target=target,
             read_blob=adapter.api.immutable_blob)
         host.require(profile['selection'] == selected, 'platform push selections differ')
-        if selected['include_platform'] is True:
-            partition = platform_partition(policy, profile, registry, current, previous, local,
-                target=target, root=root, read_blob=adapter.api.immutable_blob)
-            host.require(partition is not None, 'required Android platform push is unsupported')
-        else:
-            host.require(selected['include_platform'] is False and profile['profile']==FULL_PROFILE
-                and profile['binding'] is None and selected['full_host'] is True,
-                'full-host platform omission has no strict independent owner')
+        partition = platform_partition(policy, profile, registry, current, previous, local,
+            target=target, root=root, read_blob=adapter.api.immutable_blob)
+        host.require(partition is not None, 'required Android platform push is unsupported')
+    elif selected is not None and selected['full_host'] is True:
+        # Planning a common owner executes nothing. Keep original-source lookup
+        # available when its inert test members differ from current default.
+        profile = selection_profile_for_reuse(policy, registry, current, previous, local,
+            root=root,target=target,read_blob=adapter.api.immutable_blob)
+        host.require(profile['selection']==selected and selected['include_platform'] is False
+            and profile['profile']==FULL_PROFILE and profile['binding'] is None,
+            'full-host platform omission has no independent common owner')
     elif selected is not None:
         profile = selection_profile_for_reuse(policy, registry, current, previous, local,
             root=root,target=target,read_blob=adapter.api.immutable_blob)
