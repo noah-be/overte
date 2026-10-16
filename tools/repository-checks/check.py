@@ -123,8 +123,41 @@ def classify_metadata_event(path: Path, event_name: str) -> dict:
         metadata = metadata_edit(event, event_name)
     except (ValueError, OSError, TypeError, AttributeError):
         metadata = False
+    intent = os.environ.get('NATIVE_METADATA_INTENT', '')
+    if intent not in {'', 'false', 'true'}:
+        raise ValueError('invalid native metadata lane state')
+    if intent == 'true':
+        if not metadata:
+            raise ValueError('marked metadata lane no longer has a complete known event')
+        # This reviewed reusable-job output selects a one-way branch, not proof.
+        # The owner independently authenticates its native marker/source before
+        # retaining anything. No failure can fall through to a producer.
+        result = _retained_metadata(event)
+        if not isinstance(result, dict) or result.get('metadata_only') != 'true' \
+                or result.get('qualification') is not False:
+            raise ValueError('current retained metadata qualification unavailable')
+        return {**result, 'metadata_edit': True}
     return {"kind": "pr-metadata-classification", "qualification": False,
             "metadata_edit": metadata, "metadata_only": "false"}
+
+
+def _retained_metadata(event):
+    """Dispatch only from native caller identity, never a supplied selector."""
+    reference = os.environ.get('GITHUB_WORKFLOW_REF')
+    number = event['number']
+    suffix = '@refs/pull/' + str(number) + '/merge'
+    sys.path.insert(0, str(ROOT / 'tools/test-evidence'))
+    if reference == 'noah-l-frank/overte/.github/workflows/repository-checks.yml' + suffix:
+        import postmerge
+        import producer_api
+        return postmerge.verify_metadata(event, os.environ, producer_api.Adapter(), root=ROOT)
+    if reference == 'noah-l-frank/overte/.github/workflows/codeql.yml' + suffix:
+        spec = importlib.util.spec_from_file_location('trusted_metadata_codeql_results',
+            ROOT / 'tools/repository-checks/codeql_results.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.MetadataVerifier(ROOT, event, os.environ).verify()
+    raise ValueError('metadata caller is not a reviewed native workflow')
 
 
 def configuration(root: Path = ROOT) -> tuple[dict, dict]:

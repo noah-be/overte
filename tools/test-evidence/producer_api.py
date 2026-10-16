@@ -11,7 +11,7 @@ there is deliberately no candidate JSON/CLI policy or facts constructor.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import base64
 import binascii
@@ -34,6 +34,13 @@ REPOSITORY = "noah-l-frank/overte"
 PREFIX = "repos/" + REPOSITORY
 WORKFLOWS = frozenset(".github/workflows/" + name + ".yml" for name in (
     "project-tests", "parent-qualification", "sync-validation", "repository-checks"))
+METADATA_WORKFLOW = ".github/workflows/pr-metadata-context.yml"
+METADATA_WORKFLOWS = WORKFLOWS | {".github/workflows/browser-client.yml", METADATA_WORKFLOW}
+METADATA_CALLERS = {".github/workflows/repository-checks.yml": METADATA_WORKFLOWS,
+                    ".github/workflows/codeql.yml": frozenset({".github/workflows/codeql.yml", METADATA_WORKFLOW})}
+METADATA_SOURCE = "tools/repository-checks/metadata_context.py"
+METADATA_JOB = "Authenticate PR text edit / Recognize immutable text edit context"
+METADATA_STEP = "Authenticated one-way metadata non-producer"
 PROTECTED_PUSH_WORKFLOWS = {
     350930890: (".github/workflows/parent-qualification.yml",
                 frozenset({"main", "android-main", "android-vr", "apple-main"})),
@@ -200,6 +207,14 @@ class GitHubReadOnly:
 
 
 @dataclass(frozen=True)
+class MetadataPolicy:
+    caller_workflow_id: int
+    caller_path: str
+    generations: dict[str, dict]
+    sources: dict[str, dict]
+
+
+@dataclass(frozen=True)
 class AdapterPolicy:
     producer: P.Policy
     caller_workflow_id: int
@@ -208,6 +223,8 @@ class AdapterPolicy:
     publisher_job: str
     owner_jobs: dict[str, str]
     final_publisher_prefix: str
+    metadata_generations: dict[str, dict] | None = None
+    metadata_sources: dict[str, dict] | None = None
 
 
 @dataclass(frozen=True)
@@ -220,6 +237,7 @@ class Snapshot:
     source_chains: dict[int, dict]
     artifact_inventories: dict[int, list[dict]]
     other_candidates: dict[int, dict]
+    metadata_nonproducers: dict[int, dict] = field(default_factory=dict)
 
 
 def _policy(value, plan, number):
@@ -249,6 +267,34 @@ def _policy(value, plan, number):
             and not any(name.startswith(value.final_publisher_prefix)
                         for name in [value.publisher_job, *value.owner_jobs.values()]),
             "trusted distinct final publisher prefix unavailable")
+    if value.metadata_generations is None and value.metadata_sources is None:
+        return
+    _metadata_policy(MetadataPolicy(value.caller_workflow_id, value.caller_path,
+                                   value.metadata_generations, value.metadata_sources))
+
+
+def _metadata_policy(value):
+    require(isinstance(value, MetadataPolicy) and value.caller_path in METADATA_CALLERS,
+            "unsupported fixed metadata caller")
+    positive(value.caller_workflow_id)
+    generations, sources = value.generations, value.sources
+    require(isinstance(generations, dict) and 1 <= len(generations) <= 19
+            and isinstance(sources, dict) and set(sources) == set(generations),
+            "complete trusted metadata source generations unavailable")
+    identities = set()
+    for name, workflows in generations.items():
+        require(isinstance(name, str) and re.fullmatch(r"[a-z0-9][a-z0-9-]*", name)
+                and isinstance(workflows, dict) and set(workflows) == METADATA_CALLERS[value.caller_path]
+                and isinstance(sources[name], dict) and set(sources[name]) == {METADATA_SOURCE},
+                "metadata source requires a fixed complete workflow/helper pair")
+        for entry in [*workflows.values(), *sources[name].values()]:
+            require(isinstance(entry, dict) and set(entry) == {"mode", "type", "sha"}
+                    and entry["mode"] == "100644" and entry["type"] == "blob",
+                    "metadata source requires ordinary immutable blobs")
+            sha(entry["sha"])
+        identity = P.digest({"workflows": workflows, "sources": sources[name]})
+        require(identity not in identities, "duplicate complete metadata source generation")
+        identities.add(identity)
 
 
 class Adapter:
@@ -483,7 +529,7 @@ class Adapter:
         binding.update(merge_tree=tree, merge_parents=parents)
         return P.validate_binding(binding), references
 
-    def _workflow_tuple(self, revision):
+    def _workflow_tuple(self, revision, *, paths=WORKFLOWS):
         tree, parents = self._commit(revision)
         cursor = tree
         for directory in (".github", "workflows"):
@@ -500,11 +546,156 @@ class Adapter:
                 and all(isinstance(entry, dict) for entry in value["tree"]),
                 "immutable workflow inventory is unavailable or truncated")
         workflows = {}
-        for path in WORKFLOWS:
+        for path in paths:
             found = [entry for entry in value["tree"] if entry.get("path") == path.rsplit("/", 1)[1]]
             require(len(found) == 1, "complete caller generation is missing or ambiguous")
             workflows[path] = {key: found[0].get(key) for key in ("mode", "type", "sha")}
         return tree, parents, workflows
+
+    def _metadata_source(self, revision):
+        """Read the one fixed helper through ordinary immutable directories."""
+        cursor, _ = self._commit(revision)
+        parts = METADATA_SOURCE.split("/")
+        for index, name in enumerate(parts):
+            value = self._object("git/trees/" + cursor)
+            require(value.get("sha") == cursor and value.get("truncated") is False
+                    and isinstance(value.get("tree"), list)
+                    and all(isinstance(entry, dict) for entry in value["tree"]),
+                    "immutable metadata helper inventory unavailable")
+            matches = [entry for entry in value["tree"] if entry.get("path") == name]
+            require(len(matches) == 1, "metadata helper source missing or ambiguous")
+            entry = matches[0]
+            sha(entry.get("sha"))
+            if index == len(parts) - 1:
+                require(entry.get("mode") == "100644" and entry.get("type") == "blob",
+                        "metadata helper source is nonregular")
+                return {METADATA_SOURCE: {key: entry[key] for key in ("mode", "type", "sha")}}
+            require(entry.get("mode") == "040000" and entry.get("type") == "tree",
+                    "metadata helper parent is missing or aliased")
+            cursor = entry["sha"]
+
+    def metadata_observation(self, listed, binding, policy, *, integrated=False, now=None):
+        """Classify a finite native non-producer; this never supplies a result.
+
+        The referenced reusable workflow authenticates original M. Marker text,
+        missing descriptors and caller-provided run IDs cannot establish it.
+        The reviewed helper/recipe must enforce a one-way route after its marker.
+        """
+        _metadata_policy(policy)
+        P.validate_binding(binding)
+        now = _now() if now is None else now
+        P._now(now)
+        identity = positive(listed.get("id"))
+        latest = self._object(f"actions/runs/{identity}")
+        attempt_number = positive(latest.get("run_attempt"))
+        if attempt_number != 1:
+            raise OriginalAttemptUnavailable("original metadata attempt unavailable")
+        attempt = self._object(f"actions/runs/{identity}/attempts/1")
+        fields = ("id", "workflow_id", "check_suite_id", "path", "event", "head_sha", "head_branch",
+                  "run_attempt", "status", "conclusion", "run_started_at", "updated_at")
+        require(all(listed.get(key) == latest.get(key) == attempt.get(key) for key in fields),
+                "metadata run/attempt inventory changed")
+        references = attempt.get("referenced_workflows")
+        prefix = REPOSITORY + "/" + METADATA_WORKFLOW + "@"
+        matches = [item for item in references if isinstance(item, dict)
+                   and str(item.get("path", "")).startswith(prefix)] if isinstance(references, list) else []
+        if not matches:
+            return None
+        # A reusable edge can be reported even when its job was skipped. It is
+        # no exclusion claim until the fixed job AND marker actually succeeded;
+        # ordinary producer evidence must retain its existing strict path.
+        jobs = self._pages(f"actions/runs/{identity}/attempts/1/jobs", "jobs")
+        markers = [job for job in jobs if job.get("name") == METADATA_JOB]
+        require(len(markers) <= 1, "metadata native source job is ambiguous")
+        if not markers or (markers[0].get("status"), markers[0].get("conclusion")) != ("completed", "success"):
+            return None
+        marker = markers[0]
+        require(isinstance(marker.get("steps"), list)
+                and all(isinstance(step, dict) for step in marker["steps"]), "metadata marker steps malformed")
+        steps = [step for step in marker["steps"] if step.get("name") == METADATA_STEP]
+        require(len(steps) <= 1, "one-way metadata marker is ambiguous")
+        if not steps or (steps[0].get("status"), steps[0].get("conclusion")) != ("completed", "success"):
+            return None
+        require(len(matches) == 1 and binding["base_ref"] == "main"
+                and attempt.get("repository", {}).get("id") == 1319052603
+                and attempt.get("repository", {}).get("full_name") == REPOSITORY
+                and attempt.get("head_repository", {}).get("id") == binding["head_repository_id"] == 1319052603
+                and attempt.get("head_repository", {}).get("full_name") == REPOSITORY
+                and attempt.get("workflow_id") == policy.caller_workflow_id
+                and attempt.get("path") == policy.caller_path and attempt.get("event") == "pull_request"
+                and attempt.get("head_sha") == binding["head_sha"]
+                and attempt.get("head_branch") == binding["head_ref"],
+                "metadata caller repository/source differs")
+        associated = attempt.get("pull_requests")
+        require(isinstance(associated, list) and (integrated and not associated or
+                sum(isinstance(item, dict) and item.get("number") == binding["pull_request"]
+                    for item in associated) == 1), "metadata PR association missing or ambiguous")
+        revision = sha(matches[0].get("sha"))
+        ref = f"refs/pull/{binding['pull_request']}/merge"
+        require(all(isinstance(item, dict) and item.get("sha") == revision and item.get("ref") == ref
+                    and item.get("path") in {REPOSITORY + "/" + path + "@" + revision
+                                             for path in METADATA_CALLERS[policy.caller_path]}
+                    for item in references), "unknown or mixed metadata reusable source")
+        tree, parents, workflows = self._workflow_tuple(revision, paths=METADATA_CALLERS[policy.caller_path])
+        require(len(parents) == 2 and parents[1] == binding["head_sha"],
+                "metadata source lacks exact original ordered PR parents")
+        if revision == binding["merge_sha"]:
+            require(tree == binding["merge_tree"] and parents == binding["merge_parents"],
+                    "metadata original candidate tree/parents differ")
+        source = self._metadata_source(parents[0])
+        generations = [name for name, expected in policy.generations.items()
+                       if workflows == expected and source == policy.sources[name]]
+        require(len(generations) == 1, "metadata workflow/helper generation is unknown or mixed")
+        suite = self._object(f"check-suites/{positive(attempt.get('check_suite_id'))}")
+        require(suite.get("id") == attempt["check_suite_id"] and suite.get("head_sha") == binding["head_sha"]
+                and suite.get("repository", {}).get("id") == 1319052603
+                and suite.get("repository", {}).get("full_name") == REPOSITORY
+                and suite.get("app", {}).get("id") == 15368,
+                "metadata native check suite/app differs")
+        require(attempt.get("status") in P._PENDING | {"completed"}
+                and (attempt["status"] == "completed") == (attempt.get("conclusion") in P._CONCLUSIONS),
+                "metadata native run status is inconsistent")
+        require(all("steps" not in job or isinstance(job["steps"], list)
+                    and all(isinstance(step, dict) for step in job["steps"]) for job in jobs),
+                "metadata native job steps are malformed")
+        if any((policy.caller_path == ".github/workflows/repository-checks.yml"
+                and isinstance(job.get("name"), str) and job["name"].startswith("project / "))
+               or job.get("name") in {"CodeQL (javascript-typescript)", "CodeQL (python)"}
+               or any(isinstance(step, dict) and step.get("name") == "Analyze"
+                      and step.get("conclusion") != "skipped" for step in job.get("steps", [])) for job in jobs):
+            return None
+        checks, names = {}, set()
+        for job in jobs:
+            require(isinstance(job.get("name"), str) and job["name"] and job["name"] not in names,
+                    "metadata job name unavailable or ambiguous")
+            names.add(job["name"])
+            fact = self._job(job, attempt, 15368, final_name=job["name"])
+            require(fact.status in P._PENDING | {"completed"}
+                    and (fact.status == "completed") == (fact.conclusion in P._CONCLUSIONS),
+                    "metadata native job status is inconsistent")
+            checks[fact.job_id] = vars(fact)
+        require(P._time(attempt.get("run_started_at")) <= P._time(marker.get("started_at"))
+                <= P._time(steps[0].get("started_at")) <= P._time(steps[0].get("completed_at"))
+                <= P._time(marker.get("completed_at")) <= now, "metadata marker is outside its original native job")
+        artifacts = self._pages(f"actions/runs/{identity}/artifacts", "artifacts")
+        if artifacts:
+            return None
+        return {"kind": "authenticated-metadata-nonproducer", "generation": generations[0],
+                "candidate": {"merge_sha": revision, "merge_tree": tree, "merge_parents": parents},
+                "source": source, "run": {key: attempt.get(key) for key in fields},
+                "references": references, "jobs": jobs, "checks": checks, "artifacts": artifacts}
+
+    def _metadata_observation(self, listed, policy, binding, now, *, integrated=False):
+        if policy.metadata_generations is None:
+            return None
+        value = self.metadata_observation(listed, binding, MetadataPolicy(policy.caller_workflow_id,
+            policy.caller_path, policy.metadata_generations, policy.metadata_sources), integrated=integrated, now=now)
+        if value is not None:
+            forbidden = {policy.publisher_job, *policy.owner_jobs.values()}
+            if any(job.get("name") in forbidden or job["name"].startswith(policy.final_publisher_prefix)
+                   for job in value["jobs"]):
+                return None
+        return value
 
     def _chain(self, run, policy, binding, *, integrated=False):
         require(run.get("repository", {}).get("id") == 1319052603
@@ -668,11 +859,15 @@ class Adapter:
 
     def _capture_inventory(self, binding, policy, now, *, integrated=False):
         endpoint = f"actions/workflows/{policy.caller_workflow_id}/runs?head_sha={binding['head_sha']}"
-        observations, chains, inventories, unavailable, other = [], {}, {}, [], {}
+        observations, chains, inventories, unavailable, other, metadata = [], {}, {}, [], {}, {}
         try:
             listed = self._pages(endpoint, "workflow_runs", search=True)
             for item in listed:
                 try:
+                    marker = self._metadata_observation(item, policy, binding, now, integrated=integrated)
+                    if marker is not None:
+                        metadata[positive(item.get("id"))] = marker
+                        continue
                     observation, chain, artifacts = self._observation(item, policy, binding, now, integrated=integrated)
                     if observation is None:
                         other[positive(item.get("id"))] = chain
@@ -688,9 +883,14 @@ class Adapter:
             fields = ("id", "run_attempt", "status", "conclusion", "run_started_at", "updated_at")
             require([{key: row.get(key) for key in fields} for row in listed]
                     == [{key: row.get(key) for key in fields} for row in final_list], "authority inventory changed")
+            for item in final_list:
+                identity = positive(item.get("id"))
+                if identity in metadata:
+                    require(self._metadata_observation(item, policy, binding, now, integrated=integrated) == metadata[identity],
+                            "metadata jobs, native checks or artifacts changed during classification")
         except (ApiError, KeyError, TypeError, ValueError):
             unavailable.append("run-inventory-incomplete-or-changed")
-        return observations, chains, inventories, unavailable, other
+        return observations, chains, inventories, unavailable, other, metadata
 
     def capture(self, number, plan, policy, *, now=None):
         """Return a bookended complete API snapshot, or explicit no-reuse gaps."""
@@ -698,10 +898,10 @@ class Adapter:
         P._now(now)
         _policy(policy, plan, number)
         binding, references = self.current(number)
-        observations, chains, inventories, unavailable, other = self._capture_inventory(binding, policy, now)
+        observations, chains, inventories, unavailable, other, metadata = self._capture_inventory(binding, policy, now)
         final_binding, final_refs = self.current(number)
         require(final_binding == binding and final_refs == references, "current PR or refs changed during API snapshot")
-        return Snapshot(binding, references, observations, not unavailable, tuple(sorted(set(unavailable))), chains, inventories, other)
+        return Snapshot(binding, references, observations, not unavailable, tuple(sorted(set(unavailable))), chains, inventories, other, metadata)
 
     def capture_integrated(self, push_run_id, plan, policy, *, now=None):
         """Look up original source facts; never alias a receipt to the push SHA."""
@@ -711,7 +911,7 @@ class Adapter:
         P.policy_digest(policy.producer)
         integrated, references = self._integrated_current(push_run_id, policy.producer.actions_app_id, now)
         _policy(policy, plan, integrated["pull_request"])
-        observations, chains, inventories, unavailable, other = self._capture_inventory(
+        observations, chains, inventories, unavailable, other, metadata = self._capture_inventory(
             integrated, policy, now, integrated=True)
         originals = {item.run.workflow_commit for item in observations}
         require(len(originals) == 1, "original integrated producer candidate is missing or ambiguous")
@@ -719,7 +919,7 @@ class Adapter:
         final_binding, final_refs = self._integrated_current(push_run_id, policy.producer.actions_app_id, now)
         require(final_binding == integrated and final_refs == references,
                 "merged PR, protected push, protection or current refs changed during API snapshot")
-        return Snapshot(binding, references, observations, not unavailable, tuple(sorted(set(unavailable))), chains, inventories, other)
+        return Snapshot(binding, references, observations, not unavailable, tuple(sorted(set(unavailable))), chains, inventories, other, metadata)
 
     def verify(self, number, plan, policy, contexts, *, clock=_now):
         """Read both snapshots and validate original aggregate; no implicit rerun."""
@@ -741,6 +941,8 @@ class Adapter:
         require(raw is not None and artifact is not None, "newest aggregate proof is missing")
         final = capture(clock())
         require(initial.references == final.references, "current refs changed during aggregate verification")
+        require(initial.metadata_nonproducers == final.metadata_nonproducers,
+                "metadata non-producer inventory changed during aggregate verification")
         # Artifacts authenticate a run, not a publishing job. Retain the complete
         # independently read final inventory too: a new duplicate, deletion or
         # replacement must not leave the initially downloaded aggregate usable.

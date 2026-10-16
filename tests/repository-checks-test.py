@@ -326,6 +326,109 @@ class MetadataEditTests(unittest.TestCase):
                 PACKAGES.validate_tree_wiring(tree)
 
 
+
+class NativeMetadataContextTests(unittest.TestCase):
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location('native_metadata_marker_tests',
+            ROOT / 'tools/repository-checks/metadata_context.py')
+        self.marker = importlib.util.module_from_spec(spec); spec.loader.exec_module(self.marker)
+        self.temporary = tempfile.TemporaryDirectory(); self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        def git(*args):
+            return subprocess.check_output(['git', *args], cwd=self.root, stderr=subprocess.PIPE).decode().strip()
+        self.git = git; git('init', '--quiet'); git('config', 'user.name', 'Metadata fixture')
+        git('config', 'user.email', 'metadata@example.invalid')
+        target = self.root / self.marker.SOURCE; target.parent.mkdir(parents=True)
+        target.write_bytes((ROOT / self.marker.SOURCE).read_bytes())
+        git('add', '.'); git('commit', '--quiet', '-m', 'Immutable marker fixture')
+        self.base = git('rev-parse', 'HEAD')
+        self.event = MetadataEditTests().edited({'title': {'from': 'Old'}, 'body': {'from': 'Old'}})
+        self.event['pull_request']['base']['sha'] = self.base
+        self.environment = {'GITHUB_ACTIONS': 'true', 'GITHUB_REPOSITORY': 'noah-l-frank/overte',
+            'GITHUB_REPOSITORY_ID': '1319052603', 'GITHUB_EVENT_NAME': 'pull_request',
+            'GITHUB_REF': 'refs/pull/17/merge', 'GITHUB_BASE_REF': 'main',
+            'GITHUB_HEAD_REF': self.event['pull_request']['head']['ref'], 'GITHUB_RUN_ATTEMPT': '1',
+            'GITHUB_RUN_ID': '123', 'RUNNER_ENVIRONMENT': 'github-hosted', 'ImageOS': 'ubuntu24',
+            'GITHUB_SHA': '3' * 40, 'GITHUB_WORKFLOW_SHA': '3' * 40, 'GITHUB_JOB': 'recognize',
+            'GITHUB_WORKFLOW_REF': 'noah-l-frank/overte/.github/workflows/repository-checks.yml@refs/pull/17/merge'}
+
+    def test_disabled_marker_never_claims_a_nonproducer_or_qualification(self):
+        result = self.marker.recognize(self.event, self.environment, root=self.root)
+        self.assertEqual(result['metadata_intent'], 'false'); self.assertFalse(result['qualification'])
+        self.assertTrue(result['metadata_edit']); self.assertNotIn('run_id', result)
+
+    def test_actual_git_source_and_native_context_bind_marker_without_qualification(self):
+        with patch.object(self.marker, 'SOURCE_READY', True):
+            result = self.marker.recognize(self.event, self.environment, root=self.root)
+        self.assertEqual(result['metadata_intent'], 'true'); self.assertFalse(result['qualification'])
+        self.assertEqual(result['base'], self.base)
+        self.assertEqual(result['helper_blob'], self.git('rev-parse', 'HEAD:' + self.marker.SOURCE))
+        for changes in ({'title': {'from': 'Old'}}, {'body': {'from': None}}, {'base': {}}):
+            event_copy = deepcopy(self.event); event_copy['changes'] = changes
+            self.assertEqual(self.marker.event_only(event_copy, 'pull_request'),
+                             CHECKS.metadata_edit(event_copy, 'pull_request'))
+
+    def test_marker_rejects_foreign_native_context_and_source_mutation(self):
+        for key, value in [('GITHUB_RUN_ATTEMPT', '2'), ('GITHUB_BASE_REF', 'apple-ios'),
+                           ('GITHUB_SHA', '0' * 40), ('GITHUB_WORKFLOW_SHA', '4' * 40),
+                           ('GITHUB_WORKFLOW_REF', 'foreign/repo/.github/workflows/codeql.yml@refs/pull/17/merge'),
+                           ('GITHUB_JOB', 'project-tests')]:
+            environment = {**self.environment, key: value}
+            with self.subTest(key=key), patch.object(self.marker, 'SOURCE_READY', True), \
+                    self.assertRaises(self.marker.MetadataUnavailable):
+                self.marker.recognize(self.event, environment, root=self.root)
+        target = self.root / self.marker.SOURCE; target.write_text(target.read_text() + '# changed\n')
+        with patch.object(self.marker, 'SOURCE_READY', True), self.assertRaises(self.marker.MetadataUnavailable):
+            self.marker.recognize(self.event, self.environment, root=self.root)
+
+    def test_marked_classifier_retains_only_explicit_non_authoritative_proof(self):
+        event_file = self.root / 'event.json'; event_file.write_text(json.dumps(self.event))
+        proof = {'metadata_only': 'true', 'qualification': False, 'kind': 'authenticated-test-fixture'}
+        with patch.dict(os.environ, {'NATIVE_METADATA_INTENT': 'true'}), \
+                patch.object(CHECKS, '_retained_metadata', return_value=proof) as retained:
+            result = CHECKS.classify_metadata_event(event_file, 'pull_request')
+        self.assertEqual(result['metadata_only'], 'true'); self.assertFalse(result['qualification'])
+        retained.assert_called_once_with(self.event)
+        for invalid in ({'metadata_only': 'true', 'qualification': True}, {'metadata_only': 'false', 'qualification': False}):
+            with patch.dict(os.environ, {'NATIVE_METADATA_INTENT': 'true'}), \
+                    patch.object(CHECKS, '_retained_metadata', return_value=invalid), self.assertRaises(ValueError):
+                CHECKS.classify_metadata_event(event_file, 'pull_request')
+
+    def test_marked_missing_proof_fails_small_without_producer_fallback(self):
+        event_file = self.root / 'event.json'; event_file.write_text(json.dumps(self.event))
+        with patch.dict(os.environ, {'NATIVE_METADATA_INTENT': 'true'}), \
+                patch.object(CHECKS, '_retained_metadata', side_effect=ValueError('proof unavailable')), \
+                patch.object(CHECKS, 'plan') as ordinary, self.assertRaises(ValueError):
+            CHECKS.classify_metadata_event(event_file, 'pull_request')
+        ordinary.assert_not_called()
+        changed = deepcopy(self.event); changed['changes']['base'] = {}; event_file.write_text(json.dumps(changed))
+        with patch.dict(os.environ, {'NATIVE_METADATA_INTENT': 'true'}), \
+                patch.object(CHECKS, '_retained_metadata') as retained, self.assertRaises(ValueError):
+            CHECKS.classify_metadata_event(event_file, 'pull_request')
+        retained.assert_not_called()
+
+    def test_unmarked_existing_workflows_keep_ordinary_qualification(self):
+        event_file = self.root / 'event.json'; event_file.write_text(json.dumps(self.event))
+        for intent in ('', 'false'):
+            with patch.dict(os.environ, {'NATIVE_METADATA_INTENT': intent}), \
+                    patch.object(CHECKS, '_retained_metadata') as retained:
+                self.assertEqual(CHECKS.classify_metadata_event(event_file, 'pull_request')['metadata_only'], 'false')
+            retained.assert_not_called()
+
+    def test_tiny_workflow_uses_an_isolated_interpreter_and_real_native_source_edge(self):
+        import yaml
+        template = yaml.safe_load((ROOT / self.marker.SOURCE_TEMPLATE).read_text())
+        job = template['jobs']['recognize']; steps = job['steps']
+        self.assertEqual(steps[0]['with']['ref'], '${{ github.event.pull_request.base.sha }}')
+        self.assertEqual(steps[0]['with']['sparse-checkout'], self.marker.SOURCE)
+        self.assertFalse(steps[0]['with']['sparse-checkout-cone-mode'])
+        self.assertIn('python3 -I -S -B trusted/' + self.marker.SOURCE, steps[1]['run'])
+        self.assertEqual(steps[2]['name'], self.marker.MARKER_STEP)
+        self.assertEqual(steps[2]['if'], "steps.context.outputs.metadata_intent == 'true'")
+        self.assertEqual(steps[2]['run'], ':')
+        self.assertNotIn('upload-artifact', json.dumps(template))
+
+
 class RoutingTests(unittest.TestCase):
     def test_current_account_name_keeps_exact_repository_and_base_identity(self):
         self.assertEqual(CONFIG['repository'], 'noah-l-frank/overte')

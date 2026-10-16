@@ -27,6 +27,7 @@ jobs:
           tools/repository-checks
           tools/sbom
           tools/branch-policy/check.py
+          tools/native-tests/check.py
           tests/run-project-tests.py
           tests/platform-profile.json
           tests/requirements-host.txt

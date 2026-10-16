@@ -33,6 +33,7 @@ PRODUCER_TEMPLATE = "tools/repository-checks/workflows/producers/project-tests.y
 WORKFLOW_PATHS = tuple(".github/workflows/" + name for name in (
     "project-tests.yml", "parent-qualification.yml", "sync-validation.yml", "repository-checks.yml"))
 CONSUMER_WORKFLOW_PATHS = (*WORKFLOW_PATHS, '.github/workflows/browser-client.yml')
+METADATA_WORKFLOW_PATHS = (*CONSUMER_WORKFLOW_PATHS, '.github/workflows/pr-metadata-context.yml')
 CONSUMER_TEMPLATES = 'tools/repository-checks/workflows/npm-consumers/'
 
 
@@ -131,7 +132,7 @@ def workflow_generations():
             or type(document["repository"].get("id")) is not int:
         raise ValueError("invalid trusted package workflow-generation policy")
     generations = document["generations"]
-    if not isinstance(generations, list) or not 1 <= len(generations) <= 19:
+    if not isinstance(generations, list) or not 1 <= len(generations) <= 20:
         raise ValueError("invalid trusted package workflow-generation inventory")
     names, tuples = set(), set()
     for generation in generations:
@@ -140,7 +141,7 @@ def workflow_generations():
         name, workflows = generation["name"], generation["workflows"]
         if not isinstance(name, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]*", name) or name in names \
                 or not isinstance(workflows, dict) or set(workflows) not in (
-                    set(WORKFLOW_PATHS), set(CONSUMER_WORKFLOW_PATHS)):
+                    set(WORKFLOW_PATHS), set(CONSUMER_WORKFLOW_PATHS), set(METADATA_WORKFLOW_PATHS)):
             raise ValueError("invalid or duplicate complete workflow generation")
         for entry in workflows.values():
             if not isinstance(entry, dict) or set(entry) != {"mode", "type", "sha"} \
@@ -227,12 +228,12 @@ def consumer_generation(candidate):
         return False
     value = path.read_bytes()
     sha = hashlib.sha1(b'blob ' + str(len(value)).encode() + b'\0' + value).hexdigest()
-    if not any(set(generation['workflows']) == set(CONSUMER_WORKFLOW_PATHS)
+    if not any(set(generation['workflows']) in (set(CONSUMER_WORKFLOW_PATHS), set(METADATA_WORKFLOW_PATHS))
                and generation['workflows']['.github/workflows/repository-checks.yml']['sha'] == sha
                for generation in workflow_generations()):
         return False
     name = validate_wiring(candidate)
-    return any(generation['name'] == name and set(generation['workflows']) == set(CONSUMER_WORKFLOW_PATHS)
+    return any(generation['name'] == name and set(generation['workflows']) in (set(CONSUMER_WORKFLOW_PATHS), set(METADATA_WORKFLOW_PATHS))
                for generation in workflow_generations())
 
 
@@ -241,7 +242,7 @@ def consumer_base(candidate, revision):
     if not isinstance(revision, str) or not re.fullmatch(r'[0-9a-f]{40}', revision):
         return False
     try:
-        raw = _git(candidate, 'ls-tree', '-z', revision, '--', *CONSUMER_WORKFLOW_PATHS)
+        raw = _git(candidate, 'ls-tree', '-z', revision, '--', *METADATA_WORKFLOW_PATHS)
     except subprocess.CalledProcessError:
         return False  # The separately established unknown-history fallback remains full.
     tree = {}
@@ -251,7 +252,7 @@ def consumer_base(candidate, revision):
         metadata, path = record.split('\t', 1)
         mode, kind, sha = metadata.split()
         tree[path] = {'mode': mode, 'type': kind, 'sha': sha}
-    return any(set(generation['workflows']) == set(CONSUMER_WORKFLOW_PATHS)
+    return any(set(generation['workflows']) in (set(CONSUMER_WORKFLOW_PATHS), set(METADATA_WORKFLOW_PATHS))
                and all(tree.get(path) == entry for path, entry in generation['workflows'].items())
                for generation in workflow_generations())
 
@@ -375,10 +376,10 @@ def validate_wiring(candidate):
     if caller.is_file() and not caller.is_symlink() and caller.stat().st_size <= 1_000_000:
         value = caller.read_bytes()
         identity = hashlib.sha1(b'blob ' + str(len(value)).encode() + b'\0' + value).hexdigest()
-        if any(set(generation['workflows']) == set(CONSUMER_WORKFLOW_PATHS)
-               and generation['workflows']['.github/workflows/repository-checks.yml']['sha'] == identity
-               for generation in workflow_generations()):
-            required.append('.github/workflows/browser-client.yml')
+        matching = [generation for generation in workflow_generations()
+                    if generation['workflows']['.github/workflows/repository-checks.yml']['sha'] == identity]
+        if matching:
+            required = sorted(set(required) | set().union(*(set(row['workflows']) for row in matching)))
     for relative in required:
         path = candidate / relative
         if not path.is_file() or path.is_symlink() or path.stat().st_size > 1_000_000 \

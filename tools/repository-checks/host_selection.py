@@ -60,6 +60,7 @@ CI_POLICY = frozenset({
 # tests/**: those roots also contain real product readers and import candidates.
 CI_ROLLOUT_PATHS = frozenset({
     'tools/test-evidence/affected-test.py',
+    ".github/workflows/pr-metadata-context.yml",
     '.github/android-checks.json', '.github/android-orchestration.json', '.github/android-owner-transfer.json',
     '.github/attested-runtime.json', '.github/sync-test-reuse.json', '.github/ci37-runtime.json',
     '.github/workflows/dependency-releases.yml', '.github/workflows/repository-checks.yml',
@@ -266,25 +267,31 @@ def _protected_producer_transition(tree, paths, base_tree, trusted_tree, target)
     This is selection, never activation or execution evidence. The ordinary
     complete-tuple wiring check still runs independently before selection.
     """
-    endpoints = {'.github/workflows/repository-checks.yml', '.github/workflows/project-tests.yml'}
-    if target != 'main' or not isinstance(paths, (tuple, list)) or len(paths) != len(endpoints) \
-            or set(paths) != endpoints or not isinstance(base_tree, dict) \
+    producer_endpoints = {'.github/workflows/repository-checks.yml', '.github/workflows/project-tests.yml'}
+    metadata_endpoints = {*producer_endpoints, '.github/workflows/parent-qualification.yml',
+                          '.github/workflows/pr-metadata-context.yml'}
+    if target != 'main' or not isinstance(paths, (tuple, list)) \
+            or len(paths) != len(set(paths)) or set(paths) not in (producer_endpoints, metadata_endpoints) \
+            or not isinstance(base_tree, dict) \
             or not isinstance(trusted_tree, dict) or trusted_tree != base_tree:
         return False
     # No path hint may conceal a source/controller/profile/registry change.
     changed = {path for path in base_tree.keys() | tree.keys() if base_tree.get(path) != tree.get(path)}
-    if changed != endpoints:
+    if changed != set(paths):
         return False
     policy = package_policy()
     generations = {generation['name']: generation['workflows'] for generation in policy.workflow_generations()}
-    required = set(policy.CONSUMER_WORKFLOW_PATHS)
-    for old_name, new_name in (
-            ('android-owned-npm5-sync-ci-v1', 'protected-shared-producer-v1'),
-            ('postmerge-original-e-v1', 'protected-producer-postmerge-original-e-v1'),
-            ('postmerge-original-e-v1', 'protected-producer-ci37-v1')):
+    consumers = set(policy.CONSUMER_WORKFLOW_PATHS)
+    for old_name, new_name, endpoints, candidate_paths in (
+            ('android-owned-npm5-sync-ci-v1', 'protected-shared-producer-v1', producer_endpoints, consumers),
+            ('postmerge-original-e-v1', 'protected-producer-postmerge-original-e-v1', producer_endpoints, consumers),
+            ('postmerge-original-e-v1', 'protected-producer-ci37-v1', producer_endpoints, consumers),
+            ('postmerge-original-e-v1', 'protected-producer-metadata-ci-v1', metadata_endpoints,
+             set(policy.METADATA_WORKFLOW_PATHS))):
         previous, producer = generations.get(old_name, {}), generations.get(new_name, {})
-        if set(previous) != required or set(producer) != required \
-                or {path for path in required if previous[path] != producer[path]} != endpoints:
+        if set(paths) != endpoints or set(previous) != consumers or set(producer) != candidate_paths \
+                or {path for path in consumers | candidate_paths if previous.get(path) != producer.get(path)} != endpoints \
+                or any(base_tree.get(path) is not None for path in candidate_paths - consumers):
             continue
         # Reviewed complete pairs only, never an arbitrary cross-product.
         if all(snapshot.get(path) == entry

@@ -19,6 +19,36 @@ APK = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(APK)
 
 
+METADATA_LEAVES = (
+    'tools/repository-checks/metadata_context.py',
+    'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml',
+    'tools/repository-checks/workflows/metadata-edits/codeql-metadata.yml',
+    '.github/workflows/pr-metadata-context.yml',
+    'tools/repository-checks/workflows/producers/legacy/repository-checks-protected-ci-v1.yml',
+    'tools/repository-checks/workflows/producers/legacy/parent-qualification-postmerge-v1.yml',
+    'tools/repository-checks/workflows/producers/legacy/protected-project-tests-ci37-v1.yml',
+)
+
+
+class MetadataLeafClassificationTests(unittest.TestCase):
+    def test_only_exact_ordinary_metadata_leaves_are_independent_android_inputs(self):
+        for path in METADATA_LEAVES:
+            self.assertEqual(APK.INDEPENDENT_HOST_PATHS[path], '100644')
+            self.assertEqual(APK._kind(APK.inventory.Entry(path, '100644', 'blob', 'a' * 40)),
+                             'independent-host')
+            for mode, kind in [('100755', 'blob'), ('120000', 'blob'), ('160000', 'commit'),
+                               ('040000', 'tree'), ('100644', 'commit')]:
+                with self.subTest(path=path, mode=mode, kind=kind):
+                    self.assertEqual(APK._kind(APK.inventory.Entry(path, mode, kind, 'a' * 40)),
+                                     'application-input')
+            for neighbor in (path + '.neighbor', path.upper(), path.replace('/metadata', '/metadata-neighbor', 1)):
+                if neighbor == path:
+                    continue
+                with self.subTest(path=path, neighbor=neighbor):
+                    self.assertEqual(APK._kind(APK.inventory.Entry(neighbor, '100644', 'blob', 'a' * 40)),
+                                     'application-input')
+
+
 class ApkInputsTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
@@ -85,6 +115,13 @@ class ApkInputsTests(unittest.TestCase):
         self.assertEqual(plan["candidate"]["revision"], candidate)
         self.assertEqual(plan["candidate"]["tree"], self.git("rev-parse", candidate + "^{tree}"))
         self.assertNotEqual(plan["base"]["tree"], plan["candidate"]["tree"])
+
+    def test_seven_metadata_controller_recipe_leaves_preserve_both_android_reader_boundaries(self):
+        for path in METADATA_LEAVES:
+            self.write(path, '# Fixed independent metadata source fixture; never execute\n')
+        plan = self.independent(self.commit('Add the seven exact metadata controller and recipe leaves'))
+        self.assertEqual({item['path'] for item in plan['changes']}, set(METADATA_LEAVES))
+        self.assertEqual({item['kind'] for item in plan['changes']}, {'independent-host'})
 
     def test_exact_npm_locks_and_host_documentation_preserve_source_identity(self):
         for path in APK.INDEPENDENT_NPM_PATHS:

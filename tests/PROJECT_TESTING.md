@@ -1402,6 +1402,31 @@ is a finite shared analysis control. Neither this staged template nor its source
 admission activates it; active workflows and existing security assertions remain
 unchanged until separately reviewed deployment and hosted qualification.
 
+The separate dormant `metadata-edits/codeql-metadata.yml` and protected
+repository caller prepare authenticated retention for complete title/body edits
+on same-fork `main` PRs. Their small reusable metadata job supplies GitHub's
+native original merge-source reference. Its isolated standard-library helper
+reads only the immutable protected base and marks a one-way non-producer
+invocation; neither its output nor a previous green aggregate grants authority.
+After that marker, unavailable proof fails the small selector instead of
+starting another producer. The metadata capability remains false and no active
+workflow deploys this lane.
+
+Repository retention initially covers only independently selected CI work with
+no native, Android, npm, tool-package or browser owner. It requires the exact
+complete six-workflow generation, the original same-merge protected schema-3
+receipt, original environment, native whole-receipt publisher commitment and
+unchanged controller, expiry and live candidate bookends. Documentation and
+selected workflow-security jobs retain their actual same-merge native source,
+successful steps and check records. CodeQL separately rechecks the original
+same-merge selected analyses, pinned extractor version and fresh open findings,
+including a native source record when no language was selected. Complete run
+inventories keep ordinary missing, pending or failed producers blocking; only
+authenticated metadata non-producers are excluded. No consumer environment,
+renewed proof, fabricated omitted-suite result or scanner execution is created.
+General product/package contexts and child branches still need separate
+authority. Local fixtures establish no hosted deployment qualification.
+
 The active workflow exactly matches `metadata-edits/codeql-pinned.yml` and pins
 the official CodeQL 2.27.2 Linux bundle through the pinned init action's `tools` URL. Init still
 uses its existing versioned hosted toolcache; a matching installation needs no

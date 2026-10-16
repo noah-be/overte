@@ -89,6 +89,52 @@ class HostSelectionTests(unittest.TestCase):
             candidate['.github/workflows/parent-qualification.yml']=deepcopy(generations['protected-shared-producer-v1'][
                 '.github/workflows/parent-qualification.yml'])
             self.assertFalse(HOST._protected_producer_transition(candidate,paths,previous,previous,'main'))
+
+    def metadata_transition(self):
+        generations={row['name']:row['workflows'] for row in HOST.package_policy().workflow_generations()}
+        previous,candidate=copy_git_tree(self.tree),copy_git_tree(self.tree)
+        previous.pop('.github/workflows/pr-metadata-context.yml',None)
+        previous.update(deepcopy(generations['postmerge-original-e-v1']))
+        candidate.update(deepcopy(generations['protected-producer-metadata-ci-v1']))
+        paths=sorted(path for path in previous.keys() | candidate.keys() if previous.get(path)!=candidate.get(path))
+        return previous,candidate,paths
+
+    def test_exact_metadata_installation_qualifies_all_suites_once_then_returns_to_normal_ci(self):
+        previous,candidate,paths=self.metadata_transition()
+        self.assertEqual(paths, ['.github/workflows/parent-qualification.yml',
+            '.github/workflows/pr-metadata-context.yml', '.github/workflows/project-tests.yml',
+            '.github/workflows/repository-checks.yml'])
+        result=self.selected(paths,tree=candidate,trusted_tree=previous,base_tree=previous)
+        self.assertEqual(result, {'suites':list(self.registry['suites']),
+            'reason':'reviewed-protected-producer-transition','full_host':True,'include_platform':True})
+        self.assertEqual(len(result['suites']),len(set(result['suites'])))
+        changed=copy_git_tree(candidate)
+        changed['tests/repository-checks-test.py']={'mode':'100644','type':'blob','sha':'a'*40}
+        normal=self.selected(['tests/repository-checks-test.py'],tree=changed,trusted_tree=candidate,base_tree=candidate)
+        self.assertEqual(normal['reason'],'reviewed-ci-only-inputs')
+        self.assertEqual(set(normal['suites']),self.ci_quick)
+
+    def test_metadata_installation_rejects_missing_mixed_foreign_mode_or_hidden_source_change(self):
+        previous,candidate,paths=self.metadata_transition()
+        for side in ('base','candidate'):
+            for path in paths:
+                for mutation in (None,{'mode':'100755','type':'blob','sha':'a'*40},
+                                 {'mode':'120000','type':'blob','sha':'a'*40},
+                                 {'mode':'100644','type':'blob','sha':'a'*40}):
+                    old,new=copy_git_tree(previous),copy_git_tree(candidate)
+                    target=old if side=='base' else new
+                    if mutation is None: target.pop(path,None)
+                    else: target[path]=mutation
+                    # The only reviewed missing entry is the newly installed endpoint.
+                    if old==previous and new==candidate: continue
+                    with self.subTest(side=side,path=path,mutation=mutation):
+                        self.assertFalse(HOST._protected_producer_transition(new,paths,old,old,'main'))
+        self.assertFalse(HOST._protected_producer_transition(candidate,paths,previous,previous,'apple-ios'))
+        self.assertFalse(HOST._protected_producer_transition(candidate,paths+paths[:1],previous,previous,'main'))
+        drift=copy_git_tree(candidate)
+        drift['tools/test-evidence/producer_workflow.py']={'mode':'100644','type':'blob','sha':'a'*40}
+        self.assertFalse(HOST._protected_producer_transition(drift,paths,previous,previous,'main'))
+        self.assertFalse(HOST._protected_producer_transition(candidate,paths,previous,candidate,'main'))
     def test_producer_transition_requires_main_complete_inventory_and_current_trusted_base(self):
         previous, candidate, paths = self.producer_transition()
         for mutation in ('child', 'unknown', 'nonregular', 'missing-base', 'missing-trusted',
@@ -628,12 +674,14 @@ class HostSelectionTests(unittest.TestCase):
         self.assertTrue(selected['full_host'])
 
     def test_exact_ci_admissions_do_not_waive_neighboring_tests_or_runtime_readers(self):
-        self.assertEqual(len(HOST.CI_ROLLOUT_PATHS),51)
+        self.assertEqual(len(HOST.CI_ROLLOUT_PATHS),52)
         self.assertIn('tools/test-evidence/affected-test.py',HOST.CI_ROLLOUT_PATHS)
+        self.assertIn('.github/workflows/pr-metadata-context.yml',HOST.CI_ROLLOUT_PATHS)
         for path in ('tools/test-evidence/new-reader.py','tools/test-evidence/postmerge_extra.py',
                      'tools/test-evidence/runtime_ci_extra.py', '.github/ci37-runtime-extra.json',
                      'tests/project-suite-self-test-extra.py',
-                     '.github/workflows/repository-checks-extra.yml'):
+                     '.github/workflows/repository-checks-extra.yml',
+                     '.github/workflows/pr-metadata-context-extra.yml'):
             self.assertTrue(self.selected([path])['include_platform'],path)
         for path in ('tests/run-project-tests.py','tools/test-evidence/execution.py',
                      'tools/test-evidence/inputs.py','tools/test-evidence/validate-sync.py'):
@@ -727,7 +775,8 @@ class HostSelectionTests(unittest.TestCase):
         previous, candidate = self.tree, self.tree
         package_policy = HOST.package_policy()
         if transition:
-            previous, candidate, plan['paths'] = self.producer_transition()
+            previous, candidate, plan['paths'] = (self.metadata_transition() if transition == 'metadata'
+                                                  else self.producer_transition())
             plan['base'] = 'd'*40
         proposed=deepcopy(self.registry)
         if new_command:
@@ -736,7 +785,8 @@ class HostSelectionTests(unittest.TestCase):
             proposed['suites']['new-host-contract']['command']=['python','tests/new-required-host-contract.py']
         policy=SimpleNamespace(validate_wiring=Mock(),candidate_plan=Mock(return_value=plan),
             workflow_generations=package_policy.workflow_generations,
-            CONSUMER_WORKFLOW_PATHS=package_policy.CONSUMER_WORKFLOW_PATHS)
+            CONSUMER_WORKFLOW_PATHS=package_policy.CONSUMER_WORKFLOW_PATHS,
+            METADATA_WORKFLOW_PATHS=package_policy.METADATA_WORKFLOW_PATHS)
         def run(args,suites,cancelled):
             if new_command or full_host or transition:
                 self.assertTrue(self.all_names <= {suite[0] for suite in suites})
@@ -793,6 +843,18 @@ class HostSelectionTests(unittest.TestCase):
         controller.run_suites.assert_called_once()
         suites = controller.run_suites.call_args.args[1]
         self.assertEqual([suite[0] for suite in suites], list(self.registry['suites']))
+
+    def test_metadata_installation_cli_selects_full_prerequisites_and_one_complete_owner(self):
+        result,controller=self.cli(transition='metadata',select_only=True)
+        self.assertEqual(result,0)
+        self.assertEqual(controller.selection_output,'full_host=true\ncomplete_receipt=true\n')
+        self.assertEqual(controller.selection_report['selection']['reason'],'reviewed-protected-producer-transition')
+        self.assertEqual(controller.selection_report['omitted_suites'],[])
+        controller.run_suites.assert_not_called()
+        result,controller=self.cli(transition='metadata')
+        self.assertEqual(result,0)
+        controller.run_suites.assert_called_once()
+        self.assertEqual([suite[0] for suite in controller.run_suites.call_args.args[1]],list(self.registry['suites']))
 
     def test_new_candidate_host_command_forces_prerequisites_before_execution(self):
         result,controller=self.cli(new_command=True,select_only=True)

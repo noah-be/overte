@@ -50,6 +50,10 @@ _RETARGET_RESULTS_WORKFLOW = "8333afd10d6f32841def51970f59f038b3881d11"
 # Exact staged successor pins the extractor whose finite JSON readers were
 # reviewed at github/codeql a7057b836bf29767461026718b14d20790b9085f.
 _PINNED_RESULTS_WORKFLOW = "6d55d0fe4e9edc86204c66e1fa3967681793a2cd"
+# Dormant same-M metadata successor. Its tiny reusable job exposes native M on
+# every main PR invocation; it does not replace an analysis or security gate.
+_METADATA_RESULTS_WORKFLOW = "3a273057a38255ca368d3028594fb94227ba7c3b"
+_METADATA_SOURCE_WORKFLOW = "d04a6dc70213d8b549bac30c11cc15eaf0182dea"
 _PYTHON_POLICY_JSONS = frozenset({
     ".github/test-suite-dependencies.json",
     ".github/android-orchestration.json", ".github/test-suites.json",
@@ -92,7 +96,14 @@ _OBJECT = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
 
 def result_workflow_blobs():
     """Finite trusted selected-result generations; never candidate anchors."""
-    return (_RESULTS_WORKFLOW, _RETARGET_RESULTS_WORKFLOW, _PINNED_RESULTS_WORKFLOW)
+    return (_RESULTS_WORKFLOW, _RETARGET_RESULTS_WORKFLOW, _PINNED_RESULTS_WORKFLOW,
+            _METADATA_RESULTS_WORKFLOW)
+
+
+def pinned_workflow_entries():
+    """Finite successors retaining the exact reviewed 2.27.2 extractor."""
+    return [{'mode': '100644', 'type': 'blob', 'sha': oid}
+            for oid in (_PINNED_RESULTS_WORKFLOW, _METADATA_RESULTS_WORKFLOW)]
 
 
 def result_workflow_rollback(base_entry, candidate_entry):
@@ -110,9 +121,9 @@ def _pinned_policy_json(change, base_tree, candidate_tree):
     ancestor configuration readers use only package.json and tsconfig names.
     Any workflow/configuration drift is rejected before this proof is used.
     """
-    pinned = {"mode": "100644", "type": "blob", "sha": _PINNED_RESULTS_WORKFLOW}
     return (change['path'] in _PYTHON_POLICY_JSONS
-            and all(tree.get('.github/workflows/codeql.yml') == pinned for tree in (base_tree, candidate_tree))
+            and all(tree.get('.github/workflows/codeql.yml') in pinned_workflow_entries()
+                    for tree in (base_tree, candidate_tree))
             and all(isinstance(change[side], dict) and change[side]['mode'] == '100644'
                     and change[side]['type'] == 'blob' for side in ('before', 'after')))
 
@@ -125,9 +136,9 @@ def _pinned_ci_metadata(change, base_tree, candidate_tree):
     leaves; the fixed no-build workflow executes no candidate generators.
     Whole-tree aliases, packs and actual analysis controls are checked first.
     """
-    pinned = {"mode": "100644", "type": "blob", "sha": _PINNED_RESULTS_WORKFLOW}
     return (change['path'] in _INERT_CI_JSONS
-            and all(tree.get('.github/workflows/codeql.yml') == pinned for tree in (base_tree, candidate_tree))
+            and all(tree.get('.github/workflows/codeql.yml') in pinned_workflow_entries()
+                    for tree in (base_tree, candidate_tree))
             and all(isinstance(change[side], dict) and change[side]['mode'] == '100644'
                     and change[side]['type'] == 'blob' for side in ('before', 'after')))
 
@@ -140,10 +151,10 @@ def _pinned_native_source(change, base_tree, candidate_tree, read_blob):
     retain full scans. No candidate file is opened, imported or executed here.
     """
     path = PurePosixPath(change['path'])
-    pinned = {'mode': '100644', 'type': 'blob', 'sha': _PINNED_RESULTS_WORKFLOW}
     if (path.suffix not in _PINNED_NATIVE_EXTENSIONS or path.name.startswith('.')
             or not callable(read_blob)
-            or any(tree.get('.github/workflows/codeql.yml') != pinned for tree in (base_tree, candidate_tree))
+            or any(tree.get('.github/workflows/codeql.yml') not in pinned_workflow_entries()
+                   for tree in (base_tree, candidate_tree))
             or any(type(change[side]) is not dict or change[side]['mode'] != '100644'
                    or change[side]['type'] != 'blob' for side in ('before', 'after'))):
         return False
