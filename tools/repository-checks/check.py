@@ -511,6 +511,28 @@ def verified_empty_candidate(candidate: Path, event: dict, expected_sha: str) ->
         if source != expected_sha: return None
         ref, head_ref, kind = ref[11:], ref[11:], 'push'
     if not sha(before) or not sha(source): return None
+    raw = immutable_empty_candidate(candidate,base_sha=before,head_sha=source,candidate_sha=expected_sha,
+        merge_parents=(before,source) if kind=='pull_request' else None)
+    if raw is None: return None
+    return {**raw,'kind':'verified-empty-candidate-v1','event':kind,
+        'repository':repository,'base_ref':ref,'head_ref':head_ref}
+
+
+def immutable_empty_candidate(candidate: Path, *, base_sha: str, head_sha: str,
+                              candidate_sha: str, merge_parents=None) -> dict | None:
+    """Raw immutable equality only; no event, native, execution or E authority.
+
+    Native PR/push planning wraps this with its own exact environment checks.
+    A sync dispatcher may use it only after its independent protected native
+    request/current-ref/source/API admission; dispatch D is never forged as M.
+    """
+    def sha(value):
+        return type(value) is str and re.fullmatch('[0-9a-f]{40}',value) and value != '0'*40
+    if not all(sha(value) for value in (base_sha,head_sha,candidate_sha)):
+        return None
+    if merge_parents is not None and (type(merge_parents) is not tuple
+            or merge_parents != (base_sha,head_sha)):
+        return None
     environment = {'PATH':'/usr/bin:/bin','HOME':'/nonexistent','LANG':'C.UTF-8','LC_ALL':'C.UTF-8',
         'GIT_CONFIG_NOSYSTEM':'1','GIT_CONFIG_SYSTEM':'/dev/null','GIT_CONFIG_GLOBAL':'/dev/null',
         'GIT_NO_LAZY_FETCH':'1','GIT_ALLOW_PROTOCOL':'none','GIT_TERMINAL_PROMPT':'0',
@@ -532,25 +554,24 @@ def verified_empty_candidate(candidate: Path, event: dict, expected_sha: str) ->
         if any(not sha(parent) for parent in parents): raise ValueError('empty-delta raw parent identity invalid')
         return rows[0][5:].decode('ascii'),parents
     try:
-        if git('rev-parse','--verify','HEAD^{commit}',maximum=128).decode('ascii').strip() != expected_sha:
+        if git('rev-parse','--verify','HEAD^{commit}',maximum=128).decode('ascii').strip() != candidate_sha:
             return None
-        current, parents = commit(expected_sha)
-        previous, _ = commit(before)
-        commit(source)
-        if kind == 'pull_request' and parents != [before,source]: return None
-        if kind == 'push' and (before == expected_sha
-                or git('merge-base','--is-ancestor',before,expected_sha,maximum=0) != b''): return None
+        current, parents = commit(candidate_sha)
+        previous, _ = commit(base_sha)
+        commit(head_sha)
+        if merge_parents is not None and parents != list(merge_parents): return None
+        if merge_parents is None and (base_sha == candidate_sha
+                or git('merge-base','--is-ancestor',base_sha,candidate_sha,maximum=0) != b''): return None
         if current != previous: return None
         tree = git('cat-file','tree',current)
         if hashlib.sha1(b'tree '+str(len(tree)).encode()+b'\0'+tree).hexdigest() != current: return None
-        inventory = git('ls-tree','-rz','--full-tree',expected_sha)
+        inventory = git('ls-tree','-rz','--full-tree',candidate_sha)
         if not inventory or not inventory.endswith(b'\0') \
-                or inventory != git('ls-tree','-rz','--full-tree',before): return None
+                or inventory != git('ls-tree','-rz','--full-tree',base_sha): return None
     except (OSError,ValueError,UnicodeError,subprocess.SubprocessError):
         return None
-    return {'schema':1,'kind':'verified-empty-candidate-v1','event':kind,
-        'repository':repository,'base':before,'head':source,'candidate':expected_sha,
-        'tree':current,'base_ref':ref,'head_ref':head_ref,
+    return {'schema':1,'kind':'immutable-empty-candidate-v1',
+        'base':base_sha,'head':head_sha,'candidate':candidate_sha,'tree':current,
         'inventory_sha256':hashlib.sha256(inventory).hexdigest()}
 
 
@@ -723,6 +744,9 @@ def verify(needs: dict, require_native: bool = True, *, require_direct: bool = F
         packages = package_policy()
         if package_plan.get('host_mode') == 'unchanged':
             packages.verify_empty_plan(package_plan,candidate,event)
+            if needs['project'].get('outputs') != {} or native != 'skip' \
+                    or needs['native'].get('outputs') != {}:
+                raise ValueError('unchanged route requires exact empty unselected project/native outputs')
         if any(outputs.get(key) != value for key, value in packages.outputs(package_plan).items()):
             raise ValueError("required package route/candidate/plan mismatch")
         selected = bool(package_plan["package_set"]) or package_plan["host_mode"] in {"full", "tool-dependencies"}

@@ -2713,6 +2713,19 @@ class VerifiedEmptyCandidateTests(unittest.TestCase):
         self.assertEqual(proof['candidate'],merge);self.assertEqual(proof['tree'],git('rev-parse',base+'^{tree}'))
         self.assertEqual(proof['base_ref'],'main');self.assertEqual(proof['event'],'pull_request')
 
+    def test_raw_equality_does_not_supply_native_authority_or_accept_unordered_parents(self):
+        root,git,base,head,merge,payload,native=self.fixture()
+        with patch.dict(os.environ,{},clear=True):
+            proof=CHECKS.immutable_empty_candidate(root,base_sha=base,head_sha=head,
+                candidate_sha=merge,merge_parents=(base,head))
+            self.assertEqual(proof['kind'],'immutable-empty-candidate-v1')
+            self.assertEqual(set(proof),{'schema','kind','base','head','candidate','tree','inventory_sha256'})
+            self.assertIsNone(CHECKS.verified_empty_candidate(root,payload,merge))
+            self.assertIsNone(CHECKS.immutable_empty_candidate(root,base_sha=base,head_sha=head,
+                candidate_sha=merge,merge_parents=(head,base)))
+            self.assertIsNone(CHECKS.immutable_empty_candidate(root,base_sha=base,head_sha=head,
+                candidate_sha=merge,merge_parents=[base,head]))
+
     def test_source13_and_complete22_skip_all_host_packages_without_execution_receipt(self):
         for generation in ('npm-consumers-sync-ci-v1','protected-producer-original-default-v1'):
             root,git,base,head,merge,payload,native=self.fixture(generation)
@@ -2728,7 +2741,7 @@ class VerifiedEmptyCandidateTests(unittest.TestCase):
                     self.assertEqual(PACKAGES.verify_protected_route(needs,plan,root,event=payload),{})
                 else:self.assertEqual(PACKAGES.verify(needs,plan,candidate=root,event=payload),{})
                 outer=results();outer['route']['outputs'].update(PACKAGES.outputs(plan));outer['route']['outputs']['native']='skip'
-                outer['native']={'result':'skipped'};outer['project']={'result':'skipped','outputs':{}}
+                outer['native']={'result':'skipped','outputs':{}};outer['project']={'result':'skipped','outputs':{}}
                 CHECKS.verify(outer,package_plan=plan,require_packages=True,candidate=root,event=payload)
                 for name in ('documentation','workflow-security'):
                     broken=deepcopy(outer);broken[name]['result']='skipped'
@@ -2812,6 +2825,25 @@ class VerifiedEmptyCandidateTests(unittest.TestCase):
             for name in ('project-tests','tool-dependencies','package-checks'):
                 broken=deepcopy(needs);broken[name]={'result':'success','outputs':{'package_verified':'true'}}
                 with self.subTest(name=name),self.assertRaises(ValueError):PACKAGES.verify(broken,plan,candidate=root,event=payload)
+
+    def test_skipped_jobs_cannot_publish_fabricated_blank_or_unknown_execution_claims(self):
+        root,git,base,head,merge,payload,native=self.fixture()
+        with patch.dict(os.environ,native,clear=True):
+            plan=PACKAGES.candidate_plan(root,payload,merge)
+            needs={'route':{'result':'success','outputs':PACKAGES.outputs(plan)},
+                **{name:{'result':'skipped','outputs':{}} for name in ('project-tests','tool-dependencies','package-checks')}}
+            for name in ('project-tests','tool-dependencies','package-checks'):
+                for outputs in ({'package_verified':'true'},{'package_verified':''},{'unknown':''},None):
+                    broken=deepcopy(needs);broken[name]['outputs']=outputs
+                    with self.subTest(name=name,outputs=outputs),self.assertRaises(ValueError):
+                        PACKAGES.verify(broken,plan,candidate=root,event=payload)
+            outer=results();outer['route']['outputs'].update(PACKAGES.outputs(plan));outer['route']['outputs']['native']='skip'
+            outer['native']={'result':'skipped','outputs':{}};outer['project']={'result':'skipped','outputs':{}}
+            for name in ('project','native'):
+                for outputs in ({'verified':'true'},{'unknown':''},None):
+                    broken=deepcopy(outer);broken[name]['outputs']=outputs
+                    with self.subTest(name=name,outputs=outputs),self.assertRaises(ValueError):
+                        CHECKS.verify(broken,package_plan=plan,require_packages=True,candidate=root,event=payload)
 
 
 if __name__ == "__main__":

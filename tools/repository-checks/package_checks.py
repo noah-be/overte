@@ -388,6 +388,8 @@ def verify(needs, plan, *, candidate=None, event=None):
             raise ValueError(f"{name}: selected package/host check did not succeed")
         if required and name != "project-tests" and job.get("outputs") != receipt(plan, name):
             raise ValueError(f"{name}: exact package execution receipt missing")
+        if plan['host_mode']=='unchanged' and job.get('outputs') != {}:
+            raise ValueError(f"{name}: unchanged route requires exact empty unselected outputs")
     return {} if plan['host_mode']=='unchanged' else receipt(plan)
 
 
