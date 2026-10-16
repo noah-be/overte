@@ -431,7 +431,8 @@ class ImmutableQualificationSourceTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         names = {*sandbox.contract()["sources"], "tools/test-evidence/sandbox_host.py",
-                 "tools/test-evidence/sandbox_host_fixture.py", "tools/test-evidence/workflows/shared-sandbox-host-diagnostic.yml"}
+                 "tools/test-evidence/sandbox_host_fixture.py", "tools/test-evidence/workflows/shared-sandbox-host-diagnostic.yml",
+                 ".github/workflows/shared-sandbox-host-diagnostic.yml"}
         for name in names:
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -584,7 +585,7 @@ class GuardianTests(unittest.TestCase):
 
 
 class FixedResultTests(unittest.TestCase):
-    def test_dormant_template_has_no_pr_trigger_or_success_skip_for_unsupported_host(self):
+    def test_manual_workflow_matches_template_without_pr_trigger_or_success_skip(self):
         template = (H.ROOT / "tools/test-evidence/workflows/shared-sandbox-host-diagnostic.yml").read_text()
         self.assertIn("workflow_dispatch: null", template)
         self.assertNotIn("pull_request:", template)
@@ -598,7 +599,7 @@ class FixedResultTests(unittest.TestCase):
         self.assertIn("Reject unsupported source context", template)
         self.assertIn("QUALIFY_GITHUB_ENV=", template)
         self.assertNotIn("continue-on-error", template)
-        self.assertFalse((H.ROOT / ".github/workflows/shared-sandbox-host-diagnostic.yml").exists())
+        self.assertEqual((H.ROOT / ".github/workflows/shared-sandbox-host-diagnostic.yml").read_text(), template)
     def test_parser_fixture_pass_is_not_production_qualification(self):
         H.validate_case("protections", protection_result(), outside())
         with self.assertRaises(sandbox.SandboxUnavailable):

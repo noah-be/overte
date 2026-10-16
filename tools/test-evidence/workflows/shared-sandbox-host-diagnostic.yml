@@ -1,4 +1,4 @@
-# Dormant manual-only source template. Not an active/required producer workflow.
+# Canonical manual-only boundary diagnostic. Never a required evidence producer.
 name: Shared sandbox host diagnostic
 on:
   workflow_dispatch: null

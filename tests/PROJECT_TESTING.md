@@ -425,9 +425,11 @@ ancestor Node package metadata cannot hide behind an unchanged entry point.
 The `shared-sandbox-controls` and `shared-sandbox-host-controls` quick suites
 exercise the dormant Linux process boundary using real temporary Git trees
 and offline process/kernel fixtures. They do not run privileged host probes.
-Both suites retain a complete repository input fallback. The manual-only source
-template is `tools/test-evidence/workflows/shared-sandbox-host-diagnostic.yml`;
-no active workflow, ordinary PR producer or reusable evidence is enabled.
+Both suites retain a complete repository input fallback. The manual-only
+`.github/workflows/shared-sandbox-host-diagnostic.yml` matches its canonical
+template at `tools/test-evidence/workflows/shared-sandbox-host-diagnostic.yml`.
+Dispatch it only from reviewed, protected `main`. It accepts no candidate inputs
+and has no PR trigger; no ordinary PR producer or reusable evidence is enabled.
 
 The prospective Ubuntu 24 diagnostic verifies its loaded controls against the
 immutable manual workflow source. A bounded raw-object materializer creates a

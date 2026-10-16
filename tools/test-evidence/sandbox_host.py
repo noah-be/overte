@@ -623,7 +623,8 @@ def verify_qualification_source(source, revision, *, root=ROOT):
     configuration, filters, hooks, refs or downloaded objects are consulted.
     """
     names = {*source.contract(root)["sources"], "tools/test-evidence/sandbox_host.py",
-             "tools/test-evidence/sandbox_host_fixture.py", "tools/test-evidence/workflows/shared-sandbox-host-diagnostic.yml"}
+             "tools/test-evidence/sandbox_host_fixture.py", "tools/test-evidence/workflows/shared-sandbox-host-diagnostic.yml",
+             ".github/workflows/shared-sandbox-host-diagnostic.yml"}
     require(re.fullmatch(r"[0-9a-f]{40}", revision), "qualification source is not immutable")
     raw = source._git(root, "ls-tree", "-rz", "--full-tree", revision, "--", *sorted(names))
     seen = set()
