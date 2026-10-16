@@ -443,8 +443,23 @@ class ImmutableQualificationSourceTests(unittest.TestCase):
         self.revision = self.git("rev-parse", "HEAD").strip().decode()
 
     def git(self, *arguments):
-        return H.command(["/usr/bin/git", "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false",
-            "-c", "user.name=Source fixture", "-c", "user.email=fixture@example.invalid", *arguments], cwd=self.root).stdout
+        result = H.command(["/usr/bin/git", "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false",
+            "-c", "user.name=Source fixture", "-c", "user.email=fixture@example.invalid", *arguments], cwd=self.root)
+        result.check_returncode()
+        return result.stdout
+
+    def test_actual_manual_sparse_checkout_materializes_every_verified_control(self):
+        workflow = (self.root / ".github/workflows/shared-sandbox-host-diagnostic.yml").read_text()
+        block = workflow.split("          sparse-checkout: |\n", 1)[1].split("      - name:", 1)[0]
+        patterns = [line.strip() for line in block.splitlines() if line.strip()]
+        unrelated = self.root / ".github/unrelated.json"
+        unrelated.write_text("{}\n")
+        self.git("add", "--all")
+        self.git("commit", "-qm", "Add unrelated sparse checkout control")
+        revision = self.git("rev-parse", "HEAD").strip().decode()
+        self.git("sparse-checkout", "set", "--no-cone", *patterns)
+        self.assertFalse(unrelated.exists())
+        H.verify_qualification_source(sandbox, revision, root=self.root)
 
     def test_actual_source_read_works_with_shallow_metadata_and_ignores_candidate_configuration(self):
         (self.root / ".git/shallow").write_text(self.revision + "\n")

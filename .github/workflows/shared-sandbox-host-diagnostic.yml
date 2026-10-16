@@ -30,6 +30,7 @@ jobs:
           sparse-checkout-cone-mode: false
           sparse-checkout: |
             /.github/shared-sandbox.json
+            /.github/workflows/shared-sandbox-host-diagnostic.yml
             /tools/test-evidence/
             /tests/requirements-host.txt
             /tests/requirements-repository.txt
