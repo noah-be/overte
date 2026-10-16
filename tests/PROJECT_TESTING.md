@@ -422,10 +422,10 @@ It declares canonical commands and complete source/fixture/helper closures;
 unreviewed closures remain conservative. Changed Python import modules and
 ancestor Node package metadata cannot hide behind an unchanged entry point.
 
-The `shared-sandbox-controls` and `shared-sandbox-host-controls` quick suites
-exercise the dormant Linux process boundary using real temporary Git trees
-and offline process/kernel fixtures. They do not run privileged host probes.
-Both suites retain a complete repository input fallback. The manual-only
+The existing `test-evidence` quick suite also loads `sandbox-test.py` and
+`sandbox-host-test.py`. Their fixed Linux boundary controls use real temporary
+Git trees and offline process/kernel fixtures, without privileged host probes.
+The owning suite retains its complete repository input fallback. The manual-only
 `.github/workflows/shared-sandbox-host-diagnostic.yml` matches its canonical
 template at `tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml`.
 Dispatch it only from reviewed, protected `main`. It accepts no candidate inputs
@@ -543,8 +543,6 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `host-producer-preparation` | `quick` | `python3 tests/run-project-tests.py --suite host-producer-preparation` |
 | `producer-api` | `quick` | `python3 tests/run-project-tests.py --suite producer-api` |
 | `attested-runtime` | `quick` | `python3 tests/run-project-tests.py --suite attested-runtime` |
-| `shared-sandbox-controls` | `quick` | `python3 tests/run-project-tests.py --suite shared-sandbox-controls` |
-| `shared-sandbox-host-controls` | `quick` | `python3 tests/run-project-tests.py --suite shared-sandbox-host-controls` |
 | `project-runner` | `quick` | `python3 tests/run-project-tests.py --suite project-runner` |
 | `python-test-runner` | `quick` | `python3 tests/run-project-tests.py --suite python-test-runner` |
 | `host-selection` | `quick` | `python3 tests/run-project-tests.py --suite host-selection` |

@@ -289,7 +289,7 @@ class ImmutableGitTreeTests(unittest.TestCase):
 def load_tests(loader, tests, pattern):
     """Aggregate independently owned regressions without importing this main twice."""
     for filename in ("registry-test.py", "runtime-test.py", "execution-test.py", "qualification-producer-test.py",
-                     "validate-sync-test.py"):
+                     "validate-sync-test.py", "sandbox-test.py", "sandbox-host-test.py"):
         path = Path(__file__).with_name(filename)
         spec = importlib.util.spec_from_file_location("test_evidence_" + filename.replace("-", "_"), path)
         module = importlib.util.module_from_spec(spec)

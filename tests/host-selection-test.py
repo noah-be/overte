@@ -414,7 +414,7 @@ class HostSelectionTests(unittest.TestCase):
         selected = self.selected(paths)
         self.assertEqual(set(selected['suites']), self.ci_quick)
         self.assertFalse(selected['include_platform'])
-        self.assertTrue({'shared-sandbox-controls', 'shared-sandbox-host-controls'} <= set(selected['suites']))
+        self.assertIn('test-evidence', selected['suites'])
         for path in ('.github/shared-sandbox.json', 'tools/test-evidence/sandbox.py',
                      'tools/test-evidence/sandbox_host.py', 'tools/test-evidence/sandbox_host_fixture.py',
                      'tools/test-evidence/sandbox_probe.py'):
