@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 from pathlib import Path
 import signal
@@ -133,6 +134,12 @@ class UnittestRunnerTests(unittest.TestCase):
         self.assertEqual([identifier for module in report["modules"]
                           for identifier in module["result"]["executed_ids"]], expected)
         self.assertEqual(report["ran"], 8)
+        durations = [row for module in report["modules"] for row in module["result"]["case_durations"]]
+        self.assertEqual([row["id"] for row in durations], expected)
+        self.assertTrue(all(type(row["seconds"]) is float and math.isfinite(row["seconds"])
+                            and row["seconds"] >= 0 for row in durations))
+        self.assertTrue(all(row["seconds"] > 0 for row in durations
+                            if row["id"].endswith("test_01_rendezvous")))
         positions = [result.stderr.index(f"=== test_{index} ") for index in range(4)]
         self.assertEqual(positions, sorted(positions), "completion order must not reorder reports")
 
@@ -168,6 +175,7 @@ class UnittestRunnerTests(unittest.TestCase):
                 self.assertEqual(saved['modules'][0]['selected_ids'], expected)
                 self.assertEqual(saved['modules'][0]['result']['loaded_ids'], expected)
                 self.assertEqual(saved['modules'][0]['result']['executed_ids'], expected)
+                self.assertEqual([row['id'] for row in saved['modules'][0]['result']['case_durations']], expected)
                 self.assertEqual(saved['ran'], 2)
                 self.assertEqual(saved['skipped'], 0)
                 if failing:
@@ -293,6 +301,7 @@ class UnittestRunnerTests(unittest.TestCase):
         self.assertEqual(report["ran"], 0)
         self.assertEqual(sum(len(module["result"]["fixture_skipped_ids"])
                              for module in report["modules"]), 4)
+        self.assertTrue(all(module["result"]["case_durations"] == [] for module in report["modules"]))
 
     def test_module_fixture_failure_and_skips_keep_unittest_semantics(self):
         self.write("test_skipped.py", """

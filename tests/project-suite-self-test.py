@@ -33,7 +33,7 @@ class ProjectSuiteCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("repository-health", result.stdout)
         self.assertIn("source-layout", result.stdout)
-        self.assertIn("shared-script-behavior", result.stdout)
+        self.assertNotIn("shared-script-behavior", result.stdout)
         self.assertIn("device-e2e-contracts", result.stdout)
         self.assertIn("documentation ", result.stdout)
         self.assertIn("repository-checks", result.stdout)
@@ -65,9 +65,9 @@ class ProjectSuiteCliTests(unittest.TestCase):
             "lod-preferences",
             "goto-dialog-script",
             "recorded-voice-native", "recorded-voice-qml", "snapshot-native", "snapshot-qml",
-            "document-tree-native", "obj-material-native",
+            "document-tree-native", "obj-material-native", "shared-script-behavior",
         })
-        self.assertEqual(set(native), set(quick) | {"native-ctest"})
+        self.assertEqual(set(native), set(quick) | {"native-ctest", "shared-script-behavior"})
         self.assertIn("fixture-platform", host)
         self.assertIn("--require-qml", host["device-control-plane-full"].command)
 
@@ -206,7 +206,7 @@ class ProjectSuiteCliTests(unittest.TestCase):
                             self.assertFalse(later.exists(), "cancelled runner launched another check")
                         for pid in owned:
                             self.assertFalse(Path(f"/proc/{pid}").exists(),
-                                             f"runner left an owned process behind: {pid}")
+                                             f"runner left an owned process behind: {pid}; output: {output}")
                     finally:
                         for pid in [process.pid, *owned]:
                             try:
@@ -218,6 +218,122 @@ class ProjectSuiteCliTests(unittest.TestCase):
                             except ProcessLookupError:
                                 pass
                         process.communicate(timeout=5)
+
+    @unittest.skipUnless(sys.platform == "linux", "forced descendant cleanup requires Linux")
+    def test_forced_scheduler_exit_reaps_detached_children(self):
+        # Stop the scheduler so cooperative cleanup is impossible. Its detached
+        # child retains stdout: killing only the scheduler also leaves communicate
+        # blocked. Exercise both real outer command owners without changing grace.
+        blocked = (
+            "import json,os,pathlib,signal,subprocess,sys,time; "
+            "child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(60)'],"
+            "start_new_session=True); "
+            "pathlib.Path(sys.argv[1]).write_text(json.dumps([os.getpid(),child.pid])); "
+            "os.kill(os.getpid(),signal.SIGSTOP)"
+        )
+        for entrypoint in (RUNNER, RUNNER.parent / "device/run_control_plane_tests.py"):
+            with self.subTest(entrypoint=entrypoint.name), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                marker = root / "processes.json"
+                driver = root / "driver.py"
+                driver.write_text(textwrap.dedent(f"""
+                    import importlib.util, os, signal, subprocess, sys
+                    spec = importlib.util.spec_from_file_location('outer', {str(entrypoint)!r})
+                    module = importlib.util.module_from_spec(spec)
+                    sys.modules[spec.name] = module
+                    spec.loader.exec_module(module)
+                    cancelled = []
+                    signal.signal(signal.SIGTERM, lambda signum, frame: cancelled.append(signum))
+                    code, output, message = module.run_command(
+                        [sys.executable, '-c', {blocked!r}, {str(marker)!r}], 30, cancelled)
+                    assert message == 'interrupted by signal 15', message
+                    raise SystemExit(code)
+                """))
+                process = subprocess.Popen([sys.executable, str(driver)], text=True,
+                                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                           start_new_session=True)
+                owned = []
+                try:
+                    deadline = time.monotonic() + 5
+                    while time.monotonic() < deadline:
+                        if marker.exists():
+                            try:
+                                owned = json.loads(marker.read_text())
+                            except json.JSONDecodeError:
+                                continue
+                            state = Path(f"/proc/{owned[0]}/stat").read_text().split(") ", 1)[1].split()[0]
+                            if state == "T":
+                                break
+                        time.sleep(0.01)
+                    else:
+                        self.fail('fixture scheduler did not stop')
+                    process.send_signal(signal.SIGTERM)
+                    output, _ = process.communicate(timeout=8)
+                    self.assertEqual(process.returncode, 128 + signal.SIGTERM, output)
+                    for pid in owned:
+                        self.assertFalse(Path(f"/proc/{pid}").exists(),
+                                         f"forced cleanup left process {pid}: {output}")
+                finally:
+                    for pid in [*owned, process.pid]:
+                        try:
+                            os.kill(pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+                    process.communicate(timeout=5)
+
+    @unittest.skipUnless(sys.platform == "linux", "Linux process ownership prerequisites")
+    def test_command_owner_refuses_foreign_children_or_threads_before_launch(self):
+        for entrypoint in (RUNNER, RUNNER.parent / "device/run_control_plane_tests.py"):
+            for occupied in ("child", "thread"):
+                with self.subTest(entrypoint=entrypoint.name, occupied=occupied), \
+                        tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    marker = root / "must-not-launch"
+                    driver = root / "driver.py"
+                    canary = f"from pathlib import Path; Path({str(marker)!r}).touch()"
+                    driver.write_text(textwrap.dedent(f"""
+                        import ctypes, importlib.util, subprocess, sys, threading, unittest
+                        from pathlib import Path
+                        spec = importlib.util.spec_from_file_location('outer', {str(entrypoint)!r})
+                        module = importlib.util.module_from_spec(spec)
+                        sys.modules[spec.name] = module
+                        spec.loader.exec_module(module)
+                        child = None
+                        thread = None
+                        event = threading.Event()
+                        libc = ctypes.CDLL(None)
+                        before = ctypes.c_int()
+                        assert libc.prctl(37, ctypes.byref(before), 0, 0, 0) == 0
+                        if {occupied!r} == 'child':
+                            child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'],
+                                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        else:
+                            thread = threading.Thread(target=event.wait)
+                            thread.start()
+                        try:
+                            with unittest.TestCase().assertRaisesRegex(
+                                    RuntimeError, 'child-free single-threaded process'):
+                                module.run_command([sys.executable, '-c', {canary!r}], 5, [])
+                            assert not Path({str(marker)!r}).exists(), 'refused command was launched'
+                            after = ctypes.c_int()
+                            assert libc.prctl(37, ctypes.byref(after), 0, 0, 0) == 0
+                            assert before.value == after.value, 'refusal changed subreaper ownership'
+                            if child is not None:
+                                assert child.poll() is None, 'refusal killed the foreign child'
+                            if thread is not None:
+                                assert thread.is_alive(), 'refusal interfered with the foreign thread'
+                        finally:
+                            if child is not None:
+                                child.kill()
+                                child.wait(timeout=2)
+                            event.set()
+                            if thread is not None:
+                                thread.join(timeout=2)
+                    """))
+                    result = subprocess.run([sys.executable, str(driver)], capture_output=True,
+                                            text=True, timeout=5)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    self.assertFalse(marker.exists())
 
     def test_coverage_cli_propagates_real_assertion_failures(self):
         with tempfile.TemporaryDirectory() as directory:

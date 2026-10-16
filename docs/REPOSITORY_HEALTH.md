@@ -6,7 +6,7 @@ local contracts. Live audits run only from the trusted default branch.
 
 ## Execution and freshness
 
-Scheduled attempts run at 02:17, 08:17, 14:17, and 20:17 Europe/Berlin. A delayed
+Scheduled attempts run at 00:17, 06:17, 12:17, and 18:17 Europe/Berlin. A delayed
 attempt still runs: wall-clock lateness is not a reason to discard an otherwise
 safe audit. The next scheduled attempt retries an audit deferred by propagation;
 manual dispatch is also available. GitHub can delay or drop scheduled events, so

@@ -26,9 +26,15 @@ native build still checks out the complete candidate source.
 | Change | Native work |
 | --- | --- |
 | Only known documentation, scripts, host-test paths, or an exact empty PR delta | No native job |
-| Only `tests/shared` test sources/headers or native routing/runner Python | Small system-dependency build of the shared test component |
+| Only `tools/native-tests/check.py` or `tests/native-ci-test.py` | Host routing and merge-gate regressions; no native job |
+| Only `tests/shared` test sources/headers or native execution/graph drivers (`run.py`, `select.py`, `qt-test.py`) | Small system-dependency build of the shared test component |
 | Production C++ libraries or applications | Configure the product graph; build changed components and affected tests |
 | Build/dependency definitions, unknown paths, non-regular files | Conservative product configuration and wider selection |
+
+The router and its regression tests do not change native compilation inputs or
+execute the compiler. The required `native-ci-policy` host suite validates their
+selection and merge enforcement. Mixed native inputs, unknown neighbors, build
+definitions and non-regular entries retain the conservative native route.
 
 The full graph includes the Linux client, servers, native tools, and eligible
 tests. Manual test applications and other platform toolchains remain separate.
@@ -38,6 +44,13 @@ trigger a native core build; host checks and device journeys own that behavior.
 Changed QRC collections still require native resource-build validation. The
 `full` route means the product build graph plus the eligible test manifest, not
 every legacy test or the separate project runner's `full` profile.
+
+Python and JSON inputs under `tools/test-evidence/` belong to host evidence
+selection and verification. They do not require a product build. Native sources,
+build definitions, unknown suffixes, mixed product changes, and non-regular
+entries retain their conservative native route. The shared evidence tooling and
+`.github/test-suites.json` are privileged `main`-owned policy inputs; their
+changes select workflow-security checks and enter parent qualification bindings.
 
 CMake's file API supplies the configured target dependency graph. Every configured
 C/C++ input is checked against routing exemptions; introducing compiled code under
@@ -67,6 +80,12 @@ large hidden source build. Configuration/build/test failure fails the existing
 intentional native skip is accepted only when the trusted route says `skip`.
 Host qualification artifacts do not certify native results and cannot bypass
 this additional gate.
+
+The twelve CPU-only browser capture-history fixtures listed in
+`HOST_BROWSER_FIXTURES` also belong to browser JavaScript tests. Updating their
+source-history adapter or manifest does not compile the native product. This is
+an exact file inventory: neighboring unknown files, native/build definitions,
+mixed product changes and non-regular entries retain conservative validation.
 
 The full native job has a 90-minute ceiling; the small core job has a 15-minute
 ceiling. Dependency resolution has a 10-minute ceiling and each CTest program
