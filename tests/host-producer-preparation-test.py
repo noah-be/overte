@@ -110,6 +110,27 @@ class WorkflowGenerationTests(TemporaryGit, unittest.TestCase):
             self.assertEqual(PACKAGES.validate_tree_wiring(second["workflows"]), "second")
             with self.assertRaises(ValueError): PACKAGES.validate_tree_wiring(mixed)
 
+    def test_protected_producer_requires_the_complete_new_pair_and_all_five_siblings(self):
+        previous = next(g for g in self.generations if g['name'] == 'android-owned-npm5-sync-ci-v1')
+        prospective = next(g for g in self.generations if g['name'] == 'protected-shared-producer-v1')
+        self.assertEqual(set(prospective['workflows']), set(PACKAGES.CONSUMER_WORKFLOW_PATHS))
+        self.assertEqual(len(self.generations), 16)
+        for path in prospective['workflows']:
+            if path not in {'.github/workflows/repository-checks.yml', '.github/workflows/project-tests.yml'}:
+                self.assertEqual(prospective['workflows'][path], previous['workflows'][path])
+        for path in ('.github/workflows/repository-checks.yml', '.github/workflows/project-tests.yml'):
+            mixed = deepcopy(prospective['workflows'])
+            mixed[path] = deepcopy(previous['workflows'][path])
+            with self.subTest(mixed=path), self.assertRaises(ValueError):
+                PACKAGES.validate_tree_wiring(mixed)
+        for path in prospective['workflows']:
+            for mutation in (None, {'mode': '100755'}, {'mode': '120000'}, {'type': 'commit', 'mode': '160000'}, {'sha': 'a' * 40}):
+                mixed = deepcopy(prospective['workflows'])
+                if mutation is None: del mixed[path]
+                else: mixed[path].update(mutation)
+                with self.subTest(path=path, mutation=mutation), self.assertRaises(ValueError):
+                    PACKAGES.validate_tree_wiring(mixed)
+
     def test_candidate_generation_manifest_never_authorizes_its_own_workflows(self):
         root = self.materialize(self.generations[0])
         path = PACKAGES.WORKFLOW_PATHS[0]
@@ -257,6 +278,35 @@ class TrustedGenerationPolicyTests(TemporaryGit, unittest.TestCase):
             self.assertFalse((sparse / relative).exists())
             with self.subTest(change=change), patch.object(PACKAGES, "ROOT", sparse), self.assertRaises(ValueError):
                 PACKAGES._policy_inputs()
+
+
+class ProtectedProducerPermissionTests(unittest.TestCase):
+    def test_caller_grants_only_the_exact_api_read_ceiling_to_the_project_call(self):
+        old = yaml.safe_load((ROOT / 'tools/repository-checks/workflows/android-owned/repository-checks.yml').read_text())
+        source = (ROOT / 'tools/repository-checks/workflows/producers/repository-checks.yml').read_text()
+        prospective = yaml.safe_load(source)
+        permissions = {'contents': 'read', 'actions': 'read', 'pull-requests': 'read', 'checks': 'read'}
+        expected = deepcopy(old)
+        expected['jobs']['project']['permissions'] = permissions
+        self.assertEqual(prospective, expected)
+        self.assertEqual(prospective['permissions'], {'contents': 'read'})
+        self.assertEqual(prospective['jobs']['project']['uses'], './.github/workflows/project-tests.yml')
+        self.assertNotIn('secrets', prospective['jobs']['project'])
+        callee = yaml.safe_load((ROOT / 'tools/repository-checks/workflows/producers/protected-project-tests.yml').read_text())
+        self.assertEqual(callee['permissions'], {'contents': 'read'})
+        for name, job in callee['jobs'].items():
+            actual = job.get('permissions', callee['permissions'])
+            self.assertTrue(all(value == 'read' and permissions.get(key) == 'read' for key, value in actual.items()), name)
+            self.assertEqual(actual, permissions if name in {'route', 'project-tests', 'producer-publication'} else {'contents': 'read'}, name)
+
+    def test_callee_changes_only_the_three_api_job_permissions_and_honest_dormant_comment(self):
+        source = (ROOT / 'tools/repository-checks/workflows/producers/protected-project-tests.yml').read_bytes()
+        self.assertEqual(source.count(b'      checks: read\n'), 3)
+        previous = source.replace(b'      checks: read\n', b'').replace(
+            b'# Prospective protected producer; dormant wiring approved, production guards false.',
+            b'# Prospective protected producer; production guards false and no active generation approval.')
+        actual = subprocess.check_output(['/usr/bin/git', 'hash-object', '--stdin'], input=previous).decode().strip()
+        self.assertEqual(actual, 'cad732c967d4d18b5a341c578b90789a271c02e9')
 
 
 class ReceiptWorkflowTests(unittest.TestCase):

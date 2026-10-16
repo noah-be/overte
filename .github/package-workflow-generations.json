@@ -399,6 +399,36 @@
           "sha": "8f6e3e009e201ce6c9980f4f23ff4a994588bb9d"
         }
       }
+    },
+    {
+      "name": "protected-shared-producer-v1",
+      "workflows": {
+        ".github/workflows/project-tests.yml": {
+          "mode": "100644",
+          "type": "blob",
+          "sha": "93f35c99ec6580b8796420997b1dcc586b7bfd95"
+        },
+        ".github/workflows/parent-qualification.yml": {
+          "mode": "100644",
+          "type": "blob",
+          "sha": "6d2d342e4b63d9e60602451157d13854bd52dde7"
+        },
+        ".github/workflows/sync-validation.yml": {
+          "mode": "100644",
+          "type": "blob",
+          "sha": "55d08b65a987224ce576459cede693cfd49375f6"
+        },
+        ".github/workflows/repository-checks.yml": {
+          "mode": "100644",
+          "type": "blob",
+          "sha": "6684e18785719813c51f9e3f5481a82ca40f0baf"
+        },
+        ".github/workflows/browser-client.yml": {
+          "mode": "100644",
+          "type": "blob",
+          "sha": "8f6e3e009e201ce6c9980f4f23ff4a994588bb9d"
+        }
+      }
     }
   ]
 }

@@ -109,6 +109,7 @@ PROGRAM_INPUTS = (
     'tools/test-evidence/sandbox_shared.py',
     'tools/test-evidence/producer_workflow.py',
     'tools/repository-checks/workflows/producers/protected-project-tests.yml',
+    'tools/repository-checks/workflows/producers/repository-checks.yml',
     # Actual assertions consume these documents; the generic Markdown rule does
     # not exempt them. Their membership, modes and bytes remain immutable inputs.
     'android/vr/common/openxr/README.md',

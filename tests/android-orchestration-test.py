@@ -120,6 +120,7 @@ class RequiredAndroidTests(unittest.TestCase):
                   "tools/repository-checks/workflows/browser-client.yml", "tools/repository-checks/workflows/browser-direct-client.yml",
                   "tools/repository-checks/workflows/npm-consumers/browser-client.yml"]
         names += [str(path.relative_to(ROOT)) for path in (ROOT / gate.OWNED).rglob("*") if path.is_file()]
+        names += [*gate.OWNED_CALLERS, *gate.OWNED_PROJECTS.values()]
         for relative in set(names):
             target = self.policy_root / relative
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -133,11 +134,11 @@ class RequiredAndroidTests(unittest.TestCase):
     def write_policy(self):
         (self.policy_root / gate.POLICY).write_text(json.dumps(self.policy))
 
-    def workflow_files(self, *, direct=False, producer=False, owned=True, browser=False):
+    def workflow_files(self, *, direct=False, producer=False, owned=True, browser=False, protected=False):
         packages = gate.packages()
         name = ("shared-receipt-v1" if producer else "packages-v1") + ("-direct" if direct else "") + "-android"
         if owned:
-            name = "android-owned-npm5-sync-ci-v1"
+            name = "protected-shared-producer-v1" if protected else "android-owned-npm5-sync-ci-v1"
         generation = next(item for item in packages.workflow_generations() if item["name"] == name)
         paths = list((ROOT / "tools/repository-checks/workflows").rglob("*.yml"))
         contents = {gate._blob(path.read_bytes())["sha"]: path.read_bytes() for path in paths}
@@ -539,6 +540,43 @@ class RequiredAndroidTests(unittest.TestCase):
             tree = deepcopy(original)
             mutate(tree)
             with self.assertRaises(ValueError): gate.validate_tree_wiring(tree)
+
+    def test_protected_producer_pair_is_additive_and_rejects_mixed_or_foreign_controls(self):
+        old = self.workflow_files()
+        self.assertEqual(gate.validate_tree_wiring(gate._sources(self.candidate).entries, policy_root=self.policy_root), old['name'])
+        generation = self.workflow_files(protected=True)
+        entries = gate._sources(self.candidate).entries
+        self.assertEqual(gate.validate_tree_wiring(entries, policy_root=self.policy_root), generation['name'])
+        gate.validate_owned_generation(self.candidate, 'android-phone', policy_root=self.policy_root)
+        self.assertTrue(gate.has_staged_caller(self.candidate, policy_root=self.policy_root))
+        for path in ('.github/workflows/repository-checks.yml', '.github/workflows/project-tests.yml'):
+            for replacement in (old['workflows'][path], {'mode': '100644', 'type': 'blob', 'sha': 'a' * 40},
+                                {**generation['workflows'][path], 'mode': '100755'},
+                                {**generation['workflows'][path], 'mode': '120000'}):
+                mixed = deepcopy(entries)
+                mixed[path] = replacement
+                with self.subTest(path=path, replacement=replacement), self.assertRaises(ValueError):
+                    gate.validate_tree_wiring(mixed, policy_root=self.policy_root)
+        for field, value in (('caller', 'foreign/repository-checks.yml'),
+                             ('project', gate.OWNED + '/project-tests.yml')):
+            changed = deepcopy(self.policy)
+            prospective = next(g for g in changed['workflow_generations'] if g['name'] == generation['name'])
+            prospective[field] = value
+            (self.policy_root / gate.POLICY).write_text(json.dumps(changed))
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                gate.load_policy(self.policy_root)
+            self.write_policy()
+        baseline = gate._policy_identity(self.policy_root)
+        prospective = next(g for g in self.policy['workflow_generations'] if g['name'] == generation['name'])
+        for name in ('caller', 'project'):
+            path = self.policy_root / prospective[name]
+            body = path.read_bytes()
+            path.write_bytes(body + b'\n')
+            with self.subTest(identity=name):
+                self.assertNotEqual(gate._policy_identity(self.policy_root), baseline)
+            path.write_bytes(body)
+        self.assertFalse(gate.ACTIVATION_READY)
+        self.assertEqual(gate.load_policy()['required_branches'], [])
 
     def test_default_policy_explicitly_blocks_live_admission_and_candidate_cannot_enable_it(self):
         self.workflow_files()

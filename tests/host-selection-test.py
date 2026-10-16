@@ -413,7 +413,8 @@ class HostSelectionTests(unittest.TestCase):
                  'tools/test-evidence/sandbox_host_fixture.py', 'tools/test-evidence/sandbox_probe.py',
                  'tools/test-evidence/sandbox_shared.py',
                  'tools/test-evidence/producer_workflow.py',
-                 'tools/repository-checks/workflows/producers/protected-project-tests.yml')
+                 'tools/repository-checks/workflows/producers/protected-project-tests.yml',
+                 'tools/repository-checks/workflows/producers/repository-checks.yml')
         selected = self.selected(paths)
         self.assertEqual(set(selected['suites']), self.ci_quick)
         self.assertFalse(selected['include_platform'])
@@ -422,9 +423,10 @@ class HostSelectionTests(unittest.TestCase):
                      'tools/test-evidence/sandbox_host.py', 'tools/test-evidence/sandbox_host_fixture.py',
                      'tools/test-evidence/sandbox_probe.py', 'tools/test-evidence/sandbox_shared.py',
                      'tools/test-evidence/producer_workflow.py',
-                     'tools/repository-checks/workflows/producers/protected-project-tests.yml'):
+                     'tools/repository-checks/workflows/producers/protected-project-tests.yml',
+                     'tools/repository-checks/workflows/producers/repository-checks.yml'):
             candidate = deepcopy(self.tree)
-            candidate[path]['sha'] = 'b' * 40
+            candidate[path] = {'mode': '100644', 'type': 'blob', 'sha': 'b' * 40}
             with self.subTest(controller=path):
                 self.assertTrue(self.selected(paths, tree=candidate)['include_platform'])
         for path in ('tools/test-evidence/sandbox_extra.py',

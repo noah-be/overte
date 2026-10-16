@@ -58,6 +58,13 @@
       "callee": "tools/repository-checks/workflows/android-owned/android-required.yml",
       "project": "tools/repository-checks/workflows/android-owned/project-tests.yml",
       "browser": "tools/repository-checks/workflows/npm-consumers/browser-client.yml"
+    },
+    {
+      "name": "protected-shared-producer-v1",
+      "caller": "tools/repository-checks/workflows/producers/repository-checks.yml",
+      "callee": "tools/repository-checks/workflows/android-owned/android-required.yml",
+      "project": "tools/repository-checks/workflows/producers/protected-project-tests.yml",
+      "browser": "tools/repository-checks/workflows/npm-consumers/browser-client.yml"
     }
   ],
   "handoff_manifest": ".github/android-owner-transfer.json",

@@ -533,6 +533,15 @@ hash. Other package owners and the existing Qt-free impact path remain intact.
 Only an already selected full-host profile is eligible; this source does not
 install Qt to obtain proof for a quick-only selection.
 
+The dormant `protected-shared-producer-v1` generation pairs that callee with
+[`producers/repository-checks.yml`](../tools/repository-checks/workflows/producers/repository-checks.yml).
+The calling `project` job grants only contents, Actions, pull-request and checks
+read access; the descriptor, shared executor and final publisher request that
+same ceiling. Other jobs retain their existing permissions. Exact package and
+Android generations bind the complete pair, preserving every older generation.
+Caller and callee must be installed together after hosted qualification; neither
+an individual approved file nor a matching job name authorizes publication.
+
 New isolated publication requires execution schema 3 and an independently
 reconstructed source context: the original commit, its ordered immediate
 parents, their tree identities and the actual shallow boundary. Legacy schema
@@ -548,7 +557,7 @@ the existing mandatory nonreusable path selected; a started suite failure,
 cancellation, timeout or changed post-execution environment cannot retry through
 that path. Reports and command files stay outside candidate mounts, and only
 the finished receipt becomes upload-readable after all scopes are empty.
-Production guards remain false and the prospective generation is unapproved.
+Production guards remain false; approved dormant wiring grants no execution or reuse authority.
 Actual boundary/full-profile qualification, exact protected generation and
 runtime-epoch deployment, native publisher qualification, Qt-free reusable
 environment support and post-merge/child consumers remain incomplete. Offline

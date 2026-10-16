@@ -22,7 +22,12 @@ CALLERS = ("tools/repository-checks/workflows/android/repository-checks.yml",
            "tools/repository-checks/workflows/android/repository-checks-direct-browser.yml")
 CALLEE = "tools/repository-checks/workflows/android-required.yml"
 OWNED = "tools/repository-checks/workflows/android-owned"
-OWNED_CALLERS = (OWNED + "/repository-checks.yml",)
+OWNED_PROJECTS = {
+    OWNED + "/repository-checks.yml": OWNED + "/project-tests.yml",
+    "tools/repository-checks/workflows/producers/repository-checks.yml":
+        "tools/repository-checks/workflows/producers/protected-project-tests.yml",
+}
+OWNED_CALLERS = tuple(OWNED_PROJECTS)
 WORKFLOW = ".github/workflows/android-required.yml"
 REPOSITORY = "noah-l-frank/overte"
 REPOSITORY_ID = 1319052603
@@ -106,7 +111,7 @@ def load_policy(policy_root=ROOT):
             and item["caller"] in CALLERS and item["callee"] == CALLEE
         owned = isinstance(item, dict) and set(item) == {"name", "caller", "callee", "project", "browser"} \
             and item["caller"] in OWNED_CALLERS and item["callee"] == OWNED + "/android-required.yml" \
-            and item["project"] == OWNED + "/project-tests.yml" \
+            and item["project"] == OWNED_PROJECTS[item["caller"]] \
             and item["browser"] == "tools/repository-checks/workflows/npm-consumers/browser-client.yml"
         if not (ordinary or owned) or not isinstance(item["name"], str) \
                 or not re.fullmatch(r"[a-z0-9][a-z0-9-]*", item["name"]) or item["name"] in seen:
@@ -200,7 +205,7 @@ def _policy_identity(policy_root):
              "tools/repository-checks/android_gate.py", "tools/repository-checks/check.py",
              "tools/repository-checks/package_checks.py",
              "tools/repository-checks/host_selection.py",
-             CALLEE, *CALLERS, *OWNED_CALLERS, OWNED + "/project-tests.yml", OWNED + "/android-required.yml",
+             CALLEE, *CALLERS, *OWNED_CALLERS, *OWNED_PROJECTS.values(), OWNED + "/android-required.yml",
              "tools/repository-checks/android_handoff.py", ".github/android-owner-transfer.json", *owner.EXECUTION_FILES]
     transfer = handoff().policy(policy_root)
     names += [item["source"] for group in ("legacy_workflows", "source_contracts")
