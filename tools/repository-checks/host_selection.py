@@ -126,20 +126,20 @@ PROGRAM_INPUTS = (
     'android/vr/common/openxr/README.md',
     'android/phone/device-tests/parity/fixtures/README.md',
 )
-# Reviewed complete parent merges at protected main 3b7075b6 and the
+# Reviewed complete parent merges at protected main 8f421557 and the
 # prospective sole-owner generation. Shared execution controllers and passive
 # runner instrumentation remain bound; Android additionally binds all six exact
 # legacy-retirement/contract handoff files. Only the two separately owned foreign
 # locks are outside this complement; changed locks need mandatory package coverage.
 # These identities are not execution receipts or application-build evidence.
-REVIEWED_PROGRAMS = 'f3d39d8e2643232e05bc3ef1236d1b765997f1bbc45230d5361f0b2e75f92d60'
+REVIEWED_PROGRAMS = '065f7486b7ba2179d04977858657ceb75050be251a9eeab1b60c8fef2b0ed18e'
 REVIEWED_CHILD_PROGRAMS = {
-    'apple-main': 'fbc4d923bea8c410d5c076403268ce83c84a82d12c1969b1ca9c315823b959c4',
-    'apple-ios': '99a49e5cb0b8340f2ec2236494b5f26a45441c13e4d0b70b0f2685c06e1fdede',
-    'android-main': '169607ee5225d46097f8fafef42ded837be84880bf9f6999c759b1757a53eaaa',
-    'android-phone': '844470a29e405e6e8e50d0c713d4d88463a9f0dd77edabda63044fdc0a002186',
-    'android-vr': '169607ee5225d46097f8fafef42ded837be84880bf9f6999c759b1757a53eaaa',
-    'android-vr-pico': '523b558ec31235d1112a2882a0e7f32cab32cd3c296571d8898998e8d903a52f',
+    'apple-main': 'ccbd0a128812e2f1791116b4db74b375cfc66a6d6a82662009ef23de7b693f45',
+    'apple-ios': 'd90b7e0a86b0bfc0cc269800802d2c6ef21df06c8a0d2137e631bbb903d1adfd',
+    'android-main': 'fb63bec345651f0751434bd38d8a033196a7af9cf5e454cfe435c4e3c8f3d4d2',
+    'android-phone': '114a7c2dbe8bdfa026ebe6b66e12631e0e7048cd6e183aca7ba56c6c1a84e7e8',
+    'android-vr': 'fb63bec345651f0751434bd38d8a033196a7af9cf5e454cfe435c4e3c8f3d4d2',
+    'android-vr-pico': '36ed76579496c2d473abf2a68ec2d30563419cb7c4bc21729a1da415abc50b5c',
 }
 REVIEWED_PREDECESSORS = {
     'main': 'f3d39d8e2643232e05bc3ef1236d1b765997f1bbc45230d5361f0b2e75f92d60',
