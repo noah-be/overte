@@ -97,7 +97,7 @@ jobs:
       contents: read
       packages: read
     needs: route
-    if: needs.route.outputs.metadata_only != 'true' && needs.route.outputs.native != 'skip'
+    if: always() && !cancelled() && needs.route.result == 'success' && needs.route.outputs.metadata_only != 'true' && needs.route.outputs.native != 'skip'
     uses: ./.github/workflows/native-tests.yml
     with:
       mode: ${{ needs.route.outputs.native }}
@@ -109,7 +109,7 @@ jobs:
       checks: read
     name: ${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && 'project (metadata unchanged)' || 'project' }}
     needs: route
-    if: needs.route.outputs.metadata_only != 'true' && (needs.route.outputs.package_host_mode == 'full' || needs.route.outputs.package_host_mode == 'tool-dependencies' || needs.route.outputs.package_set != '[]')
+    if: always() && !cancelled() && needs.route.result == 'success' && needs.route.outputs.metadata_only != 'true' && (needs.route.outputs.package_host_mode == 'full' || needs.route.outputs.package_host_mode == 'tool-dependencies' || needs.route.outputs.package_set != '[]')
     uses: ./.github/workflows/project-tests.yml
     with:
       dependency_projects: ${{ needs.route.outputs.tool_projects }}
@@ -118,7 +118,7 @@ jobs:
   android:
     name: ${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && 'android (metadata unchanged)' || 'android' }}
     needs: route
-    if: needs.route.outputs.metadata_only != 'true' && needs.route.outputs.android_required == 'true'
+    if: always() && !cancelled() && needs.route.result == 'success' && needs.route.outputs.metadata_only != 'true' && needs.route.outputs.android_required == 'true'
     uses: ./.github/workflows/android-required.yml
     with:
       android_required: ${{ needs.route.outputs.android_required }}
@@ -133,7 +133,7 @@ jobs:
   workflow-security:
     name: ${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && 'workflow-security (metadata unchanged)' || 'workflow-security' }}
     needs: route
-    if: needs.route.outputs.metadata_only != 'true' && needs.route.outputs.security == 'true'
+    if: always() && !cancelled() && needs.route.result == 'success' && needs.route.outputs.metadata_only != 'true' && needs.route.outputs.security == 'true'
     uses: ./.github/workflows/workflow-security.yml
     with:
       defer_workflow_contracts: true

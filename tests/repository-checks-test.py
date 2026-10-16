@@ -2,6 +2,7 @@
 """Negative routing, merge identity and aggregate-result regressions."""
 
 from copy import deepcopy
+import ast
 import hashlib
 import importlib.util
 import json
@@ -325,6 +326,93 @@ class MetadataEditTests(unittest.TestCase):
             with self.subTest(change=change), self.assertRaises(ValueError):
                 PACKAGES.validate_tree_wiring(tree)
 
+
+
+class NativeCallerSchedulingTests(unittest.TestCase):
+    """Evaluate actual caller guards with GitHub's transitive default status.
+
+    GitHub workflow-syntax documents skipped ancestors throughout the needs
+    chain; expressions documents implicit success() unless a status function
+    occurs. This bounded fixture models those rules, not a hosted execution.
+    """
+
+    def setUp(self):
+        import yaml
+        self.jobs = yaml.safe_load((ROOT / 'tools/repository-checks/workflows/producers/repository-checks.yml').read_text())['jobs']
+        self.outputs = {'metadata_only': 'false', 'native': 'skip', 'package_host_mode': 'full',
+                        'package_set': '[]', 'android_required': 'false', 'security': 'true'}
+        self.states = {'metadata-source': 'skipped', 'route': 'success'}
+
+    def scheduled(self, name, *, expression=None, cancelled=False):
+        def ancestors(job):
+            needs = self.jobs[job].get('needs', [])
+            if isinstance(needs, str): needs = [needs]
+            return set(needs) | {item for parent in needs for item in ancestors(parent)}
+        expression = self.jobs[name]['if'] if expression is None else expression
+        successful = all(self.states[item] == 'success' for item in ancestors(name))
+        if not re.search(r'\b(?:always|cancelled|failure|success)\s*\(', expression) and not successful:
+            return False
+        expression = re.sub(r'!(?!=)', 'not ', expression.replace('&&', ' and ').replace('||', ' or '))
+        context = {'needs': {'route': {'result': self.states['route'], 'outputs': self.outputs}}}
+        functions = {'always': True, 'cancelled': cancelled, 'success': successful,
+                     'failure': any(self.states[item] == 'failure' for item in ancestors(name))}
+        def evaluate(node):
+            if isinstance(node, ast.Constant): return node.value
+            if isinstance(node, ast.Name): return context[node.id]
+            if isinstance(node, ast.Attribute): return evaluate(node.value)[node.attr]
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and not node.args and not node.keywords:
+                return functions[node.func.id]
+            if isinstance(node, ast.BoolOp):
+                values = (evaluate(value) for value in node.values)
+                if isinstance(node.op, ast.And): return all(values)
+                if isinstance(node.op, ast.Or): return any(values)
+            if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not): return not evaluate(node.operand)
+            if isinstance(node, ast.Compare) and len(node.ops) == len(node.comparators) == 1:
+                left, right = evaluate(node.left), evaluate(node.comparators[0])
+                if isinstance(node.ops[0], ast.Eq): return left == right
+                if isinstance(node.ops[0], ast.NotEq): return left != right
+            raise AssertionError('unreviewed scheduling expression')
+        return bool(evaluate(ast.parse(expression, mode='eval').body))
+
+    def test_normal_pr_selected_jobs_survive_skipped_metadata_ancestor(self):
+        self.assertEqual(self.jobs['route']['needs'], 'metadata-source')
+        self.assertIn('always()', self.jobs['route']['if'])
+        self.assertEqual({name for name in ('native', 'project', 'android', 'workflow-security') if self.scheduled(name)},
+                         {'project', 'workflow-security'})
+        for name in ('project', 'workflow-security'):
+            # Removing the explicit status function reproduces the incident,
+            # even though direct route succeeded and its selector is true.
+            old = self.jobs[name]['if'].split("needs.route.result == 'success' && ", 1)[1]
+            self.assertFalse(self.scheduled(name, expression=old))
+
+    def test_each_existing_route_selector_remains_necessary(self):
+        for changes, expected in (({'native': 'configure'}, {'native', 'project', 'workflow-security'}),
+                ({'android_required': 'true'}, {'android', 'project', 'workflow-security'}),
+                ({'package_host_mode': 'skip', 'security': 'false'}, set()),
+                ({'package_host_mode': 'tool-dependencies'}, {'project', 'workflow-security'}),
+                ({'package_host_mode': 'skip', 'package_set': '["browser"]'}, {'project', 'workflow-security'})):
+            with self.subTest(changes=changes), patch.dict(self.outputs, changes):
+                self.assertEqual({name for name in ('native', 'project', 'android', 'workflow-security') if self.scheduled(name)}, expected)
+
+    def test_bad_route_metadata_and_cancellation_never_start_workloads(self):
+        self.outputs.update(native='full', android_required='true')
+        for state in ('failure', 'cancelled', 'skipped', ''):
+            self.states['route'] = state
+            for name in ('native', 'project', 'android', 'workflow-security'):
+                with self.subTest(state=state, job=name): self.assertFalse(self.scheduled(name))
+        self.states['route'] = 'success'
+        for name in ('native', 'project', 'android', 'workflow-security'):
+            with self.subTest(cancelled=True, job=name): self.assertFalse(self.scheduled(name, cancelled=True))
+        self.outputs['metadata_only'] = 'true'
+        for name in ('native', 'project', 'android', 'workflow-security'):
+            with self.subTest(metadata=True, job=name): self.assertFalse(self.scheduled(name))
+
+    def test_required_aggregate_keeps_its_failure_path_and_real_verifier(self):
+        aggregate = self.jobs['repository-checks']
+        self.assertEqual(aggregate['if'], "always() && (needs.route.result != 'success' || needs.route.outputs.metadata_only != 'true')")
+        self.assertTrue({'route', 'native', 'project', 'android', 'documentation', 'workflow-security', 'workflow-contracts'} <= set(aggregate['needs']))
+        self.assertEqual(aggregate['steps'][0]['with']['ref'], '${{ github.event.repository.default_branch }}')
+        self.assertIn('python3 tools/repository-checks/check.py verify', aggregate['steps'][-1]['run'])
 
 
 class NativeMetadataContextTests(unittest.TestCase):
