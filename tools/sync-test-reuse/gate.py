@@ -965,9 +965,11 @@ def native_parent_evidence(api, config, request, now=None):
             and (partition is None or receipt['platform_results']=={}), 'native parent selected owner differs')
         environment = receipt['environment']
         if profile['profile'] == controller.ci_profile.PROFILE:
+            ci_context = ({'base_tree': previous}
+                if profile['binding'].get('generation_kind') == controller.ci_profile.SEVEN_CONTROLLER_KIND else {})
             admission = controller.runtime_ci.validate_environment(environment, aggregate.get('qualified_at'),
                 aggregate.get('expires_at'), now, selected, original, context, registry,
-                root=ROOT, target=request.parent, read_blob=read_blob)
+                root=ROOT, target=request.parent, read_blob=read_blob, **ci_context)
         else:
             admission = controller.attested.validate_environment(environment, aggregate.get('qualified_at'),
                 aggregate.get('expires_at'), now, root=ROOT, isolated=True)
