@@ -157,10 +157,10 @@ REVIEWED_PREDECESSORS = {
     'main': '6c6064992d2e2e189e06af5957c147fd1ac0996b886b8d0b6f30dbf856ee9afe',
     'apple-main': 'ad02726fc123ea762f37e077f6ad11bf54b568542c89ebba9ae6477d9225288a',
     'apple-ios': '5cd6ed41804507a65889ceacbf54133cbcebb4e27bb0fa2b75f482bc75580204',
-    'android-main': '7ae2b307ffa0d609a4bacbd4b2dd85083a8f81bc21b8190aaedc614b480bd596',
-    'android-phone': '8deb0c38de466bc4674eff17333f71b784f601ea656d7c6dc955bd7a42696cbc',
-    'android-vr': '7ae2b307ffa0d609a4bacbd4b2dd85083a8f81bc21b8190aaedc614b480bd596',
-    'android-vr-pico': '946e3096fbf075937b511d2179a6264ff9a0d6d249c1d809dada3a8a20f2394e',
+    'android-main': '9a7365b2256bcacde3e964ca331adfb988a576b4ed32d687cd038d38b3d6cc81',
+    'android-phone': '0c2b3c37a66e7ba14a89688ddc73a78406bcbf4e23c78fc19ac306c2a5809b65',
+    'android-vr': '9a7365b2256bcacde3e964ca331adfb988a576b4ed32d687cd038d38b3d6cc81',
+    'android-vr-pico': 'faa013fcb7ad5bc28c1f4a824b3c7d63d9ab8a2f8b196396febff813d891071b',
 }
 CONTROL_PLANE = 'tests/device/run_control_plane_tests.py'
 PACKAGE_LOCKS = {

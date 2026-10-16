@@ -1362,6 +1362,10 @@ selects prerequisites before Java/Qt setup. The four finite executable CI
 scripts retain their exact ordinary `100755` modes on both trees, including
 `tools/repository-health/check.py`, which the required Doctor host owner exercises.
 New executable neighbors, missing files and changed modes remain conservative.
+Android retains two finite complete reader families: the corrected source13
+tree and the reviewed future installation with its six-file legacy-owner
+handoff. Each uses its own exact fingerprint. A partial handoff, changed product
+reader or unreviewed historical difference still requires full verification.
 This separate
 inventory proof does not change the router's conservative documentation rules.
 
