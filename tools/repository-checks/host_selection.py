@@ -171,6 +171,9 @@ PACKAGE_LOCKS = {
 CI_EXECUTABLE_PATHS = frozenset({
     'tests/project-suite-self-test.py', 'tests/repository-health-test.py',
     'tests/run-project-tests.py',
+    # The required Doctor host owner exercises this exact CLI. Preserve its
+    # executable mode without admitting neighboring tools or product readers.
+    'tools/repository-health/check.py',
 })
 
 

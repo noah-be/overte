@@ -1336,8 +1336,11 @@ The complete `npm-consumers-sync-ci-v1` successor admits the staged
 independent affected-CI execution lane; it does not reuse a partial parent
 report. The trusted validator checks live topology and exact merge parents,
 recomputes the required npm plan and both immutable reader inventories, and
-selects prerequisites before Java/Qt setup. The three finite executable CI
-scripts retain their exact ordinary `100755` modes on both trees. This separate
+selects prerequisites before Java/Qt setup. The four finite executable CI
+scripts retain their exact ordinary `100755` modes on both trees, including
+`tools/repository-health/check.py`, which the required Doctor host owner exercises.
+New executable neighbors, missing files and changed modes remain conservative.
+This separate
 inventory proof does not change the router's conservative documentation rules.
 
 That caller passes the trusted selection digest back to execution. Selection is
