@@ -30,6 +30,76 @@ def reviewed_tree():
 
 
 class LanguageSelectionTests(unittest.TestCase):
+    def pinned_trees(self):
+        before = reviewed_tree()
+        before['.github/workflows/codeql.yml']['sha'] = CODEQL._PINNED_RESULTS_WORKFLOW
+        before.update({path: entry() for path in CODEQL._PYTHON_POLICY_JSONS})
+        return before, deepcopy(before)
+
+    def test_only_existing_ordinary_policy_jsons_use_python_in_the_exact_pinned_generation(self):
+        for path in CODEQL._PYTHON_POLICY_JSONS:
+            for event in ('pull_request', 'push'):
+                before, after = self.pinned_trees()
+                after[path] = entry('b')
+                with self.subTest(path=path, event=event):
+                    self.assertEqual(CODEQL.select_languages(before, after, event=event)['languages'], ['python'])
+                after['tools/check.py'] = entry('b')
+                self.assertEqual(CODEQL.select_languages(before, after)['languages'], ['python'])
+
+    def test_pinned_policy_exception_retains_javascript_and_unknown_input_owners(self):
+        for path in ('client/main.ts', 'data.json', 'package.json', 'package-lock.json', 'yarn.lock',
+                     '.github/workflows/branch-cleanup.yml', 'other.yaml', '.github/test-suites-extra.json',
+                     'tools/new-unknown-input', 'tools/repository-checks/check.py', 'custom/qlpack.yml'):
+            before, after = self.pinned_trees()
+            after['.github/test-suites.json'] = entry('b')
+            after[path] = entry('b')
+            with self.subTest(path=path):
+                self.assertEqual(CODEQL.select_languages(before, after)['languages'], list(CODEQL.LANGUAGES))
+
+    def test_policy_json_add_remove_and_modes_cannot_inherit_the_exception(self):
+        for path in CODEQL._PYTHON_POLICY_JSONS:
+            for mutation in ('addition', 'removal', 'executable', 'symlink', 'gitlink'):
+                before, after = self.pinned_trees()
+                if mutation == 'addition':
+                    del before[path]
+                elif mutation == 'removal':
+                    del after[path]
+                else:
+                    after[path] = entry('b', {'executable': '100755', 'symlink': '120000', 'gitlink': '160000'}[mutation])
+                expected = ['javascript-typescript'] if mutation in ('addition', 'removal', 'executable') else list(CODEQL.LANGUAGES)
+                with self.subTest(path=path, mutation=mutation):
+                    self.assertEqual(CODEQL.select_languages(before, after)['languages'], expected)
+
+    def test_pinned_policy_requires_both_exact_workflows_and_unchanged_configuration(self):
+        for workflow in (CODEQL._REVIEWED_CONTROLS['.github/workflows/codeql.yml'], CODEQL._SELECTIVE_WORKFLOW,
+                         CODEQL._RESULTS_WORKFLOW, CODEQL._RETARGET_RESULTS_WORKFLOW):
+            before, after = self.pinned_trees()
+            before['.github/workflows/codeql.yml']['sha'] = workflow
+            after['.github/workflows/codeql.yml']['sha'] = workflow
+            after['.github/test-suites.json'] = entry('b')
+            self.assertEqual(CODEQL.select_languages(before, after)['languages'], ['javascript-typescript'])
+            after['.github/workflows/codeql.yml']['sha'] = CODEQL._PINNED_RESULTS_WORKFLOW
+            self.assertTrue(CODEQL.select_languages(before, after)['full_scan'])
+        for path in CODEQL._REVIEWED_CONTROLS:
+            for side in ('base', 'candidate'):
+                before, after = self.pinned_trees()
+                after['.github/test-suites.json'] = entry('b')
+                (before if side == 'base' else after)[path] = entry('b')
+                self.assertEqual(CODEQL.select_languages(before, after)['reasons'][0]['code'],
+                                 'unreviewed-analysis-configuration')
+
+    def test_result_generations_advance_without_allowing_deployed_rollbacks(self):
+        generations = CODEQL.result_workflow_blobs()
+        self.assertEqual(len(generations), 3)
+        for old_index, old in enumerate(generations):
+            for new_index, new in enumerate(generations):
+                before, after = self.pinned_trees()
+                before['.github/workflows/codeql.yml']['sha'] = old
+                after['.github/workflows/codeql.yml']['sha'] = new
+                rollback = CODEQL.result_workflow_rollback(before['.github/workflows/codeql.yml'], after['.github/workflows/codeql.yml'])
+                with self.subTest(old=old, new=new):
+                    self.assertEqual(rollback, new_index < old_index)
+
     def change(self, path, *, original=None, replacement=None, event="pull_request"):
         before = reviewed_tree()
         if original is not None:
@@ -147,6 +217,17 @@ class LanguageSelectionTests(unittest.TestCase):
         successor = ROOT / 'tools/repository-checks/workflows/metadata-edits/codeql.yml'
         self.assertEqual(subprocess.check_output(['git', 'hash-object', str(successor)], cwd=ROOT, text=True).strip(),
                          CODEQL._RETARGET_RESULTS_WORKFLOW)
+        pinned = successor.with_name('codeql-pinned.yml')
+        self.assertEqual(subprocess.check_output(['git', 'hash-object', str(pinned)], cwd=ROOT, text=True).strip(),
+                         CODEQL._PINNED_RESULTS_WORKFLOW)
+        # Changing the tool pin or its required version check cannot keep admission.
+        for source in (pinned.read_bytes().replace(b'v2.27.2/', b'v2.27.3/'),
+                       pinned.read_bytes().replace(b'= 2.27.2', b'= 2.27.3')):
+            modified = subprocess.check_output(['git', 'hash-object', '--stdin'], input=source, cwd=ROOT).decode().strip()
+            before, after = self.pinned_trees()
+            before['.github/workflows/codeql.yml']['sha'] = modified
+            after['.github/test-suites.json'] = entry('b')
+            self.assertEqual(CODEQL.select_languages(before, after)['reasons'][0]['code'], 'unreviewed-analysis-configuration')
 
     def test_retarget_generation_is_exact_and_classification_control_is_shared(self):
         before = reviewed_tree()
@@ -417,6 +498,84 @@ class SelectedResultTests(unittest.TestCase):
 
     def verify(self, **options):
         return RESULTS.Verifier(self.root, self.event, self.env, api=self.api, **options).verify(processing_seconds=0)
+
+    def pinned_policy_candidate(self):
+        """Real immutable two-parent candidate; only fake authenticated API I/O."""
+        self.write(RESULTS.WORKFLOW,
+                   (ROOT / 'tools/repository-checks/workflows/metadata-edits/codeql-pinned.yml').read_text())
+        for path in CODEQL._PYTHON_POLICY_JSONS: self.write(path, '{"fixture":1}\n')
+        self.base = self.commit()
+        self.write('.github/test-suites.json', '{"fixture":2}\n')
+        self.head = self.commit()
+        self.candidate = self.git('commit-tree', self.git('rev-parse', self.head + '^{tree}'),
+                                  '-p', self.base, '-p', self.head, '-m', 'Pinned policy merge fixture')
+        self.git('checkout', '-q', '--detach', self.candidate)
+        self.pr['base']['sha'], self.pr['head']['sha'] = self.base, self.head
+        self.pr['merge_commit_sha'] = self.candidate
+        self.event['pull_request'] = deepcopy(self.pr)
+        self.env.update(GITHUB_SHA=self.candidate, GITHUB_WORKFLOW_SHA=self.candidate)
+        self.refs = {'heads/main': self.base, 'heads/fix/main/example': self.head, 'pull/42/merge': self.candidate}
+        self.merge = {'sha': self.candidate, 'parents': [{'sha': self.base}, {'sha': self.head}]}
+        self.run['head_sha'] = self.head
+        for job in self.jobs: job['head_sha'] = self.head
+        self.jobs[0]['steps'].insert(0, {'name': 'Require reviewed CodeQL extractor version',
+            'status': 'completed', 'conclusion': 'success',
+            'started_at': '2026-10-15T21:00:02Z', 'completed_at': '2026-10-15T21:00:03Z'})
+        self.analyses[0]['commit_sha'] = self.candidate
+
+    def test_pinned_policy_json_uses_python_results_bound_to_actual_candidate_and_extractor(self):
+        old_candidate = self.candidate
+        self.pinned_policy_candidate()
+        # Worktree content and supplied languages cannot replace Git object selection.
+        self.write('browser/main.ts', '// dirty JavaScript is outside the candidate\n')
+        self.assertEqual(self.verify()['languages'], ['python'])
+        self.env['CODEQL_EXPECTED_LANGUAGES'] = '[]'
+        with self.assertRaisesRegex(RESULTS.ResultError, 'independent immutable selection'): self.verify()
+        self.env['CODEQL_EXPECTED_LANGUAGES'] = '["python"]'
+        self.analyses[0]['commit_sha'] = old_candidate
+        with self.assertRaises(RESULTS.ResultError): self.verify()
+        self.analyses[0]['commit_sha'] = self.candidate
+        for version in ('2.27.1', '2.27.3', None):
+            self.analyses[0]['tool']['version'] = version
+            with self.subTest(version=version), self.assertRaisesRegex(RESULTS.ResultError, 'reviewed extractor version'):
+                self.verify()
+
+    def test_pinned_result_requires_the_successful_version_step_before_analysis(self):
+        self.pinned_policy_candidate()
+        original = deepcopy(self.jobs[0]['steps'])
+        mutations = [original[1:], original + [original[0]]]
+        for key, value in (('conclusion', 'failure'), ('status', 'in_progress'),
+                           ('started_at', '2026-10-15T21:00:12Z'),
+                           ('completed_at', '2026-10-15T21:00:11Z')):
+            changed = deepcopy(original); changed[0][key] = value; mutations.append(changed)
+        for steps in mutations:
+            self.jobs[0]['steps'] = steps
+            with self.subTest(steps=steps), self.assertRaises(RESULTS.ResultError): self.verify()
+        self.jobs[0]['steps'] = original
+        self.assertEqual(self.verify()['languages'], ['python'])
+
+    def test_pinned_policy_json_keeps_current_python_findings_required(self):
+        self.pinned_policy_candidate()
+        self.alerts = [{'number': 9, 'state': 'open', 'tool': {'name': 'CodeQL'}}]
+        self.instances = {9: [{'ref': self.env['GITHUB_REF'], 'commit_sha': self.candidate,
+            'category': '/language:python', 'state': 'open', 'analysis_key': RESULTS.ANALYSIS_KEY}]}
+        with self.assertRaisesRegex(RESULTS.ResultError, 'open CodeQL finding'): self.verify()
+
+    def test_pinned_result_verifier_independently_rejects_every_older_result_workflow(self):
+        self.pinned_policy_candidate()
+        for template in ('codeql-results.yml', 'metadata-edits/codeql.yml'):
+            self.git('checkout', '-q', '--detach', self.base)
+            self.write(RESULTS.WORKFLOW, (ROOT / 'tools/repository-checks/workflows' / template).read_text())
+            head = self.commit()
+            candidate = self.git('commit-tree', self.git('rev-parse', head + '^{tree}'),
+                                 '-p', self.base, '-p', head, '-m', 'Reject pinned rollback fixture')
+            self.git('checkout', '-q', '--detach', candidate)
+            self.event['pull_request']['base']['sha'] = self.base
+            self.event['pull_request']['head']['sha'] = head
+            env = dict(self.env, GITHUB_SHA=candidate, GITHUB_WORKFLOW_SHA=candidate,
+                       CODEQL_EXPECTED_LANGUAGES='["javascript-typescript","python"]')
+            with self.subTest(template=template), self.assertRaisesRegex(RESULTS.ResultError, 'cannot be reverted'):
+                RESULTS.Verifier(self.root, self.event, env, api=self.api).plan()
 
     def test_real_immutable_selection_success_accepts_nonzero_dismissed_result_count(self):
         result = self.verify()

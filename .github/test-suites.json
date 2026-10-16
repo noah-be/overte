@@ -182,7 +182,8 @@
           "tools/test-evidence/producer_api.py",
           "tools/test-evidence/producer.py",
           "tools/test-evidence/execution.py",
-          "tools/test-evidence/runtime.py"
+          "tools/test-evidence/runtime.py",
+          "tools/repository-checks/workflows/metadata-edits/codeql-pinned.yml"
         ],
         "required": [
           "tests/codeql-selection-test.py",
@@ -195,7 +196,8 @@
           "tools/test-evidence/producer_api.py",
           "tools/test-evidence/producer.py",
           "tools/test-evidence/execution.py",
-          "tools/test-evidence/runtime.py"
+          "tools/test-evidence/runtime.py",
+          "tools/repository-checks/workflows/metadata-edits/codeql-pinned.yml"
         ]
       }
     },

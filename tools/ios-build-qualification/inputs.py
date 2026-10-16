@@ -70,6 +70,7 @@ INDEPENDENT_HOST_PATHS = frozenset({
     "tools/repository-checks/workflows/android-owned/repository-checks.yml",
     "tools/repository-checks/workflows/android-owned/handoff/android/phone/tests/phone-release-metadata-test.py",
     "tools/repository-checks/workflows/metadata-edits/codeql.yml",
+    "tools/repository-checks/workflows/metadata-edits/codeql-pinned.yml",
     "tools/repository-checks/workflows/metadata-edits/repository-checks.yml",
     "tools/repository-checks/workflows/metadata-edits/sync-test-reuse.yml",
     "tools/repository-checks/workflows/sync-ci-selection.yml",

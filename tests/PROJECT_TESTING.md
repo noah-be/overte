@@ -1237,3 +1237,23 @@ verifier and independent sync gate reject reverting it. The metadata classifier
 is a finite shared analysis control. Neither this staged template nor its source
 admission activates it; active workflows and existing security assertions remain
 unchanged until separately reviewed deployment and hosted qualification.
+
+The further dormant `metadata-edits/codeql-pinned.yml` successor pins the official
+CodeQL 2.27.2 Linux bundle through the pinned init action's `tools` URL. Init still
+uses its existing versioned hosted toolcache; a matching installation needs no
+new download or extraction. A required step checks init's actual
+`codeql-version` before Analyze. The independent result verifier also requires
+that successful step and current processed analyses reporting version 2.27.2.
+All earlier result generations remain admitted for source rollout, while both
+independent gates reject returning from a deployed result generation to an older
+one. Source admission does not deploy the staged workflow.
+
+Only an edit to an existing ordinary `100644` `.github/android-orchestration.json`
+or `.github/test-suites.json` may select Python without JavaScript when both
+immutable trees use that exact pinned workflow and unchanged reviewed CodeQL
+configuration. The reviewed extractor has no generic JSON extraction and its
+single-file TypeScript parser cannot read imported JSON; its ancestor readers
+recognize package/tsconfig files rather than these two policy leaves. Python and
+the policy governance tests remain required. Additions, removals, aliases, mode
+changes, older or unknown workflow/configuration, all other JSON, YAML, package
+locks and mixed JavaScript inputs keep their existing conservative owners.

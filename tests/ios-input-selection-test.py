@@ -145,6 +145,7 @@ class ImmutableInputTests(unittest.TestCase):
                          "tools/repository-checks/workflows/sync-ci-selection.yml",
                          "tools/repository-checks/workflows/metadata-edits/repository-checks.yml",
                          "tools/repository-checks/workflows/metadata-edits/codeql.yml",
+                         "tools/repository-checks/workflows/metadata-edits/codeql-pinned.yml",
                          "tools/repository-checks/workflows/metadata-edits/sync-test-reuse.yml",
                          "tools/repository-checks/workflows/host/parent-qualification.yml"}.issubset(
                              {change["path"] for change in plan["changes"]}))
@@ -165,6 +166,7 @@ class ImmutableInputTests(unittest.TestCase):
         for relative in ("tools/test-evidence/run.py", "tools/repository-checks/workflows/sync-ci-selection.yml",
                          "tools/repository-checks/workflows/metadata-edits/repository-checks.yml",
                          "tools/repository-checks/workflows/metadata-edits/codeql.yml",
+                         "tools/repository-checks/workflows/metadata-edits/codeql-pinned.yml",
                          "tools/repository-checks/workflows/metadata-edits/sync-test-reuse.yml"):
             with self.subTest(path=relative):
                 self.git("checkout", "-q", "--detach", self.base)
@@ -175,8 +177,16 @@ class ImmutableInputTests(unittest.TestCase):
                 self.assertEqual(plan["changes"][0]["kind"], "application-input")
 
     def test_metadata_workflow_siblings_are_not_blanket_independent_inputs(self):
-        self.write("tools/repository-checks/workflows/metadata-edits/unreviewed.yml", "name: Unreviewed\n")
-        self.assertTrue(self.plan(self.commit("Add an unreviewed staged workflow"))["requires_application_build"])
+        for name in ('unreviewed.yml', 'codeql-pinned-extra.yml'):
+            self.git('checkout', '-q', '--detach', self.base)
+            self.write("tools/repository-checks/workflows/metadata-edits/" + name, "name: Unreviewed\n")
+            self.assertTrue(self.plan(self.commit("Add an unreviewed staged workflow"))["requires_application_build"])
+        self.git('checkout', '-q', '--detach', self.base)
+        relative = 'tools/repository-checks/workflows/metadata-edits/codeql-pinned.yml'
+        target = self.root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.symlink_to('unreviewed-target')
+        self.assertTrue(self.plan(self.commit('Reject staged workflow alias'))['requires_application_build'])
 
     def test_android_handoff_ci_paths_require_ordinary_exact_files(self):
         for relative in REVIEWED_ANDROID_CI_PATHS:

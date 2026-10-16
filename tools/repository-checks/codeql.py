@@ -44,6 +44,12 @@ _RESULTS_WORKFLOW = "b5789e4b0928ef34cc3d80e8f2fa1813422b6436"
 # Dormant retarget successor. The exact source must be protected before its
 # workflow is deployed; a deployed successor cannot be reverted to b578.
 _RETARGET_RESULTS_WORKFLOW = "8333afd10d6f32841def51970f59f038b3881d11"
+# Exact staged successor pins the extractor whose finite JSON readers were
+# reviewed at github/codeql a7057b836bf29767461026718b14d20790b9085f.
+_PINNED_RESULTS_WORKFLOW = "6d55d0fe4e9edc86204c66e1fa3967681793a2cd"
+_PYTHON_POLICY_JSONS = frozenset({
+    ".github/android-orchestration.json", ".github/test-suites.json",
+})
 _GLOBAL_PATHS = {
     "AGENTS.md", ".gitattributes", ".gitignore", ".gitmodules", ".codeqlignore", ".tool-versions",
     "tools/repository-checks/codeql.py", "tools/repository-checks/check.py", "tools/test-evidence/inputs.py",
@@ -66,12 +72,29 @@ _OBJECT = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
 
 def result_workflow_blobs():
     """Finite trusted selected-result generations; never candidate anchors."""
-    return (_RESULTS_WORKFLOW, _RETARGET_RESULTS_WORKFLOW)
+    return (_RESULTS_WORKFLOW, _RETARGET_RESULTS_WORKFLOW, _PINNED_RESULTS_WORKFLOW)
 
 
 def result_workflow_rollback(base_entry, candidate_entry):
-    successor = {"mode": "100644", "type": "blob", "sha": _RETARGET_RESULTS_WORKFLOW}
-    return base_entry == successor and candidate_entry != successor
+    generations = [{"mode": "100644", "type": "blob", "sha": sha}
+                   for sha in result_workflow_blobs()]
+    return (base_entry in generations and (candidate_entry not in generations
+            or generations.index(candidate_entry) < generations.index(base_entry)))
+
+
+def _pinned_policy_json(change, base_tree, candidate_tree):
+    """Only two existing ordinary leaves are outside this exact JS extractor.
+
+    Its TypeScript wrapper parses one selected file with noResolve and a
+    compiler host that cannot read dependencies. Generic JSON is not extracted;
+    ancestor configuration readers use only package.json and tsconfig names.
+    Any workflow/configuration drift is rejected before this proof is used.
+    """
+    pinned = {"mode": "100644", "type": "blob", "sha": _PINNED_RESULTS_WORKFLOW}
+    return (change['path'] in _PYTHON_POLICY_JSONS
+            and all(tree.get('.github/workflows/codeql.yml') == pinned for tree in (base_tree, candidate_tree))
+            and all(isinstance(change[side], dict) and change[side]['mode'] == '100644'
+                    and change[side]['type'] == 'blob' for side in ('before', 'after')))
 
 
 def _global_input(path: str, pack_roots=()) -> bool:
@@ -169,7 +192,7 @@ def select_languages(base_tree: dict | None, candidate_tree: dict | None, *, eve
         path = change["path"]
         if _global_input(path, pack_roots):
             return _result(LANGUAGES, [{"code": "shared-analysis-control", "path": path}], changes)
-        selected = _source_languages(path)
+        selected = ("python",) if _pinned_policy_json(change, base_tree, candidate_tree) else _source_languages(path)
         if selected is None:
             return _result(LANGUAGES, [{"code": "unknown-analysis-input", "path": path}], changes)
         languages.update(selected)

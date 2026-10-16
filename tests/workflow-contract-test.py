@@ -75,10 +75,13 @@ def codeql_generation(case, source):
         return hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
     previous = ROOT / 'tools/repository-checks/workflows/codeql-results.yml'
     successor = ROOT / 'tools/repository-checks/workflows/metadata-edits/codeql.yml'
+    pinned = successor.with_name('codeql-pinned.yml')
     case.assertEqual(blob(previous.read_text()), policy._RESULTS_WORKFLOW)
     case.assertEqual(blob(successor.read_text()), policy._RETARGET_RESULTS_WORKFLOW)
+    case.assertEqual(blob(pinned.read_text()), policy._PINNED_RESULTS_WORKFLOW)
     known = {policy._SELECTIVE_WORKFLOW: 'selective', policy._RESULTS_WORKFLOW: 'results',
-             policy._RETARGET_RESULTS_WORKFLOW: 'retarget-results'}
+             policy._RETARGET_RESULTS_WORKFLOW: 'retarget-results',
+             policy._PINNED_RESULTS_WORKFLOW: 'pinned-results'}
     identity = blob(source)
     case.assertIn(identity, known, 'unreviewed CodeQL workflow cannot inherit omission contracts')
     return known[identity]
@@ -86,7 +89,7 @@ def codeql_generation(case, source):
 
 def codeql_analyze_condition(case, source):
     return ("needs.select.outputs.metadata_only != 'true' && needs.select.outputs.scan == 'true'"
-            if codeql_generation(case, source) == 'retarget-results' else "needs.select.outputs.scan == 'true'")
+            if codeql_generation(case, source) in {'retarget-results', 'pinned-results'} else "needs.select.outputs.scan == 'true'")
 
 
 def reviewed_package_generation():
@@ -259,7 +262,7 @@ class LightweightWorkflowContracts(unittest.TestCase):
             source = path.read_text(encoding="utf-8")
             self.assertEqual(workflow_events(source)['push']['paths-ignore'], ['**/*.md'])
         source = CODEQL_WORKFLOW.read_text(encoding="utf-8")
-        if codeql_generation(self, source) in {'results', 'retarget-results'}:
+        if codeql_generation(self, source) in {'results', 'retarget-results', 'pinned-results'}:
             # Required context is published for docs; the immutable selector
             # omits both analyzer jobs, rather than omitting the entire check.
             self.assertNotIn('paths-ignore', workflow_events(source)['pull_request'])
@@ -373,7 +376,7 @@ class CodeQLWorkflowContracts(unittest.TestCase):
 
     def test_actions_are_fresh_full_sha_pins(self):
         actions = ACTION_USE.findall(self.source)
-        self.assertEqual(len(actions), 7 if codeql_generation(self, self.source) in {'results', 'retarget-results'} else 5)
+        self.assertEqual(len(actions), 7 if codeql_generation(self, self.source) in {'results', 'retarget-results', 'pinned-results'} else 5)
         self.assertEqual([action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], [])
         codeql = [action for action in actions if action.startswith("github/codeql-action/")]
         self.assertEqual(
@@ -406,7 +409,7 @@ class CodeQLWorkflowContracts(unittest.TestCase):
         aggregate = self.source.split('  codeql-checks:', 1)[1]
         self.assertIn('if: always()', aggregate)
         self.assertIn('needs: [select, analyze]', aggregate)
-        selected = codeql_generation(self, self.source) == 'retarget-results'
+        selected = codeql_generation(self, self.source) in {'retarget-results', 'pinned-results'}
         job = workflow_data(self.source)['jobs']['codeql-checks']
         self.assertEqual(job['if'], "always() && (needs.select.result != 'success' || needs.select.outputs.metadata_only != 'true')"
                          if selected else 'always()')
@@ -426,7 +429,7 @@ class CodeQLWorkflowContracts(unittest.TestCase):
 
 
     def test_selected_results_are_independent_and_cannot_bypass_the_truth_table(self):
-        if codeql_generation(self, self.source) not in {'results', 'retarget-results'}:
+        if codeql_generation(self, self.source) not in {'results', 'retarget-results', 'pinned-results'}:
             self.skipTest("Selected-result generation is covered by its staged workflow contracts")
         workflow = workflow_data(self.source)
         job = workflow['jobs']['codeql-checks']
@@ -500,6 +503,33 @@ class RetargetCodeQLResultWorkflowContracts(CodeQLWorkflowContracts):
         for step in (candidate, plan): self.assertEqual(step['if'], "steps.event.outputs.metadata_only != 'true'")
         self.assertEqual(plan['env']['BASE_SHA'], '${{ github.event.pull_request.base.sha || github.event.before || github.sha }}')
         self.assertEqual(plan['env']['CANDIDATE_SHA'], '${{ github.sha }}')
+
+class PinnedCodeQLResultWorkflowContracts(CodeQLWorkflowContracts):
+    @classmethod
+    def setUpClass(cls):
+        cls.source = (ROOT / 'tools/repository-checks/workflows/metadata-edits/codeql-pinned.yml').read_text()
+
+    def test_pinned_successor_changes_only_tool_selection_and_required_version_check(self):
+        previous = workflow_data((ROOT / 'tools/repository-checks/workflows/metadata-edits/codeql.yml').read_text())
+        successor = workflow_data(self.source)
+        steps = previous['jobs']['analyze']['steps']
+        initialize = next(step for step in steps if step['name'] == 'Initialize CodeQL')
+        initialize['id'] = 'init'
+        initialize['with']['tools'] = ('https://github.com/github/codeql-action/releases/download/'
+                                      'codeql-bundle-v2.27.2/codeql-bundle-linux64.tar.zst')
+        version = {'name': 'Require reviewed CodeQL extractor version',
+                   'env': {'CODEQL_VERSION': '${{ steps.init.outputs.codeql-version }}'},
+                   'run': 'set -euo pipefail\ntest "$CODEQL_VERSION" = 2.27.2\n'}
+        index = next(i for i, step in enumerate(steps) if step['name'] == 'Analyze')
+        steps.insert(index, version)
+        self.assertEqual(successor, previous)
+        # Use the action's URL/toolcache path, without a separate downloader or
+        # local archive that would force extraction on every matching cache hit.
+        for value, expected in (('2.27.2', True), ('', False), ('2.27.3', False), ('2.27.2-extra', False)):
+            result = subprocess.run(['bash', '-c', version['run']],
+                                    env=dict(os.environ, CODEQL_VERSION=value), capture_output=True)
+            self.assertEqual(result.returncode == 0, expected)
+
 
 class BranchGovernanceWorkflowContracts(unittest.TestCase):
     def test_policy_is_a_native_read_only_pull_request_check(self):
