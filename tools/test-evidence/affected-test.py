@@ -141,7 +141,7 @@ class ShippingPolicyTests(unittest.TestCase):
             'places-native-qml','recorded-voice-qml','snapshot-qml'])
         self.assertEqual(registry['schema'],1)
 
-    def shipping_context(self):
+    def source_context(self):
         root=Path(__file__).resolve().parents[2]
         registry=inputs.load_registry(root/'.github/test-suites.json')
         raw=inputs.load_dependencies(root/inputs.AFFECTED_POLICY,registry)
@@ -149,6 +149,35 @@ class ShippingPolicyTests(unittest.TestCase):
         for path in ('tools/test-evidence/affected-test.py','tools/test-evidence/AFFECTED_SELECTION.md'):
             tree[path]=blob((root/path).read_bytes())
         tree[inputs.AFFECTED_POLICY]=blob(raw)
+        return root,registry,raw,tree
+
+    def shipping_context(self):
+        """Use the actual complete prospective installed S, not source-only B.
+
+        The native inventory includes the new reusable workflow's membership.
+        Its protected certificate must already name S; this fixture never
+        rewrites that certificate to make the shipping positive pass.
+        """
+        root,registry,raw,tree=self.source_context()
+        generations=json.loads((root/'.github/package-workflow-generations.json').read_bytes())['generations']
+        self.assertEqual(len(generations),20)
+        self.assertEqual(generations[-1]['name'],'protected-producer-metadata-ci-v1')
+        workflows=generations[-1]['workflows']
+        templates={
+            '.github/workflows/project-tests.yml':'tools/repository-checks/workflows/producers/protected-project-tests.yml',
+            '.github/workflows/parent-qualification.yml':'tools/repository-checks/workflows/producers/parent-qualification.yml',
+            '.github/workflows/repository-checks.yml':'tools/repository-checks/workflows/producers/repository-checks.yml',
+            '.github/workflows/pr-metadata-context.yml':'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml',
+            '.github/workflows/sync-validation.yml':'.github/workflows/sync-validation.yml',
+            '.github/workflows/browser-client.yml':'.github/workflows/browser-client.yml',
+        }
+        self.assertEqual(set(workflows),set(templates))
+        for path,template in templates.items():
+            expected=blob((root/template).read_bytes())
+            self.assertEqual(workflows[path],expected,path)
+            tree[path]=dict(expected)
+        tree['.github/workflows/codeql.yml']=blob(
+            (root/'tools/repository-checks/workflows/metadata-edits/codeql-metadata.yml').read_bytes())
         return root,registry,raw,tree
 
     def bounded_context(self):
@@ -183,6 +212,10 @@ class ShippingPolicyTests(unittest.TestCase):
 
     def test_shipping_five_controller_case_omits_device_without_running_any_suite(self):
         root,registry,raw,base=self.shipping_context()
+        _,_,_,source=self.source_context()
+        self.assertEqual(inputs.affected_lookup_digest(source),inputs.affected_lookup_digest(base))
+        self.assertNotIn('.github/workflows/pr-metadata-context.yml',source)
+        self.assertIn('.github/workflows/pr-metadata-context.yml',base)
         candidate=deepcopy(base)
         for name in ('attested.py','postmerge.py','producer_workflow.py','sandbox.py','sandbox_host.py'):
             candidate['tools/test-evidence/'+name]=blob(('changed '+name).encode())
@@ -199,6 +232,21 @@ class ShippingPolicyTests(unittest.TestCase):
         self.assertEqual(selected['suites'],plan['required'])
         self.assertTrue(selected['full_host']);self.assertFalse(selected['include_platform'])
         self.assertFalse(selected['affected']['reusable'])
+
+    def test_preinstallation_source_cannot_inherit_the_prospective_native_omissions(self):
+        _,registry,raw,base=self.source_context()
+        self.assertNotIn('.github/workflows/pr-metadata-context.yml',base)
+        candidate=deepcopy(base)
+        candidate['tools/test-evidence/sandbox_host.py']=blob(b'changed preinstallation controller')
+        plan=inputs.plan_affected(registry,raw,base,candidate,base)
+        owners={'device-control-plane-full',*inputs._AFFECTED_PRODUCT_SUITES,*inputs._AFFECTED_SUBJECTS}
+        self.assertEqual(len(owners),23)
+        self.assertTrue(owners.issubset(plan['required']))
+        self.assertFalse(owners.intersection(plan['omitted']))
+        for name in owners:
+            self.assertEqual(plan['reasons'][name],
+                'fixed-subject-or-reader-not-reviewed' if name in inputs._AFFECTED_SUBJECTS
+                else 'product-component-or-reader-not-reviewed')
 
     def test_unavailable_graph_retains_the_independently_selected_legacy_gate(self):
         root,registry,raw,base=self.shipping_context()
