@@ -64,6 +64,25 @@ def workflow_events(source):
     return data.get('on', data.get(True))
 
 
+def assert_project_caller_routing(case, source):
+    """The finite npm successor must bind its whole generation and exact route."""
+    template = ROOT / 'tools/repository-checks/workflows/npm-consumers/repository-checks.yml'
+    if source == template.read_text(encoding='utf-8'):
+        spec = importlib.util.spec_from_file_location(
+            'workflow_contract_packages', ROOT / 'tools/repository-checks/package_checks.py')
+        packages = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(packages)
+        case.assertEqual(packages.validate_wiring(ROOT), 'npm-consumers-v1')
+        case.assertEqual(workflow_data(source)['jobs']['project']['if'],
+                         "needs.route.outputs.package_host_mode == 'full' || "
+                         "needs.route.outputs.package_host_mode == 'tool-dependencies' || "
+                         "needs.route.outputs.package_set != '[]'")
+        return 'package_host_mode'
+    # An unadmitted caller cannot inherit the successor's formatting-only omission.
+    case.assertIn("if: needs.route.outputs.mode == 'full'", source)
+    return 'mode'
+
+
 def push_filters(source):
     """Check the semantic push filters independently of YAML presentation."""
     events = workflow_events(source)
@@ -184,7 +203,7 @@ class LightweightWorkflowContracts(unittest.TestCase):
 
     def test_app_test_workflows_exclude_markdown(self):
         aggregate = (WORKFLOW_DIRECTORY / "repository-checks.yml").read_text(encoding="utf-8")
-        self.assertIn("if: needs.route.outputs.mode == 'full'", aggregate)
+        assert_project_caller_routing(self, aggregate)
         self.assertIn("uses: ./.github/workflows/project-tests.yml", aggregate)
         for workflow in (IOS_WORKFLOW, MACOS_WORKFLOW):
             if workflow.exists():
@@ -541,7 +560,7 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         self.assertIn('--event "$GITHUB_EVENT_PATH"', source)
         self.assertNotIn("pull_request:", source)
         aggregate = (WORKFLOW_DIRECTORY / "repository-checks.yml").read_text()
-        self.assertIn("if: needs.route.outputs.mode == 'full'", aggregate)
+        assert_project_caller_routing(self, aggregate)
         pull_request = aggregate.split("  pull_request:", 1)[1].split("  workflow_dispatch:", 1)[0]
         self.assertNotIn("paths", pull_request)
         self.assertIn("edited", pull_request)
@@ -792,8 +811,10 @@ class ProjectWorkflowContracts(unittest.TestCase):
         final = jobs['project-results']
         self.assertEqual(final['if'], 'always()')
         self.assertEqual(set(final['needs']), {'route', 'project-tests', 'tool-dependencies', 'package-checks'})
-        caller = workflow_data((WORKFLOW_DIRECTORY / 'repository-checks.yml').read_text())['jobs']['project']
-        self.assertIn("needs.route.outputs.mode == 'tool-dependencies'", caller['if'])
+        aggregate = (WORKFLOW_DIRECTORY / 'repository-checks.yml').read_text()
+        mode = assert_project_caller_routing(self, aggregate)
+        caller = workflow_data(aggregate)['jobs']['project']
+        self.assertIn("needs.route.outputs." + mode + " == 'tool-dependencies'", caller['if'])
         self.assertIn("needs.route.outputs.package_set != '[]'", caller['if'])
         self.assertEqual(caller['with']['dependency_projects'], '${{ needs.route.outputs.tool_projects }}')
         self.assertEqual(caller['with']['expected_package_plan'], '${{ needs.route.outputs.package_plan }}')
@@ -880,7 +901,7 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
             self.assertNotIn(event, workflow_events(self.workflows['parent']))
         aggregate = (WORKFLOW_DIRECTORY / "repository-checks.yml").read_text()
         self.assertIn("pull_request:", aggregate)
-        self.assertIn("if: needs.route.outputs.mode == 'full'", aggregate)
+        assert_project_caller_routing(self, aggregate)
         self.assertIn("uses: ./.github/workflows/project-tests.yml", aggregate)
 
     def test_only_markdown_changes_skip_push_lanes(self):

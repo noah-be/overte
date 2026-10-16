@@ -404,8 +404,9 @@ resource, E2E and packaging reader graph; their shared `project-runner`,
 Only `tests/project-suite-self-test.py` is added to the exact executable-host
 inventory. The reader boundary is recomputed from protected `apple-ios` commit
 `2fc894a0605103843b36653f250f854714a963ee`, never from an unprotected candidate.
-Neither npm lockfile is admitted by this CI-only inventory; a future package
-waiver requires independently enforced package owners. Unknown neighboring
+Neither npm lockfile belongs to the unconditional CI-only inventory. Their
+separate conditional omission requires an independently enforced exact package
+owner and both reviewed application and own-host reader boundaries. Unknown neighboring
 files, mode changes and historical application reader drift still require the
 application build. This classification does not publish IPA or reuse evidence.
 
@@ -664,9 +665,9 @@ does not add a third install/build to the existing two Browser jobs. Preserve
 meaningful browser/native journey ownership until its replacement is separately
 reviewed; this helper does not activate a Browser gate or change any trigger.
 
-The separate `npm_consumers.py` capability is also internal and disabled in
-current CLI/workflow calls. With `candidate_plan(..., include_consumers=True)`,
-it independently compares complete immutable base and candidate trees and adds
+The separate `npm_consumers.py` capability is selected automatically by the
+complete approved `npm-consumers-v1` caller generation. The controller
+independently compares complete immutable base and candidate trees and adds
 focused consumers to the required package plan. It recognizes only the reviewed
 `source-map-js` 1.2.1 to 1.2.2 update and `proxy-addr` 2.0.7 to 2.0.8 update.
 Both historical and candidate package readers, ancestor configuration discovery,
@@ -691,10 +692,10 @@ consumption. The proxy probe exercises IPv4-mapped/IPv6 trust, forwarded chains
 and actual local Express request address behavior. Neither profile selects
 Vite, a Browser renderer/journey, or a native application build. These omissions
 apply to the finite reviewed dependency/consumer closure, not arbitrary npm
-updates. Live workflow activation must still atomically bind the required
-receipt and remove the duplicate legacy Browser jobs for these exact profiles.
+updates. The required package receipt binds these exact profiles; the paired
+Browser metadata route omits both legacy jobs for the same reviewed selection.
 
-The prepared `npm-consumers-v1` generation binds all five workflows together:
+The approved `npm-consumers-v1` generation binds all five workflows together:
 the existing project, parent-qualification and sync workflows, plus the paired
 repository caller and Browser workflow in
 `tools/repository-checks/workflows/npm-consumers/`. A complete approved pair
@@ -703,14 +704,16 @@ both outer verifiers; candidate JSON and caller flags cannot enable it. Legacy
 four-file callers retain their behavior. Once the protected base contains the
 new generation, a candidate cannot revert to the legacy owner or opt out.
 
-The prepared Browser workflow preserves every existing Browser/native journey
+The paired Browser workflow preserves every existing Browser/native journey
 step and manual input. Its metadata route omits both existing jobs only for an
 exact focused package owner or reviewed formatting-only lock change. Unsupported
 dependencies, changed Browser consumers, failed routing or missing outputs keep
 the existing full jobs. Cancellation stops obsolete work. The paired repository
 caller uses the independently selected package host mode, allowing formatting
 changes to omit all test jobs without fabricating an execution receipt. These
-templates are staged only; no active workflow is changed by admission.
+active workflows match those exact admitted templates. Deployment on each child
+requires complete genuine parent propagation; a local matching file is not
+evidence that the child has been updated on GitHub.
 
 Run the source selection and execution-boundary regressions with:
 
@@ -878,6 +881,20 @@ historical differences, changed readers, mixed product changes, symlinks,
 submodules and incomplete inventories retain every shared and declared platform
 suite. The exact 32 additional CI paths are listed in `CI_ROLLOUT_PATHS`; no
 directory-wide exemption for `tools/test-evidence` or `tests` is added.
+
+For mixed CI and npm-lock changes, the trusted package plan can separately own
+the two reviewed security updates or formatting-only changes. The shared host
+controller validates that plan's candidate/tree/base binding and complete
+consumer generation. It normalizes only those admitted ordinary lock entries
+to their historical base values when comparing the reviewed host reader
+identity. Every other file, mode, import/discovery member and product definition
+remains bound. The independently required package lane still installs, audits
+and tests the changed dependencies; the host selection reports their external
+ownership without inventing a successful or reusable test. Missing package
+ownership, unsupported dependencies, absent/nonregular base entries and product
+reader differences retain the complete host suite. This optimization applies
+to the shared host controller; the separate sync fallback still requires its
+own reviewed selection and authenticated result handoff.
 
 The initial child CI rollout changes the control-plane launcher's process cleanup.
 It therefore runs the 36 CI groups **and** `device-control-plane-full`, including

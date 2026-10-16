@@ -2,6 +2,7 @@
 """Exercise dormant iOS input selection against actual immutable Git histories."""
 
 import importlib.util
+from copy import deepcopy
 import json
 from pathlib import Path
 import subprocess
@@ -128,6 +129,117 @@ class ImmutableInputTests(unittest.TestCase):
         plan = self.plan(self.commit("Make a different independent host file executable"))
         self.assertTrue(plan["requires_application_build"])
         self.assertEqual(plan["changes"][0]["kind"], "application-input")
+
+    def npm_fixture(self):
+        """Review a disposable real-Git graph, retaining actual dependency entries."""
+        self.consumers = INPUTS.npm_selector()
+        self.npm_policies = deepcopy(self.consumers.PROJECTS)
+        for project, policy in self.npm_policies.items():
+            self.write(project + "/package.json", '{"private":true}\n')
+            self.write(project + "/consumer.js", "module.exports = 1;\n")
+            self.write_npm_lock(project, policy["old"])
+        self.base = self.commit("Create reviewed package reader fixtures")
+        snapshot = self.consumers._snapshot(self.root, self.base)
+        for project, policy in self.npm_policies.items():
+            policy["complement"] = self.consumers._digest(self.consumers._complement(snapshot, project))
+            policy["entries"] = 2
+            lock = json.loads((self.root / project / "package-lock.json").read_text())
+            policy["graph"] = self.consumers._digest(self.consumers._graph(lock, policy["node"]))
+        for replacement in (patch.dict(self.consumers.PROJECTS, self.npm_policies, clear=True),
+                            patch.object(INPUTS, "npm_selector", return_value=self.consumers),
+                            patch.object(INPUTS, "REVIEWED_BOUNDARY", INPUTS.review_boundary(self.root, self.base)["boundary"])):
+            replacement.start(); self.addCleanup(replacement.stop)
+
+    def write_npm_lock(self, project, dependency):
+        self.write(project + "/package-lock.json", json.dumps({"lockfileVersion": 3,
+            "packages": {"": {"name": "fixture"}, self.npm_policies[project]["node"]: dependency,
+                         "node_modules/unchanged": {"version": "1.0.0"}}}) + "\n")
+
+    def npm_owner(self, candidate, base=None):
+        base = base or self.base
+        profiles = self.consumers.select(self.root, base, candidate)
+        value = {"base": base, "candidate": candidate, "tree": profiles["candidate"]["tree"], "unknown": False,
+                 "consumer_generation": True, "policy": {"trusted-fixture": "a" * 64},
+                 "dependency_profiles": profiles,
+                 "package_set": [project for project, selected in profiles["projects"].items() if selected["required"]]}
+        value["plan"] = INPUTS._digest(value).removeprefix("sha256:")
+        return value
+
+    def update_npm_locks(self):
+        for project, policy in self.npm_policies.items():
+            self.write_npm_lock(project, policy["new"])
+
+    def test_exact_npm_locks_and_finite_ci_require_a_bound_required_owner(self):
+        self.npm_fixture(); self.update_npm_locks()
+        for path in ("tools/repository-checks/npm_consumers.py",
+                     "tools/repository-checks/workflows/npm-consumers/repository-checks.yml"):
+            self.write(path, "candidate code must never execute\n")
+        candidate = self.commit("Update reviewed dependencies with independent CI")
+        self.assertTrue(self.plan(candidate)["requires_application_build"])
+        owner = self.npm_owner(candidate)
+        plan = INPUTS.candidate_plan(self.root, self.base, candidate, package_owner=owner)
+        self.assertFalse(plan["requires_application_build"], plan)
+        self.assertEqual(plan["package_ownership"]["packagePlan"], owner["plan"])
+        self.assertEqual(set(plan["package_ownership"]["changedPaths"]), set(INPUTS.NPM_PACKAGE_PROFILES))
+        self.assertEqual(plan["base"]["fingerprint"], plan["candidate"]["fingerprint"])
+        # Standalone source fingerprints retain locks; this is no IPA reuse proof.
+        self.assertNotEqual(INPUTS.input_fingerprint(self.root, self.base)["fingerprint"],
+                            INPUTS.input_fingerprint(self.root, candidate)["fingerprint"])
+        self.assertTrue(all(change["kind"] == "independent-npm-package" for change in plan["changes"]
+                            if change["path"] in INPUTS.NPM_PACKAGE_PROFILES))
+        for field, value in (("consumer_generation", False), ("unknown", True), ("base", "f" * 40),
+                             ("tree", "e" * 40), ("package_set", []), ("dependency_profiles", {})):
+            changed = {**deepcopy(owner), field: value}; changed.pop("plan")
+            changed["plan"] = INPUTS._digest(changed).removeprefix("sha256:")
+            with self.subTest(field=field):
+                self.assertTrue(INPUTS.candidate_plan(self.root, self.base, candidate,
+                                                     package_owner=changed)["requires_application_build"])
+
+    def test_reviewed_npm_formatting_has_no_execution_claim_and_no_package_job(self):
+        self.npm_fixture()
+        path = self.root / "browser-client/package-lock.json"
+        path.write_text(json.dumps(json.loads(path.read_text()), indent=4))
+        candidate = self.commit("Format reviewed npm lock only")
+        owner = self.npm_owner(candidate)
+        self.assertEqual(owner["package_set"], [])
+        plan = INPUTS.candidate_plan(self.root, self.base, candidate, package_owner=owner)
+        self.assertFalse(plan["requires_application_build"])
+        self.assertEqual(plan["package_ownership"]["projects"]["browser-client"]["execution"], "not-performed")
+
+    def test_npm_owner_cannot_hide_config_consumers_unknown_graph_or_native_changes(self):
+        self.npm_fixture()
+        for change in ("graph", "consumer", "config", "native", "unknown", "symlink", "mode", "deleted"):
+            with self.subTest(change=change):
+                self.git("checkout", "-q", "--detach", self.base)
+                self.update_npm_locks()
+                lock = self.root / "browser-client/package-lock.json"
+                if change == "graph":
+                    value = json.loads(lock.read_text()); value["packages"]["node_modules/unchanged"]["version"] = "9.0.0"
+                    lock.write_text(json.dumps(value))
+                elif change == "consumer": self.write("browser-client/consumer.js", "module.exports = 2;\n")
+                elif change == "config": self.write("postcss.config.cjs", "throw Error('never execute');\n")
+                elif change == "native": self.write("interface/src/main.cpp", "int main() { return 2; }\n")
+                elif change == "unknown": self.write("tools/unreviewed-input.py", "# Unknown reader\n")
+                elif change == "mode": lock.chmod(0o755)
+                elif change == "symlink": lock.unlink(); lock.symlink_to("package.json")
+                elif change == "deleted": lock.unlink()
+                candidate = self.commit("Change package or native boundary")
+                plan = INPUTS.candidate_plan(self.root, self.base, candidate, package_owner=self.npm_owner(candidate))
+                self.assertTrue(plan["requires_application_build"], plan)
+
+    def test_npm_negative_selection_binds_both_historical_reader_complements(self):
+        self.npm_fixture()
+        self.write("CMakeLists.txt", "file(READ browser-client/package-lock.json APP_INPUT)\n")
+        historical = self.commit("Introduce an earlier application dependency reader")
+        self.update_npm_locks()
+        self.write("CMakeLists.txt", "project(InputFixture)\n")
+        candidate = self.commit("Restore current reader while updating dependency")
+        plan = INPUTS.candidate_plan(self.root, historical, candidate,
+                                    package_owner=self.npm_owner(candidate, historical))
+        self.assertFalse(plan["exclusions_applicable"])
+        self.assertTrue(plan["requires_application_build"])
+        self.assertEqual(plan["candidate"]["boundary"], INPUTS.REVIEWED_BOUNDARY)
+        self.assertNotEqual(plan["base"]["boundary"], INPUTS.REVIEWED_BOUNDARY)
 
     def test_rename_inventory_retains_both_paths(self):
         self.git("mv", "docs/README.md", "docs/RENAMED.md")

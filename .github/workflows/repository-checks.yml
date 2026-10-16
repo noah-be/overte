@@ -67,7 +67,7 @@ jobs:
       mode: ${{ needs.route.outputs.native }}
   project:
     needs: route
-    if: needs.route.outputs.mode == 'full' || needs.route.outputs.mode == 'tool-dependencies' || needs.route.outputs.package_set
+    if: needs.route.outputs.package_host_mode == 'full' || needs.route.outputs.package_host_mode == 'tool-dependencies' || needs.route.outputs.package_set
       != '[]'
     uses: ./.github/workflows/project-tests.yml
     with:

@@ -83,9 +83,9 @@ checks. Both input trees must still match this reader boundary; new application
 readers invalidate the exception even for a later CI-only change.
 
 The own iOS host run also has an independent, narrower negative dependency
-boundary in `host.py`. Exactly 108 reviewed CI paths may change while both the
+boundary in `host.py`. Exactly 113 reviewed CI paths may change while both the
 protected base and merge candidate retain the complete reviewed complement of
-11,170 ordinary Git entries, including historical child differences, test
+11,168 ordinary Git entries, including historical child differences, test
 discovery, imports, helpers, product sources, consumed documentation and modes.
 Unknown paths, new discovery members, native scan inputs, missing files, mode
 changes, symbolic links and gitlinks invalidate this boundary. There is no
@@ -100,10 +100,40 @@ test receipt. Required shared CI still runs its relevant owners, including the
 changed control-plane launcher. A changed iOS reader complement conservatively
 restores the complete own iOS host run until that graph is reviewed again.
 
-The finite independent-path inventory is unchanged. npm-only app omissions
-still need applicable required Browser/S3 package owners with complete target
-wiring and actual same-candidate results; this deployment does not add that
-permission. The original bootstrap guard and legacy generation remain unchanged.
+Five additional finite CI paths cover `npm_consumers.py`, its two CJS probes and
+the paired `workflows/npm-consumers/` Browser/repository templates. The two locks
+`browser-client/package-lock.json` and
+`script-archive/marketplace/S3Server/package-lock.json` form a separate conditional
+class. They are not independent-host files and remain present in ordinary app
+fingerprints. Their changed bytes can be omitted only for the immutable npm
+selector's exact reviewed source-map-js/proxy-addr update or reviewed formatting.
+
+The iOS route independently loads the trusted required package controller,
+validates the complete five-workflow generation and recomputes the exact package
+plan. Ownership requires explicit package activation or the deployed complete
+mandatory five-workflow repository caller. The latter is already enforced by the
+independently required `repository-checks` aggregate. The iOS selection binds the
+package candidate, plan, trusted policy and dependency profiles. That aggregate
+still requires successful same-candidate package receipts; an iOS omission is
+not a package test receipt and cannot make a failing package check mergeable.
+
+Both app and own-host reader complements remain bound independently on both
+immutable trees. The app reader complement contains 10,964 entries and is
+`sha256:cba03775542c32affcfe172b66b80b23cab31abd9f61293abd3f5cb0e19c03e8`;
+the own-host complement is
+`eb10f2ce89017a4efc75001773c1da415994dc2f4d542fb2804183bc2f77ba15`.
+These protected-`apple-ios` reader identities normalize only the finite lock
+class; they do not approve arbitrary lock graphs. Missing or unsupported owners,
+changed package consumers/configuration, native sources, discovery membership,
+unknown paths, modes, symlinks and historical reader drift retain the relevant
+full iOS gate. All real CMake, QML, platform inputs and the Appium lock stay bound.
+
+The protected launcher discovers only the iOS release-check and device self-test
+roots. Its repository-wide Core5Compat scan reads native source suffixes, which
+exclude these CI helpers, templates and locks. Release-check lock inventory is
+restricted by its explicit source scope, outside both package roots. This source
+extension does not establish hosted child qualification or produce an IPA. The
+original bootstrap guard and legacy generation remain unchanged.
 
 ## Application build result verification
 
