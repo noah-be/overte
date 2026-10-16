@@ -24,7 +24,30 @@ HOST_NATIVE_FIXTURES = frozenset({
 })
 HOST_TOOL_MANIFESTS = frozenset({
     'tools/jsdoc/package.json', 'tools/jsdoc/package-lock.json',
+    # These packages feed JavaScript tools/clients, not the native CMake graph.
+    # Keep exact ownership: neighboring unknown files still require validation.
+    'browser-client/package.json', 'browser-client/package-lock.json',
+    'browser-direct-client/package.json', 'browser-direct-client/package-lock.json',
+    'script-archive/marketplace/S3Server/package.json',
+    'script-archive/marketplace/S3Server/package-lock.json',
 })
+# Exact CPU-only browser provenance fixtures. None are read by the reviewed
+# native CMake/Conan/resource graph; browser tests remain their execution owner.
+HOST_BROWSER_FIXTURES = frozenset({
+    'browser-client/tests/integration/capture-startup-integration-source-fixture.mjs',
+    'browser-client/tests/tablet-capture-startup-integration-manifest.test.mjs',
+    'browser-client/tests/integration/prepare-tablet-capture-acceptance.mjs',
+    'browser-client/tests/integration/capture-fork-rename-source-fixture.mjs',
+    'browser-client/tests/fixtures/capture-v33-fork-rename-before.json.gz',
+    'browser-client/tests/fixtures/capture-fork-rename-v34-complete-source-manifest.json',
+    'browser-client/tests/tablet-capture-fork-rename-manifest.test.mjs',
+    'browser-client/tests/integration/capture-workflow-source-fixture.mjs',
+    'browser-client/tests/fixtures/capture-v34-workflow-before.json.gz',
+    'browser-client/tests/fixtures/capture-workflow-v35-complete-source-manifest.json',
+    'browser-client/tests/tablet-capture-workflow-manifest.test.mjs',
+    'browser-client/tests/embedded-world-software-ci.test.mjs',
+})
+HOST_EVIDENCE_SUFFIXES = frozenset({'.py', '.json'})
 CORE_ROOTS = ('tests/shared/',)
 RUNTIME_ASSETS = {'.qml', '.js', '.png', '.jpg', '.jpeg', '.svg', '.webp', '.gif',
                   '.wav', '.mp3', '.ogg', '.html', '.css'}
@@ -43,10 +66,14 @@ def plan(paths: list[str], regular: bool = True, *, verified_empty: bool = False
             raise ValueError('invalid changed path')
         if path.endswith('.md'):
             continue
-        # Routing/runner changes need an actual small native smoke plus their
-        # host regressions, not a rebuild of unrelated product applications.
-        if path in ('tools/native-tests/check.py', 'tools/native-tests/select.py',
-                    'tools/native-tests/run.py', 'tools/native-tests/qt-test.py', 'tests/native-ci-test.py'):
+        # The router and its behavioral regressions only classify immutable
+        # inputs; neither configures, compiles nor launches native tests.
+        # Their host owner checks selection and merge enforcement directly.
+        if path in ('tools/native-tests/check.py', 'tests/native-ci-test.py'):
+            continue
+        # Execution/graph drivers still need a small real native smoke.
+        if path in ('tools/native-tests/select.py', 'tools/native-tests/run.py',
+                    'tools/native-tests/qt-test.py'):
             relevant.append(path)
             core_only.add(path)
             continue
@@ -57,7 +84,12 @@ def plan(paths: list[str], regular: bool = True, *, verified_empty: bool = False
                 or path.startswith(('tools/native-tests/', 'tests/native-', 'cmake/',
                                         '.github/workflows/native-', '.github/actions/conan-install/'))):
             relevant.append(path)
-        elif path in HOST_NATIVE_FIXTURES or path in HOST_TOOL_MANIFESTS:
+        elif path in HOST_NATIVE_FIXTURES or path in HOST_TOOL_MANIFESTS or path in HOST_BROWSER_FIXTURES:
+            continue
+        elif (path.startswith('tools/test-evidence/')
+              and PurePosixPath(path).suffix in HOST_EVIDENCE_SUFFIXES):
+            # Evidence routing and validation execute on the host. New native
+            # sources and build definitions in this directory remain unknown.
             continue
         elif path.startswith('interface/resources/') and PurePosixPath(path).suffix.lower() in RUNTIME_ASSETS:
             # Native core tests do not exercise UI/media content. Host QML/JS

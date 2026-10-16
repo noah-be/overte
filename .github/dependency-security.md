@@ -6,6 +6,14 @@ separate review units. Do not combine those pull requests or auto-merge them.
 Every update must regenerate its committed lockfile and run the relevant smoke
 test before merge.
 
+Existing ordinary changes to `browser-client/package-lock.json` and
+`script-archive/marketplace/S3Server/package-lock.json` use their independent npm
+package, vulnerability, build and function checks. With the unchanged reviewed
+CodeQL 2.27.2 recipe, those two lockfiles do not change either language's
+extracted inputs, so a lockfile-only change needs no additional CodeQL analysis.
+Changed source or analysis configuration still selects its analyses; unknown
+paths, membership or mode changes retain conservative verification.
+
 The current baseline removes unused Axios and request dependencies from the
 JSDoc tool. JSDoc 3 remains temporarily because the in-tree template imports
 the TaffyDB API that JSDoc 4 removed. The server console still needs separate,

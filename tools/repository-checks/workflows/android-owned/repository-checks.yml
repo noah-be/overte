@@ -1,0 +1,148 @@
+# Dormant trusted package generation; activation requires reviewed target policy.
+name: Repository checks
+on:
+  pull_request:
+    types:
+    - opened
+    - reopened
+    - synchronize
+    - edited
+    - labeled
+    - unlabeled
+  workflow_dispatch:
+    inputs:
+      run_regression:
+        description: Run the complete device-free regression tier
+        type: boolean
+        default: true
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: repository-checks-${{ github.event.pull_request.number || github.ref }}-${{ github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body) && github.run_id || 'qualification' }}
+  cancel-in-progress: true
+jobs:
+  route:
+    name: Select required repository checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      metadata_only: ${{ steps.event.outputs.metadata_only }}
+      mode: ${{ steps.plan.outputs.mode }}
+      security: ${{ steps.plan.outputs.security }}
+      native: ${{ steps.native.outputs.mode }}
+      tool_projects: ${{ steps.plan.outputs.tool_projects }}
+      package_candidate: ${{ steps.plan.outputs.package_candidate }}
+      package_plan: ${{ steps.plan.outputs.package_plan }}
+      package_host_mode: ${{ steps.plan.outputs.package_host_mode }}
+      package_tool_projects: ${{ steps.plan.outputs.package_tool_projects }}
+      package_set: ${{ steps.plan.outputs.package_set }}
+      android_required: ${{ steps.plan.outputs.android_required }}
+      android_candidate: ${{ steps.plan.outputs.android_candidate }}
+      android_plan: ${{ steps.plan.outputs.android_plan }}
+      android_inventory: ${{ steps.plan.outputs.android_inventory }}
+    steps:
+    - name: Check out trusted routing policy
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.event.repository.default_branch }}
+        path: trusted
+        persist-credentials: false
+        sparse-checkout: |
+          .github
+          tools/repository-checks
+          tools/test-evidence
+          tools/native-tests
+          tools/ios-build-qualification
+    - name: Recognize only complete title or body edit events
+      id: event
+      run: >-
+        python3 trusted/tools/repository-checks/check.py metadata-event
+        --event "$GITHUB_EVENT_PATH" --event-name "$GITHUB_EVENT_NAME" --output "$GITHUB_OUTPUT"
+    - name: Read the candidate tree without executing it
+      if: steps.event.outputs.metadata_only != 'true'
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        path: candidate
+        fetch-depth: 2
+        persist-credentials: false
+        sparse-checkout: .github
+    - name: Select checks from the exact merge candidate
+      if: steps.event.outputs.metadata_only != 'true'
+      id: plan
+      run: python3 trusted/tools/repository-checks/check.py plan --event "$GITHUB_EVENT_PATH" --candidate candidate
+        --sha "$GITHUB_SHA" --output "$GITHUB_OUTPUT"
+    - name: Select native checks from the exact merge candidate
+      if: steps.event.outputs.metadata_only != 'true'
+      id: native
+      run: python3 trusted/tools/native-tests/check.py plan --event "$GITHUB_EVENT_PATH" --candidate candidate --sha
+        "$GITHUB_SHA" --output "$GITHUB_OUTPUT" --report native-plan.json
+  native:
+    name: ${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && 'native (metadata unchanged)' || 'native' }}
+    permissions:
+      contents: read
+      packages: read
+    needs: route
+    if: needs.route.outputs.metadata_only != 'true' && needs.route.outputs.native != 'skip'
+    uses: ./.github/workflows/native-tests.yml
+    with:
+      mode: ${{ needs.route.outputs.native }}
+  project:
+    name: ${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && 'project (metadata unchanged)' || 'project' }}
+    needs: route
+    if: needs.route.outputs.metadata_only != 'true' && (needs.route.outputs.package_host_mode == 'full' || needs.route.outputs.package_host_mode == 'tool-dependencies' || needs.route.outputs.package_set != '[]')
+    uses: ./.github/workflows/project-tests.yml
+    with:
+      dependency_projects: ${{ needs.route.outputs.tool_projects }}
+      expected_candidate: ${{ needs.route.outputs.package_candidate }}
+      expected_package_plan: ${{ needs.route.outputs.package_plan }}
+  android:
+    name: ${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && 'android (metadata unchanged)' || 'android' }}
+    needs: route
+    if: needs.route.outputs.metadata_only != 'true' && needs.route.outputs.android_required == 'true'
+    uses: ./.github/workflows/android-required.yml
+    with:
+      android_required: ${{ needs.route.outputs.android_required }}
+      android_candidate: ${{ needs.route.outputs.android_candidate }}
+      android_plan: ${{ needs.route.outputs.android_plan }}
+      android_inventory: ${{ needs.route.outputs.android_inventory }}
+  documentation:
+    name: ${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && 'documentation (metadata unchanged)' || 'documentation' }}
+    needs: route
+    if: needs.route.outputs.metadata_only != 'true'
+    uses: ./.github/workflows/documentation-checks.yml
+  workflow-security:
+    name: ${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && 'workflow-security (metadata unchanged)' || 'workflow-security' }}
+    needs: route
+    if: needs.route.outputs.metadata_only != 'true' && needs.route.outputs.security == 'true'
+    uses: ./.github/workflows/workflow-security.yml
+  repository-checks:
+    name: ${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && 'repository-checks (metadata unchanged)' || 'repository-checks' }}
+    if: always() && (needs.route.result != 'success' || needs.route.outputs.metadata_only != 'true')
+    needs:
+    - route
+    - project
+    - documentation
+    - workflow-security
+    - native
+    - android
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+    - name: Check out trusted result verifier
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.event.repository.default_branch }}
+        persist-credentials: false
+    - name: Check out the exact candidate without credentials
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        path: candidate
+        fetch-depth: 2
+        persist-credentials: false
+        sparse-checkout: .github
+    - name: Require all selected checks to succeed
+      env:
+        CHECK_RESULTS: ${{ toJSON(needs) }}
+      run: python3 tools/repository-checks/check.py verify --needs-json "$CHECK_RESULTS" --candidate candidate --sha
+        "$GITHUB_SHA"
