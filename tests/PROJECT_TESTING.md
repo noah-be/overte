@@ -422,6 +422,38 @@ It declares canonical commands and complete source/fixture/helper closures;
 unreviewed closures remain conservative. Changed Python import modules and
 ancestor Node package metadata cannot hide behind an unchanged entry point.
 
+The `shared-sandbox-controls` and `shared-sandbox-host-controls` quick suites
+exercise the dormant Linux process boundary using real temporary Git trees
+and offline process/kernel fixtures. They do not run privileged host probes.
+Both suites retain a complete repository input fallback. The manual-only source
+template is `tools/test-evidence/workflows/shared-sandbox-host-diagnostic.yml`;
+no active workflow, ordinary PR producer or reusable evidence is enabled.
+
+The prospective Ubuntu 24 diagnostic verifies its loaded controls against the
+immutable manual workflow source. A bounded raw-object materializer creates a
+private, pristine detached Git snapshot without executing checkout filters,
+hooks or candidate configuration. Complete source and metadata inventories
+reject dirty bytes, extra import paths, aliases, writable modes and gitlinks.
+The private index matches the immutable tree; a fixed in-sandbox Git status
+must be clean. A tracked `build` path is rejected because its writable mount
+would hide source inputs. Complete histories above 4,096 objects or 64 MB are
+unsupported by this bounded diagnostic materializer.
+Only exact trusted probe/runtime source enters a separate read-only projection;
+candidate policy code cannot replace it. The hosted workload is a fixed real-Git
+fixture, never an application build or arbitrary PR command.
+
+A root-owned sibling guardian holds the actual cgroup kill/events descriptors
+before releasing any low-UID work. Pipe EOF after a deliberately SIGKILLed root
+worker must kill kernel-observed surviving trusted cleanup canaries and confirm
+the entire owned scope empty. Normal completion and failure use the same scope.
+Separate protected probes run before work and after every workload is gone;
+source, run attempt, snapshot, projection and the effective diagnostic runtime
+must agree. This small stdlib profile is explicitly not the complete portable
+host environment identity. Production launch/post-capture remain denied.
+Live Ubuntu qualification, complete shared-host suite/toolchain compatibility,
+publisher credential isolation and authenticated reuse publication remain
+required before any successful result can authorize reuse.
+
 The `android-build-inputs` quick suite checks dormant Phone and Pico APK source
 planning with real immutable Git histories, including standalone npm locks,
 native/Java/Gradle/Conan inputs, packaged resources, mode changes and stale reader
@@ -509,6 +541,8 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `host-producer-preparation` | `quick` | `python3 tests/run-project-tests.py --suite host-producer-preparation` |
 | `producer-api` | `quick` | `python3 tests/run-project-tests.py --suite producer-api` |
 | `attested-runtime` | `quick` | `python3 tests/run-project-tests.py --suite attested-runtime` |
+| `shared-sandbox-controls` | `quick` | `python3 tests/run-project-tests.py --suite shared-sandbox-controls` |
+| `shared-sandbox-host-controls` | `quick` | `python3 tests/run-project-tests.py --suite shared-sandbox-host-controls` |
 | `project-runner` | `quick` | `python3 tests/run-project-tests.py --suite project-runner` |
 | `python-test-runner` | `quick` | `python3 tests/run-project-tests.py --suite python-test-runner` |
 | `host-selection` | `quick` | `python3 tests/run-project-tests.py --suite host-selection` |

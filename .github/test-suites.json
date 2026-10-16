@@ -1453,6 +1453,55 @@
           "tools/sync-test-reuse/gate.py"
         ]
       }
+    },
+    "shared-sandbox-controls": {
+      "command": [
+        "python",
+        "tools/test-evidence/sandbox-test.py"
+      ],
+      "layer": "quick",
+      "scope": "content",
+      "environment": "host-qt5-qt6",
+      "closure": {
+        "kind": "repository",
+        "inputs": [],
+        "required": [
+          "tools/test-evidence/sandbox-test.py",
+          ".github/shared-sandbox.json",
+          "tools/test-evidence/sandbox.py",
+          "tools/test-evidence/sandbox_probe.py",
+          "tools/test-evidence/runtime.py",
+          "tests/requirements-host.txt",
+          "tests/requirements-repository.txt",
+          "tools/sbom/requirements-validation.txt"
+        ]
+      }
+    },
+    "shared-sandbox-host-controls": {
+      "command": [
+        "python",
+        "tools/test-evidence/sandbox-host-test.py"
+      ],
+      "layer": "quick",
+      "scope": "content",
+      "environment": "host-qt5-qt6",
+      "closure": {
+        "kind": "repository",
+        "inputs": [],
+        "required": [
+          "tools/test-evidence/sandbox-host-test.py",
+          ".github/shared-sandbox.json",
+          "tools/test-evidence/sandbox.py",
+          "tools/test-evidence/sandbox_probe.py",
+          "tools/test-evidence/runtime.py",
+          "tests/requirements-host.txt",
+          "tests/requirements-repository.txt",
+          "tools/sbom/requirements-validation.txt",
+          "tools/test-evidence/sandbox_host.py",
+          "tools/test-evidence/sandbox_host_fixture.py",
+          "tools/test-evidence/workflows/shared-sandbox-host-diagnostic.yml"
+        ]
+      }
     }
   }
 }
