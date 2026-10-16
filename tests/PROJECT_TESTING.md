@@ -44,8 +44,9 @@ Android's separately reviewed lock-only route covers only the two existing
 ordinary Browser/S3 lockfiles and the ordinary 40-execution inventory. It
 requires matching complete reader complements on both trees, the hermetic Phone
 test on both trees, an unchanged regular orchestration-policy entry and an
-independently recomputed supported npm owner. Unknown package changes, mixed
-inputs, older readers and optional extended diagnostics retain the complete
+independently recomputed mandatory npm owner. A lock graph outside the focused
+security profiles requires the package's full JavaScript checks; it does not
+change native reader independence. Mixed inputs, older readers and optional extended diagnostics retain the complete
 Android selection. This finite proof does not exempt either package directory
 or the repository's CI tools as a whole.
 
@@ -775,6 +776,12 @@ separate conditional omission requires an independently enforced exact package
 owner and both reviewed application and own-host reader boundaries. Unknown neighboring
 files, mode changes and historical application reader drift still require the
 application build. This classification does not publish IPA or reuse evidence.
+
+For those two ordinary lockfiles, a complete required JavaScript package owner
+also permits omission when dependency changes exceed the focused security-fix
+profiles. The full package checks must still succeed in the required repository
+aggregate. Missing package ownership, mixed product/configuration changes,
+nonordinary modes and historical native/iOS reader changes retain their gates.
 
 The iOS qualification verifier has a staged `inputSelection` setting in its
 trusted policy. An absent or false setting preserves the deployed workflow's

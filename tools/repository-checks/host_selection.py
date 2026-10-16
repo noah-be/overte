@@ -193,7 +193,10 @@ def package_owned_paths(plan):
         selected = consumers.get('projects', {}).get(project, {})
         if path not in plan.get('paths', ()) or selected.get('changed_paths') != [path]:
             continue
-        focused = (selected.get('profile') == profile and selected.get('required') is True
+        # Native reader independence does not depend on the particular npm
+        # security update. An unsupported focused delta retains the package's
+        # complete required JavaScript owner, without widening native work.
+        focused = (selected.get('profile') in {profile, 'full'} and selected.get('required') is True
                    and project in plan.get('package_set', ()))
         formatting = (selected.get('profile') == 'none' and selected.get('required') is False
                       and selected.get('reason') == 'reviewed-lockfile-format-only')

@@ -156,7 +156,11 @@ The two locks
 `script-archive/marketplace/S3Server/package-lock.json` form a separate conditional
 class. They are not independent-host files and remain present in ordinary app
 fingerprints. Their changed bytes can be omitted only for the immutable npm
-selector's exact reviewed source-map-js/proxy-addr update or reviewed formatting.
+selector's exact reviewed source-map-js/proxy-addr update, reviewed formatting,
+or a complete required JavaScript package check for another lock graph change.
+The latter keeps the full package build/function/security obligations and both
+reviewed iOS reader boundaries. It never treats an unsupported dependency graph
+as the focused security-fix profile or a passing package result.
 
 The iOS route independently loads the trusted required package controller,
 validates the complete five-workflow generation and recomputes the exact package

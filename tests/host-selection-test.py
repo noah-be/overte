@@ -417,12 +417,24 @@ class HostSelectionTests(unittest.TestCase):
                     if mutation == 'generation': changed['consumer_generation'] = False
                     elif mutation in {'candidate', 'tree', 'base'}: changed[mutation] = 'd'*40
                     elif mutation == 'unknown': changed['dependency_profiles']['unknown'] = True
-                    elif mutation == 'profile': profile['profile'] = 'full'
+                    elif mutation == 'profile': profile['profile'] = 'unknown-profile'
                     elif mutation == 'paths': profile['changed_paths'].append(project + '/consumer.js')
                     elif formatting: profile['reason'] = 'unchanged-package-inputs'
                     else: changed['package_set'] = []
                     with self.subTest(path=path, formatting=formatting, mutation=mutation):
                         self.assertEqual(HOST.package_owned_paths(changed), ())
+
+    def test_full_required_javascript_owner_covers_only_its_exact_foreign_lock(self):
+        for path,(project,_) in HOST.PACKAGE_LOCKS.items():
+            plan=self.package_plan(path)
+            profile=plan['dependency_profiles']['projects'][project]
+            profile.update(profile='full',reason='unsupported-lockfile-node-change')
+            with self.subTest(path=path):
+                self.assertEqual(HOST.package_owned_paths(plan),(path,))
+                profile['required']=False
+                self.assertEqual(HOST.package_owned_paths(plan),())
+                profile['required']=True;plan['package_set']=[]
+                self.assertEqual(HOST.package_owned_paths(plan),())
 
     def test_mixed_ci_and_owned_locks_keep_reviewed_production_graph_without_full_host(self):
         paths = tuple(HOST.PACKAGE_LOCKS)
