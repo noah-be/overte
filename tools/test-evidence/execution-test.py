@@ -296,5 +296,66 @@ Path('build/policy-observation.json').write_text(json.dumps(observed))
                 self.assertFalse((self.root / "build/first").exists())
 
 
+class ProtectedProducerOrderingTests(unittest.TestCase):
+    def test_root_selects_only_pristine_snapshot_and_materializes_once(self):
+        # Pure control fixture: no UID changes, namespaces, cgroups or workloads.
+        from types import SimpleNamespace
+        import producer_workflow as producer
+        events = []
+        raw = Path('/raw-actions-checkout')
+        environment = {'SUDO_UID': '1001', 'GITHUB_SHA': 'a'*40, 'ImageOS': 'ubuntu24',
+                       'ImageVersion': 'fixture', 'RUNNER_ENVIRONMENT': 'github-hosted'}
+        context = {'binding': {'merge_sha': 'a'*40}, 'run_id': 17, 'registry': {'suites': {}}}
+        snapshot = {'digest': 'snapshot-fixture', 'git_context': {'fixture': True}}
+        destination = []
+        def materialize(revision, path, *, repository):
+            self.assertEqual(repository, raw)
+            destination.append(path)
+            events.append('materialize')
+            return snapshot
+        def select(path, *_):
+            self.assertEqual(events, ['materialize'])
+            self.assertEqual(path, destination[0])
+            self.assertNotEqual(path, raw)
+            events.append('select-pristine')
+            return context
+        actual_stat = os.stat
+        def stat(path, *args, **kwargs):
+            return SimpleNamespace(st_ino=123) if str(path).startswith('/proc/self/ns/') else actual_stat(path,*args,**kwargs)
+        prepared = ((),None,None,None)
+        patches = [mock.patch.object(producer,'PRODUCTION_READY',True),
+              mock.patch.object(producer.sandbox,'ACTIVATION_READY',True),
+              mock.patch.object(producer.os,'geteuid',return_value=0),
+              mock.patch.object(producer.os,'stat',side_effect=stat),
+              mock.patch.object(producer.signal,'signal'),
+              mock.patch.object(producer,'_native',return_value=(17,18)),
+              mock.patch.object(producer.host,'verify_account',return_value=(2001,2001)),
+              mock.patch.object(producer.host,'prepare_delegation'),
+              mock.patch.object(producer.shared,'prepared_tools',return_value=prepared),
+              mock.patch.object(producer.shared,'identity_roots',return_value=()),
+              mock.patch.object(producer.shared,'prepared_identity',return_value={}),
+              mock.patch.object(producer.shared,'materialize_source',side_effect=materialize),
+              mock.patch.object(producer,'prepare',side_effect=select),
+              mock.patch.object(producer,'current_run',side_effect=lambda *_:events.append('native-job')),
+              mock.patch.object(producer,'_descriptor',side_effect=lambda *_:events.append('descriptor')),
+              mock.patch.object(producer.shared,'sources',return_value=[]),
+              mock.patch.object(producer.shared,'project_policy',return_value={}),
+              mock.patch.object(producer.sandbox,'_write_source'),
+              mock.patch.object(producer.sandbox,'_files',return_value={}),
+              mock.patch.object(producer.shared,'Batch', side_effect=lambda *args:batches.append(args)),
+              mock.patch.object(producer,'protected_receipt',side_effect=lambda *_:events.append('actual-selected-run') or 'fake-only-result'),
+              mock.patch.object(producer,'_bookend',side_effect=lambda *_:events.append('fresh-bookend'))]
+        from contextlib import ExitStack
+        batches=[]
+        with ExitStack() as stack:
+            for item in patches:stack.enter_context(item)
+            adapter=SimpleNamespace(current=lambda _:({'merge_sha':'a'*40},{}))
+            self.assertEqual(producer.shared_execution(raw,{},environment,adapter),'fake-only-result')
+            self.assertEqual(events.count('materialize'),1)
+            self.assertEqual(batches[0][1],destination[0])
+        self.assertEqual(events,['materialize','select-pristine','native-job','descriptor','actual-selected-run','fresh-bookend','native-job'])
+        self.assertFalse(producer.PRODUCTION_READY)
+
+
 if __name__ == "__main__":
     unittest.main()

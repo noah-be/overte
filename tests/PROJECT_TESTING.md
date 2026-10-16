@@ -352,8 +352,8 @@ at the API-observed original merge, all-status paginated authority inventories,
 bounded raw archive digests and initial/final live refs. Fake API fixtures
 cannot replace missing authentication with artifact claims or an older green.
 
-These helpers have no workflow integration, dispatch, retry or metadata-skip
-capability. Before activation, producers must publish early descriptors and
+These helpers change no active workflow, dispatch, retry or metadata-skip
+behavior. Before activation, producers must publish early descriptors and
 complete aggregate proof; all selected native, documentation, security, browser
 and sync owners need complete inner validators. Actual publisher isolation,
 producer concurrency/fallback ownership and trusted caller/template compatibility
@@ -517,6 +517,37 @@ returns success, and the [frontend](https://github.com/sudo-project/sudo/blob/SU
 maps that to exit 0. Grant listings, extra text and policy/authentication errors
 remain unsupported; failure diagnostics expose only public counts, hashes and
 classification markers.
+
+The prospective
+[`protected-project-tests.yml`](../tools/repository-checks/workflows/producers/protected-project-tests.yml)
+and [`producer_workflow.py`](../tools/test-evidence/producer_workflow.py) prepare
+the reusable-PR handoff. The existing route publishes an early descriptor, one
+protected shared job executes the independently selected trusted commands, and
+a separate native publishing job commits to the complete canonical receipt
+hash. Other package owners and the existing Qt-free impact path remain intact.
+Only an already selected full-host profile is eligible; this source does not
+install Qt to obtain proof for a quick-only selection.
+
+New isolated publication requires execution schema 3 and an independently
+reconstructed source context: the original commit, its ordered immediate
+parents, their tree identities and the actual shallow boundary. Legacy schema
+1/2 validation remains available to its existing callers. The current 60 suites
+read checkout content or self-created Git fixtures, rather than asserting
+ambient history; their content fingerprints remain reusable across an unchanged
+input closure. A future suite that consumes ambient commit/history semantics
+must use the existing `candidate` scope. Source provenance is still checked for
+every original receipt.
+
+Runtime admission precedes candidate execution. Unavailable admission can leave
+the existing mandatory nonreusable path selected; a started suite failure,
+cancellation, timeout or changed post-execution environment cannot retry through
+that path. Reports and command files stay outside candidate mounts, and only
+the finished receipt becomes upload-readable after all scopes are empty.
+Production guards remain false and the prospective generation is unapproved.
+Actual boundary/full-profile qualification, exact protected generation and
+runtime-epoch deployment, native publisher qualification, Qt-free reusable
+environment support and post-merge/child consumers remain incomplete. Offline
+fixtures establish none of those hosted qualifications.
 
 The `android-build-inputs` quick suite checks dormant Phone and Pico APK source
 planning with real immutable Git histories, including standalone npm locks,

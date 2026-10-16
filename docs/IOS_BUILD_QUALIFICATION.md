@@ -83,7 +83,7 @@ checks. Both input trees must still match this reader boundary; new application
 readers invalidate the exception even for a later CI-only change.
 
 The own iOS host run also has an independent, narrower negative dependency
-boundary in `host.py`. Exactly 140 reviewed CI paths may change while both the
+boundary in `host.py`. Exactly 142 reviewed CI paths may change while both the
 protected base and merge candidate retain the complete reviewed complement of
 11,168 ordinary Git entries, including historical child differences, test
 discovery, imports, helpers, product sources, consumed documentation and modes.
@@ -143,6 +143,13 @@ unchanged. Only ordinary `100644` sources are admitted; executable modes,
 symbolic links, new siblings and native scanner inputs remain conservative.
 The required shared CI owners still validate these controls. This path admission
 neither runs the privileged manual diagnostic nor qualifies sandbox execution.
+
+The exact ordinary `tools/test-evidence/producer_workflow.py` and
+`tools/repository-checks/workflows/producers/protected-project-tests.yml` sources
+are also outside both protected iOS reader graphs. Neither is imported or
+discovered, and their Python/YAML suffixes are outside the native scan. Their
+finite admission preserves both complement identities; it does not approve the
+producer workflow, enable reusable evidence or exempt neighboring files.
 
 The two locks
 `browser-client/package-lock.json` and

@@ -396,7 +396,7 @@ class HostSelectionTests(unittest.TestCase):
         self.assertTrue(selected['full_host'])
 
     def test_exact_ci_admissions_do_not_waive_neighboring_tests_or_runtime_readers(self):
-        self.assertEqual(len(HOST.CI_ROLLOUT_PATHS),42)
+        self.assertEqual(len(HOST.CI_ROLLOUT_PATHS),43)
         for path in ('tools/test-evidence/new-reader.py','tests/project-suite-self-test-extra.py',
                      '.github/workflows/repository-checks-extra.yml'):
             self.assertTrue(self.selected([path])['include_platform'],path)
@@ -411,14 +411,18 @@ class HostSelectionTests(unittest.TestCase):
                  'tools/test-evidence/sandbox-test.py', 'tools/test-evidence/sandbox-host-test.py',
                  'tools/test-evidence/sandbox.py', 'tools/test-evidence/sandbox_host.py',
                  'tools/test-evidence/sandbox_host_fixture.py', 'tools/test-evidence/sandbox_probe.py',
-                 'tools/test-evidence/sandbox_shared.py')
+                 'tools/test-evidence/sandbox_shared.py',
+                 'tools/test-evidence/producer_workflow.py',
+                 'tools/repository-checks/workflows/producers/protected-project-tests.yml')
         selected = self.selected(paths)
         self.assertEqual(set(selected['suites']), self.ci_quick)
         self.assertFalse(selected['include_platform'])
         self.assertIn('test-evidence', selected['suites'])
         for path in ('.github/shared-sandbox.json', 'tools/test-evidence/sandbox.py',
                      'tools/test-evidence/sandbox_host.py', 'tools/test-evidence/sandbox_host_fixture.py',
-                     'tools/test-evidence/sandbox_probe.py', 'tools/test-evidence/sandbox_shared.py'):
+                     'tools/test-evidence/sandbox_probe.py', 'tools/test-evidence/sandbox_shared.py',
+                     'tools/test-evidence/producer_workflow.py',
+                     'tools/repository-checks/workflows/producers/protected-project-tests.yml'):
             candidate = deepcopy(self.tree)
             candidate[path]['sha'] = 'b' * 40
             with self.subTest(controller=path):

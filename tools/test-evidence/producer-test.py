@@ -457,5 +457,63 @@ class ProducerProtocolTests(unittest.TestCase):
             P.canonical({"oversize": "x" * P._MAX_JSON})
 
 
+class MaterializedGitContextTests(unittest.TestCase):
+    def fixture(self):
+        case = ProducerProtocolTests()
+        case.setUp()
+        case.policy = replace(case.policy, required_execution_schema=3)
+        binding = case.binding
+        context = {"profile": "streamed-candidate-source-v1", "commits": {
+            binding["merge_sha"]: {"commit": binding["merge_sha"], "tree": binding["merge_tree"], "parents": binding["merge_parents"]},
+            binding["base_sha"]: {"commit": binding["base_sha"], "tree": "1" * 40, "parents": ["6" * 40]},
+            binding["head_sha"]: {"commit": binding["head_sha"], "tree": "2" * 40, "parents": [binding["base_sha"]]},
+        }, "shallow": [binding["base_sha"]]}
+        case.receipt.update(schema=3, git_context=deepcopy(context))
+        case.receipt = signed(case.receipt, "receipt_digest")
+        case.context = replace(case.context, git_context=context)
+        case.run = replace(case.run, final_publisher=replace(case.run.final_publisher,
+            receipt_sha256=hashlib.sha256(P.canonical(case.receipt)).hexdigest()))
+        case.descriptor = P.descriptor(case.binding, case.plan, case.policy, case.run)
+        case.aggregate["descriptor_digest"] = case.descriptor["descriptor_digest"]
+        case.aggregate["results"]["shared-host"]["receipt"] = case.receipt
+        case.aggregate = signed(case.aggregate, "aggregate_digest")
+        return case
+
+    def test_schema_three_binds_original_git_shape_without_changing_content_fingerprints(self):
+        case = self.fixture()
+        self.assertTrue(case.verify()["verified"])
+        old = ProducerProtocolTests(); old.setUp()
+        self.assertEqual(case.receipt["results"], old.receipt["results"])
+        self.assertTrue(old.verify()["verified"], "legacy schema1 remains supported by its original policy")
+
+    def test_new_policy_rejects_legacy_receipts_and_missing_independent_context(self):
+        case = self.fixture()
+        for context in (None, {**case.context.git_context, "shallow": []}):
+            with self.subTest(context=context), self.assertRaises(P.ProtocolError):
+                case.verify(contexts={"shared-host": replace(case.context, git_context=context)})
+        legacy = ProducerProtocolTests(); legacy.setUp()
+        legacy.policy = replace(legacy.policy, required_execution_schema=3)
+        legacy.aggregate["descriptor_digest"] = P.descriptor(legacy.binding, legacy.plan, legacy.policy, legacy.run)["descriptor_digest"]
+        with self.assertRaises(P.ProtocolError):legacy.verify(signed(legacy.aggregate, "aggregate_digest"))
+
+    def test_context_tampering_is_rejected_even_with_recomputed_public_digests(self):
+        for mutation in ('parents', 'extra', 'missing', 'shallow', 'tree', 'mode', 'profile'):
+            case = self.fixture()
+            context = case.receipt['git_context']
+            if mutation == 'parents':context['commits'][case.binding['merge_sha']]['parents'].reverse()
+            elif mutation == 'extra':context['commits']['7'*40]={'commit':'7'*40,'tree':'8'*40,'parents':[]}
+            elif mutation == 'missing':del context['commits'][case.binding['head_sha']]
+            elif mutation == 'shallow':context['shallow']=[]
+            elif mutation == 'tree':context['commits'][case.binding['merge_sha']]['tree']='8'*40
+            elif mutation == 'mode':context['commits'][case.binding['base_sha']]['parents']=['invalid']
+            else:context['profile']='full-history-assumed'
+            case.receipt = signed(case.receipt, 'receipt_digest')
+            case.aggregate['results']['shared-host']['receipt']=case.receipt
+            case.run = replace(case.run, final_publisher=replace(case.run.final_publisher,
+                receipt_sha256=hashlib.sha256(P.canonical(case.receipt)).hexdigest()))
+            with self.subTest(mutation=mutation), self.assertRaises(P.ProtocolError):
+                case.verify(signed(case.aggregate, 'aggregate_digest'))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -53,6 +53,8 @@ INDEPENDENT_HOST_PATHS = frozenset({
     "tools/test-evidence/sandbox_host_fixture.py",
     "tools/test-evidence/sandbox_probe.py",
     "tools/test-evidence/sandbox_shared.py",
+    "tools/test-evidence/producer_workflow.py",
+    "tools/repository-checks/workflows/producers/protected-project-tests.yml",
     ".github/workflows/android-required.yml",
     ".github/android-owner-transfer.json",
     "tests/android-owner-transfer-test.py",

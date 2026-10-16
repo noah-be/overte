@@ -6,17 +6,32 @@ continues operating while the maintainer's computers are switched off.
 
 There is no branch-age requirement or waiting period. A closed pull request wakes
 the cleanup immediately. Manual runs and a fifteen-minute schedule catch other
-eligible branches. Twelve fixed branch-push workflow completions can also retry
+eligible branches. Twelve fixed branch-push owners and twenty exact manual
+owners can also retry
 closed-PR heads after CI holds clear, covering all seven permanent branches and
 their current parent, leaf and legacy platform owners. A trusted API preflight
-checks the actual fork, workflow registration, immutable source, current target
+checks the actual fork, workflow registration, immutable callback source, current target
 head and exact current topic heads named by earlier closed PRs. It checks all
 related active workflows, including native and manual work, before starting the
 original cleanup plan. A hint is not integration evidence: full ancestry,
 consumer, backup and deletion checks still run unchanged.
 
-The completion route skips history adoption and its App token. Non-push,
-unlisted, stale, still-active and hint-free notifications cannot start it.
+The completion route skips history adoption and its App token. The finite
+[`cleanup.py` registry](../tools/branch-cleanup/cleanup.py) separately admits
+twelve `push` and twenty `workflow_dispatch` IDs; six owners support both, for
+twenty-six exact workflow names and paths. Manual coverage includes the reviewed
+Android Phone/Pico build, acceptance and release owners, native baseline, shared
+and browser CI, repository checks and health, synchronization, documentation,
+dependency policy and issue intake. The cleanup workflow cannot wake itself.
+The `Shared sandbox host diagnostic` remains restricted to `main`; the other
+manual owners can only wake their actual permanent head branch. Checkout or
+target inputs cannot redirect the cleanup scope. A callback may name an older commit
+only when an immutable comparison proves it remains an ancestor of the current
+protected target. Its original workflow source is checked at that callback SHA;
+topic hints, activity checks and the final target bookend use the current SHA.
+The report records those two identities separately. This retained source is
+only a wake-up hint, never evidence that current tests passed or work integrated.
+Unlisted, unretained, still-active and hint-free notifications cannot start it.
 There is no last-event election: an older callback delivered after a newer one
 can perform the same fresh check. Once a branch is deleted, later callbacks
 find no matching current head. No durable marker or deletion-decision cache is
@@ -28,7 +43,7 @@ The schedule uses UTC minutes 7, 22, 37 and 52 to avoid the documented
 top-of-hour scheduler load while retaining four assessments per hour. Confirm
 scheduled operation with an actual `schedule`-event run; a successful closed-PR
 assessment alone does not establish that the scheduler is firing.
-Manual, dynamic and unlisted completion holds still rely on a later schedule or
+Dynamic and unlisted completion holds still rely on a later schedule or
 manual assessment; the finite retry is not a delivery-time guarantee.
 
 Every assessment reads current GitHub state. It does not authorize deletion from

@@ -1,9 +1,9 @@
 name: Automatic branch cleanup
 
 # Only trusted main supplies executable code. Closed PRs assess current work;
-# finite push completions cheaply retry exact closed-PR heads after CI holds.
+# finite push/manual completions cheaply retry current closed-PR heads after CI holds.
 # Candidate trees and downloaded artifacts are never executed.
-on: # zizmor: ignore[dangerous-triggers] PR and push-completion notifications run only trusted main cleanup code.
+on: # zizmor: ignore[dangerous-triggers] PR and finite completion notifications run only trusted main cleanup code.
   pull_request_target:
     types: [closed]
   workflow_run:
@@ -20,6 +20,20 @@ on: # zizmor: ignore[dangerous-triggers] PR and push-completion notifications ru
       - Parent qualification
       - Shared project CI
       - Workflow security
+      - Shared sandbox host diagnostic
+      - Android Phone trusted build
+      - Android Phone emulator acceptance
+      - Android Phone release candidate
+      - Browser client
+      - Issue intake
+      - Prepare native baseline
+      - Pico 4 trusted build
+      - Pico 4 device acceptance
+      - Pico 4 release candidate
+      - Repository checks
+      - Repository Health Doctor
+      - Sync test reuse
+      - Sync validation
     types: [completed]
     branches: [main, android-main, android-phone, android-vr, android-vr-pico, apple-main, apple-ios]
   schedule:
@@ -49,7 +63,10 @@ jobs:
       github.repository == 'noah-l-frank/overte' &&
       github.repository_id == '1319052603' &&
       github.workflow_ref == 'noah-l-frank/overte/.github/workflows/branch-cleanup.yml@refs/heads/main' &&
-      (github.event_name != 'workflow_run' || github.event.workflow_run.event == 'push')
+      (github.event_name != 'workflow_run' || github.event.workflow_run.event == 'push' ||
+       (github.event.workflow_run.event == 'workflow_dispatch' &&
+        ((github.event.workflow_run.workflow_id == 386334598 && github.event.workflow_run.head_branch == 'main') ||
+         contains(fromJSON('[330869250,330869251,330556274,340529251,372770820,371274083,373796501,359712487,331326815,357615945,367914894,330643004,330644216,330643006,330551824,366778169,350430503,350930894,350930895]'), github.event.workflow_run.workflow_id))))
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
@@ -81,7 +98,7 @@ jobs:
             /.github/branch-policy.json
             /.github/repository-checks.json
 
-      - name: Check current closed-PR hints after an authenticated push completion
+      - name: Check current closed-PR hints after an authenticated completion
         id: retry
         if: github.event_name == 'workflow_run'
         env:

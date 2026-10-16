@@ -2172,7 +2172,7 @@ class TerminalRetryTests(unittest.TestCase):
         self.runs = {700: self.push_run(700, 350930890)}
         self.signal = {"action": "completed", "repository": self.repository,
                        "workflow_run": copy.deepcopy(self.runs[700])}
-        self.source_changes, self.reference_changes = {}, {}
+        self.source_changes, self.reference_changes, self.comparisons = {}, {}, {}
         self.integrated = True
         self.enterContext(mock.patch.object(self.github, "get", side_effect=self.response))
         self.enterContext(mock.patch.dict(os.environ, {"GITHUB_RUN_ID": "999"}))
@@ -2188,6 +2188,10 @@ class TerminalRetryTests(unittest.TestCase):
                 "status": "completed", "conclusion": "success", "head_branch": target,
                 "head_sha": self.revision, "name": name, "path": ".github/workflows/" + filename,
                 "repository": self.repository, "head_repository": self.repository, "pull_requests": []}
+
+    def manual_run(self, identifier=700, target="main", revision=None, workflow=386334598):
+        return {**self.push_run(identifier, workflow, target), "event": "workflow_dispatch",
+                "head_sha": revision or self.revision}
 
     def response(self, suffix="", paginate=False):
         self.requests.append((suffix, paginate))
@@ -2230,7 +2234,8 @@ class TerminalRetryTests(unittest.TestCase):
             return {"ref": "refs/heads/" + target, "object": {"type": "commit", "sha": sha}}
         if suffix.startswith("compare/"):
             first = suffix[8:].split("...", 1)[0]
-            return {"status": "ahead" if self.integrated else "diverged", "behind_by": 0 if self.integrated else 1,
+            integrated = self.comparisons.get(first, self.integrated)
+            return {"status": "ahead" if integrated else "diverged", "behind_by": 0 if integrated else 1,
                     "merge_base_commit": {"sha": first}}
         if suffix.startswith("rules/branches/"):
             return [{"type": "deletion"}, {"type": "non_fast_forward"}]
@@ -2340,12 +2345,145 @@ class TerminalRetryTests(unittest.TestCase):
         with self.assertRaises(self.module.CleanupError):
             self.retry()
 
-    def test_stale_callback_and_target_movement_do_not_retry(self):
+    def test_unretained_callback_and_target_movement_do_not_retry(self):
         self.runs[700]["head_sha"] = "f" * 40
-        self.assertEqual(self.retry()["reason"], "terminal_source_not_current")
+        self.comparisons["f" * 40] = False
+        self.assertEqual(self.retry()["reason"], "terminal_source_not_retained")
         self.runs[700]["head_sha"] = self.revision
         self.reference_changes["main"] = "f" * 40
         self.assertEqual(self.retry()["reason"], "terminal_target_changed")
+
+    def test_last_manual_completion_retries_current_heads_after_old_source_activity_clears(self):
+        old = "f" * 40
+        self.active = [{**self.manual_run(800, revision=old), "status": "in_progress", "conclusion": None}]
+        self.assertEqual(self.retry()["reason"], "terminal_candidates_still_held")
+        self.active.clear()
+        self.runs[700] = self.manual_run(revision=old)
+        with mock.patch.object(self.github, "activity_holds", wraps=self.github.activity_holds) as activity:
+            result = self.retry()
+        self.assertTrue(result["retry"])
+        self.assertEqual((result["trigger_source_sha"], result["target_sha"], result["source_sha"]),
+                         (old, self.revision, self.revision))
+        self.assertEqual(activity.call_args.args[0], [{"branch": self.branch, "sha": "a" * 40,
+                                                       "base": "main", "base_sha": self.revision}])
+        self.assertIn(("compare/" + old + "..." + self.revision + "?per_page=1", False), self.requests)
+        self.assertIn(("contents/.github/workflows/shared-sandbox-host-diagnostic.yml?ref=" + old, False), self.requests)
+        self.assertNotIn("candidates", result)
+
+    def test_retained_older_push_completion_is_also_only_a_current_hint(self):
+        self.runs[700]["head_sha"] = "f" * 40
+        result = self.retry()
+        self.assertTrue(result["retry"])
+        self.assertEqual(result["target_sha"], self.revision)
+        self.assertEqual(result["trigger_source_sha"], "f" * 40)
+        self.reference_changes["main"] = "e" * 40
+        self.assertEqual(self.retry()["reason"], "terminal_target_changed")
+
+    def test_manual_owner_event_main_target_attempt_and_workflow_identity_are_finite(self):
+        original = self.manual_run()
+        variants = [dict(event="push"), dict(event="pull_request"), dict(head_branch="apple-ios"),
+                    dict(workflow_id=350930890), dict(path=".github/workflows/project-tests.yml"),
+                    dict(name="unreviewed manual"), dict(status="in_progress", conclusion=None),
+                    dict(head_repository={"id": 1, "full_name": "foreign/fork"})]
+        for changes in variants:
+            self.runs[700] = {**copy.deepcopy(original), **changes}
+            with self.subTest(changes=changes), self.assertRaises(self.module.CleanupError):
+                self.retry()
+        self.runs[700] = original
+        self.signal["workflow_run"] = {**copy.deepcopy(original), "run_attempt": 2}
+        with self.assertRaises(self.module.CleanupError):
+            self.module.terminal_retry(self.github, self.policy, self.signal)
+
+    def test_all_reviewed_manual_holders_wake_only_their_actual_current_permanent_target(self):
+        expected = {330869250, 330869251, 330556274, 340529251, 372770820, 371274083,
+                    373796501, 359712487, 331326815, 357615945, 367914894, 330643004,
+                    330644216, 330643006, 330551824, 366778169, 350430503, 386334598,
+                    350930894, 350930895}
+        self.assertEqual(self.module.MANUAL_TERMINAL_WORKFLOWS, expected)
+        self.assertNotIn(355150779, self.module.TERMINAL_WORKFLOWS, "cleanup must not wake itself")
+        scopes = {"main": "main", "android-main": "android", "android-phone": "android-phone",
+                  "android-vr": "android-vr", "android-vr-pico": "android-pico", "apple-main": "apple", "apple-ios": "ios"}
+        for workflow in sorted(expected - {386334598}):
+            for target, scope in scopes.items():
+                branch = "fix/" + scope + "/manual-held-source"
+                self.rows = [row for row in self.rows if row["protected"]]
+                self.rows.append({"name": branch, "sha": "a" * 40, "protected": False})
+                self.closed = {branch: [self.closed_pr(branch, target, "a" * 40)]}
+                self.runs[700] = self.manual_run(target=target, revision="f" * 40, workflow=workflow)
+                with self.subTest(workflow=workflow, target=target):
+                    result = self.retry()
+                    self.assertTrue(result["retry"])
+                    self.assertEqual((result["target"], result["target_sha"], result["trigger_source_sha"]),
+                                     (target, self.revision, "f" * 40))
+                    self.assertNotIn("candidates", result)
+
+    def test_registered_event_sets_do_not_admit_manual_only_pushes_or_cleanup_recursion(self):
+        self.assertEqual(self.module.PUSH_TERMINAL_WORKFLOWS,
+                         {330519645, 331117401, 340529251, 372770820, 373796501, 349116380,
+                          359712487, 331326815, 330869252, 350930890, 330551824, 347471831})
+        self.assertEqual(set(self.module.TERMINAL_WORKFLOWS), self.module.PUSH_TERMINAL_WORKFLOWS
+                         | self.module.MANUAL_TERMINAL_WORKFLOWS)
+        self.assertEqual(len(self.module.PUSH_TERMINAL_WORKFLOWS & self.module.MANUAL_TERMINAL_WORKFLOWS), 6)
+        for workflow in self.module.MANUAL_TERMINAL_WORKFLOWS - self.module.PUSH_TERMINAL_WORKFLOWS:
+            self.runs[700] = self.push_run(700, workflow)
+            with self.subTest(workflow=workflow), self.assertRaises(self.module.CleanupError):
+                self.retry()
+        self.runs[700] = {**self.manual_run(), "workflow_id": 355150779}
+        with self.assertRaises(self.module.CleanupError):
+            self.retry()
+
+    def test_other_manual_holders_do_not_admit_unprotected_targets_or_waive_remaining_activity(self):
+        self.runs[700] = self.manual_run(target="feature/main/unprotected", workflow=367914894)
+        with self.assertRaises(self.module.CleanupError):
+            self.retry()
+        self.runs[700] = self.manual_run(revision="f" * 40, workflow=367914894)
+        self.active = [{**self.manual_run(800, revision="e" * 40, workflow=330869250),
+                        "status": "in_progress", "conclusion": None}]
+        self.assertEqual(self.retry()["reason"], "terminal_candidates_still_held")
+
+    def test_older_manual_hint_still_holds_all_activity_states_and_current_topic_head(self):
+        self.runs[700] = self.manual_run(revision="f" * 40)
+        for state in ("queued", "in_progress", "waiting", "pending", "requested"):
+            self.active = [{**self.manual_run(800, revision="e" * 40), "status": state, "conclusion": None}]
+            with self.subTest(state=state):
+                self.assertEqual(self.retry()["reason"], "terminal_candidates_still_held")
+        self.active.clear()
+        self.rows[-1]["sha"] = "b" * 40
+        self.assertEqual(self.retry()["reason"], "no_current_closed_pr_hint")
+
+    def test_retained_source_requires_complete_exact_ancestry_not_only_a_zero_behind_count(self):
+        self.runs[700] = self.manual_run(revision="f" * 40)
+        original = self.response
+        for change in ({"status": "diverged"}, {"behind_by": 1}, {"merge_base_commit": {"sha": "e" * 40}},
+                       {"behind_by": False}, {"merge_base_commit": {}}, {"status": "unknown"}):
+            def altered(suffix="", paginate=False):
+                value = original(suffix, paginate)
+                return {**value, **change} if suffix.startswith("compare/") else value
+            with self.subTest(change=change), mock.patch.object(self.github, "get", side_effect=altered):
+                if change in ({"status": "diverged"}, {"behind_by": 1}, {"merge_base_commit": {"sha": "e" * 40}}):
+                    self.assertEqual(self.retry()["reason"], "terminal_source_not_retained")
+                else:
+                    with self.assertRaisesRegex(self.module.CleanupError, "invalid_terminal_source_ancestry"):
+                        self.retry()
+
+    def test_manual_failure_can_only_wake_the_unchanged_full_ancestry_plan(self):
+        self.runs[700] = self.manual_run(revision="f" * 40)
+        self.runs[700]["conclusion"] = "failure"
+        self.comparisons["f" * 40] = True
+        self.integrated = False
+        self.assertTrue(self.retry()["retry"])
+        self.assertEqual(self.module.make_plan(self.github, self.policy)["candidate_count"], 0)
+
+    def test_old_manual_cli_cannot_emit_authority_from_a_stale_trusted_checkout(self):
+        old = self.revision
+        for row in self.rows:
+            if row["name"] == "main":
+                row["sha"] = "f" * 40
+        self.runs[700] = self.manual_run(revision=old)
+        self.signal["workflow_run"] = copy.deepcopy(self.runs[700])
+        code, result, output = self.cli_retry()
+        self.assertEqual((code, output, result["status"]), (0, "retry=false\n", "deferred"))
+        self.assertEqual(result["deleted"], [])
 
     def test_payload_cannot_impersonate_the_actual_api_attempt_or_source(self):
         for field, value in (("run_attempt", 2), ("head_sha", "f" * 40), ("name", "spoofed owner")):
@@ -2476,7 +2614,7 @@ class WorkflowSafetyTests(unittest.TestCase):
         retry = self.source.split("  workflow_run:\n", 1)[1].split("  schedule:", 1)[0]
         names = re.findall(r"^      - (.+)$", retry, re.M)
         self.assertEqual(set(names), {name for name, _ in module.TERMINAL_WORKFLOWS.values()})
-        self.assertEqual(len(names), 12)
+        self.assertEqual(len(names), 26)
         self.assertIn("types: [completed]", retry)
         branches = re.search(r"branches: \[([^]]+)\]", retry).group(1).split(", ")
         self.assertEqual(set(branches), PERMANENT)
@@ -2497,6 +2635,12 @@ class WorkflowSafetyTests(unittest.TestCase):
             self.assertIn("github.event_name != 'workflow_run'", block)
         self.assertIn("steps.retry.outputs.retry == 'true'", self.source[plan:])
         self.assertIn("github.event.workflow_run.event == 'push'", self.source)
+        self.assertIn("github.event.workflow_run.workflow_id == 386334598", self.source)
+        self.assertIn("github.event.workflow_run.event == 'workflow_dispatch'", self.source)
+        self.assertIn("github.event.workflow_run.head_branch == 'main'", self.source)
+        manual = re.search(r"contains\(fromJSON\('(\[[0-9,]+\])'\), github.event.workflow_run.workflow_id\)", self.source)
+        self.assertIsNotNone(manual)
+        self.assertEqual(set(json.loads(manual.group(1))), load_cleanup().MANUAL_TERMINAL_WORKFLOWS - {386334598})
 
     def test_preflight_adoption_deferral_skips_plan_and_existing_zero_candidate_dependents(self):
         plan = self.source.split("- name: Plan from current GitHub state", 1)[1].split("- name: Build and verify", 1)[0]

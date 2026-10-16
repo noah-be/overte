@@ -81,6 +81,7 @@ CI_ROLLOUT_PATHS = frozenset({
     'tools/test-evidence/sandbox.py', 'tools/test-evidence/sandbox_host.py',
     'tools/test-evidence/sandbox_host_fixture.py', 'tools/test-evidence/sandbox_probe.py',
     'tools/test-evidence/sandbox_shared.py',
+    'tools/test-evidence/producer_workflow.py',
 })
 # These product contracts do not consume the admitted CI inputs. Their source,
 # helpers, fixtures, import/include membership AND definitions are bound below.
@@ -106,6 +107,8 @@ PROGRAM_INPUTS = (
     'tools/test-evidence/sandbox_host.py', 'tools/test-evidence/sandbox_host_fixture.py',
     'tools/test-evidence/sandbox_probe.py',
     'tools/test-evidence/sandbox_shared.py',
+    'tools/test-evidence/producer_workflow.py',
+    'tools/repository-checks/workflows/producers/protected-project-tests.yml',
     # Actual assertions consume these documents; the generic Markdown rule does
     # not exempt them. Their membership, modes and bytes remain immutable inputs.
     'android/vr/common/openxr/README.md',
@@ -117,23 +120,23 @@ PROGRAM_INPUTS = (
 # legacy-retirement/contract handoff files. Only the two separately owned foreign
 # locks are outside this complement; changed locks need mandatory package coverage.
 # These identities are not execution receipts or application-build evidence.
-REVIEWED_PROGRAMS = 'c7fad607fa6d789bff84c89db51faf802316b8629a9f0a72f5637bb7cf5c315d'
+REVIEWED_PROGRAMS = 'dd69b090c6f43957394cd2f314642991f96ff6c84ffc9c6ba6a3464bd7e8016b'
 REVIEWED_CHILD_PROGRAMS = {
-    'apple-main': '282b24e2c7e9604d17697d4833c61686818ad81d405c1d0a42b25363d6f184b8',
-    'apple-ios': '2d61137e98acdfbdbb94a3bdcd594ae7326e6148756231cd1f074d6faad264bc',
-    'android-main': '5c0188821897c1b41e52893453a50dac252385aa114dcbd205aef489a84a1e27',
-    'android-phone': '1c21e4e355491212f99329666bd88cf7f51595a357c12c381e7c2233393989d2',
-    'android-vr': '5c0188821897c1b41e52893453a50dac252385aa114dcbd205aef489a84a1e27',
-    'android-vr-pico': 'f179eeda2991cda5f3ae73a1ed8ab4746f52dc9137e6fc37ba1fa90f6bf23cb7',
+    'apple-main': '2db0388c5bb364f4f438c1a4fef4de82867803bfa9a6fe6f8520174b637c67b7',
+    'apple-ios': '4cf5737f415f0017652b5a52b966c05a6b6040be4f46cf1862e24a776550579f',
+    'android-main': '3ef4ce88f1635671d6621893e0cf78a369252250b61d9d115e8c51951c917049',
+    'android-phone': '7fcfb72ddb3af024abd148d1132c0656631e924144766bf43d8f0021bbae5c11',
+    'android-vr': '3ef4ce88f1635671d6621893e0cf78a369252250b61d9d115e8c51951c917049',
+    'android-vr-pico': 'a23a88b29bd75124fcdfd2c3e0803cb953215d63978fbcdbcdbcf4ae960a9327',
 }
 REVIEWED_PREDECESSORS = {
-    'main': 'ddbc60b686a7294978f134fc19da97eeea1388311b02073c4360a6a0335b08b5',
-    'apple-main': 'be92755061ed541a247e4455461e46fd35c3a05832f97ef80c3c63fe1100a33e',
-    'apple-ios': 'a8be32ff6623d6d7845288c9dde625e5eb6e979dca7a86fffecf5ea4b97fb925',
-    'android-main': '0ef97c4a105d6c27f637df03978566ca5e6e0f32212f50e164451ee10ac06036',
-    'android-phone': '642baa5e4b6d24637c8627d05b39a3b3b36c80c507863f05f6c08226bc6aa556',
-    'android-vr': '0ef97c4a105d6c27f637df03978566ca5e6e0f32212f50e164451ee10ac06036',
-    'android-vr-pico': '85064c6481cc680de4ed421bc982b7435e0e327ccdf29d165b35e551176bd275',
+    'main': 'c7fad607fa6d789bff84c89db51faf802316b8629a9f0a72f5637bb7cf5c315d',
+    'apple-main': '282b24e2c7e9604d17697d4833c61686818ad81d405c1d0a42b25363d6f184b8',
+    'apple-ios': '2d61137e98acdfbdbb94a3bdcd594ae7326e6148756231cd1f074d6faad264bc',
+    'android-main': '7277ba04defb5202b82090c5291dc92ce0573daeb525e6423c8fac06afe851bb',
+    'android-phone': '575452561ee3c5a1f9dec294adfbc9acc0ba868d34f2b194256ff1223fa7e416',
+    'android-vr': '7277ba04defb5202b82090c5291dc92ce0573daeb525e6423c8fac06afe851bb',
+    'android-vr-pico': '7016588ac7d2e6e12b2916a8bc2d6d4e7e12373a6584f5d6e6cd42b7fc68f68f',
 }
 CONTROL_PLANE = 'tests/device/run_control_plane_tests.py'
 PACKAGE_LOCKS = {
