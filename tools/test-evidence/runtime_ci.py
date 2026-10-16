@@ -401,10 +401,11 @@ def _process():
         'limits': {name: list(resource.getrlimit(getattr(resource, name))) for name in _LIMITS}}
 
 
-def _capture_ci_environment(selection, candidate_tree, trusted_tree, registry, *, root=ROOT, target='main', _diagnostic=False):
+def _capture_ci_environment(selection, candidate_tree, trusted_tree, registry, *, root=ROOT, target='main', _diagnostic=False, read_blob=None):
     """Actual protected BEFORE/AFTER query; no caller may invent optional tools."""
     binding = ci_profile.validate_selection(selection, candidate_tree, trusted_tree, registry,
-        target=target,policy=ci_profile.load_policy(root),require_enabled=not _diagnostic,root=root)
+                                            target=target,policy=ci_profile.load_policy(root),require_enabled=not _diagnostic,root=root,
+                                            read_blob=read_blob)
     return _measure_ci_environment(binding,root=root)
 
 
@@ -467,14 +468,15 @@ def _recorded_path(value, *, prepared=False):
 
 
 def _validate_environment(environment, qualified_at, expires_at, now, selection,
-                         candidate_tree, trusted_tree, registry, *, root=ROOT, target='main'):
+                         candidate_tree, trusted_tree, registry, *, root=ROOT, target='main', read_blob=None):
     """Admit ORIGINAL CI37 E only; provenance and before/after proof are external.
 
     No tool probe, installation or consumer environment capture occurs here.
     Changed runtime/source context cannot inherit this separate profile.
     """
     policy = ci_profile.load_policy(root)
-    binding = ci_profile.validate_selection(selection, candidate_tree, trusted_tree, registry,target=target,policy=policy,root=root)
+    binding = ci_profile.validate_selection(selection, candidate_tree, trusted_tree, registry,target=target,policy=policy,root=root,
+                                            read_blob=read_blob)
     require(type(now) is datetime and now.tzinfo is not None and now.utcoffset().total_seconds() == 0,
             'CI37 admission requires an independent UTC clock')
     def stamp(value):
@@ -627,17 +629,17 @@ def _validate_environment(environment, qualified_at, expires_at, now, selection,
             'policy_digest': ci_profile.policy_identity(policy)}
 
 
-def capture_ci_environment(selection, candidate_tree, trusted_tree, registry, *, root=ROOT, target='main'):
+def capture_ci_environment(selection, candidate_tree, trusted_tree, registry, *, root=ROOT, target='main', read_blob=None):
     """No unknown capture outcome may be represented as a reusable identity."""
     try:
-        return _capture_ci_environment(selection,candidate_tree,trusted_tree,registry,root=root,target=target)
+        return _capture_ci_environment(selection,candidate_tree,trusted_tree,registry,root=root,target=target,read_blob=read_blob)
     except CIEnvironmentError:
         raise
     except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError, subprocess.SubprocessError) as error:
         raise CIEnvironmentError('CI37 capture is unavailable; actual fallback is required') from error
 
 
-def capture_ci_environment_diagnostic(selection, candidate_tree, trusted_tree, registry, *, root=ROOT, target='main'):
+def capture_ci_environment_diagnostic(selection, candidate_tree, trusted_tree, registry, *, root=ROOT, target='main', read_blob=None):
     """Fixed source-qualified measurement only; never activation, admission or reuse.
 
     This dedicated diagnostic API retains the exact finite selection, source,
@@ -646,7 +648,7 @@ def capture_ci_environment_diagnostic(selection, candidate_tree, trusted_tree, r
     """
     try:
         return _capture_ci_environment(selection,candidate_tree,trusted_tree,registry,
-                                       root=root,target=target,_diagnostic=True)
+                                       root=root,target=target,_diagnostic=True,read_blob=read_blob)
     except CIEnvironmentError:
         raise
     except (ValueError,KeyError,TypeError,AttributeError,RuntimeError,OSError,subprocess.SubprocessError) as error:
@@ -665,7 +667,7 @@ def validate_environment(*args, **kwargs):
 
 def plan_original_reuse(environment, qualified_at, expires_at, now, original_selection,
                         current_selection, original_tree, current_tree, trusted_tree,
-                        registry, results, *, root=ROOT):
+                        registry, results, *, root=ROOT, read_blob=None):
     """Pure same-profile plan, never authentication or a renewed PASS receipt.
 
     The native adapter must authenticate the ORIGINAL schema3 receipt, owner,
@@ -673,9 +675,9 @@ def plan_original_reuse(environment, qualified_at, expires_at, now, original_sel
     conversion and no consumer environment measurement occur in this helper.
     """
     admission = validate_environment(environment, qualified_at, expires_at, now,
-        current_selection, current_tree, trusted_tree, registry, root=root)
+        current_selection, current_tree, trusted_tree, registry, root=root,read_blob=read_blob)
     original = ci_profile.validate_selection(original_selection, original_tree, trusted_tree, registry,
-                                             policy=ci_profile.load_policy(root),root=root)
+                                             policy=ci_profile.load_policy(root),root=root,read_blob=read_blob)
     require(original == admission['selection'] and type(results) is dict
         and set(results) == set(ci_profile.SUITES), 'CI37 original and current owners differ')
     selected = {**registry, 'suites': {name:registry['suites'][name] for name in ci_profile.SUITES}}

@@ -111,6 +111,7 @@ def shared_environment(binding):
         import ci_profile
         import inputs
         import runtime_ci
+        import sandbox
         source = binding.get('source')
         if not isinstance(source,str) or not re.fullmatch(r'[0-9a-f]{40}',source):
             raise ValueError('CI37 protected source identity is unavailable')
@@ -123,7 +124,8 @@ def shared_environment(binding):
             raise ValueError('CI37 candidate policy differs from protected policy')
         registry = inputs.load_registry(Path('/overte-policy/.github/test-suites.json'))
         capture = runtime_ci.capture_ci_environment_diagnostic if diagnostic else runtime_ci.capture_ci_environment
-        environment = capture(binding['selection'],tree,tree,registry,root=Path('/overte-policy'))
+        environment = capture(binding['selection'],tree,tree,registry,root=Path('/overte-policy'),
+                              read_blob=lambda oid:sandbox._git(Path('/work'),'cat-file','blob',oid,limit=64_000))
         if environment['selection'] != binding.get('profile_binding'):
             raise ValueError('CI37 actual capture differs from root-selected owner')
         return environment

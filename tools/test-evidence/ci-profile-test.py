@@ -2,6 +2,7 @@
 """Pure finite CI37 source preparation and fail-closed admission regressions."""
 
 from copy import deepcopy
+import hashlib
 import json
 from pathlib import Path
 import tempfile
@@ -37,6 +38,9 @@ class ProfileFixture(unittest.TestCase):
             "browser-client/package-lock.json",
         )}
         self.tree[C.PINNED_SOURCE] = C._pinned_source_entry(self.root)
+        self.blobs = {}
+        self.cleanup = json.loads((C.ROOT / C.DATA_PATH).read_bytes())
+        self.tree[C.DATA_PATH] = self.blob(json.dumps(self.cleanup).encode())
         self.selection = {"suites": list(C.SUITES), "reason": "reviewed-ci-only-inputs",
                           "full_host": False, "include_platform": False}
         self.policy = {"schema": 1, "enabled": False, "profile": C.PROFILE,
@@ -45,13 +49,19 @@ class ProfileFixture(unittest.TestCase):
                        "definition_digest": C.definition_digest(self.registry),
                        "generation_digest": C.generation(self.tree, self.registry)}
 
+    def blob(self, raw):
+        sha = hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\0"+raw).hexdigest()
+        self.blobs[sha] = raw
+        return {"mode":"100644","type":"blob","sha":sha}
+
     def admit(self, *, candidate=None, trusted=None, selection=None, registry=None, **options):
         return C.validate_selection(
             self.selection if selection is None else selection,
             self.tree if candidate is None else candidate,
             self.tree if trusted is None else trusted,
             self.registry if registry is None else registry,
-            policy=self.policy, require_enabled=False, root=self.root, **options)
+            policy=self.policy, require_enabled=False, root=self.root,
+            read_blob=options.pop("read_blob",self.blobs.__getitem__), **options)
 
 
 class CIProfileTests(ProfileFixture):
@@ -81,7 +91,7 @@ class CIProfileTests(ProfileFixture):
         policy = {**self.policy, "enabled": True}
         with patch.object(C, "SOURCE_READY", True):
             self.assertEqual(C.validate_selection(self.selection, self.tree, self.tree, self.registry,
-                                                policy=policy,root=self.root)["suites"], list(C.SUITES))
+                                                policy=policy,root=self.root,read_blob=self.blobs.__getitem__)["suites"], list(C.SUITES))
 
     def test_extra_missing_reordered_product_and_platform_owners_are_rejected(self):
         variants = [list(C.SUITES[:-1]), list(reversed(C.SUITES)),
@@ -295,6 +305,102 @@ class CIProfileTests(ProfileFixture):
         with self.assertRaises(C.CIProfileError):
             C.validate_selection(self.selection, self.tree, self.tree, self.registry,
                                  policy=self.policy, require_enabled=0)
+
+
+class CleanupDataTests(ProfileFixture):
+    def data_tree(self, value=None, *, raw=None):
+        tree = deepcopy(self.tree)
+        tree[C.DATA_PATH] = self.blob(json.dumps(self.cleanup if value is None else value).encode() if raw is None else raw)
+        return tree
+
+    def test_valid_holds_change_source_fingerprints_without_changing_original_runtime_binding(self):
+        value = deepcopy(self.cleanup)
+        value["holds"] = {"fix/main/held-branch":"Keep until its verified dependent PR has merged."}
+        changed = self.data_tree(value)
+        self.assertNotEqual(changed[C.DATA_PATH],self.tree[C.DATA_PATH])
+        self.assertEqual(C.generation(changed,self.registry),self.policy["generation_digest"])
+        self.assertEqual(self.admit(candidate=changed),self.admit())
+        original, candidate = deepcopy(self.tree),deepcopy(changed)
+        for path in self.registry["suites"]["branch-cleanup"]["closure"]["required"]:
+            original.setdefault(path,deepcopy(self.entry));candidate.setdefault(path,deepcopy(self.entry))
+        environment = {"fixture":"unchanged original runtime"}
+        self.assertNotEqual(inputs.suite_fingerprint(self.registry,"branch-cleanup",original,environment),
+                            inputs.suite_fingerprint(self.registry,"branch-cleanup",candidate,environment))
+
+    def test_every_guard_authenticates_both_complete_blobs_even_when_unchanged(self):
+        reads = []
+        def read(sha):
+            reads.append(sha)
+            return self.blobs[sha]
+        self.admit(read_blob=read)
+        self.assertEqual(reads,[self.tree[C.DATA_PATH]["sha"]]*2)
+        reads.clear()
+        value = deepcopy(self.cleanup);value["holds"]={"fix/main/review":"Await dependent work."}
+        changed = self.data_tree(value)
+        self.admit(candidate=changed,read_blob=read)
+        self.assertEqual(reads,[self.tree[C.DATA_PATH]["sha"],changed[C.DATA_PATH]["sha"]])
+
+    def test_closed_fixed_contract_rejects_unknown_and_changed_policy_fields_on_either_side(self):
+        variants = ({"schema":True},{"schema":2},{"repository":"overte-org/overte"},
+            {"repository_id":1319052603.0},{"keep_label":"another-label"},{"artifact_retention_days":31},
+            {"artifact_retention_days":30.0},{"permanent_branches":list(reversed(self.cleanup["permanent_branches"]))},
+            {"execute":"unreviewed-command"},{"holds":[]})
+        for change in variants:
+            tree = self.data_tree({**self.cleanup,**change})
+            for side in ("candidate","trusted"):
+                with self.subTest(change=change,side=side),self.assertRaises(C.CIProfileError):
+                    self.admit(**{side:tree})
+        missing=deepcopy(self.cleanup);missing.pop("keep_label")
+        with self.assertRaises(C.CIProfileError):self.admit(candidate=self.data_tree(missing))
+
+    def test_bounded_plain_holds_and_pure_git_branch_syntax(self):
+        for branch in ("fix/main/review","legacy-café","fix/main/"+"x"*231):
+            value={**self.cleanup,"holds":{branch:"r"*512}}
+            self.admit(candidate=self.data_tree(value))
+        value={**self.cleanup,"holds":{f"fix/main/review-{number}":"Await review." for number in range(128)}}
+        self.admit(candidate=self.data_tree(value))
+        value["holds"]["fix/main/too-many"]="Await review."
+        with self.assertRaises(C.CIProfileError):self.admit(candidate=self.data_tree(value))
+        for branch in ("", "@", "HEAD", "-option", "/start", "end/", "double//slash", "dot/../escape",
+                "dot/.hidden", "suffix.lock", "suffix.lock/nested", "trailing.", "range..name", "log@{1}",
+                "has space", "has\\slash", "has[glob", "has?glob", "has*glob", "has~tilde", "has^caret",
+                "has:colon", "has\nnewline", "fix/main/"+"x"*232, "x"*121+"é"*60):
+            value={**self.cleanup,"holds":{branch:"Await review."}}
+            with self.subTest(branch=branch),self.assertRaises(C.CIProfileError):self.admit(candidate=self.data_tree(value))
+
+    def test_blank_unbounded_control_and_structured_reasons_fail(self):
+        for reason in ("", "   ", "\u00a0", "x"*513, "line\nbreak", "tab\tbreak", "delete\x7f", "next\x85line",
+                "hidden\u200bformat", "surrogate\ud800", None, {}, ["nested"], 1):
+            value={**self.cleanup,"holds":{"fix/main/review":reason}}
+            with self.subTest(reason=repr(reason)),self.assertRaises(C.CIProfileError):
+                self.admit(candidate=self.data_tree(value))
+
+    def test_duplicate_nonfinite_invalid_utf8_and_recursive_json_fail(self):
+        duplicate=json.dumps(self.cleanup).replace('"holds": {}','"holds": {}, "holds": {}')
+        duplicate_hold=json.dumps(self.cleanup).replace('"holds": {}','"holds": {"fix/main/x":"one","fix/main/x":"two"}')
+        for raw in (duplicate.encode(),duplicate_hold.encode(),b'\xff',b'{}',b'['*2000+b'0'+b']'*2000,
+                    json.dumps(self.cleanup).replace('"holds": {}','"holds": NaN').encode(),
+                    json.dumps(self.cleanup).replace('"holds": {}','"holds": Infinity').encode()):
+            with self.subTest(raw=raw[:80]),self.assertRaises(C.CIProfileError):self.admit(candidate=self.data_tree(raw=raw))
+
+    def test_immutable_reader_cannot_supply_claimed_hash_wrong_type_unbounded_or_missing_bytes(self):
+        for reader in (None, lambda _sha:b"{}", lambda _sha:"text",lambda _sha:bytearray(b"{}"),
+                       lambda _sha:b"x"*64_001):
+            with self.subTest(reader=reader),self.assertRaises(C.CIProfileError):self.admit(read_blob=reader)
+        def unavailable(_sha):raise OSError("unavailable fixture object")
+        with self.assertRaises(C.CIProfileError):self.admit(read_blob=unavailable)
+        with self.assertRaises(C.CIProfileError):self.admit(candidate=self.data_tree(raw=b" "*64_001))
+
+    def test_only_exact_existing_ordinary_cleanup_data_path_is_admitted(self):
+        for mutation in ("missing","executable","alias","gitlink","sha256","neighbor"):
+            changed=deepcopy(self.tree)
+            if mutation=="missing":changed.pop(C.DATA_PATH)
+            elif mutation=="executable":changed[C.DATA_PATH]["mode"]="100755"
+            elif mutation=="alias":changed[C.DATA_PATH]["mode"]="120000"
+            elif mutation=="gitlink":changed[C.DATA_PATH].update(mode="160000",type="commit")
+            elif mutation=="sha256":changed[C.DATA_PATH]["sha"]="b"*64
+            else:changed[".github/branch-cleanup-extra.json"]=deepcopy(self.entry)
+            with self.subTest(mutation=mutation),self.assertRaises(C.CIProfileError):self.admit(candidate=changed)
 
 
 class PolicyFileTests(ProfileFixture):

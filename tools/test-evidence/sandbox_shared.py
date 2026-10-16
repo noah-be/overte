@@ -398,7 +398,8 @@ def run_host(*, profile=FULL_ENVIRONMENT):
                     'full_host': False, 'include_platform': False}
         tree = inputs.full_tree(ROOT, os.environ['GITHUB_SHA'])
         profile_binding = ci_profile.validate_selection(selected, tree, tree, registry,
-            policy=ci_profile.load_policy(ROOT), require_enabled=False,root=ROOT)
+            policy=ci_profile.load_policy(ROOT), require_enabled=False,root=ROOT,
+            read_blob=lambda oid:sandbox._git(ROOT,'cat-file','blob',oid,limit=64_000))
     # This fixed profile runs mandatory shared contracts, never npm Browser,
     # standalone browser journeys, platform profiles, native-ctest or app builds.
     cancelled, handlers = [], {}

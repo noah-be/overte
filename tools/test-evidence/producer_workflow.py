@@ -150,7 +150,14 @@ def _controller_identity(policy):
     return protocol.digest(identity)
 
 
-def selection_profile(policy, registry, candidate_tree, base_tree, trusted_tree, *, root=ROOT, target='main'):
+def source_blob(repository, oid):
+    """Read only a bounded immutable blob using the existing config-free reader."""
+    host.require(isinstance(oid,str) and re.fullmatch(r'[0-9a-f]{40}',oid) and set(oid) != {'0'},
+                 'CI37 data requires an immutable blob identity')
+    return sandbox._git(repository,'cat-file','blob',oid,limit=64_000)
+
+
+def selection_profile(policy, registry, candidate_tree, base_tree, trusted_tree, *, root=ROOT, target='main', read_blob=None):
     """Derive the owner from complete immutable inputs, never receipt claims."""
     inputs._validate_registry(registry)
     host.require(type(base_tree) is dict and type(trusted_tree) is dict, 'protected selection needs complete base and trusted inputs')
@@ -169,7 +176,7 @@ def selection_profile(policy, registry, candidate_tree, base_tree, trusted_tree,
             host.require(all(snapshot.get('.github/test-suites.json') == trusted_tree.get('.github/test-suites.json')
                 for snapshot in (candidate_tree,base_tree)), 'CI37 command registry differs from original trusted policy')
             binding = ci_profile.validate_selection(selected,candidate_tree,trusted_tree,registry,target=target,
-                regular=regular,unknown=False,policy=ci_profile.load_policy(root),root=root)
+                regular=regular,unknown=False,policy=ci_profile.load_policy(root),root=root,read_blob=read_blob)
         except (ci_profile.CIProfileError, OSError, ValueError) as error:
             raise PreExecutionUnavailable('selected CI37 profile has no qualified source admission') from error
         profile = ci_profile.PROFILE
@@ -197,7 +204,8 @@ def prepare(candidate, event, environment, adapter):
     if execution.platform_suites(candidate, registry['suites']):
         raise PreExecutionUnavailable('selected profile needs existing nonreusable execution')
     prepared_selection = selection_profile(policy,registry,inputs.full_tree(candidate,binding['merge_sha']),
-        inputs.full_tree(candidate,binding['base_sha']),inputs.full_tree(ROOT,refs['default']),root=ROOT,target='main')
+        inputs.full_tree(candidate,binding['base_sha']),inputs.full_tree(ROOT,refs['default']),root=ROOT,target='main',
+        read_blob=lambda oid:source_blob(candidate,oid))
     if prepared_selection['selection'] != selected:
         raise PreExecutionUnavailable('independent package/host owner needs existing actual execution')
     names = prepared_selection['suites']
@@ -298,7 +306,8 @@ def protected_receipt(batch, context, cancelled, installed):
         try:
             if context.get('profile',FULL_PROFILE) == ci_profile.PROFILE:
                 runtime_ci.validate_environment(environment,utc_seconds(now),utc_seconds(now+timedelta(hours=24)),
-                    now,context['selected'],tree,trusted_tree,context['registry'],root=ROOT)
+                    now,context['selected'],tree,trusted_tree,context['registry'],root=ROOT,
+                    read_blob=lambda oid:source_blob(batch.candidate,oid))
             else:
                 attested.validate_environment(environment, utc_seconds(now), utc_seconds(now + timedelta(hours=24)),
                                              now, root=ROOT, isolated=True)
@@ -347,7 +356,8 @@ def publication(context, descriptor, receipt, run, now, descriptor_expires_at):
                               protocol._time(descriptor_expires_at)))
     if context.get('profile',FULL_PROFILE) == ci_profile.PROFILE:
         runtime_ci.validate_environment(receipt['environment'],qualified,expires,now,context['selected'],
-            tree,inputs.full_tree(ROOT,context['refs']['default']),context['registry'],root=ROOT)
+            tree,inputs.full_tree(ROOT,context['refs']['default']),context['registry'],root=ROOT,
+            read_blob=lambda oid:source_blob(context['candidate'],oid))
     else:
         attested.validate_environment(receipt['environment'], qualified, expires, now, root=ROOT, isolated=True)
     value = {'schema': 1, 'producer': 'overte-producer-aggregate-v1', 'descriptor_digest': descriptor['descriptor_digest'],

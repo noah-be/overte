@@ -16,6 +16,7 @@ import json
 from pathlib import Path
 import re
 import stat
+import unicodedata
 
 import inputs
 
@@ -23,6 +24,7 @@ import inputs
 ROOT = Path(__file__).resolve().parents[2]
 POLICY = ".github/ci37-runtime.json"
 PINNED_SOURCE = ".github/android-orchestration.json"
+DATA_PATH = ".github/branch-cleanup.json"
 ENVIRONMENT_SCHEMA = 2
 PROFILE = "ubuntu24-ci37-v1"
 # Source-only preparation. Neither changing JSON nor a caller-selected suite
@@ -71,6 +73,12 @@ _DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 _FIELDS = frozenset({
     "schema", "enabled", "profile", "epoch", "suites", "definition_digest", "generation_digest",
     "not_before", "max_age_seconds",
+})
+_PERMANENT = (
+    "main", "android-main", "android-phone", "android-vr", "android-vr-pico", "apple-main", "apple-ios",
+)
+_CLEANUP_FIELDS = frozenset({
+    "schema", "repository", "repository_id", "permanent_branches", "holds", "keep_label", "artifact_retention_days",
 })
 
 
@@ -159,6 +167,54 @@ def _pinned_source_entry(root):
     return {"mode": "100644", "type": "blob", "sha": hashlib.sha1(header + raw).hexdigest()}
 
 
+def _hold_branch(value):
+    """Conservative pure Git branch syntax; never invoke Git for candidate data."""
+    if not isinstance(value,str) or not value or value in {"@","HEAD"} or value.startswith("-"):
+        return False
+    if any(unicodedata.category(character) in {"Cc","Cf","Cs"} or character.isspace()
+           or character in "~^:?*[\\" for character in value):
+        return False
+    try:
+        if len(value.encode("utf-8")) > 240:
+            return False
+    except UnicodeError:
+        return False
+    return not (".." in value or "@{" in value or value.endswith(".") or any(
+        not part or part.startswith(".") or part.endswith(".lock") for part in value.split("/")))
+
+
+def _cleanup_data(entry, read_blob):
+    """Authenticate and validate the one admitted immutable cleanup data blob."""
+    _require(isinstance(entry,dict) and entry.get("mode") == "100644" and entry.get("type") == "blob"
+             and isinstance(entry.get("sha"),str) and re.fullmatch(r"[0-9a-f]{40}",entry["sha"]),
+             "CI37 cleanup data requires an ordinary immutable SHA1 blob")
+    try:
+        raw = read_blob(entry["sha"])
+    except Exception:
+        raise CIProfileError("CI37 immutable cleanup data is unavailable") from None
+    _require(type(raw) is bytes and len(raw) <= 64_000, "CI37 cleanup data exceeds its immutable byte bound")
+    header = b"blob " + str(len(raw)).encode("ascii") + b"\0"
+    _require(hashlib.sha1(header+raw).hexdigest() == entry["sha"], "CI37 cleanup bytes differ from authenticated source")
+    try:
+        value = json.loads(raw.decode("utf-8"),object_pairs_hook=inputs._unique_object,
+            parse_constant=lambda _value: _require(False,"CI37 cleanup data contains a nonfinite number"))
+    except (ValueError,UnicodeError,RecursionError):
+        raise CIProfileError("CI37 cleanup data is not strict JSON") from None
+    _require(isinstance(value,dict) and set(value) == _CLEANUP_FIELDS, "unsupported CI37 cleanup data fields")
+    _require(type(value["schema"]) is int and value["schema"] == 1
+             and value["repository"] == "noah-l-frank/overte"
+             and type(value["repository_id"]) is int and value["repository_id"] == 1319052603
+             and value["permanent_branches"] == list(_PERMANENT)
+             and value["keep_label"] == "keep-branch"
+             and type(value["artifact_retention_days"]) is int and value["artifact_retention_days"] == 30,
+             "CI37 cleanup data changes a fixed policy contract")
+    holds = value["holds"]
+    _require(isinstance(holds,dict) and len(holds) <= 128, "CI37 cleanup holds exceed their reviewed bound")
+    _require(all(_hold_branch(branch) and isinstance(reason,str) and 0 < len(reason) <= 512 and reason.strip()
+        and not any(unicodedata.category(character) in {"Cc","Cf","Cs"} for character in reason)
+        for branch,reason in holds.items()), "CI37 cleanup holds contain unsupported branch names or reasons")
+
+
 def definition_digest(registry):
     """Bind commands, contexts, closures, reviewed imports and control inputs."""
     try:
@@ -181,10 +237,11 @@ def definition_digest(registry):
 def generation(tree, registry):
     """Bind an immutable broad source superset and all lookup membership.
 
-    The CI37 policy is omitted to avoid a self-cycle. Only the fixed Android
-    orchestration leaf omits its SHA to break the other reviewed anchor cycle;
-    its path/mode/type remain bound. Admission pins its complete bytes against
-    the actual protected root and both immutable trees. Neither exception can
+    The CI37 policy is omitted to avoid a self-cycle. The fixed Android leaf
+    omits its SHA to break another anchor cycle; admission pins its complete
+    bytes against the protected root and both immutable trees. The one cleanup
+    data leaf omits its SHA only with separate immutable-blob authentication and
+    closed-schema admission. Both retain path/mode/type. These exceptions never
     narrow ordinary suite fingerprints or protected controller identity.
     """
     try:
@@ -200,7 +257,7 @@ def generation(tree, registry):
             _require(entry["mode"] == "100644", "CI37 policy must be an ordinary nonexecutable blob")
             continue
         item = {"path": path, **entry}
-        if path in _VARIABLE_DATA or path == PINNED_SOURCE:
+        if path in _VARIABLE_DATA or path in {PINNED_SOURCE,DATA_PATH}:
             _require(entry["mode"] == "100644", "CI37 reviewed data must remain nonexecutable")
             del item["sha"]
         entries.append(item)
@@ -209,12 +266,14 @@ def generation(tree, registry):
 
 
 def validate_selection(selection, candidate_tree, trusted_tree, registry, *, target="main",
-                       regular=True, unknown=False, policy=None, require_enabled=True, root=ROOT):
+                       regular=True, unknown=False, policy=None, require_enabled=True, root=ROOT, read_blob=None):
     """Admit only the independently recomputed main CI37 selection and generation.
 
     Production callers leave require_enabled at its default. False is for pure
     source preparation/tests and yields no runtime or execution qualification.
     The independent router still owns changed-path and workflow authorization.
+    read_blob is a trusted bounded reader from one immutable object SHA to raw
+    bytes; this guard independently verifies both cleanup objects and schemas.
     """
     value = load_policy(root) if policy is None else _validate_policy(policy)
     _require(type(require_enabled) is bool, "invalid CI37 source preparation mode")
@@ -249,6 +308,13 @@ def validate_selection(selection, candidate_tree, trusted_tree, registry, *, tar
     pinned = _pinned_source_entry(root)
     _require(candidate_tree.get(PINNED_SOURCE) == trusted_tree.get(PINNED_SOURCE) == pinned,
              "CI37 fixed pinned source differs from the protected root or immutable trees")
+    _require(callable(read_blob), "CI37 cleanup admission requires a trusted immutable blob reader")
+    # Read both complete authenticated objects on every route, even when their
+    # OIDs match. No checked-out candidate file or claimed data class is proof.
+    for tree in (trusted_tree,candidate_tree):
+        _cleanup_data(tree.get(DATA_PATH),read_blob)
+    # Data contents belong to suite fingerprints and native source binding,
+    # not runtime E: original and current admitted holds may legitimately differ.
     return {"schema": ENVIRONMENT_SCHEMA, "profile": PROFILE, "epoch": value["epoch"],
             "suites": list(SUITES), "definition_digest": definitions,
             "generation_digest": candidate_generation, "policy_digest": policy_identity(value),

@@ -244,6 +244,9 @@ class CaptureBoundaryTests(unittest.TestCase):
         entry={'mode':'100644','type':'blob','sha':'a'*40}
         tree={C.ci_profile.POLICY:dict(entry),'tests/fixture.py':dict(entry)}
         tree[C.ci_profile.PINNED_SOURCE]=C.ci_profile._pinned_source_entry(C.ROOT)
+        data=(C.ROOT/C.ci_profile.DATA_PATH).read_bytes()
+        data_sha=C.hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+        tree[C.ci_profile.DATA_PATH]={'mode':'100644','type':'blob','sha':data_sha}
         policy=C.ci_profile.load_policy()
         policy['definition_digest']=C.ci_profile.definition_digest(registry)
         policy['generation_digest']=C.ci_profile.generation(tree,registry)
@@ -253,12 +256,12 @@ class CaptureBoundaryTests(unittest.TestCase):
         with patch.object(C.ci_profile,'load_policy',return_value=policy), \
              patch.object(C,'_query',side_effect=AssertionError('no real host query in fixture')), \
              patch.object(C,'_measure_ci_environment',return_value={'actual-measurement-fixture':True}) as measure:
-            self.assertEqual(C.capture_ci_environment_diagnostic(selected,tree,tree,registry),
+            self.assertEqual(C.capture_ci_environment_diagnostic(selected,tree,tree,registry,read_blob=lambda oid:data),
                              {'actual-measurement-fixture':True})
             self.assertEqual(measure.call_args.args[0]['suites'],list(C.ci_profile.SUITES))
             measure.reset_mock()
             changed=deepcopy(tree);changed['tests/fixture.py']['sha']='b'*40
-            with self.assertRaises(C.CIEnvironmentError):C.capture_ci_environment_diagnostic(selected,changed,tree,registry)
+            with self.assertRaises(C.CIEnvironmentError):C.capture_ci_environment_diagnostic(selected,changed,tree,registry,read_blob=lambda oid:data)
             measure.assert_not_called()
             with self.assertRaises(C.CIEnvironmentError):C.capture_ci_environment(selected,tree,tree,registry)
             measure.assert_not_called()

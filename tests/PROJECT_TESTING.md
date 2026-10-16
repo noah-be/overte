@@ -623,9 +623,11 @@ The separate source-only CI37 profile is prepared in
 profile `ubuntu24-ci37-v1`; existing full Qt environment schema 1 and execution
 receipt schema 3 remain unchanged. The exact ordered 37 CI owners, command
 definitions and a conservative immutable executable/import/discovery/lookup
-generation are mandatory. Only three fixed Markdown leaves (`README.md`,
+generation are mandatory. Three fixed Markdown leaves (`README.md`,
 `tests/PROJECT_TESTING.md`, `docs/BRANCH_WORKFLOW.md`) may change bytes; their
-membership and ordinary modes remain bound. Every workflow byte remains bound
+membership and ordinary modes remain bound. The one additional data class is
+the exact `.github/branch-cleanup.json` leaf under independent closed-schema
+admission. Every workflow byte remains bound
 because reviewed tests execute some YAML snippets. Changed
 readers, unknown paths, extra commands, control-plane full owners and platform
 suites require the existing full/nonreusable execution route.
@@ -660,8 +662,8 @@ only authenticated original E. It creates no consumer environment or proof.
 Source and policy flags remain false. The finite source/definition generation
 must be refreshed after reviewed composition; changed implementation bytes
 conservatively require actual fallback. Active workflows and protected templates
-are unchanged. Existing outer preparation still installs Java, although the
-CI37 adds no prepared Java mount or Java environment/PATH entry; the system
+are unchanged. Existing outer preparation still installs Java. CI37 adds no
+prepared Java mount or Java environment/PATH entry; the system
 `/usr` tree remains read-only. The CI37 schema asserts no Java capability.
 The canonical manual diagnostic has a separate fixed `ci37` choice, using the
 same protected source and cleanup checks with exactly 37 commands and actual E
@@ -681,13 +683,25 @@ cycle. Admission separately requires candidate == trusted == actual protected
 root whole-blob identity; the returned selection binding and sealed controller
 projection retain that SHA. No neighboring policy or reader is exempt.
 
-This initial generation has no normally routed CI37 PR proof class: its three
-variable Markdown leaves use the existing documentation route and skip shared
-host execution. The producer therefore declines an unused descriptor. Other
-CI JSON/helper changes fail the finite generation and use existing actual
-execution. A separately reviewed bounded data class with authenticated immutable
-blob schema admission is needed to make normal original-PR CI37 reuse reachable;
-manual measurement alone does not achieve that optimization.
+The fixed cleanup-data class permits only bounded `holds` changes. Its seven
+fields retain the exact fork identity, permanent branch topology, `keep-branch`
+label and 30-day retention contract. Both complete immutable tree entries must
+be ordinary existing blobs. Admission reads both object IDs through the
+trusted bounded reader, checks the complete Git blob SHA1, rejects duplicate,
+nonfinite or unknown JSON fields, and validates the closed schema. Producer
+and protected probes use the existing config-free immutable Git reader;
+postmerge uses a bounded fixed-fork Git blob API with no candidate checkout.
+These data bytes stay in actual suite fingerprints rather than environment E.
+
+A cleanup-hold JSON delta uses the existing full host route and independently
+selects exactly 37 CI commands when all other generation inputs remain fixed.
+The three variable Markdown leaves still use the documentation route and skip
+host execution; the producer declines an unused descriptor. Other JSON/helper
+changes retain existing actual execution. Source preparation and fake API/Git
+tests establish this admission boundary, without hosted qualification or
+activation. Before production enablement, canonical preparation must also move
+Java setup behind independent full-profile selection and provide the reviewed
+three-root CI37 preparation; that template change remains separate work.
 The focused offline checks are `python3 tools/test-evidence/ci-profile-test.py`
 and `python3 tools/test-evidence/runtime-ci-test.py`, plus the focused
 `ci-integration-test.py` and fake consumer cases; they use fake identity facts

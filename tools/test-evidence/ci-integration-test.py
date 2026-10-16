@@ -29,6 +29,10 @@ class SelectionIntegrationTests(unittest.TestCase):
         paths = {C.POLICY,'.github/test-suites.json','README.md','.github/workflows/project-tests.yml'}
         self.tree = {path:{'mode':'100644','type':'blob','sha':'a'*40} for path in paths}
         self.tree[C.PINNED_SOURCE]=C._pinned_source_entry(C.ROOT)
+        data=(C.ROOT/C.DATA_PATH).read_bytes()
+        oid=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+        self.tree[C.DATA_PATH]={'mode':'100644','type':'blob','sha':oid}
+        self.blobs={oid:data}
         self.base = deepcopy(self.tree); self.base['README.md']['sha']='b'*40
         self.selected = {'suites':list(C.SUITES),'reason':'reviewed-ci-only-inputs',
                          'full_host':False,'include_platform':False}
@@ -42,7 +46,7 @@ class SelectionIntegrationTests(unittest.TestCase):
 
     def prepare(self, tree=None, base=None, registry=None):
         return P.selection_profile(self.router,self.registry if registry is None else registry,
-            self.tree if tree is None else tree,self.base if base is None else base,self.base)
+            self.tree if tree is None else tree,self.base if base is None else base,self.base,read_blob=self.blobs.__getitem__)
 
     def test_actual_finite_guard_follows_independently_reconstructed_complete_delta(self):
         result=self.prepare()
@@ -206,10 +210,21 @@ class ProbeAndManualIntegrationTests(unittest.TestCase):
         entry={'mode':'100644','type':'blob','sha':hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()}
         tree={C.POLICY:entry};binding={'runtime_profile':C.PROFILE,'source':'a'*40,'selection':{'suites':list(C.SUITES)},
                                      'profile_binding':{'fixed':'binding'}}
+        def capture(*args,**options):
+            options['read_blob'](entry['sha'])
+            return {'selection':binding['profile_binding']}
+        def git(repository,*args,**options):
+            # Exercise the real reader's Path arithmetic contract: a string
+            # here would fail before its bounded subprocess guard is entered.
+            self.assertEqual(repository/'.git/objects',Path('/work/.git/objects'))
+            self.assertEqual(args,('cat-file','blob',entry['sha']))
+            self.assertEqual(options,{'limit':64_000})
+            return b'fixed immutable data'
         with (patch.object(inputs,'full_tree',return_value=tree),patch.object(inputs,'load_registry',return_value={}),
               patch.object(Path,'read_bytes',return_value=raw),
-              patch.object(runtime_ci,'capture_ci_environment',return_value={'selection':binding['profile_binding']}) as production,
-              patch.object(runtime_ci,'capture_ci_environment_diagnostic',return_value={'selection':binding['profile_binding']}) as diagnostic):
+              patch.object(sandbox,'_git',side_effect=git),
+              patch.object(runtime_ci,'capture_ci_environment',side_effect=capture) as production,
+              patch.object(runtime_ci,'capture_ci_environment_diagnostic',side_effect=capture) as diagnostic):
             self.probe.shared_environment(binding)
             production.assert_called_once();diagnostic.assert_not_called()
             self.probe.shared_environment({**binding,'diagnostic_only':True})
@@ -235,6 +250,9 @@ class ProbeAndManualIntegrationTests(unittest.TestCase):
         registry=inputs.load_registry(C.ROOT/'.github/test-suites.json')
         tree={path:{'mode':'100644','type':'blob','sha':'a'*40} for path in (C.POLICY,'.github/test-suites.json')}
         tree[C.PINNED_SOURCE]=C._pinned_source_entry(C.ROOT)
+        data=(C.ROOT/C.DATA_PATH).read_bytes()
+        data_oid=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+        tree[C.DATA_PATH]={'mode':'100644','type':'blob','sha':data_oid}
         policy={'schema':1,'enabled':False,'profile':C.PROFILE,'epoch':'manual-ci37-fixture',
             'not_before':'2026-10-16T00:00:00Z','max_age_seconds':259200,'suites':list(C.SUITES),
             'definition_digest':C.definition_digest(registry),'generation_digest':C.generation(tree,registry)}
@@ -258,6 +276,7 @@ class ProbeAndManualIntegrationTests(unittest.TestCase):
               patch.object(S,'verify_source',return_value=['protected sources']),
               patch.object(S,'prepared_tools',return_value=((),None,None,None)) as prepared,
               patch.object(S,'prepared_identity',return_value={}),patch.object(inputs,'load_registry',return_value=registry),
+              patch.object(sandbox,'_git',side_effect=lambda *a,**k:data if a[-1]==data_oid else b''),
               patch.object(inputs,'full_tree',return_value=tree),patch.object(C,'load_policy',return_value=policy),
               patch.object(C,'SOURCE_READY',False),patch.object(S,'materialize_source',return_value={'digest':'fixed','git_context':{}}),
               patch.object(S,'project_policy',return_value={}),patch.object(S,'Batch',side_effect=batch),
@@ -310,6 +329,164 @@ class ProbeAndManualIntegrationTests(unittest.TestCase):
                         '-n /usr/bin/apt-get install --no-install-recommends -y '+' '.join(packages)])
                 else:
                     self.assertFalse(log.exists())
+
+
+class CleanupDataGitRouteTests(unittest.TestCase):
+    """Real small Git/route fixtures; never production source or runtime proof."""
+    def setUp(self):
+        import subprocess
+        self.process=subprocess
+        self.folder=tempfile.TemporaryDirectory(prefix='overte-ci37-data-route-')
+        self.addCleanup(self.folder.cleanup)
+        self.repo=Path(self.folder.name)/'candidate';self.repo.mkdir()
+        self.trusted=Path(self.folder.name)/'trusted'
+        self.environment={**os.environ,'GIT_CONFIG_NOSYSTEM':'1','GIT_CONFIG_GLOBAL':os.devnull,
+            'GIT_AUTHOR_NAME':'Fixture','GIT_AUTHOR_EMAIL':'fixture@example.invalid',
+            'GIT_COMMITTER_NAME':'Fixture','GIT_COMMITTER_EMAIL':'fixture@example.invalid',
+            'GIT_TERMINAL_PROMPT':'0'}
+        for name in ('GIT_DIR','GIT_WORK_TREE','GIT_COMMON_DIR','GIT_INDEX_FILE',
+                'GIT_OBJECT_DIRECTORY','GIT_ALTERNATE_OBJECT_DIRECTORIES','GIT_CONFIG_COUNT',
+                'GIT_CONFIG_PARAMETERS'):
+            self.environment.pop(name,None)
+        self.router=P._host_policy();self.package=self.router.package_policy()
+        self.registry=inputs.load_registry(C.ROOT/'.github/test-suites.json')
+        self.git('init','-q','--initial-branch=main')
+        # Only these ordinary fixture leaves exist. The independently loaded
+        # helpers and complete60 command definitions remain the reviewed code;
+        # no fixture implementation is ever imported or executed.
+        for relative in ('.github/test-suites.json',C.POLICY,C.PINNED_SOURCE,C.DATA_PATH,
+                         'tests/platform-profile.json'):
+            self.write(relative,(C.ROOT/relative).read_bytes())
+        for relative in ('tools/test-evidence/runtime.py','tools/branch-cleanup/cleanup.py',
+                         self.router.CONTROL_PLANE):
+            self.write(relative,b'# Frozen fixture implementation; never executed.\n')
+        generation=next(item for item in self.package.workflow_generations() if item['name']=='packages-v1')
+        for relative,entry in generation['workflows'].items():
+            raw=subprocess.check_output(['git','--no-replace-objects','cat-file','blob',entry['sha']],
+                cwd=C.ROOT,stderr=subprocess.PIPE,timeout=10)
+            self.write(relative,raw)
+        self.git('add','.');self.git('commit','-qm','Create finite cleanup data fixture')
+        self.base=self.git('rev-parse','HEAD')
+        self.base_tree=inputs.full_tree(self.repo,self.base)
+        self.git('worktree','add','-q','--detach',str(self.trusted),self.base)
+        self.cleanup=json.loads((self.repo/C.DATA_PATH).read_bytes())
+        self.updated=deepcopy(self.cleanup)
+        self.updated['holds']['fix/main/kept-fixture']='Retain unfinished fixture work'
+        self.policy={'schema':1,'enabled':True,'profile':C.PROFILE,'epoch':'ci37-git-data-fixture',
+            'not_before':'2026-10-16T00:00:00Z','max_age_seconds':259200,'suites':list(C.SUITES),
+            'definition_digest':C.definition_digest(self.registry),
+            'generation_digest':C.generation(self.base_tree,self.registry)}
+        self.stack=ExitStack();self.addCleanup(self.stack.close)
+        self.stack.enter_context(patch.object(self.router,'ROOT',self.trusted))
+        self.stack.enter_context(patch.object(self.router,'package_policy',return_value=self.package))
+        self.stack.enter_context(patch.object(self.router,'REVIEWED_PROGRAMS',
+            self.router.program_digest(self.base_tree,self.repo)))
+        self.stack.enter_context(patch.object(C,'load_policy',return_value=self.policy))
+        self.stack.enter_context(patch.object(C,'SOURCE_READY',True))
+
+    def git(self,*arguments):
+        return self.process.check_output(['git','-c','core.hooksPath=/dev/null','-c','commit.gpgsign=false',
+            *arguments],cwd=self.repo,env=self.environment,stderr=self.process.PIPE,text=True,timeout=10).strip()
+
+    def write(self,relative,content):
+        path=self.repo/relative;path.parent.mkdir(parents=True,exist_ok=True)
+        path.write_bytes(content)
+
+    def candidate(self,changes=None):
+        self.git('checkout','-q','--detach',self.base)
+        self.git('checkout','-q','-B','fix/main/cleanup-data-fixture',self.base)
+        self.write(C.DATA_PATH,json.dumps(self.updated).encode())
+        for relative,content in (changes or {}).items():self.write(relative,content)
+        self.git('add','-A');self.git('commit','-qm','Change cleanup fixture data')
+        head=self.git('rev-parse','HEAD')
+        self.git('checkout','-q','-B','main',self.base)
+        self.git('merge','-q','--no-ff','--no-commit',head)
+        self.git('commit','-qm','Merge exact cleanup fixture candidate')
+        self.merge=self.git('rev-parse','HEAD')
+        repository={'full_name':'noah-l-frank/overte','id':1319052603}
+        self.event={'repository':repository,'pull_request':{
+            'base':{'ref':'main','sha':self.base,'repo':repository},
+            'head':{'ref':'fix/main/cleanup-data-fixture','sha':head,'repo':repository}}}
+        self.tree=inputs.full_tree(self.repo,self.merge)
+        self.package.validate_wiring(self.repo)
+        return self.package.candidate_plan(self.repo,self.event,self.merge)
+
+    def profile(self,read_blob=None):
+        return P.selection_profile(self.router,self.registry,self.tree,self.base_tree,self.base_tree,
+            root=self.repo,read_blob=read_blob or (lambda oid:P.source_blob(self.repo,oid)))
+
+    def test_holds_only_real_merge_selects_actual_full_host_route_and_exact37_profile(self):
+        plan=self.candidate()
+        self.assertEqual(plan['paths'],[C.DATA_PATH])
+        self.assertEqual(plan['host_mode'],'full')
+        self.assertTrue(plan['regular']);self.assertFalse(plan['unknown'])
+        self.assertEqual(self.git('show','-s','--format=%P',self.merge).split(),
+            [self.base,self.event['pull_request']['head']['sha']])
+        selected=self.router.candidate_selection(self.repo,self.event,self.merge,plan['plan'])
+        self.assertEqual(selected,{'suites':list(C.SUITES),'reason':'reviewed-ci-only-inputs',
+                                   'full_host':False,'include_platform':False})
+        reads=[]
+        def blob(oid):
+            reads.append(oid);return P.source_blob(self.repo,oid)
+        result=self.profile(blob)
+        self.assertEqual(result['selection'],selected)
+        self.assertEqual(result['profile'],C.PROFILE)
+        self.assertEqual(result['suites'],list(C.SUITES))
+        self.assertEqual(reads,[self.base_tree[C.DATA_PATH]['sha'],self.tree[C.DATA_PATH]['sha']])
+        self.assertEqual(result['binding']['generation_digest'],self.policy['generation_digest'])
+        self.assertEqual(len(self.registry['suites']),60)
+
+    def test_malformed_or_rebound_cleanup_blobs_never_receive_the_ci37_profile(self):
+        for content in (b'{"holds":{}}',json.dumps({**self.updated,'artifact_retention_days':31}).encode(),
+                        b'{"schema":1,"schema":1}'):
+            with self.subTest(content=content):
+                plan=self.candidate({C.DATA_PATH:content})
+                self.assertEqual(plan['host_mode'],'full')
+                self.assertFalse(self.router.candidate_selection(self.repo,self.event,self.merge,plan['plan'])['full_host'])
+                with self.assertRaises(P.PreExecutionUnavailable):self.profile()
+        self.candidate()
+        original=P.source_blob(self.repo,self.base_tree[C.DATA_PATH]['sha'])
+        with self.assertRaises(P.PreExecutionUnavailable):self.profile(lambda _oid:original)
+
+    def test_controller_neighbor_platform_and_extra_command_changes_cannot_inherit_ci37(self):
+        platform={'schema':1,'platform':'android','suites':[{'name':'new-platform-fixture',
+            'interpreter':'python','entrypoint':'tools/branch-cleanup/cleanup.py'}]}
+        registry=deepcopy(self.registry)
+        registry['suites']['producer-proof']['command'].append('--unreviewed-fixture-command')
+        variants={
+            'controller':{'tools/test-evidence/runtime.py':b'# Changed protected controller\n'},
+            'control-plane':{self.router.CONTROL_PLANE:b'# Changed control-plane reader\n'},
+            'neighbor':{'.github/branch-cleanup-extra.json':b'{}\n'},
+            'platform':{'tests/platform-profile.json':json.dumps(platform).encode()},
+            'extra-command':{'.github/test-suites.json':json.dumps(registry).encode()},
+        }
+        for name,changes in variants.items():
+            with self.subTest(name=name):
+                plan=self.candidate(changes)
+                self.assertEqual(plan['host_mode'],'full')
+                if name=='extra-command':
+                    with self.assertRaises(ValueError):
+                        self.router.candidate_selection(self.repo,self.event,self.merge,plan['plan'])
+                    with self.assertRaises(P.PreExecutionUnavailable):self.profile()
+                else:
+                    selected=self.router.candidate_selection(self.repo,self.event,self.merge,plan['plan'])
+                    self.assertTrue(selected['full_host'])
+                    self.assertEqual(self.profile()['profile'],P.FULL_PROFILE)
+                    if name=='platform':self.assertTrue(P.execution.platform_suites(self.repo,self.registry['suites']))
+
+    def test_changed_ci_program_keeps_legacy37_but_denies_new_protected_profile(self):
+        plan=self.candidate({'tools/branch-cleanup/cleanup.py':b'# Changed CI implementation\n'})
+        selected=self.router.candidate_selection(self.repo,self.event,self.merge,plan['plan'])
+        self.assertEqual(selected['suites'],list(C.SUITES));self.assertFalse(selected['full_host'])
+        with self.assertRaises(P.PreExecutionUnavailable):self.profile()
+
+    def test_immutable_cleanup_reader_ignores_checkout_bytes_and_candidate_git_config(self):
+        self.candidate()
+        oid=self.tree[C.DATA_PATH]['sha']
+        expected=P.source_blob(self.repo,oid)
+        self.write(C.DATA_PATH,b'uncommitted misleading bytes')
+        (self.repo/'.git/config').write_bytes(b'not valid Git configuration\n')
+        self.assertEqual(P.source_blob(self.repo,oid),expected)
 
 
 if __name__=='__main__':

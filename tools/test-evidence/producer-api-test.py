@@ -3,6 +3,7 @@
 
 from copy import deepcopy
 from dataclasses import replace
+import base64
 import hashlib
 import importlib.util
 import json
@@ -976,6 +977,84 @@ class IntegratedSourceTests(unittest.TestCase):
 
 
 class ReadOnlyBoundaryTests(unittest.TestCase):
+    def blob(self, content=b'{"holds":{}}\n'):
+        identity=hashlib.sha1(b'blob '+str(len(content)).encode()+b'\0'+content).hexdigest()
+        value={'sha':identity,'size':len(content),'encoding':'base64',
+            'content':base64.b64encode(content).decode()+'\n',
+            'url':'https://api.github.com/'+A.PREFIX+'/git/blobs/'+identity,'node_id':'fixture-node'}
+        return identity,value
+
+    def read_blob(self, identity, value, **options):
+        raw=value if isinstance(value,bytes) else json.dumps(value).encode()
+        with patch.object(A.GitHubReadOnly,'_request',return_value=raw) as request:
+            result=A.GitHubReadOnly().immutable_blob(identity,**options)
+        request.assert_called_once_with(A.PREFIX+'/git/blobs/'+identity,100_000)
+        return result
+
+    def test_immutable_blob_authenticates_exact_bytes_and_fixed_cli_endpoint(self):
+        content=b'{"holds":{}}\n'
+        identity,value=self.blob(content)
+        self.assertEqual(self.read_blob(identity,value,maximum=len(content)),content)
+        real,commands=subprocess.Popen,[]
+        raw=json.dumps(value).encode()
+        def child(command,**kwargs):
+            commands.append(command)
+            return real([sys.executable,'-c','import sys;sys.stdout.buffer.write('+repr(raw)+')'],**kwargs)
+        with patch.object(A.shutil,'which',return_value='/usr/bin/gh'), \
+             patch.object(A.subprocess,'Popen',side_effect=child):
+            self.assertEqual(A.GitHubReadOnly().immutable_blob(identity),content)
+        self.assertEqual(len(commands),1)
+        self.assertEqual(commands[0][-1],A.PREFIX+'/git/blobs/'+identity)
+        self.assertIn('GET',commands[0]);self.assertIn('github.com',commands[0])
+        self.assertIn('X-GitHub-Api-Version: 2026-03-10',commands[0])
+
+    def test_immutable_blob_has_no_path_ref_version_or_larger_limit_override(self):
+        identity,_=self.blob()
+        for invalid in (None,'0'*40,'A'*40,'a'*39,'a'*40+'?ref=main','../other',
+                A.PREFIX+'/git/blobs/'+'a'*40,'refs/heads/main'):
+            with self.subTest(identity=invalid),patch.object(A.GitHubReadOnly,'_request') as request, \
+                 self.assertRaises(A.ApiError):A.GitHubReadOnly().immutable_blob(invalid)
+            request.assert_not_called()
+        for maximum in (True,False,None,'64000',0,-1,64_001,20_000_000,1.0):
+            with self.subTest(maximum=maximum),patch.object(A.GitHubReadOnly,'_request') as request, \
+                 self.assertRaises(A.ApiError):A.GitHubReadOnly().immutable_blob(identity,maximum)
+            request.assert_not_called()
+        for options in ({'path':'policy.json'},{'ref':'main'},{'endpoint':'other'},{'api_version':'2022-11-28'}):
+            with self.subTest(options=options),patch.object(A.GitHubReadOnly,'_request') as request, \
+                 self.assertRaises(TypeError):A.GitHubReadOnly().immutable_blob(identity,**options)
+            request.assert_not_called()
+
+    def test_immutable_blob_rejects_rebound_content_identity_metadata_or_size(self):
+        identity,original=self.blob()
+        variants=[{'sha':'a'*40},{'url':'https://api.github.com/repos/overte-org/overte/git/blobs/'+identity},
+            {'url':'https://api.github.com/'+A.PREFIX+'/git/blobs/'+'a'*40},
+            {'encoding':'utf-8'},{'size':True},{'size':-1},{'size':original['size']-1},
+            {'size':64_001},{'content':[]},{'node_id':{}},{'unexpected':'field'},
+            {'content':base64.b64encode(b'altered').decode(),'size':len(b'altered')}]
+        for change in variants:
+            with self.subTest(change=next(iter(change))),self.assertRaises(A.ApiError):
+                self.read_blob(identity,{**original,**change})
+        for value in (None,[],{},'unknown'):
+            with self.subTest(shape=value),self.assertRaises(A.ApiError):self.read_blob(identity,value)
+
+    def test_immutable_blob_accepts_only_strict_canonical_base64_with_api_lf_wrapping(self):
+        identity,original=self.blob(b'a')
+        self.assertEqual(self.read_blob(identity,{**original,'content':'YQ==\n'}),b'a')
+        for content in ('YR==','YQ=','YQ===','YQ==!','YQ== ','YQ==\r\n','\u20ac', 'YQ==YQ=='):
+            with self.subTest(content=content),self.assertRaises(A.ApiError):
+                self.read_blob(identity,{**original,'content':content})
+
+    def test_immutable_blob_bounds_raw_json_and_decoded_bytes_and_rejects_duplicate_fields(self):
+        identity,value=self.blob()
+        for raw in (b' '*100_001,b'{"size":1,'+json.dumps(value).encode()[1:],
+                b'{"content":"YQ==",'+json.dumps(value).encode()[1:],b'{"size":NaN}'):
+            with self.subTest(length=len(raw)),self.assertRaises(A.ApiError):self.read_blob(identity,raw)
+        for size in (64_000,64_001):
+            content=b'a'*64_001
+            with self.subTest(size=size),self.assertRaises(A.ApiError):
+                self.read_blob(identity,{**value,'size':size,'content':base64.b64encode(content).decode()})
+        with self.assertRaises(A.ApiError):self.read_blob(identity,value,maximum=value['size']-1)
+
     def test_legacy_pr_version_is_explicit_and_unavailable_for_other_endpoints(self):
         real, commands = subprocess.Popen, []
         def child(command, **kwargs):
@@ -1236,8 +1315,26 @@ class MainCI37ConsumerTests(unittest.TestCase):
             if '*' not in path:
                 self.tree.setdefault(path,{'mode':'100644','type':'blob','sha':'a'*40})
         self.tree.update(workflow_entries)
+        # A genuine non-documentation CI data delta, independently admitted by
+        # the strict immutable-blob guard, supplies the original quick owner.
+        original_data=(C.ROOT/C.ci_profile.DATA_PATH).read_bytes()
+        current_data=json.loads(original_data)
+        current_data['holds']={'fix/main/retain-ci-fixture':'Keep the integration fixture branch'}
+        current_data=json.dumps(current_data,sort_keys=True).encode()
+        self.data_blobs={hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest():raw
+                         for raw in (original_data,current_data)}
+        old_data,new_data=self.data_blobs
+        self.tree[C.ci_profile.DATA_PATH]={'mode':'100644','type':'blob','sha':new_data}
         fixture.previous = deepcopy(self.tree)
-        fixture.previous['README.md']['sha'] = '9'*40
+        fixture.previous[C.ci_profile.DATA_PATH]['sha']=old_data
+        def blob_request(endpoint,maximum,**options):
+            self.api.calls.append(endpoint)
+            oid=endpoint.removeprefix(A.PREFIX+'/git/blobs/')
+            raw=self.data_blobs[oid]
+            return json.dumps({'sha':oid,'size':len(raw),'encoding':'base64',
+                'content':A.base64.b64encode(raw).decode()}).encode()
+        client=A.GitHubReadOnly();client._request=blob_request
+        self.api.immutable_blob=client.immutable_blob
         self.policy = fixture.real_host_policy()
         self.ci_policy = {'schema':1, 'enabled':True, 'profile':C.ci_profile.PROFILE,
             'epoch':'ci37-main-consumer-fake-v1', 'suites':list(C.ci_profile.SUITES),
@@ -1261,9 +1358,9 @@ class MainCI37ConsumerTests(unittest.TestCase):
         self.original_environment=deepcopy(environment_case.environment)
         environment_case.doCleanups()
         selected=C.producer.selection_profile(self.policy,self.registry,self.tree,
-            fixture.previous,fixture.previous,root=C.ROOT)
+            fixture.previous,fixture.previous,root=C.ROOT,read_blob=self.api.immutable_blob)
         self.original_environment['selection']=C.ci_profile.validate_selection(selected['selection'],
-            self.tree,fixture.previous,self.registry,policy=self.ci_policy,root=C.ROOT)
+            self.tree,fixture.previous,self.registry,policy=self.ci_policy,root=C.ROOT,read_blob=self.api.immutable_blob)
         _, manifests=R.runtime._requirement_inventory(C.ROOT)
         self.original_environment['trusted_execution']={**R.runtime._controller_file_hashes(manifests,C.ROOT),
             **{path:R.runtime._file_digest(C.ROOT/path) for path in R._FILES}}
@@ -1314,6 +1411,17 @@ class MainCI37ConsumerTests(unittest.TestCase):
         for call in self.selection.call_args_list:
             self.assertEqual(call.args[3:5],(self.fixture.previous,self.fixture.previous))
         self.assertFalse(proof['reusable']); self.assertFalse(proof['package_work'])
+        for oid in self.data_blobs:
+            self.assertIn(A.PREFIX+'/git/blobs/'+oid,self.api.calls)
+
+    def test_cleanup_api_bytes_are_authenticated_on_both_sides_before_original_proof_reuse(self):
+        original=self.api.immutable_blob
+        for identity in self.data_blobs:
+            with self.subTest(side=identity),patch.object(self.api,'immutable_blob',
+                    side_effect=lambda oid:b'{"rebound":true}' if oid==identity else original(oid)):
+                self.assertEqual(self.lookup(),{'reused':False,'reason':'original-proof-unavailable'})
+        with patch.object(self.api,'immutable_blob',side_effect=A.ApiError('bounded immutable read unavailable')):
+            self.assertEqual(self.lookup(),{'reused':False,'reason':'original-proof-unavailable'})
 
     def test_original_receipt_cannot_choose_extra_missing_reordered_or_full_owners(self):
         suites=list(self.module.ci_profile.SUITES)

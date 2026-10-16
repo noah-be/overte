@@ -156,7 +156,8 @@ def verify_main(event, environment, adapter, *, root=ROOT, clock=lambda: datetim
     # current plan before discovering its original native producer source.
     # The controller's original B context is independently reconstructed above;
     # using it for both plans also retains the finite full transition owner.
-    current_profile = producer.selection_profile(policy, registry, current, previous, previous, root=root)
+    read_blob = lambda oid:adapter.api.immutable_blob(oid)
+    current_profile = producer.selection_profile(policy, registry, current, previous, previous, root=root,read_blob=read_blob)
     selected = current_profile['selection']
     plan, api_policy = _policy(policy, registry, binding, controller, adapter, root, selected)
     snapshot = adapter.capture_integrated(run_id, plan, api_policy, now=clock())
@@ -164,7 +165,7 @@ def verify_main(event, environment, adapter, *, root=ROOT, clock=lambda: datetim
     original_tree_sha, original_tree = full_tree(adapter, snapshot.binding['merge_sha'])
     A.require(original_tree_sha == snapshot.binding['merge_tree'] == current_tree_sha and original_tree == current,
               'integrated file tree differs from the complete actually tested source')
-    original_profile = producer.selection_profile(policy, registry, original_tree, previous, previous, root=root)
+    original_profile = producer.selection_profile(policy, registry, original_tree, previous, previous, root=root,read_blob=read_blob)
     A.require(original_profile == current_profile, 'original and current independently selected owners differ')
     authority = P.select_authority(snapshot.observations, snapshot.binding, plan, api_policy.producer,
                                    inventory_complete=snapshot.inventory_complete, now=clock())
@@ -186,7 +187,7 @@ def verify_main(event, environment, adapter, *, root=ROOT, clock=lambda: datetim
     if original_profile['profile'] == ci_profile.PROFILE:
         reuse = runtime_ci.plan_original_reuse(original_environment, aggregate.get('qualified_at'),
             aggregate.get('expires_at'), clock(), selected, current_profile['selection'],
-            original_tree, current, local, registry, receipt['results'], root=root)
+            original_tree, current, local, registry, receipt['results'], root=root,read_blob=read_blob)
         admission = reuse['admission']
         reused_suites = reuse['reused_suites']
         runtime_admission = {'profile': admission['profile'], 'policy_digest': admission['policy_digest']}
