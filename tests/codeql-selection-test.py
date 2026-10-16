@@ -1388,6 +1388,37 @@ class SelectedResultTests(unittest.TestCase):
             self.assertEqual(RESULTS.main(), 1)
         self.assertEqual(output.getvalue(), '')
         self.assertNotIn('fake private', errors.getvalue())
+        self.assertIn('phase=current-context code=runtime-error;', errors.getvalue())
+
+    def test_cli_failure_stage_identifies_actual_failed_gate_without_disclosing_details(self):
+        from contextlib import redirect_stdout, redirect_stderr
+        import io, os, sys
+        event_file = self.root / 'server-event.json'
+        event_file.write_text(json.dumps(self.event))
+        env = {**self.env, 'GITHUB_EVENT_PATH': str(event_file)}
+        arguments = ['codeql_results.py', '--root', str(self.root), '--event-file', str(event_file)]
+        original_jobs = deepcopy(self.jobs)
+        for failure, phase in [('failed-job','selected-jobs'), ('open-finding','selected-findings'),
+                               ('invalid-event','server-event'), ('invalid-invocation','invocation')]:
+            self.jobs=deepcopy(original_jobs);self.alerts=[];self.instances={}
+            event_file.write_text(json.dumps(self.event))
+            current_env=dict(env)
+            if failure=='failed-job':self.jobs[0]['conclusion']='failure'
+            elif failure=='open-finding':
+                self.alerts=[{'number':1,'state':'open','tool':{'name':'CodeQL'},'private':'private fixture'}]
+                self.instances[1]=[{'ref':self.env['GITHUB_REF'],'category':'/language:python',
+                                   'state':'open','commit_sha':self.candidate}]
+            elif failure=='invalid-event':event_file.write_text('{"private fixture":')
+            else:current_env['GITHUB_REPOSITORY']='private fixture'
+            output,errors=io.StringIO(),io.StringIO()
+            with self.subTest(failure=failure), patch.dict(os.environ,current_env), patch.object(sys,'argv',arguments), \
+                    patch.object(RESULTS,'default_api',return_value=self.api), redirect_stdout(output),redirect_stderr(errors):
+                self.assertEqual(RESULTS.main(),1)
+            self.assertEqual(output.getvalue(),'')
+            self.assertIn('phase='+phase+' code=',errors.getvalue())
+            self.assertNotIn('private fixture',errors.getvalue())
+            self.assertNotIn(str(event_file),errors.getvalue())
+            self.assertFalse(any('sarif' in endpoint.lower() for endpoint in self.api.calls))
 
     def test_push_and_schedule_bind_exact_branch_run_source_and_selection(self):
         for event_name in ('push', 'schedule'):
@@ -1410,6 +1441,26 @@ class SelectedResultTests(unittest.TestCase):
                 self.refs['heads/main'] = self.base
                 with self.assertRaisesRegex(RESULTS.ResultError, 'advanced'): self.verify()
 
+
+
+class ResultFailureDiagnosticsTests(unittest.TestCase):
+    def test_only_fixed_public_categories_and_phases_escape(self):
+        class PrivateError(RESULTS.ResultError):
+            def __str__(self):raise AssertionError('exception text must never be read')
+        cases=[(PrivateError('private'), 'verification-rejected'),
+            (subprocess.CalledProcessError(1,['private-command'],output='private-output'), 'process-error'),
+            (OSError(13,'private-message','/private/path'), 'os-error'),
+            (KeyError('private-key'),'key-error'), (IndexError('private'),'index-error'),
+            (AttributeError('private'),'attribute-error'), (TypeError('private'),'type-error'),
+            (ValueError('private'),'value-error'), (RuntimeError('private'),'runtime-error')]
+        for error,code in cases:
+            with self.subTest(code=code):
+                value=RESULTS.failure_diagnostic(error,'selected-jobs')
+                self.assertIn('phase=selected-jobs code='+code+';',value)
+                self.assertNotIn('private',value)
+        for phase in ('/private/path',None,[],{'private':'value'}):
+            self.assertIn('phase=unavailable code=verification-rejected;',
+                          RESULTS.failure_diagnostic(PrivateError('private'),phase))
 
 
 class FakeMetadataCodeQLApi:

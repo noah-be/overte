@@ -28,6 +28,11 @@ WORKFLOW = '.github/workflows/codeql.yml'
 ANALYSIS_KEY = WORKFLOW + ':analyze'
 MAX_PAGES = 10
 PROCESSING_SECONDS = 90
+# Fixed public tokens only; exception messages, API bodies and source paths
+# remain private. These labels cannot affect qualification or retry behavior.
+_FAILURE_PHASES = frozenset({'server-event', 'invocation', 'current-context',
+    'immutable-selection', 'selected-jobs', 'selected-analyses', 'selected-findings',
+    'analysis-bookend', 'jobs-bookend', 'context-bookend'})
 TARGETS = frozenset({'main', 'apple-main', 'apple-ios', 'android-main', 'android-phone', 'android-vr', 'android-vr-pico'})
 _SHA = re.compile(r'[0-9a-f]{40}')
 _REF = re.compile(r'[A-Za-z0-9_][A-Za-z0-9_./-]*')
@@ -343,12 +348,17 @@ class Verifier:
                 raise ResultError('open CodeQL finding in a selected category blocks this candidate')
 
     def verify(self, *, processing_seconds=PROCESSING_SECONDS):
+        self.phase = 'invocation'
         require(type(processing_seconds) in (int, float) and 0 <= processing_seconds <= PROCESSING_SECONDS,
                 'invalid result-processing bound')
+        self.phase = 'current-context'
         before = self.context()
+        self.phase = 'immutable-selection'
         selected = self.plan()
+        self.phase = 'selected-jobs'
         windows = self.jobs(before, selected)
         deadline = self.clock() + processing_seconds
+        self.phase = 'selected-analyses'
         while selected:
             chosen = self.analyses(selected, windows)
             if len(chosen) == len(selected):
@@ -358,13 +368,18 @@ class Verifier:
         else:
             chosen = {}
         if selected:
+            self.phase = 'selected-findings'
             self.open_alerts(selected)
+            self.phase = 'analysis-bookend'
             for record in chosen.values():
                 current = self.obj(f'code-scanning/analyses/{positive(record.get("id"))}')
                 require(current == record, 'selected analysis changed during verification')
             require(self.analyses(selected, windows) == chosen, 'selected analysis inventory changed during verification')
+            self.phase = 'selected-findings'
             self.open_alerts(selected)
+        self.phase = 'jobs-bookend'
         require(self.jobs(before, selected) == windows, 'selected job execution changed during verification')
+        self.phase = 'context-bookend'
         require(self.context() == before, 'server candidate or run context changed during verification')
         return {'schema': 1, 'run_id': self.run_id, 'run_attempt': self.attempt, 'languages': selected,
                 'analyses': [{'id': chosen[x]['id'], 'category': chosen[x]['category'],
@@ -615,18 +630,34 @@ class MetadataVerifier:
                 'open_selected_findings': 0}
 
 
+def failure_diagnostic(error, phase):
+    """Bounded public class/phase, never arbitrary exception text or attributes."""
+    phase = phase if type(phase) is str and phase in _FAILURE_PHASES else 'unavailable'
+    categories = ((ResultError, 'verification-rejected'),
+        (subprocess.SubprocessError, 'process-error'), (OSError, 'os-error'),
+        (KeyError, 'key-error'), (IndexError, 'index-error'),
+        (AttributeError, 'attribute-error'), (TypeError, 'type-error'),
+        (ValueError, 'value-error'), (RuntimeError, 'runtime-error'))
+    code = next((name for kind, name in categories if isinstance(error, kind)), 'unavailable')
+    return f'Selected CodeQL security results could not be verified; phase={phase} code={code}; details withheld.'
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--root', type=Path, required=True)
     parser.add_argument('--event-file', type=Path, required=True)
     args = parser.parse_args()
+    verifier, phase = None, 'server-event'
     try:
         require(str(args.event_file) == os.environ.get('GITHUB_EVENT_PATH'), 'event file is not the Actions server event')
         require(args.event_file.is_file() and not args.event_file.is_symlink()
                 and args.event_file.stat().st_size <= 2_000_000, 'invalid bounded server event file')
-        result = Verifier(args.root, document(args.event_file.read_bytes()), os.environ).verify()
-    except (ValueError, TypeError, KeyError, IndexError, AttributeError, OSError, RuntimeError, subprocess.SubprocessError):
-        print('Selected CodeQL security results could not be verified; details withheld.', file=sys.stderr)
+        event = document(args.event_file.read_bytes())
+        phase = 'invocation'
+        verifier = Verifier(args.root, event, os.environ)
+        result = verifier.verify()
+    except (ValueError, TypeError, KeyError, IndexError, AttributeError, OSError, RuntimeError, subprocess.SubprocessError) as error:
+        print(failure_diagnostic(error, getattr(verifier, 'phase', phase)), file=sys.stderr)
         return 1
     print(json.dumps(result, sort_keys=True))
     return 0
