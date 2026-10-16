@@ -625,6 +625,42 @@ class LocalContractCliTests(unittest.TestCase):
         self.assertTrue(data['results']['repository_contracts']['findings'])
 
 
+class QuotedWorkflowTriggerTests(unittest.TestCase):
+    def findings(self, trigger):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ('branch-policy.json', 'repository-health.json'):
+                path = root / '.github' / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes((ROOT / '.github' / name).read_bytes())
+            path = root / '.github/workflows/repository-health.yml'
+            path.parent.mkdir()
+            path.write_text('name: Repository Health Doctor\n' + trigger + '\n'
+                            'permissions:\n  contents: read\njobs:\n  check:\n'
+                            '    runs-on: ubuntu-24.04\n    steps:\n      - run: true\n')
+            config = deepcopy(CONFIG)
+            config['required_workflows'] = [
+                {'owner_branch': 'main', 'path': '.github/workflows/repository-health.yml'}]
+            subject = HEALTH.Doctor(root, config)
+            with mock.patch.object(subject, 'policy', return_value=doctor().policy()):
+                subject.check_contracts()
+            return subject.findings['repository_contracts']
+
+    def test_valid_plain_single_and_double_quoted_trigger_keys(self):
+        for key in ('on', "'on'", '"on"'):
+            with self.subTest(key=key):
+                self.assertEqual(self.findings(key + ': workflow_dispatch'), [])
+
+    def test_missing_misspelled_misquoted_and_malformed_triggers_still_fail(self):
+        for trigger in ('', 'onn: workflow_dispatch', "'on\": workflow_dispatch",
+                        'description: "on: workflow_dispatch"', "'on': [push"):
+            with self.subTest(trigger=trigger):
+                findings = self.findings(trigger)
+                self.assertTrue(findings)
+                self.assertTrue({f.code for f in findings} &
+                                {'WORKFLOW_SYNTAX', 'WORKFLOW_YAML'})
+
+
 class QuiescenceTests(unittest.TestCase):
     NOW = datetime(2026, 9, 6, 0, 17, tzinfo=timezone.utc)
 

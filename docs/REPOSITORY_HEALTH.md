@@ -7,6 +7,8 @@ suite also invokes the real local CLI with empty GitHub tokens and verifies
 its report and exit status. The Doctor workflow handles scheduled and manual
 live audits only, avoiding a second copy of the PR fixtures and local check.
 Live audits run only from the trusted default branch.
+Local workflow validation accepts plain or quoted YAML trigger keys and still
+rejects missing structure and malformed YAML.
 
 ## Execution and freshness
 
