@@ -1427,6 +1427,19 @@ renewed proof, fabricated omitted-suite result or scanner execution is created.
 General product/package contexts and child branches still need separate
 authority. Local fixtures establish no hosted deployment qualification.
 
+The finite installation selector also admits the exact current
+`android-owned-npm5-sync-ci-v1` to `protected-producer-metadata-ci-v1`
+transition together with the exact pinned CodeQL successor. Only the caller,
+project, parent, new metadata workflow and CodeQL active endpoints may differ;
+the complete protected base must equal the trusted tree. The old CodeQL blob
+is `6d55d0fe4e9edc86204c66e1fa3967681793a2cd` and its metadata successor is
+`3a273057a38255ca368d3028594fb94227ba7c3b`. This selects every trusted host
+suite once so the first native producer receipt and first ordinary CodeQL
+analyses can bind the same merge. Capabilities and enabled policies still need
+their reviewed stable protected source beforehand. Selection grants no runtime
+admission, qualification or permission to omit a required result. The earlier
+three producer pairs and separate parent-installed metadata pair remain valid.
+
 The active workflow exactly matches `metadata-edits/codeql-pinned.yml` and pins
 the official CodeQL 2.27.2 Linux bundle through the pinned init action's `tools` URL. Init still
 uses its existing versioned hosted toolcache; a matching installation needs no

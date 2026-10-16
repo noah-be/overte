@@ -270,8 +270,11 @@ def _protected_producer_transition(tree, paths, base_tree, trusted_tree, target)
     producer_endpoints = {'.github/workflows/repository-checks.yml', '.github/workflows/project-tests.yml'}
     metadata_endpoints = {*producer_endpoints, '.github/workflows/parent-qualification.yml',
                           '.github/workflows/pr-metadata-context.yml'}
+    codeql_path = '.github/workflows/codeql.yml'
+    joint_endpoints = {*metadata_endpoints, codeql_path}
     if target != 'main' or not isinstance(paths, (tuple, list)) \
-            or len(paths) != len(set(paths)) or set(paths) not in (producer_endpoints, metadata_endpoints) \
+            or len(paths) != len(set(paths)) \
+            or set(paths) not in (producer_endpoints, metadata_endpoints, joint_endpoints) \
             or not isinstance(base_tree, dict) \
             or not isinstance(trusted_tree, dict) or trusted_tree != base_tree:
         return False
@@ -282,17 +285,28 @@ def _protected_producer_transition(tree, paths, base_tree, trusted_tree, target)
     policy = package_policy()
     generations = {generation['name']: generation['workflows'] for generation in policy.workflow_generations()}
     consumers = set(policy.CONSUMER_WORKFLOW_PATHS)
-    for old_name, new_name, endpoints, candidate_paths in (
-            ('android-owned-npm5-sync-ci-v1', 'protected-shared-producer-v1', producer_endpoints, consumers),
-            ('postmerge-original-e-v1', 'protected-producer-postmerge-original-e-v1', producer_endpoints, consumers),
-            ('postmerge-original-e-v1', 'protected-producer-ci37-v1', producer_endpoints, consumers),
+    for old_name, new_name, endpoints, candidate_paths, joint_codeql in (
+            ('android-owned-npm5-sync-ci-v1', 'protected-shared-producer-v1', producer_endpoints, consumers, False),
+            ('postmerge-original-e-v1', 'protected-producer-postmerge-original-e-v1', producer_endpoints, consumers, False),
+            ('postmerge-original-e-v1', 'protected-producer-ci37-v1', producer_endpoints, consumers, False),
             ('postmerge-original-e-v1', 'protected-producer-metadata-ci-v1', metadata_endpoints,
-             set(policy.METADATA_WORKFLOW_PATHS))):
+             set(policy.METADATA_WORKFLOW_PATHS), False),
+            ('android-owned-npm5-sync-ci-v1', 'protected-producer-metadata-ci-v1', joint_endpoints,
+             set(policy.METADATA_WORKFLOW_PATHS), True)):
         previous, producer = generations.get(old_name, {}), generations.get(new_name, {})
         if set(paths) != endpoints or set(previous) != consumers or set(producer) != candidate_paths \
-                or {path for path in consumers | candidate_paths if previous.get(path) != producer.get(path)} != endpoints \
+                or {path for path in consumers | candidate_paths if previous.get(path) != producer.get(path)} \
+                    != endpoints - ({codeql_path} if joint_codeql else set()) \
                 or any(base_tree.get(path) is not None for path in candidate_paths - consumers):
             continue
+        if joint_codeql:
+            # One exact deployment gives the original full producer and CodeQL
+            # the SAME native M. Both recipes retain reviewed extractor 2.27.2;
+            # this widens selection, never admission or passing evidence.
+            ordinary = lambda oid: {'mode': '100644', 'type': 'blob', 'sha': oid}
+            if base_tree.get(codeql_path) != ordinary('6d55d0fe4e9edc86204c66e1fa3967681793a2cd') \
+                    or tree.get(codeql_path) != ordinary('3a273057a38255ca368d3028594fb94227ba7c3b'):
+                continue
         # Reviewed complete pairs only, never an arbitrary cross-product.
         if all(snapshot.get(path) == entry
                for snapshot, workflows in ((trusted_tree, previous), (base_tree, previous), (tree, producer))
