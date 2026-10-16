@@ -1243,6 +1243,11 @@ class AndroidDefaultBootstrapTests(unittest.TestCase):
         for name in sorted(set(source.CONTROLLERS)|set(source.IMPORT_MEMBERS)):
             path=self.root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes((ROOT/name).read_bytes())
             path.chmod(0o755 if name=='tests/run-project-tests.py' else 0o644)
+        # This isolated repository is D/main, not the branch executing tests.
+        shared=(json.dumps({'schema':1,'platform':'shared','suites':[]},indent=2)+'\n').encode()
+        self.assertEqual(hashlib.sha1(b'blob '+str(len(shared)).encode()+b'\0'+shared).hexdigest(),
+            source.SHARED_PROFILE)
+        (self.root/'tests/platform-profile.json').write_bytes(shared)
         for command in (('init','--quiet'),('add','--all'),('-c','user.name=Fixture','-c','user.email=fixture@example.invalid',
                 'commit','--quiet','-m','Immutable actual default source')):gate._bootstrap_git(self.root,*command)
         self.commit=gate._bootstrap_git(self.root,'rev-parse','HEAD').decode().strip()
@@ -1273,8 +1278,9 @@ class AndroidDefaultBootstrapTests(unittest.TestCase):
 
     def test_alias_mode_changed_guard_and_untracked_import_never_execute(self):
         path=self.root/'tools/test-evidence/source_admission.py';raw=path.read_bytes()
+        profile=self.root/'tests/platform-profile.json';profile_raw=profile.read_bytes()
         alias=self.root/'guard-copy'
-        for change in ('guard','alias','mode','shadow','protection','default'):
+        for change in ('guard','alias','mode','shadow','protection','default','profile'):
             if change=='guard':path.write_bytes(raw+b'\nraise AssertionError("must never execute")\n')
             elif change=='alias':
                 alias.write_bytes(raw);path.unlink();path.symlink_to(alias)
@@ -1282,10 +1288,12 @@ class AndroidDefaultBootstrapTests(unittest.TestCase):
             elif change=='shadow':
                 (self.root/'tools/test-evidence/unknown.py').write_text('raise AssertionError("must never import")\n')
             elif change=='protection':self.branch['protected']=False
+            elif change=='profile':profile.write_text('{"schema":1,"platform":"android","suites":[]}\n')
             else:self.ref['object']['sha']='a'*40
             with self.subTest(change=change),self.assertRaises(ValueError):gate._protected_default(self.root,api=self.api)
             if path.is_symlink():path.unlink()
             path.write_bytes(raw);path.chmod(0o644)
+            profile.write_bytes(profile_raw)
             alias.unlink(missing_ok=True)
             (self.root/'tools/test-evidence/unknown.py').unlink(missing_ok=True)
             self.branch['protected']=True;self.ref['object']['sha']=self.commit

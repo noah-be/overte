@@ -365,6 +365,13 @@ class HostSelectionTests(unittest.TestCase):
         packages = HOST.package_policy()
         generations={g['name']:g['workflows'] for g in packages.workflow_generations()}
         previous,candidate_tree,paths=self.metadata_joint_transition('protected-producer-seven-target-ci-v1')
+        # The event below deliberately models main. Its immutable fixture must
+        # retain the shared profile on every branch that executes this test.
+        shared=(json.dumps({'schema':1,'platform':'shared','suites':[]},indent=2)+'\n').encode()
+        shared_sha=HOST.hashlib.sha1(b'blob '+str(len(shared)).encode()+b'\0'+shared).hexdigest()
+        self.assertEqual(shared_sha,'d63537504c20204de9d35d9be61da72a56df59c3')
+        for tree in (previous,candidate_tree):
+            tree['tests/platform-profile.json']={'mode':'100644','type':'blob','sha':shared_sha}
         self.assertEqual(set(generations['protected-producer-seven-target-ci-v1']),
                          set(packages.METADATA_WORKFLOW_PATHS))
         plan = {'candidate': 'a'*40, 'base': 'd'*40, 'plan': 'c'*64, 'host_mode': 'full',
@@ -393,6 +400,7 @@ class HostSelectionTests(unittest.TestCase):
                     for path in (ROOT/'tools/repository-checks/workflows').rglob('*.yml')
                     for raw in (path.read_bytes(),)}
         contents.update(historical_workflows())
+        contents[shared_sha]=shared
         policy = SimpleNamespace(validate_wiring=packages.validate_wiring, candidate_plan=Mock(return_value=plan),
             validate_tree_wiring=packages.validate_tree_wiring,
             workflow_generations=packages.workflow_generations, CONSUMER_WORKFLOW_PATHS=packages.CONSUMER_WORKFLOW_PATHS,
@@ -408,8 +416,9 @@ class HostSelectionTests(unittest.TestCase):
             for path in ('.github/test-suites.json', 'tests/platform-profile.json'):
                 endpoint = candidate/path
                 endpoint.parent.mkdir(parents=True, exist_ok=True)
-                endpoint.write_bytes(HOST.subprocess.check_output([
-                    'git', 'cat-file', 'blob', candidate_tree[path]['sha']], cwd=ROOT))
+                endpoint.write_bytes(contents[candidate_tree[path]['sha']] if path=='tests/platform-profile.json'
+                    else HOST.subprocess.check_output([
+                        'git', 'cat-file', 'blob', candidate_tree[path]['sha']], cwd=ROOT))
             # program_digest reads the registry by immutable blob identity.
             HOST.subprocess.check_call(['git', 'init', '-q', '--initial-branch=main', str(candidate)])
             HOST.subprocess.check_output(['git', 'hash-object', '-w', '--', '.github/test-suites.json'], cwd=candidate)
@@ -432,6 +441,7 @@ class HostSelectionTests(unittest.TestCase):
             def full_tree(root, revision):
                 return snapshots['candidate' if revision == 'a'*40 else 'base' if revision == 'd'*40 else 'trusted']
             with patch.object(producer, 'ROOT', trusted), \
+                 patch.object(HOST, 'REVIEWED_PROGRAMS', HOST.program_digest(previous)), \
                  patch.object(producer, '_host_policy', return_value=HOST), \
                  patch.object(HOST, 'package_policy', return_value=policy), \
                  patch.object(HOST.inputs, 'full_tree', side_effect=full_tree), \
