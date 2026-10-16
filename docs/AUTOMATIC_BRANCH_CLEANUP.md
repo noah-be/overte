@@ -43,6 +43,14 @@ The schedule uses UTC minutes 7, 22, 37 and 52 to avoid the documented
 top-of-hour scheduler load while retaining four assessments per hour. Confirm
 scheduled operation with an actual `schedule`-event run; a successful closed-PR
 assessment alone does not establish that the scheduler is firing.
+The separate `documentation-push-owner.yml` consumer can also wake cleanup on
+`main`, `android-phone`, `android-vr-pico`, and `apple-ios`. Its numeric workflow
+ID is resolved through that fixed filename and must match the actual run and
+the independent numeric registration, including the exact workflow name, path,
+and active state. Other newly registered workflows are not admitted by this
+rule. Its completion only requests a fresh assessment; it supplies no test or
+integration authority. An active documentation owner still holds cleanup.
+
 Dynamic and unlisted completion holds still rely on a later schedule or
 manual assessment; the finite retry is not a delivery-time guarantee.
 
