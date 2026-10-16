@@ -1,0 +1,257 @@
+#!/usr/bin/env bash
+# Copyright 2026 Overte e.V.
+# SPDX-License-Identifier: Apache-2.0
+
+set -euo pipefail
+
+readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+python3 -B -m unittest discover -s "$script_dir/../release-check" -p 'test_*.py'
+node "$script_dir/../release-check/test_tablet_users.cjs"
+python3 "$script_dir/port-contract-test.py"
+python3 "$script_dir/repository-workflow-guard-test.py"
+python3 "$script_dir/repository-provenance-test.py"
+python3 "$script_dir/foreground-watchdog-test.py"
+python3 "$script_dir/application-background-transition-test.py"
+python3 "$script_dir/serverless-background-test.py"
+python3 "$script_dir/performance/memory-pressure-policy-test.py"
+if pkg-config --exists Qt6Gui; then
+    python3 "$script_dir/performance/full-client-memory-guard-test.py"
+    python3 "$script_dir/image-decode-qt-codec-test.py"
+else
+    echo "SKIP executable memory guard test: host Qt6Gui unavailable"
+fi
+if pkg-config --exists Qt6Core || pkg-config --exists Qt5Core; then
+    python3 "$script_dir/ktx-allocation-budget-test.py"
+else
+    echo "SKIP executable KTX allocation test: host Qt Core unavailable"
+fi
+python3 "$script_dir/render-observations-test.py"
+python3 "$script_dir/build-cli-test.py"
+python3 "$script_dir/dsym-content-test.py"
+python3 "$script_dir/command-timeout-test.py"
+python3 "$script_dir/e2e-test-build-contract-test.py"
+python3 "$script_dir/e2e-accessibility-identifiers-test.py"
+if pkg-config --exists Qt6Core; then
+    python3 "$script_dir/native-crash-test.py"
+    python3 "$script_dir/log-console-backpressure-test.py"
+else
+    echo "SKIP executable native crash hook test: host Qt6Core unavailable"
+fi
+python3 "$script_dir/e2e-observation-publication-test.py"
+python3 "$script_dir/fedora-e2e-producer-contract-test.py"
+python3 "$script_dir/personal-team-e2e-kit-contract-test.py"
+python3 "$script_dir/simulator-smoke-contract-test.py"
+python3 "$script_dir/runtime-candidate-verifier-test.py"
+python3 "$script_dir/io001-candidate-verifier-test.py"
+python3 "$script_dir/io001-simulator-plan-test.py"
+python3 "$script_dir/sideload-ipa-normalizer-test.py"
+python3 "$script_dir/sideload-repackage-workflow-contract-test.py"
+python3 "$script_dir/interface-simulator-smoke-test.py"
+python3 "$script_dir/interface-world-simulator-smoke-test.py"
+python3 "$script_dir/interface-world-simulator-lldb-test.py"
+python3 "$script_dir/symbolicate-simulator-crash-test.py"
+python3 "$script_dir/interface-ios-domain-login-thread-contract-test.py"
+python3 "$script_dir/interface-ios-display-mode-contract-test.py"
+python3 "$script_dir/interface-ios-test-script-startup-contract-test.py"
+python3 "$script_dir/world-runtime-evidence-test.py"
+python3 "$script_dir/world-runtime-workflow-contract-test.py"
+python3 "$script_dir/simulator-install-diagnostic-workflow-test.py"
+python3 "$script_dir/ipad-device-acceptance-test.py"
+python3 "$script_dir/ipad-signing-verifier-test.py"
+python3 "$script_dir/interface-runtime-workflow-contract-test.py"
+python3 "$script_dir/bundle-metadata-test.py"
+python3 "$script_dir/client-bundle-metadata-test.py"
+python3 "$script_dir/device-results-validator-test.py"
+python3 "$script_dir/conan-graph-audit-test.py"
+python3 "$script_dir/entity-conan-contract-test.py"
+python3 "$script_dir/entity-dynamic-qt6-variant-contract-test.py"
+python3 "$script_dir/entity-change-thread-test.py"
+python3 "$script_dir/fbx-reader-qt6-contract-test.py"
+python3 "$script_dir/fbx-writer-qt6-variant-contract-test.py"
+python3 "$script_dir/ios-script-bridge-qt6-contract-test.py"
+python3 "$script_dir/ios-header-guard-test.py"
+python3 "$script_dir/keyboard-mouse-qt6-touch-contract-test.py"
+python3 "$script_dir/mobile-world-tap-test.py"
+python3 "$script_dir/compatibility-debt-test.py"
+python3 "$script_dir/core5compat-cmake-contract-test.py"
+python3 "$script_dir/ios-static-codec-plugin-contract-test.py"
+python3 "$script_dir/ios-static-runtime-linkage-test.py"
+python3 "$script_dir/static-qml-plugin-link-test.py"
+python3 "$script_dir/client-compiler-cache-key-test.py"
+python3 "$script_dir/integrated-host-gate-test.py"
+python3 "$script_dir/ios-full-client-sccache-contract-test.py"
+python3 "$script_dir/compiler-watchdog-test.py"
+python3 "$script_dir/qt-per-object-checkpoint-contract-test.py"
+python3 "$script_dir/build-heartbeat-test.py"
+python3 "$script_dir/runner-telemetry-test.py"
+python3 "$script_dir/ios-integrated-recovery-contract-test.py"
+python3 "$script_dir/qt-checkpoint-artifact-test.py"
+python3 "$script_dir/merge-compiler-checkpoint-test.py"
+python3 "$script_dir/qt-source-recovery-contract-test.py"
+# Execute real Qt 6 loading and interaction tests. All iOS CI entry points
+# install the same host QML dependencies; developer hosts may omit them.
+if command -v pkg-config >/dev/null && pkg-config --exists Qt6Qml; then
+    python3 "$script_dir/development-reload-test.py"
+    python3 "$script_dir/tablet-close-hit-target-test.py"
+    python3 "$script_dir/../../tests/device/contracts/tablet/test_tablet_qml.py"
+    python3 "$script_dir/ios-web-selected-qml-test.py"
+    python3 "$script_dir/../../tests/device/contracts/chat/test_chat_qml.py"
+    python3 "$script_dir/../../tests/device/contracts/snapshot/test_snapshot_qml.py"
+    OVERTE_NATIVE_QT_MAJOR=6 python3 "$script_dir/../../tests/device/contracts/script_assets/test_script_assets_qml.py"
+    python3 "$script_dir/../../tests/device/contracts/audio/test_recorded_voice_qml.py"
+    python3 "$script_dir/../../libraries/qml/contracts/test_native_web.py"
+    "$script_dir/../../tests/device/qml/run-qml-tests.sh"
+else
+    echo "SKIP executable development reload and tablet tests: host Qt6Qml unavailable"
+fi
+python3 "$script_dir/interface-ios-macos-source-isolation-test.py"
+python3 "$script_dir/interface-ios-input-platform-test.py"
+python3 "$script_dir/interface-ios-platform-reporting-test.py"
+python3 "$script_dir/interface-ios-window-platform-test.py"
+python3 "$script_dir/ios-avatar-viewpoint-physics-contract-test.py"
+python3 "$script_dir/ios-touch-ui-adapter-contract-test.py"
+python3 "$script_dir/shared-ios-desktop-api-isolation-test.py"
+python3 "$script_dir/audio-adapter-test.py"
+python3 "$script_dir/audio-permission-request-test.py"
+python3 "$script_dir/../../tests/device/contracts/audio/test_ios_audio_caller.py"
+python3 "$script_dir/native_contracts/test_ios_input_buffer.py"
+# The full iOS qualification uses Qt6 and must execute the shared OBJ/MTL hierarchy check.
+OVERTE_NATIVE_QT_MAJOR=6 python3 "$script_dir/../../tests/device/contracts/script_assets/test_obj_material_bundle.py"
+if command -v pkg-config >/dev/null && pkg-config --exists Qt6Core; then
+    python3 "$script_dir/../../tests/device/contracts/audio/test_recorded_voice_test.py"
+    python3 "$script_dir/../../tests/device/contracts/snapshot/test_snapshot_native.py"
+    python3 "$script_dir/ios-web-document-epoch-test.py"
+    python3 "$script_dir/ios-web-channel-test.py"
+    python3 "$script_dir/../tools/tests/test-qt-mutex-patch.py"
+    python3 "$script_dir/../../tests/device/contracts/dependency/test_cache.py"
+    python3 "$script_dir/../../tests/device/contracts/lifecycle/test_v8_wrapper_teardown.py"
+    python3 "$script_dir/../../tests/device/contracts/lifecycle/test_entity_script_unload_scope.py"
+    python3 "$script_dir/../../tests/device/contracts/lifecycle/test_domain_list_receiver.py"
+    python3 "$script_dir/../../tests/device/contracts/lifecycle/test_domain_list_history.py"
+    python3 "$script_dir/../../tests/device/contracts/lifecycle/test_ios_render_environment.py"
+    python3 "$script_dir/../../tests/device/contracts/audio/test_ios_output_recovery.py"
+    python3 "$script_dir/native_contracts/test_mute_caller.py"
+    python3 "$script_dir/native_contracts/test_graphics_preferences.py"
+    python3 "$script_dir/../../tests/device/contracts/audio/test_audio_device_selection.py"
+    python3 "$script_dir/../../tests/device/contracts/audio/test_recording_safety.py"
+    python3 "$script_dir/../../tests/device/contracts/audio/test_injector_buffer_publication.py"
+    python3 "$script_dir/../../tests/device/contracts/audio/test_injector_event_delivery.py"
+else
+    echo "SKIP executable wrapper teardown test: host Qt6Core unavailable"
+fi
+
+if command -v pkg-config >/dev/null && pkg-config --exists Qt6Concurrent; then
+    python3 "$script_dir/../../tests/device/contracts/audio/test_injector_preparation_lifetime.py"
+else
+    echo "SKIP executable injector lifetime test: host Qt6Concurrent unavailable"
+fi
+
+if command -v node >/dev/null; then
+    python3 "$script_dir/../../tests/device/contracts/audio/test_sample_sound_controls.py"
+else
+    echo "SKIP executable sample sound controls: host Node unavailable"
+fi
+
+# Native renderer source/CMake contracts. Keep this list alphabetical so graph
+# drift is reviewable and every contract runs exactly once in the host suite.
+readonly rendering_contracts=(
+    application-graphics-ios-diagnostics-test.py
+    display-plugins-ios-gl-link-removal-test.py
+    display-plugins-ios-source-isolation-test.py
+    display-plugins-ios-vulkan-cmake-test.py
+    gl-canvas-ios-vulkan-isolation-test.py
+    gpu-vk-ios-link-contract-test.py
+    graphics-engine-backend-include-contract-test.py
+    interface-ios-gl-diagnostics-isolation-test.py
+    interface-ios-gl-link-audit-test.py
+    interface-ios-gl-link-removal-test.py
+    interface-ios-gl-telemetry-isolation-test.py
+    ios-explicit-gl-api-debt-test.py
+    ios-moltenvk-argument-buffer-contract-test.py
+    ios-offscreen-qml-backend-audit-test.py
+    ios-opengles-compatibility-link-test.py
+    ios-render-forensics-contract-test.py
+    ios-rendering-backend-contract-test.py
+    ios-vulkan-buffer-safety-contract-test.py
+    ios-vulkan-buffer-upload-barrier-test.py
+    ios-vulkan-device-creation-contract-test.py
+    ios-vulkan-external-texture-gate-test.py
+    ios-vulkan-hybrid-gl-migration-test.py
+    ios-vulkan-pipeline-key-contract-test.py
+    ios-vulkan-platform-backend-test.py
+    ios-vulkan-quick-copy-gate-test.py
+    ios-vulkan-shader-dialect-contract-test.py
+    ios-vulkan-texture-memory-contract-test.py
+    offscreen-qml-context-contract-test.py
+    quick-texture-copy-abi-test.py
+    rendering-compatibility-cmake-preflight-test.py
+    rendering-integration-inventory-test.py
+    rendering-target-ownership-acceptance-test.py
+    resource-image-item-ios-contract-test.py
+    vk-ios-gl-interop-helper-contract-test.py
+    vk-qt-public-api-contract-test.py
+    vulkan-descriptor-snapshot-test.py
+    vulkan-display-ios-context-restore-test.py
+    vulkan-display-ios-gl-helper-isolation-test.py
+    vulkan-display-ios-ktx-capture-gate-test.py
+    vulkan-display-ios-main-thread-resize-test.py
+    vulkan-display-ios-output-pending-test.py
+    draw-info-object-index-test.py
+    gpu-draw-breadcrumbs-test.py
+    vulkan-draw-info-binding-test.py
+    vulkan-framebuffer-blit-test.py
+    vulkan-framebuffer-lifetime-test.py
+    vulkan-index-range-test.py
+    vulkan-input-binding-test.py
+    vulkan-ios-frame-recycling-test.py
+    vulkan-ios-surface-contract-test.py
+    vulkan-submit-progress-test.py
+    image-decode-budget-test.py
+    vulkan-texture-upload-sync-test.py
+)
+for contract in "${rendering_contracts[@]}"; do
+    python3 "$script_dir/$contract"
+done
+
+python3 "$script_dir/vulkan-index-range-test.py" --mutation
+OVERTE_INDEX_RANGE_MUTATION=1 python3 "$script_dir/vulkan-input-binding-test.py"
+
+python3 "$script_dir/sbom-test.py"
+python3 "$script_dir/windows-handoff-test.py"
+python3 "$script_dir/variant-map-script-value-qt6-contract-test.py"
+python3 "$script_dir/release-readiness-test.py"
+python3 "$script_dir/ci-log-sanitizer-test.py"
+python3 "$script_dir/moltenvk-diagnostics-sanitizer-test.py"
+python3 "$script_dir/pending-deep-link-test.py"
+python3 "$script_dir/qrc-file-resource-path-contract-test.py"
+python3 "$script_dir/overte-address-test.py"
+python3 "$script_dir/lifecycle-state-test.py"
+python3 "$script_dir/entity-integration-inventory-test.py"
+python3 "$script_dir/entity-integration-cmake-gate-test.py"
+python3 "$script_dir/entity-gate-telemetry-test.py"
+python3 "$script_dir/entity-gate-log-validator-test.py"
+python3 "$script_dir/entity-evidence-handoff-test.py"
+python3 "$script_dir/v8-ios-checkpoint-contract-test.py"
+python3 "$script_dir/v8-build-plan-test.py"
+python3 "$script_dir/sccache-stats-report-test.py"
+python3 "$script_dir/../tools/tests/test-prepare-qt-ios.py"
+python3 "$script_dir/../tools/tests/test-build-qt-ios-from-source.py"
+bash -n "$script_dir/../build-ios.sh"
+cmake -P "$script_dir/qt-compat-test.cmake"
+cmake -P "$script_dir/qt5-compat-test.cmake"
+cmake -P "$script_dir/find-moltenvk-test.cmake"
+
+# Product-owned native adapters and acceptance regressions run in the iOS gate.
+python3 "$script_dir/native-web-wiring-test.py"
+python3 "$script_dir/snapshot-export-operation-test.py"
+python3 "$script_dir/snapshot-export-bundle-test.py"
+python3 "$script_dir/document-import-test.py"
+python3 "$script_dir/document-picker-handoff-test.py"
+python3 "$script_dir/native-block-lifetime-test.py"
+python3 "$script_dir/embedded-web-surface-state-test.py"
+if pkg-config --exists Qt6Gui; then
+    python3 "$script_dir/native-web-adapter-test.py"
+fi
+python3 -B -m unittest discover -s "$script_dir/../../tests/device/ios/self_tests" -p "test_*.py"
+python3 "$script_dir/native_contracts/test_acoustic_capture.py"
+python3 "$script_dir/native_contracts/test_entity_consent_application.py"

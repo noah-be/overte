@@ -575,6 +575,8 @@ class BranchPolicyTests(unittest.TestCase):
 
     def test_shared_control_paths_follow_existing_privileged_transfer_rules(self):
         paths = (
+            "tools/test-evidence/inputs.py",
+            ".github/test-suites.json",
             ".github/native-tests.json",
             ".github/workflows/native-tests.yml",
             ".github/workflows/native-dependencies.yml",

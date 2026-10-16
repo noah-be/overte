@@ -20,6 +20,9 @@ import sys
 import time
 import zipfile
 
+# Native source admission includes every import lookup member. Do not create
+# bytecode in that protected lookup before it is independently authenticated.
+sys.dont_write_bytecode = True
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG = ROOT / ".github/sync-test-reuse.json"
@@ -33,6 +36,14 @@ _tool_spec = importlib.util.spec_from_file_location(
     "sync_tool_dependencies", ROOT / "tools/repository-checks/tool_dependencies.py")
 tool_dependencies = importlib.util.module_from_spec(_tool_spec)
 _tool_spec.loader.exec_module(tool_dependencies)
+_package_spec = importlib.util.spec_from_file_location(
+    "sync_package_checks", ROOT / "tools/repository-checks/package_checks.py")
+package_checks = importlib.util.module_from_spec(_package_spec)
+_package_spec.loader.exec_module(package_checks)
+_input_spec = importlib.util.spec_from_file_location(
+    "sync_suite_inputs", ROOT / "tools/test-evidence/inputs.py")
+suite_inputs = importlib.util.module_from_spec(_input_spec)
+_input_spec.loader.exec_module(suite_inputs)
 
 
 class GateError(ValueError):
@@ -110,6 +121,10 @@ class GitHubApi:
             ).stdout
         except (OSError, subprocess.CalledProcessError) as error:
             raise EvidenceError(f"qualification artifact download failed ({safe_api_error(error)})") from error
+
+    def native_producer_api(self, controller):
+        """Use the existing fixed-fork, versioned, bounded GET transport."""
+        return controller.A.GitHubReadOnly()
 
 
 @dataclass(frozen=True)
@@ -413,12 +428,20 @@ def classify_event(event: dict, config: dict, api: GitHubApi) -> SyncRequest | N
         for item in changed_documents
     )
     tool_only = False
-    if not repairs and tool_dependencies.affected_projects(list(changed)):
+    package_enabled = package_checks.activated(event)
+    bounded_projects = (tool_dependencies.affected_projects(list(changed), include_s3=True)
+                        if package_enabled else tool_dependencies.affected_projects(list(changed)))
+    if not repairs and bounded_projects:
         # Both sides must be regular blobs. Include rename sources in `changed`
         # so an unrelated source/build path cannot disappear into this lane.
         tool_only = True
         for sha in (current_base, merge_sha):
             _, tree = recursive_tree(api, repository, sha, error_type=GateError)
+            if package_checks.S3 in bounded_projects:
+                try:
+                    package_checks.validate_tree_wiring(tree)
+                except ValueError as error:
+                    raise GateError(str(error)) from error
             if any(path in tree and (tree[path]["mode"] != "100644" or tree[path]["type"] != "blob")
                    for path in changed):
                 tool_only = False
@@ -447,15 +470,173 @@ def recursive_tree(api: GitHubApi, repository: str, commit_sha: str, error_type=
             raise error_type("GitHub API returned an incomplete recursive tree")
         entries: dict[str, dict[str, str]] = {}
         for item in value["tree"]:
-            if item.get("type") != "blob":
+            if not isinstance(item, dict):
+                raise error_type("GitHub API returned malformed tree data")
+            if item.get("type") == "tree":
                 continue
-            entry = {key: item[key] for key in ("path", "mode", "type", "sha")}
+            if item.get("type") not in {"blob", "commit"}:
+                raise error_type("GitHub API returned an unsupported tree object")
+            try:
+                entry = {key: item[key] for key in ("path", "mode", "type", "sha")}
+            except KeyError as error:
+                raise error_type("GitHub API omitted tree entry metadata") from error
             if not all(isinstance(entry[key], str) for key in entry) or entry["path"] in entries:
                 raise error_type("GitHub API returned malformed or duplicate tree entries")
+            changed_paths([{"filename": entry["path"]}])
+            validate_sha(entry["sha"], "tree object SHA", error_type)
+            if {"100644": "blob", "100755": "blob", "120000": "blob", "160000": "commit"}.get(entry["mode"]) != entry["type"]:
+                raise error_type("GitHub API returned a mismatched tree mode and object type")
             entries[entry["path"]] = entry
         return tree_sha, entries
     except GateError as error:
         raise error_type(str(error)) from error
+
+
+def validate_required_codeql_workflow(event: dict, api: GitHubApi, policy_root: Path = ROOT) -> bool:
+    """Protect result-verifier invocation before even an ordinary PR can pass.
+
+    Activation and the finite approved workflow blobs belong to the trusted default
+    checkout. A candidate config, job name or successful result cannot authorize
+    replacing this workflow with an exit-only or fabricated security job.
+    """
+    policy = json.loads((policy_root / '.github/repository-checks.json').read_text(encoding='utf-8'))
+    if not isinstance(policy, dict):
+        raise GateError('invalid trusted CodeQL result activation policy')
+    targets = policy.get('codeql_results_required_branches', [])
+    permanent = {'main', 'apple-main', 'apple-ios', 'android-main', 'android-phone', 'android-vr', 'android-vr-pico'}
+    if (policy.get('schema') != 1 or policy.get('repository') != 'noah-l-frank/overte'
+            or policy.get('repository_id') != 1319052603 or not isinstance(targets, list)
+            or any(not isinstance(target, str) or target not in permanent for target in targets)
+            or len(targets) != len(set(targets))):
+        raise GateError('invalid trusted CodeQL result activation policy')
+    if not targets:
+        return False
+    try:
+        pr = event['pull_request']
+        base = pr['base']
+        target = base['ref']
+        if target not in permanent:
+            raise GateError('invalid CodeQL result target')
+        if target not in targets:
+            return False
+        head = pr['head']
+        repository, repository_id = 'noah-l-frank/overte', 1319052603
+        number = pr['number']
+        if (type(number) is not int or number <= 0 or type(event.get('number')) is not int
+                or event['number'] != number):
+            raise GateError('invalid CodeQL result PR number')
+        for identity in (event['repository'], base['repo'], head['repo']):
+            if identity.get('full_name') != repository or identity.get('id') != repository_id:
+                raise GateError('CodeQL result PR must belong to the reviewed fork')
+        base_sha = validate_sha(base['sha'], 'CodeQL event base')
+        head_sha = validate_sha(head['sha'], 'CodeQL event head')
+        head_ref = head['ref']
+        if (base_sha == '0' * 40 or head_sha == '0' * 40 or not isinstance(head_ref, str)
+                or not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_./-]*', head_ref)
+                or '..' in head_ref or '//' in head_ref or head_ref.endswith(('/', '.', '.lock'))
+                or any(part.startswith('.') for part in head_ref.split('/'))):
+            raise GateError('invalid CodeQL result head identity')
+    except (KeyError, TypeError, AttributeError) as error:
+        raise GateError('invalid CodeQL result event identity') from error
+    spec = importlib.util.spec_from_file_location('sync_required_codeql_policy', policy_root / 'tools/repository-checks/codeql.py')
+    if spec is None or spec.loader is None:
+        raise GateError('trusted CodeQL workflow policy unavailable')
+    trusted = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(trusted)
+    generations = tuple(validate_sha(value, 'approved CodeQL result workflow')
+                        for value in trusted.result_workflow_blobs())
+    pairs = trusted.result_workflow_sources()
+    if (type(pairs) is not tuple or len(pairs) != 5
+            or any(type(row) is not tuple or len(row) != 2 for row in pairs)):
+        raise GateError('approved CodeQL workflow/helper pairs unavailable')
+    sources = {validate_sha(row[0], 'approved CodeQL result workflow'):
+               None if row[1] is None else validate_sha(row[1], 'approved CodeQL metadata source')
+               for row in pairs}
+    approved = set(generations)
+    metadata_workflow = validate_sha(trusted._METADATA_RESULTS_WORKFLOW, 'approved CodeQL metadata workflow')
+    metadata_source = validate_sha(trusted._METADATA_SOURCE_WORKFLOW, 'approved CodeQL metadata source')
+    if len(generations) != 5 or len(approved) != 5 or tuple(sources) != generations \
+            or '0' * 40 in approved or any(sources[oid] is not None for oid in generations[:3]) \
+            or pairs[3] != (metadata_workflow, metadata_source) \
+            or pairs[4] != (trusted._SCHEDULING_RESULTS_WORKFLOW, trusted._SCHEDULING_SOURCE_WORKFLOW) \
+            or any(value == '0' * 40 for value in sources.values()):
+        raise GateError('approved CodeQL workflow identity is unavailable')
+    refs = {f'repos/{repository}/git/ref/heads/{quote(ref, safe="")}': 'refs/heads/' + ref
+            for ref in (target, head_ref)}
+
+    class FixedForkReadOnly:
+        def json(self, endpoint):
+            if not isinstance(endpoint, str) or not endpoint.startswith('repos/' + repository + '/'):
+                raise GateError('CodeQL invocation lookup escaped the reviewed fork')
+            value = api.json(endpoint)
+            if endpoint in refs and (not isinstance(value, dict) or value.get('ref') != refs[endpoint]
+                                     or not isinstance(value.get('object'), dict) or value['object'].get('type') != 'commit'):
+                raise GateError('CodeQL invocation branch reference identity mismatch')
+            tree_prefix = 'repos/' + repository + '/git/trees/'
+            if endpoint.startswith(tree_prefix):
+                requested = endpoint[len(tree_prefix):].split('?', 1)[0]
+                if not isinstance(value, dict) or value.get('sha') != requested:
+                    raise GateError('CodeQL invocation tree identity mismatch')
+            return value
+
+    readonly = FixedForkReadOnly()
+
+    def fresh():
+        current = readonly.json(f'repos/{repository}/pulls/{number}')
+        if (not isinstance(current, dict) or type(current.get('number')) is not int
+                or current['number'] != number or current.get('state') != 'open'):
+            raise GateError('CodeQL result PR is closed or unavailable')
+        for side, ref, revision in (('base', target, base_sha), ('head', head_ref, head_sha)):
+            value = current.get(side)
+            if (not isinstance(value, dict) or value.get('ref') != ref or value.get('sha') != revision
+                    or not isinstance(value.get('repo'), dict) or value['repo'].get('full_name') != repository
+                    or value['repo'].get('id') != repository_id
+                    or branch_sha(readonly, repository, ref) != revision):
+                raise GateError('CodeQL result PR or branch head changed')
+        if current.get('mergeable') is False:
+            raise GateError('CodeQL result PR has merge conflicts')
+        if current.get('mergeable') is None or current.get('merge_commit_sha') is None:
+            return None
+        if current.get('mergeable') is not True:
+            raise GateError('CodeQL result mergeability is unknown')
+        candidate = validate_sha(current.get('merge_commit_sha'), 'current CodeQL candidate')
+        if candidate == '0' * 40:
+            raise GateError('invalid current CodeQL candidate')
+        return candidate
+
+    candidate = None
+    for attempt in range(6):
+        candidate = fresh()
+        if candidate is not None:
+            break
+        if attempt < 5:
+            time.sleep(3)
+    if candidate is None:
+        raise GateError('CodeQL candidate merge computation did not complete')
+    merge = commit(readonly, repository, candidate)
+    if commit_parents(merge) != (base_sha, head_sha):
+        raise GateError('CodeQL candidate ordered parents differ from the current PR')
+    tree_sha, tree = recursive_tree(readonly, repository, candidate, error_type=GateError)
+    if tree_sha == '0' * 40 or tree_sha != commit_tree(merge):
+        raise GateError('CodeQL candidate tree changed')
+    actual = tree.get('.github/workflows/codeql.yml', {})
+    if actual.get('mode') != '100644' or actual.get('type') != 'blob' or actual.get('sha') not in approved:
+        raise GateError('candidate must retain the exact approved CodeQL security-result workflow')
+    # The metadata successor invokes this relative reusable workflow. Its
+    # exact caller blob cannot authorize candidate-controlled helper contents.
+    if sources[actual['sha']] is not None and tree.get('.github/workflows/pr-metadata-context.yml') != {
+            'path': '.github/workflows/pr-metadata-context.yml',
+            'mode': '100644', 'type': 'blob', 'sha': sources[actual['sha']]}:
+        raise GateError('candidate must retain the exact approved CodeQL metadata source workflow')
+    _, base_tree = recursive_tree(readonly, repository, base_sha, error_type=GateError)
+    previous = base_tree.get('.github/workflows/codeql.yml', {})
+    if previous.get('mode') != '100644' or previous.get('type') != 'blob':
+        raise GateError('CodeQL base workflow identity is unavailable or nonregular')
+    if previous.get('sha') in approved and generations.index(actual['sha']) < generations.index(previous['sha']):
+        raise GateError('deployed CodeQL result workflow cannot be reverted')
+    if fresh() != candidate:
+        raise GateError('CodeQL candidate changed during invocation verification')
+    return True
 
 
 def select_entries(tree: dict[str, dict[str, str]], patterns: list[str]) -> list[dict[str, str]]:
@@ -463,6 +644,16 @@ def select_entries(tree: dict[str, dict[str, str]], patterns: list[str]) -> list
         (entry for path, entry in tree.items() if any(fnmatch(path, pattern) for pattern in patterns)),
         key=lambda item: item["path"],
     )
+
+
+def input_registry() -> dict:
+    """Only default-branch policy may define the inputs of a reusable suite."""
+    return suite_inputs.load_registry(ROOT / ".github/test-suites.json")
+
+
+def input_tree(tree: dict[str, dict[str, str]]) -> dict[str, dict[str, str]]:
+    return {path: {key: item[key] for key in ("mode", "type", "sha")}
+            for path, item in tree.items()}
 
 
 def artifact_evidence(api: GitHubApi, config: dict, request: SyncRequest) -> tuple[dict, dict]:
@@ -515,10 +706,10 @@ def artifact_evidence(api: GitHubApi, config: dict, request: SyncRequest) -> tup
     return run, evidence
 
 
-def verify_evidence(api: GitHubApi, config: dict, request: SyncRequest, now: datetime | None = None) -> dict:
+def _verify_legacy_evidence(api: GitHubApi, config: dict, request: SyncRequest, now: datetime | None = None) -> dict:
     run, evidence = artifact_evidence(api, config, request)
     expected = {
-        "schema": 1,
+        "schema": 2,
         "repository": request.repository,
         "repository_id": request.repository_id,
         "parent_branch": request.parent,
@@ -527,6 +718,11 @@ def verify_evidence(api: GitHubApi, config: dict, request: SyncRequest, now: dat
     for key, value in expected.items():
         if evidence.get(key) != value:
             raise EvidenceError(f"qualification evidence has mismatched {key}")
+    if evidence.get("reusable") is not True:
+        raise EvidenceError("parent verification has no reusable runtime identity")
+    if not isinstance(evidence.get("execution_receipt_digest"), str) or not re.fullmatch(
+            r"sha256:[0-9a-f]{64}", evidence["execution_receipt_digest"]):
+        raise EvidenceError("parent qualification omits its actual execution receipt identity")
     parent_tree_sha, parent_tree = recursive_tree(api, request.repository, request.parent_sha)
     if evidence.get("parent_tree") != parent_tree_sha:
         raise EvidenceError("qualification evidence has a mismatched parent tree")
@@ -551,8 +747,14 @@ def verify_evidence(api: GitHubApi, config: dict, request: SyncRequest, now: dat
     if workflow != workflow_expected:
         raise EvidenceError("qualification workflow/run binding is mismatched")
     results = evidence.get("results")
-    if not isinstance(results, dict) or results.get("conclusion") != "success" or results.get("suites") != ["project-quick", "device-control-plane-full"]:
+    if not isinstance(results, dict) or results.get("conclusion") != "success" or not isinstance(results.get("suites"), dict):
         raise EvidenceError("qualification suite result is incomplete")
+    try:
+        registry = input_registry()
+    except suite_inputs.InputError as error:
+        raise EvidenceError("trusted suite input registry is unavailable") from error
+    if set(results["suites"]) != set(registry["suites"]):
+        raise EvidenceError("qualification does not contain the actual complete shared suite inventory")
     now = now or datetime.now(timezone.utc)
     qualified = parse_time(evidence.get("qualified_at"), "qualified_at")
     expires = parse_time(evidence.get("expires_at"), "expires_at")
@@ -565,16 +767,297 @@ def verify_evidence(api: GitHubApi, config: dict, request: SyncRequest, now: dat
     if actual_digest != expected_digest:
         raise EvidenceError("qualification evidence digest is invalid")
     _, merge_tree = recursive_tree(api, request.repository, request.merge_sha)
-    qualified_parent_delta = sorted(
-        path for path in request.parent_changed_paths
-        if any(fnmatch(path, pattern) for pattern in config["qualified_inputs"])
-    )
-    for path in qualified_parent_delta:
-        if merge_tree.get(path) != parent_tree.get(path):
-            raise EvidenceError("qualified parent-delta input changed in the expected merge tree: " + path)
+    try:
+        parent_inputs = input_tree(parent_tree)
+        candidate_inputs = input_tree(merge_tree)
+        environment = evidence.get("environment")
+        for name, proof in results["suites"].items():
+            if (not isinstance(proof, dict) or set(proof) != {"status", "fingerprint"}
+                    or proof["status"] != "passed"
+                    or proof["fingerprint"] != suite_inputs.suite_fingerprint(
+                        registry, name, parent_inputs, environment)):
+                raise EvidenceError("parent suite proof does not match its actual trusted input closure")
+        # This is a source-only preview. The isolated validator compares its
+        # actual installed runtime before consuming any reusable suite result.
+        candidate_plan = suite_inputs.plan_reuse(
+            registry, parent_inputs, candidate_inputs, results["suites"],
+            environment, environment)
+    except (suite_inputs.InputError, KeyError, TypeError) as error:
+        raise EvidenceError("complete shared suite inputs or runtime identity are unavailable") from error
+    if not candidate_plan["reused"]:
+        raise EvidenceError("no shared suite has matching complete candidate inputs")
     if branch_sha(api, request.repository, request.base) != request.base_sha or branch_sha(api, request.repository, request.parent) != request.parent_sha:
         raise EvidenceError("target or parent head moved during evidence validation")
-    return evidence
+    return {**evidence, "candidate_plan": candidate_plan,
+            "parent_inputs": parent_inputs, "candidate_inputs": candidate_inputs}
+
+
+NATIVE_PARENT_KIND = 'original-native-parent-v1'
+
+
+class NativeParentEvidence(dict):
+    """Internal native API result; an artifact JSON field cannot create this."""
+
+
+def _native_parent_controller():
+    """Close the real protected import lookup before importing proof modules.
+
+    ROOT is the trusted checkout, never the synchronization candidate. The
+    immutable local source is subsequently bound to the live protected default
+    by _native_sync_context; local Git metadata alone supplies no authority.
+    """
+    tree = suite_inputs.full_tree(ROOT, 'HEAD')
+    name = 'tools/test-evidence/source_admission.py'
+    path = ROOT / name
+    current = Path(path.anchor)
+    for part in path.parts[1:]:
+        current /= part
+        if current.is_symlink():
+            raise EvidenceError('native parent source contains an alias')
+    info = path.stat()
+    if not path.is_file() or info.st_mode & 0o111 or info.st_size > 1_000_000:
+        raise EvidenceError('native parent source helper is unavailable')
+    raw = path.read_bytes()
+    expected = {'mode': '100644', 'type': 'blob',
+        'sha': hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()}
+    if len(raw) > 1_000_000 or tree.get(name) != expected:
+        raise EvidenceError('native parent source helper differs from immutable ROOT')
+    guard = type(sys)('sync_native_parent_source_guard')
+    guard.__file__ = str(path)
+    exec(compile(raw, str(path), 'exec'), guard.__dict__)
+    imports = {name: entry for name, entry in tree.items()
+        if any(name == prefix or name.startswith(prefix+'/') for prefix in guard.IMPORT_ROOTS)}
+    directories = sorted({str(parent) for name in imports for parent in Path(name).parents
+        if any(str(parent) == prefix or str(parent).startswith(prefix+'/') for prefix in guard.IMPORT_ROOTS)})
+    if set(imports) != set(guard.IMPORT_MEMBERS) or guard.actual_import_inventory(ROOT) != {
+            'files': imports, 'directories': directories}:
+        raise EvidenceError('native parent protected import lookup is not immutable')
+    directory = str(ROOT / 'tools/test-evidence')
+    sys.path.insert(0, directory)
+    try:
+        spec = importlib.util.spec_from_file_location('sync_native_parent_consumer', ROOT / 'tools/test-evidence/postmerge.py')
+        controller = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(controller)
+    finally:
+        sys.path.remove(directory)
+    for name in ('attested', 'ci_profile', 'execution', 'inputs', 'producer', 'producer_api',
+                 'producer_workflow', 'runtime_ci', 'sandbox', 'source_admission'):
+        module = sys.modules.get(name)
+        if module is None or Path(module.__file__).resolve() != ROOT / ('tools/test-evidence/'+name+'.py'):
+            raise EvidenceError('native parent proof module is outside actual protected ROOT')
+    return controller
+
+
+def _native_sync_context(controller, adapter, request):
+    binding, references = adapter.current(request.number)
+    expected = {'repository': request.repository, 'repository_id': request.repository_id,
+        'pull_request': request.number, 'head_repository_id': request.head_repository_id,
+        'base_ref': request.base, 'base_sha': request.base_sha, 'head_ref': request.head,
+        'head_sha': request.head_sha, 'merge_sha': request.merge_sha,
+        'merge_parents': [request.base_sha, request.head_sha]}
+    controller.A.require(all(binding.get(key) == value for key, value in expected.items())
+        and references['default_ref'] == 'main', 'native parent consumer source PR changed')
+    branch = adapter._object('branches/'+quote(request.base, safe=''))
+    controller.A.require(branch.get('name') == request.base and branch.get('protected') is True
+        and branch.get('commit', {}).get('sha') == request.base_sha,
+        'native parent consumer protected target changed')
+    controller.default_authority(adapter, references)
+    default_tree, local = controller.full_tree(adapter, references['default'])
+    controller.A.require(controller.execution.checkout_identity(ROOT) == (references['default'], default_tree)
+        and controller.inputs.full_tree(ROOT, references['default']) == local,
+        'native parent actual ROOT differs from current default authority')
+    return binding, references, local
+
+
+def _native_parent_run(controller, adapter, request, now):
+    endpoint = ('actions/workflows/350930890/runs?branch='+quote(request.parent, safe='')
+        +'&event=push&head_sha='+request.parent_sha)
+    rows = adapter._pages(endpoint, 'workflow_runs', search=True)
+    controller.A.require(bool(rows) and all(row.get('head_sha') == request.parent_sha
+        and row.get('head_branch') == request.parent and row.get('event') == 'push'
+        and row.get('workflow_id') == 350930890
+        and row.get('path') == '.github/workflows/parent-qualification.yml' for row in rows),
+        'native parent run inventory is incomplete or foreign')
+    times = [controller.P._time(row.get('run_started_at')) for row in rows]
+    newest = max(times)
+    controller.A.require(newest <= now and times.count(newest) == 1,
+        'native parent newest run ordering is ambiguous')
+    run = rows[times.index(newest)]
+    controller.A.require(run.get('run_attempt') == 1 and run.get('status') == 'completed'
+        and run.get('conclusion') == 'success', 'native parent newest push is not successful attempt one')
+    return controller.A.positive(run.get('id')), rows
+
+
+def native_parent_evidence(api, config, request, now=None):
+    """Authenticate original native M, actual parent P and current child M.
+
+    This is not a newly executed or renewed parent qualification artifact.
+    The original receipt/E/lifetime stay attached to their real original M.
+    """
+    try:
+        controller = _native_parent_controller()
+        A, P = controller.A, controller.P
+        A.require(controller._source_qualified() and request.repository == A.REPOSITORY
+            and request.repository_id == 1319052603 and config['trusted_actions_app_id'] == 15368
+            and config['qualification_workflow'] == '.github/workflows/parent-qualification.yml'
+            and request.parent in {'main', 'android-main', 'android-vr', 'apple-main'}
+            and config['edges'][request.base]['parent'] == request.parent and not request.repair_paths,
+            'native parent source capability or exact direct edge is unavailable')
+        clock = (lambda: now) if now is not None else lambda: datetime.now(timezone.utc)
+        now = clock()
+        P._now(now)
+        adapter = A.Adapter(api.native_producer_api(controller))
+        child_binding, child_refs, local = _native_sync_context(controller, adapter, request)
+        push_id, push_inventory = _native_parent_run(controller, adapter, request, now)
+        binding, references = adapter._integrated_current(push_id, 15368, now)
+        A.require(binding['base_ref'] == request.parent and references['target'] == request.parent_sha
+            and references['default'] == child_refs['default']
+            and references['integration']['push_status'] == 'completed'
+            and references['integration']['push_conclusion'] == 'success',
+            'native parent/default completed context changed')
+        tree_sha, parent = controller.full_tree(adapter, request.parent_sha)
+        _, previous = controller.full_tree(adapter, binding['base_sha'])
+        policy = controller.producer._host_policy()
+        generation=policy.package_policy().validate_tree_wiring(parent)
+        future=generation==controller.producer.PLATFORM_GENERATION
+        parent_template=controller.producer.PLATFORM_PARENT_TEMPLATE if future else controller.TEMPLATE
+        project_template=controller.producer.project_template(policy,parent)
+        A.require(generation in controller.GENERATIONS
+            and parent.get('.github/workflows/parent-qualification.yml') == local.get(parent_template),
+            'native parent workflow is not a complete trusted consumer recipe')
+        controller_check=controller.integrated_controller_for_reuse if future else controller.integrated_controller
+        source = controller_check(policy, previous, parent, local, request.parent, ROOT)
+        registry = controller.inputs.load_registry(ROOT / '.github/test-suites.json')
+        A.require(all(suite['scope'] == 'content' for suite in registry['suites'].values())
+            and all(tree.get('.github/test-suites.json') == local.get('.github/test-suites.json')
+                    for tree in (previous, parent)), 'native parent command registry differs from protected source')
+        context = previous if request.parent == 'main' else local
+        read_blob = adapter.api.immutable_blob
+        selector=controller.producer.selection_profile_for_reuse if future else controller.producer.selection_profile
+        profile = selector(policy, registry, parent, previous, context,
+            root=ROOT, target=request.parent, read_blob=read_blob)
+        selected = profile['selection']
+        affected = controller._affected_receipt_selection(profile, registry, request.parent)
+        partition=controller.producer.platform_partition(policy,profile,registry,parent,previous,local,
+            target=request.parent,root=ROOT,read_blob=read_blob)
+        if partition is None:
+            A.require(controller.source_admission.shared_platform_supported(selected, request.parent,
+                parent.get(controller.source_admission.PROFILE)), 'native parent product ownership is unavailable')
+        owner=controller.producer.common_owner(profile,partition)
+        plan, api_policy = controller._policy(policy, registry, binding, source, adapter, ROOT, selected,
+            common_owner=owner,template=project_template)
+        snapshot = adapter.capture_integrated(push_id, plan, api_policy, now=now)
+        A.require(snapshot.references == references, 'native parent integration changed before proof selection')
+        if future:
+            profile,context=controller.producer.reuse_source_profile(snapshot,adapter,api_policy,policy,registry,
+                parent,previous,root=ROOT,target=request.parent,read_blob=read_blob,now=clock())
+            selected=profile['selection'];affected=controller._affected_receipt_selection(profile,registry,request.parent)
+            partition=controller.producer.platform_partition(policy,profile,registry,parent,previous,local,
+                target=request.parent,root=ROOT,read_blob=read_blob)
+            owner=controller.producer.common_owner(profile,partition)
+            plan,api_policy=controller._policy(policy,registry,binding,source,adapter,ROOT,selected,
+                common_owner=owner,template=project_template)
+        original_tree, original = controller.full_tree(adapter, snapshot.binding['merge_sha'])
+        A.require(original_tree == tree_sha == snapshot.binding['merge_tree'] and original == parent
+            and selector(policy, registry, original, previous, context,
+                root=ROOT, target=request.parent, read_blob=read_blob) == profile,
+            'native original source differs from exact parent inputs')
+        A.require(controller.producer.platform_partition(policy,profile,registry,original,previous,local,
+            target=request.parent,root=ROOT,read_blob=read_blob)==partition,
+            'native original and current parent platform ownership differs')
+        authority = P.select_authority(snapshot.observations, snapshot.binding, plan, api_policy.producer,
+            inventory_complete=snapshot.inventory_complete, now=now)
+        A.require(authority['state'] == 'proof-required', 'native parent original producer is unresolved')
+        observation = next(item for item in snapshot.observations if item.run.run_id == authority['run_id'])
+        platform_observation=(controller.original_platform_owner(adapter,observation.run,partition,now=clock())
+            if partition is not None else None)
+        raw, facts = adapter._artifact(observation.run, 'aggregate',
+            snapshot.artifact_inventories[authority['run_id']], now, snapshot.binding['head_sha'])
+        aggregate = P.read_artifact(raw, 'aggregate', facts, observation.run, now=now)
+        receipt = aggregate.get('results', {}).get('shared-host', {}).get('receipt')
+        A.require(type(receipt) is dict and receipt.get('schema') == api_policy.producer.required_execution_schema,
+            'native parent versioned original receipt unavailable')
+        git_context = controller.producer.expected_git_context(adapter, snapshot.binding)
+        controller.execution.validate_receipt(receipt, registry, original,
+            require_all=profile['profile'] != controller.ci_profile.PROFILE and not affected,
+            expected_git_context=git_context)
+        A.require(receipt['requested_suites'] == selected['suites']
+            and receipt['include_platform'] == owner['include_platform']
+            and (partition is None or receipt['platform_results']=={}), 'native parent selected owner differs')
+        environment = receipt['environment']
+        retained=controller.producer.retained_receipt_source(receipt,snapshot.binding,adapter,registry,selected,
+            authority['run_id'],root=ROOT)
+        shared = P.SharedContext(registry, original, environment, snapshot.binding['merge_sha'], tree_sha, git_context,retained)
+        original_source=None
+        if receipt['schema']==4:
+            verified,original_source=controller.producer.verify_original_source(adapter,push_id,plan,api_policy,
+                shared,receipt,snapshot.binding,integrated=True,root=ROOT,clock=clock)
+        if profile['profile'] == controller.ci_profile.PROFILE:
+            ci_context = ({'base_tree': previous}
+                if profile['binding'].get('generation_kind') == controller.ci_profile.SEVEN_CONTROLLER_KIND else {})
+            validator=(controller.runtime_ci.validate_environment if original_source is None else
+                lambda *args,**kwargs:controller.runtime_ci.validate_original_environment(original_source,*args,**kwargs))
+            admission = validator(environment, aggregate.get('qualified_at'),
+                aggregate.get('expires_at'), now, selected, original, context, registry,
+                root=ROOT, target=request.parent, read_blob=read_blob, **ci_context)
+        else:
+            admission = controller.attested.validate_environment(environment, aggregate.get('qualified_at'),
+                aggregate.get('expires_at'), now, root=ROOT, isolated=True)
+        if original_source is None:
+            verified=adapter.verify_integrated(push_id,plan,api_policy,{'shared-host':shared},clock=clock)
+        else:
+            A.require(A.Adapter.verify_integrated(adapter,push_id,plan,api_policy,{'shared-host':shared},clock=clock)==verified,
+                'native parent original proof changed during runtime/source admission')
+        if partition is not None:
+            A.require(controller.original_platform_owner(adapter,observation.run,partition,now=clock())==platform_observation,
+                'native original Android platform job changed during common proof verification')
+        A.require(verified['integration'] == references['integration']
+            and verified['receipt_sha256'] == hashlib.sha256(P.canonical(receipt)).hexdigest()
+            and verified['aggregate_digest'] == aggregate['aggregate_digest']
+            and 0 <= (clock() - P._time(verified['qualified_at'])).total_seconds()
+                <= int(config['evidence_max_age_hours']) * 3600,
+            'native parent whole proof or allowed lifetime changed')
+        _, candidate = controller.full_tree(adapter, request.merge_sha)
+        A.require(candidate.get(controller.source_admission.PROFILE)==controller.source_admission.ordinary(
+            controller.source_admission.TARGET_PROFILES[request.base]),
+            'current child platform declaration needs its actual known owner')
+        A.require(all(entry['mode'] in {'100644', '100755'} and entry['type'] == 'blob'
+            for tree in (parent, candidate) for entry in tree.values()), 'native parent reuse requires ordinary complete inputs')
+        candidate_plan = controller.inputs.plan_reuse(registry, parent, candidate, receipt['results'], environment, environment)
+        final = _native_sync_context(controller, adapter, request)
+        A.require(final == (child_binding, child_refs, local)
+            and _native_parent_run(controller, adapter, request, clock()) == (push_id, push_inventory)
+            and controller_check(policy, previous, parent, local, request.parent, ROOT) == source
+            and controller.producer.retained_receipt_source(receipt,snapshot.binding,adapter,registry,selected,authority['run_id'],root=ROOT)==retained
+            and controller.producer.platform_partition(policy,profile,registry,parent,previous,local,
+                target=request.parent,root=ROOT,read_blob=read_blob)==partition
+            and (partition is None or controller.original_platform_owner(adapter,observation.run,partition,now=clock())==platform_observation)
+            and clock() < P._time(verified['expires_at']),
+            'native parent/default/source context changed before completion')
+        A.require(bool(candidate_plan['reused']), 'native parent has no matching child suite source')
+        return NativeParentEvidence({'kind': NATIVE_PARENT_KIND, 'parent_branch': request.parent, 'parent_commit': request.parent_sha,
+            'parent_tree': tree_sha, 'original_commit': snapshot.binding['merge_sha'], 'original_git_context': git_context,
+            'qualified_at': verified['qualified_at'], 'expires_at': verified['expires_at'],
+            'environment': environment, 'results': {'conclusion': 'success', 'suites': receipt['results']},
+            'child_platform_profile':candidate[controller.source_admission.PROFILE], 'platform_reused':False,
+            'original_platform_observation':platform_observation,
+            'original_proof': verified, 'original_protected_source':retained, 'runtime_admission': admission, 'candidate_plan': candidate_plan,
+            'parent_inputs': parent, 'candidate_inputs': candidate})
+    except EvidenceError:
+        raise
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, ImportError, subprocess.SubprocessError) as error:
+        raise EvidenceError('original native parent proof unavailable; actual synchronization execution is required') from error
+
+
+def verify_evidence(api: GitHubApi, config: dict, request: SyncRequest, now: datetime | None = None) -> dict:
+    try:
+        return _verify_legacy_evidence(api, config, request, now)
+    except EvidenceError:
+        # Preserve legacy2 routes exactly. The native path requires the fixed
+        # bounded transport explicitly, never an arbitrary JSON/proof fallback.
+        if not callable(getattr(api, 'native_producer_api', None)):
+            raise
+        return native_parent_evidence(api, config, request, now)
 
 
 def write_outputs(path: Path | None, values: dict[str, object]) -> None:
@@ -590,6 +1073,7 @@ def inspect(args: argparse.Namespace) -> int:
     config = load_config(args.config)
     event = json.loads(args.event.read_text(encoding="utf-8"))
     api = GitHubApi()
+    validate_required_codeql_workflow(event, api)
     request = classify_event(event, config, api)
     if request is None:
         write_outputs(args.output, {"classification": "ordinary", "mode": "ordinary"})
@@ -604,7 +1088,15 @@ def inspect(args: argparse.Namespace) -> int:
     else:
         try:
             evidence = verify_evidence(api, config, request)
-            evidence_run = str(evidence["workflow"]["run_id"])
+            plan = evidence["candidate_plan"]
+            if isinstance(evidence, NativeParentEvidence):
+                evidence_run = str(evidence['original_proof']['run_id'])
+                reason = (f"original native parent proofs accepted; {len(plan['reused'])} source matches, "
+                          f"{len(plan['required'])} suites require candidate execution; original proof rechecked in validation")
+            else:
+                evidence_run = str(evidence["workflow"]["run_id"])
+                reason = (f"exact parent suite proofs accepted; {len(plan['reused'])} source matches, "
+                          f"{len(plan['required'])} suites require candidate execution; runtime rechecked in validation")
         except EvidenceError as error:
             mode, reason = "fallback", str(error).replace("\n", " ")
     values = {
@@ -678,8 +1170,14 @@ def dispatch_and_wait(args: argparse.Namespace) -> int:
 
 def cancel_redundant(args: argparse.Namespace) -> int:
     config = load_config(args.config)
-    api = GitHubApi()
     wanted = set(config["redundant_pull_request_workflows"])
+    if not wanted:
+        # Older descendant workflows still call this trusted default-branch
+        # helper with --window 60. Modern routing owns the selected executions;
+        # an empty retired inventory needs neither API calls nor a polling wait.
+        print("cancelled_redundant_runs=0")
+        return 0
+    api = GitHubApi()
     cancelled: set[int] = set()
     deadline = time.monotonic() + args.window
     while time.monotonic() < deadline:

@@ -1,0 +1,123 @@
+# Dormant trusted package generation; activation requires reviewed target policy.
+name: Repository checks
+on:
+  pull_request:
+    types:
+    - opened
+    - reopened
+    - synchronize
+    - edited
+  workflow_dispatch: null
+permissions:
+  contents: read
+concurrency:
+  group: repository-checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  route:
+    name: Select required repository checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      mode: ${{ steps.plan.outputs.mode }}
+      security: ${{ steps.plan.outputs.security }}
+      native: ${{ steps.native.outputs.mode }}
+      tool_projects: ${{ steps.plan.outputs.tool_projects }}
+      package_candidate: ${{ steps.plan.outputs.package_candidate }}
+      package_plan: ${{ steps.plan.outputs.package_plan }}
+      package_host_mode: ${{ steps.plan.outputs.package_host_mode }}
+      package_tool_projects: ${{ steps.plan.outputs.package_tool_projects }}
+      package_set: ${{ steps.plan.outputs.package_set }}
+      browser_mode: ${{ steps.plan.outputs.browser_mode }}
+      browser_candidate: ${{ steps.plan.outputs.browser_candidate }}
+      browser_plan: ${{ steps.plan.outputs.browser_plan }}
+    steps:
+    - name: Check out trusted routing policy
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.event.repository.default_branch }}
+        path: trusted
+        persist-credentials: false
+        sparse-checkout: |
+          .github
+          tools/repository-checks
+          tools/test-evidence
+          tools/native-tests
+          tools/ios-build-qualification
+    - name: Read the candidate tree without executing it
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        path: candidate
+        fetch-depth: 2
+        persist-credentials: false
+        sparse-checkout: .github
+    - name: Select checks from the exact merge candidate
+      id: plan
+      run: python3 trusted/tools/repository-checks/check.py plan --event "$GITHUB_EVENT_PATH" --candidate candidate
+        --sha "$GITHUB_SHA" --output "$GITHUB_OUTPUT"
+    - name: Select native checks from the exact merge candidate
+      id: native
+      run: python3 trusted/tools/native-tests/check.py plan --event "$GITHUB_EVENT_PATH" --candidate candidate --sha
+        "$GITHUB_SHA" --output "$GITHUB_OUTPUT" --report native-plan.json
+  native:
+    permissions:
+      contents: read
+      packages: read
+    needs: route
+    if: needs.route.outputs.native != 'skip'
+    uses: ./.github/workflows/native-tests.yml
+    with:
+      mode: ${{ needs.route.outputs.native }}
+  project:
+    needs: route
+    if: needs.route.outputs.mode == 'full' || needs.route.outputs.mode == 'tool-dependencies' || needs.route.outputs.package_set
+      != '[]'
+    uses: ./.github/workflows/project-tests.yml
+    with:
+      dependency_projects: ${{ needs.route.outputs.tool_projects }}
+      expected_candidate: ${{ needs.route.outputs.package_candidate }}
+      expected_package_plan: ${{ needs.route.outputs.package_plan }}
+  browser-client:
+    needs: route
+    if: needs.route.outputs.browser_mode == 'cpu' || needs.route.outputs.browser_mode == 'full'
+    uses: ./.github/workflows/browser-client.yml
+    with:
+      expected_candidate: ${{ needs.route.outputs.browser_candidate }}
+      expected_plan: ${{ needs.route.outputs.browser_plan }}
+  documentation:
+    needs: route
+    uses: ./.github/workflows/documentation-checks.yml
+  workflow-security:
+    needs: route
+    if: needs.route.outputs.security == 'true'
+    uses: ./.github/workflows/workflow-security.yml
+  repository-checks:
+    name: repository-checks
+    if: always()
+    needs:
+    - route
+    - project
+    - documentation
+    - workflow-security
+    - browser-client
+    - native
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+    - name: Check out trusted result verifier
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.event.repository.default_branch }}
+        persist-credentials: false
+    - name: Check out the exact candidate without credentials
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        path: candidate
+        fetch-depth: 2
+        persist-credentials: false
+        sparse-checkout: .github
+    - name: Require all selected checks to succeed
+      env:
+        CHECK_RESULTS: ${{ toJSON(needs) }}
+      run: python3 tools/repository-checks/check.py verify --needs-json "$CHECK_RESULTS" --candidate candidate --sha
+        "$GITHUB_SHA"

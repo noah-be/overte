@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -13,6 +15,7 @@ import re
 import stat
 import subprocess
 import sys
+import tempfile
 import zipfile
 
 
@@ -30,8 +33,60 @@ def require(value, message):
 
 
 def git(root, *args):
-    return subprocess.check_output(["git", *args], cwd=root, text=True,
+    return subprocess.check_output(["git", "--no-replace-objects", *args], cwd=root, text=True,
                                    stderr=subprocess.PIPE, timeout=30).strip()
+
+
+def configuration(policy_root=ROOT):
+    config = json.loads((policy_root / ".github/ios-build-qualification.json").read_text())
+    require(config.get("schema") == 1 and config.get("repository") == REPOSITORY
+            and config.get("repositoryId") == REPOSITORY_ID
+            and config.get("requiredContext") == CONTEXT
+            and type(config.get("enforceWorkflow")) is bool
+            and config.get("workflowPath") == ".github/workflows/ios-build-qualification.yml"
+            and type(config.get("inputSelection", False)) is bool,
+            "invalid trusted build qualification policy")
+    return config
+
+
+def input_selector(policy_root=ROOT):
+    """Load only the reviewed policy checkout; candidate contents are Git data."""
+    path = policy_root / "tools/ios-build-qualification/inputs.py"
+    require(path.is_file() and not any(parent.is_symlink() for parent in
+            (policy_root / "tools", path.parent, path)), "trusted iOS input selector unavailable")
+    spec = importlib.util.spec_from_file_location("trusted_ios_application_inputs", path)
+    require(spec is not None and spec.loader is not None, "trusted iOS input selector unavailable")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def host_handoff(policy_root=ROOT):
+    """Older explicit policy fixtures retain their exact legacy protocol."""
+    if not (policy_root / ".github/ios-host-orchestration.json").is_file():
+        return None
+    path = ROOT / "tools/ios-build-qualification/host.py"
+    spec = importlib.util.spec_from_file_location("trusted_ios_host_handoff", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@contextmanager
+def fresh_host_candidate(event, candidate, source, *, policy_root=ROOT):
+    """Next-generation PRs require live bookends; manual routes remain full."""
+    handoff = host_handoff(policy_root)
+    selected = (handoff is not None and event is not None and candidate is not None
+                and event.get("pull_request") is not None
+                and handoff.participates(candidate, source, event, policy_root=policy_root))
+    if not selected:
+        yield
+        return
+    before = handoff.fresh_context(event, candidate, source, policy_root=policy_root)
+    yield
+    require(handoff.fresh_context(event, candidate, source, policy_root=policy_root) == before,
+            "current iOS PR metadata changed during trusted verification")
 
 
 def validate_wiring(candidate, event, policy_root=ROOT):
@@ -42,13 +97,12 @@ def validate_wiring(candidate, event, policy_root=ROOT):
     """
     if event.get("pull_request", {}).get("base", {}).get("ref") != "apple-ios":
         return
-    config = json.loads((policy_root / ".github/ios-build-qualification.json").read_text())
-    require(config.get("schema") == 1 and config.get("repository") == REPOSITORY
-            and config.get("repositoryId") == REPOSITORY_ID
-            and config.get("requiredContext") == CONTEXT
-            and type(config.get("enforceWorkflow")) is bool
-            and config.get("workflowPath") == ".github/workflows/ios-build-qualification.yml",
-            "invalid trusted build qualification policy")
+    handoff = host_handoff(policy_root)
+    source = git(candidate, "rev-parse", "HEAD") if handoff is not None and (candidate / ".git").exists() else None
+    if source is not None and handoff.participates(candidate, source, event, policy_root=policy_root):
+        handoff.route(event, candidate, source, policy_root=policy_root)
+        return
+    config = configuration(policy_root)
     path = candidate / config["workflowPath"]
     if not path.exists() and not config["enforceWorkflow"]:
         return
@@ -58,12 +112,16 @@ def validate_wiring(candidate, event, policy_root=ROOT):
             "iOS build workflow differs from trusted orchestration; update the parent policy first")
 
 
-def route(event, candidate, expected_sha):
+def route(event, candidate, expected_sha, *, policy_root=ROOT):
+    config = configuration(policy_root)
     repo = event["repository"]
     require(repo["full_name"] == REPOSITORY and repo["id"] == REPOSITORY_ID,
             "foreign repository")
     require(SHA.fullmatch(expected_sha), "invalid candidate revision")
     require(git(candidate, "rev-parse", "HEAD") == expected_sha, "wrong candidate checkout")
+    handoff = host_handoff(policy_root)
+    if handoff is not None and handoff.participates(candidate, expected_sha, event, policy_root=policy_root):
+        return handoff.route(event, candidate, expected_sha, policy_root=policy_root)
     pr = event.get("pull_request")
     if pr:
         require(pr["base"]["ref"] == "apple-ios", "qualification target must be apple-ios")
@@ -74,6 +132,14 @@ def route(event, candidate, expected_sha):
         require(SHA.fullmatch(base) and SHA.fullmatch(head), "invalid PR revisions")
         require(git(candidate, "show", "-s", "--format=%P", expected_sha).split() == [base, head],
                 "candidate must merge the exact event base and head")
+        tree = git(candidate, "rev-parse", expected_sha + "^{tree}")
+        if tree == git(candidate, "rev-parse", base + "^{tree}") == git(candidate, "rev-parse", head + "^{tree}"):
+            return {"required": "false", "source": expected_sha, "tree": tree,
+                    "base": base, "head": head, "reason": "unchanged-tree"}
+        if config.get("inputSelection", False):
+            selection = input_selector(policy_root).candidate_plan(candidate, base, expected_sha)
+            required = selection["requires_application_build"]
+            return selected_route(selection, expected_sha, base, head, required)
         # No path allowlist can miss a newly introduced source/build dependency.
         # Only ordinary Markdown changes qualify for the explicit lighter route.
         fields = subprocess.check_output(
@@ -91,26 +157,114 @@ def route(event, candidate, expected_sha):
                     mode in {"000000", "100644"} for mode in (metadata[0][1:], metadata[1]))
     else:
         docs, base, head = False, "", expected_sha
+        if config.get("inputSelection", False):
+            selection = {"reason": "manual-application-build-required", "requires_application_build": True,
+                         "candidate": input_selector(policy_root).input_fingerprint(candidate, expected_sha)}
+            return selected_route(selection, expected_sha, base, head, True)
     return {"required": "false" if docs else "true", "source": expected_sha,
             "tree": git(candidate, "rev-parse", "HEAD^{tree}"), "base": base, "head": head,
             "reason": "ordinary-markdown-only" if docs else "application-build-required"}
 
 
-def verify_jobs(needs, source):
+def selected_route(selection, source, base, head, required):
+    # Actual iOS host inputs are still application inputs. An independent shared
+    # owner must eventually establish host-only CI evidence; there is no green
+    # delegation receipt in this dormant compatibility implementation.
+    value = {"selection": selection, "router": hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+    digest = hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
+    return {"required": str(required).lower(), "host_required": str(required).lower(),
+            "source": source, "tree": selection["candidate"]["tree"], "base": base, "head": head,
+            "reason": selection["reason"], "selection": "sha256:" + digest}
+
+
+def verify_jobs(needs, source, *, event=None, candidate=None, policy_root=ROOT):
+    enabled = configuration(policy_root).get("inputSelection", False)
     require(isinstance(needs, dict) and set(needs) == JOBS, "incomplete qualification dependencies")
     require(needs["route"].get("result") == "success", "routing did not succeed")
     outputs = needs["route"].get("outputs", {})
+    handoff = host_handoff(policy_root)
+    next_generation = "generation" in outputs or handoff is not None and event is not None and candidate is not None \
+        and handoff.participates(candidate, source, event, policy_root=policy_root)
+    if next_generation:
+        require(handoff is not None and event is not None and candidate is not None,
+                "iOS host selection requires the independent event and exact candidate")
+        expected = handoff.route(event, candidate, source, policy_root=policy_root)
+        require(outputs == expected, "iOS host route differs from the independently recomputed candidate")
+        for name in ("host", "qt", "client"):
+            selected = expected["host_required" if name == "host" else "required"] == "true"
+            require(needs[name].get("result") == ("success" if selected else "skipped"),
+                    "iOS next-generation selected job failed, was skipped or was unexpectedly present: " + name)
+        return outputs
     require(outputs.get("source") == source and SHA.fullmatch(source), "route source mismatch")
     require(SHA.fullmatch(outputs.get("tree", "")), "missing candidate tree")
     required = outputs.get("required")
     require(required in {"true", "false"}, "missing build decision")
-    require(outputs.get("reason") == ("application-build-required" if required == "true"
-                                      else "ordinary-markdown-only"), "route reason mismatch")
+    unchanged = outputs.get("reason") == "unchanged-tree"
+    if unchanged:
+        require(event is not None and candidate is not None,
+                "unchanged-tree verification requires the independent event and candidate metadata")
+        expected = route(event, candidate, source, policy_root=policy_root)
+        require(expected.get("reason") == "unchanged-tree" and outputs == expected,
+                "unchanged-tree result differs from the independent exact candidate")
+        host_required = False
+    elif enabled:
+        require(event is not None and candidate is not None,
+                "input selection verification requires the independent event and candidate checkout")
+        validate_wiring(candidate, event, policy_root)
+        expected = route(event, candidate, source, policy_root=policy_root)
+        require(outputs == expected, "route source, selection or decision differs from the independent candidate plan")
+        host_required = expected["host_required"] == "true"
+    else:
+        require(outputs.get("reason") == ("application-build-required" if required == "true"
+                                          else "ordinary-markdown-only"), "route reason mismatch")
+        host_required = required == "true"
     for name in ("host", "qt", "client"):
-        expected = "success" if required == "true" else "skipped"
+        selected = host_required if name == "host" else required == "true"
+        expected = "success" if selected else "skipped"
         require(needs[name].get("result") == expected,
                 f"{name}: expected {expected}, received {needs[name].get('result', 'missing')}")
+    if enabled and not unchanged:
+        require(required == "true", "lightweight input selection requires an independently authenticated shared host owner; "
+                "that integration is not active")
     return outputs
+
+
+@contextmanager
+def verification_candidate(needs, source, *, event=None, candidate=None):
+    """Supply commit metadata for the deployed legacy final verifier, never code.
+
+    Its workflow already passes the exact source and receives the trusted route
+    outputs, but does not check out the candidate or pass the event explicitly.
+    Only a claimed unchanged tree needs this extra, independent metadata read.
+    """
+    unchanged = needs.get("route", {}).get("outputs", {}).get("reason") == "unchanged-tree"
+    if not unchanged or event is not None and candidate is not None:
+        yield event, candidate
+        return
+    require(event is None and candidate is None, "incomplete independent unchanged-tree context")
+    require(SHA.fullmatch(source), "invalid unchanged-tree candidate")
+    event_path = Path(os.environ.get("GITHUB_EVENT_PATH", ""))
+    require(event_path.is_file() and not event_path.is_symlink() and event_path.stat().st_size <= 2_000_000,
+            "independent GitHub event is unavailable")
+    event = json.loads(event_path.read_text())
+    # A fresh bare repository has no checkout, hooks, candidate imports or
+    # executable files. Fetch only commit/tree metadata from the fixed fork.
+    environment = {"PATH": os.defpath, "HOME": "/nonexistent", "GIT_TERMINAL_PROMPT": "0",
+                   "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
+    with tempfile.TemporaryDirectory(prefix="overte-ios-noop-") as temporary:
+        metadata = Path(temporary)
+        try:
+            for command in (["init", "-q", "--bare"],
+                            ["-c", "gc.auto=0", "-c", "maintenance.auto=false", "fetch", "--quiet",
+                             "--no-tags", "--depth=2", "--filter=blob:none",
+                             "https://github.com/noah-l-frank/overte.git", source],
+                            ["update-ref", "HEAD", source]):
+                subprocess.run(["git", "--no-replace-objects", *command], cwd=metadata,
+                               env=environment, check=True, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, timeout=45)
+        except (OSError, subprocess.SubprocessError) as error:
+            raise ValueError("independent unchanged-tree Git metadata is unavailable") from error
+        yield event, metadata
 
 
 def verify_build_execution(jobs, run_id, attempt, head):
@@ -207,14 +361,19 @@ def verify_ipa(directory, source, build_number):
             "version": info.get("CFBundleShortVersionString"), "appBuild": info.get("CFBundleVersion")}
 
 
-def report(needs, source, build_number, run_id, attempt, directory, jobs):
-    outputs = verify_jobs(needs, source)
+def report(needs, source, build_number, run_id, attempt, directory, jobs, *, event=None, candidate=None,
+           policy_root=ROOT, run_metadata=None):
+    outputs = verify_jobs(needs, source, event=event, candidate=candidate, policy_root=policy_root)
     required = outputs["required"] == "true"
     require(all(type(value) is int and value > 0 for value in (build_number, run_id, attempt)),
             "invalid run identity")
     producer = verify_build_execution(jobs, run_id, attempt, outputs.get("head", source)) if required else None
     artifact = verify_ipa(directory, source, build_number) if required else None
-    return {"schema": 1, "repository": REPOSITORY, "repositoryId": REPOSITORY_ID,
+    host_producer = None
+    if "generation" in outputs and outputs["host_required"] == "true":
+        host_producer = host_handoff(policy_root).verify_execution(jobs, run_metadata, run_id, attempt,
+                                                                  outputs.get("head", source))
+    result = {"schema": 1, "repository": REPOSITORY, "repositoryId": REPOSITORY_ID,
             "context": CONTEXT, "sourceRevision": source, "sourceTree": outputs["tree"],
             "baseRevision": outputs.get("base"), "headRevision": outputs.get("head"),
             "runId": run_id, "runAttempt": attempt, "buildNumber": build_number,
@@ -222,6 +381,17 @@ def report(needs, source, build_number, run_id, attempt, directory, jobs):
             "checks": "passed", "ipa": "verified" if required else "not-required",
             "reason": outputs["reason"], "artifact": artifact,
             "installation": "not-performed", "deviceAcceptance": "not-performed"}
+    if "generation" in outputs:
+        result["hostSelection"] = {"generation": outputs["generation"], "plan": outputs["selection"],
+            "inputs": outputs["host_inputs"], "applicationBuildRequired": required,
+            "iosHostRequired": outputs["host_required"] == "true", "producer": host_producer}
+    if outputs["reason"] == "unchanged-tree":
+        result["unchangedTreeProof"] = {"tree": outputs["tree"], "base": outputs["base"],
+                                        "head": outputs["head"], "candidate": source}
+    elif configuration(policy_root).get("inputSelection", False):
+        result["inputSelection"] = {"plan": outputs["selection"], "applicationBuildRequired": required,
+                                    "iosHostRequired": outputs["host_required"] == "true"}
+    return result
 
 
 def main():
@@ -236,6 +406,9 @@ def main():
     check.add_argument("--needs", type=Path, required=True)
     check.add_argument("--jobs", type=Path, required=True)
     check.add_argument("--source", required=True)
+    check.add_argument("--event", type=Path)
+    check.add_argument("--candidate", type=Path)
+    check.add_argument("--run-metadata", type=Path)
     check.add_argument("--build-number", type=int, required=True)
     check.add_argument("--run-id", type=int, required=True)
     check.add_argument("--attempt", type=int, required=True)
@@ -245,13 +418,21 @@ def main():
     try:
         if args.command == "route":
             event = json.loads(args.event.read_text())
-            result = route(event, args.candidate, args.sha)
-            validate_wiring(args.candidate, event)
+            with fresh_host_candidate(event, args.candidate, args.sha):
+                result = route(event, args.candidate, args.sha)
+                validate_wiring(args.candidate, event)
             with args.output.open("a") as handle:
                 handle.write("".join(f"{key}={value}\n" for key, value in result.items()))
         else:
-            result = report(json.loads(args.needs.read_text()), args.source, args.build_number,
-                            args.run_id, args.attempt, args.artifacts, json.loads(args.jobs.read_text()))
+            needs = json.loads(args.needs.read_text())
+            with verification_candidate(needs, args.source,
+                    event=json.loads(args.event.read_text()) if args.event is not None else None,
+                    candidate=args.candidate) as (event, candidate):
+                with fresh_host_candidate(event, candidate, args.source):
+                    result = report(needs, args.source, args.build_number, args.run_id, args.attempt,
+                                    args.artifacts, json.loads(args.jobs.read_text()),
+                                    event=event, candidate=candidate,
+                                    run_metadata=json.loads(args.run_metadata.read_text()) if args.run_metadata else None)
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(json.dumps(result, indent=2) + "\n")
             if os.environ.get("GITHUB_STEP_SUMMARY"):
