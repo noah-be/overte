@@ -257,6 +257,15 @@ class GitHubReadOnly:
         identities from an authenticated complete original Git tree.
         """
         identity = sha(blob_sha)
+        # Repeated native/source bookends still revalidate every source map and
+        # mode. Only independently hashed immutable bytes may avoid another GET.
+        cache = getattr(self, '_immutable_source_cache', None)
+        if cache is not None and identity in cache:
+            content = cache[identity]
+            require(type(content) is bytes and len(content) <= 1_000_000
+                and hashlib.sha1(b'blob ' + str(len(content)).encode('ascii') + b'\0' + content).hexdigest() == identity,
+                'cached immutable source content differs')
+            return content
         endpoint = PREFIX + '/git/blobs/' + identity
         raw = self._request(endpoint, 1_500_000)
         require(type(raw) is bytes and len(raw) <= 1_500_000, 'source blob JSON exceeds its bound')
@@ -280,6 +289,11 @@ class GitHubReadOnly:
         require(len(content) == value['size'] and base64.b64encode(content).decode('ascii') == encoded
             and hashlib.sha1(b'blob ' + str(len(content)).encode('ascii') + b'\0' + content).hexdigest() == identity,
             'source blob content differs from its exact Git object identity')
+        if cache is None:
+            cache = self._immutable_source_cache = {}
+        while cache and (len(cache) >= 17 or sum(map(len, cache.values())) + len(content) > 8_000_000):
+            del cache[next(iter(cache))]
+        cache[identity] = content
         return content
 
 

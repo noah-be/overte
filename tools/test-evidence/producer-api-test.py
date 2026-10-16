@@ -3123,6 +3123,34 @@ class ImmutableOriginalSourceTransportTests(unittest.TestCase):
             for supplied in ('main','../HEAD','0'*40,'A'*40):
                 with self.subTest(supplied=supplied),self.assertRaises(A.ApiError):A.GitHubReadOnly().immutable_source_blob(supplied)
 
+    def test_immutable_bytes_avoid_repeat_GET_but_corruption_and_unverified_data_cannot_be_cached(self):
+        raw=b'original immutable source\n';oid,value=self.fixture(raw);reader=A.GitHubReadOnly()
+        with patch.object(reader,'_request',return_value=json.dumps(value).encode()) as request:
+            self.assertEqual(reader.immutable_source_blob(oid),raw)
+            self.assertEqual(reader.immutable_source_blob(oid),raw)
+            request.assert_called_once()
+            reader._immutable_source_cache[oid]=b'corrupt memory'
+            with self.assertRaises(A.ApiError):reader.immutable_source_blob(oid)
+            request.assert_called_once()
+        reader=A.GitHubReadOnly();corrupt={**value,'size':len(raw)+1}
+        with patch.object(reader,'_request',side_effect=[json.dumps(corrupt).encode(),json.dumps(value).encode()]) as request:
+            with self.assertRaises(A.ApiError):reader.immutable_source_blob(oid)
+            self.assertEqual(reader.immutable_source_blob(oid),raw)
+            self.assertEqual(request.call_count,2)
+
+    def test_source_content_cache_is_bounded_by_member_count_and_bytes(self):
+        reader=A.GitHubReadOnly()
+        for index in range(19):
+            raw=('source '+str(index)).encode();oid,value=self.fixture(raw)
+            with patch.object(reader,'_request',return_value=json.dumps(value).encode()):
+                self.assertEqual(reader.immutable_source_blob(oid),raw)
+            self.assertLessEqual(len(reader._immutable_source_cache),17)
+        for index in range(9):
+            raw=bytes([index])*1_000_000;oid,value=self.fixture(raw)
+            with patch.object(reader,'_request',return_value=json.dumps(value).encode()):
+                self.assertEqual(reader.immutable_source_blob(oid),raw)
+            self.assertLessEqual(sum(map(len,reader._immutable_source_cache.values())),8_000_000)
+
     def test_source_transport_rejects_rebound_corrupt_noncanonical_oversize_or_duplicate_data(self):
         oid,original=self.fixture()
         for change in ('sha','size','negative','oversize','base64','padding','content','url','node','extra'):
