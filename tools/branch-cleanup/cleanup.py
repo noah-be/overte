@@ -784,6 +784,7 @@ def terminal_run(github, event):
             and (actual["workflow_id"] != MANUAL_TERMINAL_WORKFLOW or actual.get("head_branch") == "main")
             and actual.get("status") == "completed"
             and isinstance(actual.get("conclusion"), str) and bool(actual["conclusion"])
+            and isinstance(actual.get("name"), str) and bool(actual["name"])
             and actual.get("head_branch") in PERMANENT and isinstance(actual.get("head_sha"), str)
             and SHA.fullmatch(actual["head_sha"]), "invalid_terminal_push_run")
     registered_documentation = False
@@ -805,15 +806,16 @@ def terminal_run(github, event):
             or (actual.get("event") == "workflow_dispatch"
                 and actual["workflow_id"] in MANUAL_TERMINAL_WORKFLOWS), "invalid_terminal_push_run")
     path = ".github/workflows/" + filename
-    require(actual.get("name") == name and actual.get("path") == path,
-            "unreviewed_terminal_workflow")
+    require(actual.get("path") == path, "unreviewed_terminal_workflow")
     workflow = github.get("actions/workflows/" + str(actual["workflow_id"]))
     require(isinstance(workflow, dict) and workflow.get("id") == actual["workflow_id"]
             and workflow.get("name") == name and workflow.get("path") == path,
             "terminal_workflow_registration_changed")
     require(not registered_documentation or workflow.get("state") == "active",
             "terminal_documentation_registration_changed")
-    return actual
+    # The run API may put the dynamic YAML run-name in `name`. Authenticate the
+    # static workflow name through its fixed registration, not that display text.
+    return dict(actual, registered_workflow_name=name)
 
 
 def terminal_retry(github, policy, event):
@@ -848,7 +850,7 @@ def terminal_retry(github, policy, event):
     ImmutableReadCache.validate(ImmutableReadCache.request(endpoint, False), content)
     import base64
     source = base64.b64decode(re.sub(rb"[ \t\r\n]", b"", content["content"].encode("ascii"))).decode("utf-8")
-    name = actual["name"]
+    name = actual["registered_workflow_name"]
     names = "|".join(re.escape(value) for value in (name, "'" + name + "'", '"' + name + '"'))
     require(len(re.findall(r"(?m)^name:[ \t]*(?:" + names + r")[ \t]*(?:#.*)?$", source)) == 1,
             "terminal_workflow_source_name_changed")

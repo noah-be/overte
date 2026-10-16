@@ -551,10 +551,16 @@ class MetadataSchedulingBoundaryTests(unittest.TestCase):
                 'tools/repository-checks/workflows/producers/repository-checks.yml','.github/codeql/codeql-config.yml'}:
                 path = root / relative; path.parent.mkdir(parents=True,exist_ok=True)
                 shutil.copy2(ROOT/relative,path)
+            # D models protected main even when this suite runs on Android.
+            # Keep the candidate's distinct Android declaration in `before`.
+            (root/'tests/platform-profile.json').write_text(json.dumps(
+                {'schema':1,'platform':'shared','suites':[]},indent=2)+'\n')
             def git(*args):
                 return subprocess.check_output(['git',*args],cwd=root,stderr=subprocess.PIPE).decode().strip()
             git('init','--quiet'); git('config','user.name','Scheduling fixture')
             git('config','user.email','scheduling@example.invalid')
+            self.assertEqual(git('hash-object','--','tests/platform-profile.json'),
+                'd63537504c20204de9d35d9be61da72a56df59c3')
             git('add','.'); git('commit','--quiet','-m','Immutable protected default source')
             default = git('rev-parse','HEAD'); default_tree = git('rev-parse','HEAD^{tree}')
             entries = []

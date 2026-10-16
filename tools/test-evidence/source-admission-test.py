@@ -24,7 +24,10 @@ class SourceFixture:
                      for name in {*S.CONTROLLERS,*S.IMPORT_MEMBERS}}
         for name in ('tests/requirements-host.txt','tests/requirements-repository.txt','tools/sbom/requirements-validation.txt'):
             self.bodies[name]=b'pytest==8.4.2\n'
-        self.bodies[S.PROFILE]=(ROOT/S.PROFILE).read_bytes()
+        # These fake API facts model D/main and an Apple target. The profile
+        # must not depend on the real branch executing this shared test suite.
+        self.bodies[S.PROFILE]=(json.dumps({'schema':1,'platform':'shared','suites':[]},indent=2)+'\n').encode()
+        self.assertEqual(S.blob_id(self.bodies[S.PROFILE]),S.SHARED_PROFILE)
         self.bodies[S.SELF]=Path(S.__file__).read_bytes()
         self.default={name:S.ordinary(S.blob_id(raw),'100755' if name=='tests/run-project-tests.py' else '100644')
                       for name,raw in self.bodies.items()}

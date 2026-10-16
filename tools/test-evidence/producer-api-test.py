@@ -1869,6 +1869,9 @@ class MainCI37ConsumerTests(unittest.TestCase):
             if '*' not in path:
                 self.tree.setdefault(path,{'mode':'100644','type':'blob','sha':'a'*40})
         self.tree.update(workflow_entries)
+        # This legacy schema3/E2 fixture models the original main-only CI37
+        # contract. Do not inherit the executing child's Android declaration.
+        self.tree['tests/platform-profile.json']=deepcopy(C.inputs._AFFECTED_SHARED_PROFILE)
         # A genuine non-documentation CI data delta, independently admitted by
         # the strict immutable-blob guard, supplies the original quick owner.
         original_data=(C.ROOT/C.ci_profile.DATA_PATH).read_bytes()

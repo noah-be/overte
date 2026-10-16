@@ -2329,6 +2329,55 @@ class TerminalRetryTests(unittest.TestCase):
         self.assertTrue(self.retry()["retry"])
         self.assertEqual(self.module.make_plan(self.github, self.policy)["candidate_count"], 0)
 
+    def test_actual_sync_validation_dynamic_run_names_only_wake_a_current_retry(self):
+        # These are the public names of the two completed PR1336/1337 validators.
+        for identifier, gate in ((38965939432, 38965857534), (38965923127, 38965838299)):
+            with self.subTest(run=identifier):
+                name = f"Sync validation gate-{gate}-attempt-1"
+                self.runs[identifier] = dict(self.manual_run(identifier, workflow=350930895),
+                                             name=name, display_title=name, conclusion="failure")
+                self.active = [dict(self.runs[identifier], id=800, status="in_progress", conclusion=None)]
+                self.assertEqual(self.retry(identifier)["reason"], "terminal_candidates_still_held")
+                self.active.clear()
+                result = self.retry(identifier)
+                self.assertTrue(result["retry"])
+                self.assertEqual((result["trigger_run"], result["trigger_attempt"]), (identifier, 1))
+                self.assertNotIn("candidates", result)
+                self.assertNotIn("candidate_count", result)
+                self.assertIn(("contents/.github/workflows/sync-validation.yml?ref=" + self.revision, False),
+                              self.requests)
+                self.integrated = False
+                self.assertEqual(self.module.make_plan(self.github, self.policy)["candidate_count"], 0)
+
+    def test_dynamic_run_name_does_not_replace_static_registration_or_source_identity(self):
+        self.runs[700] = dict(self.manual_run(workflow=350930895),
+                              name="Sync validation gate-38965857534-attempt-1")
+        original = self.response
+        for changes in ({"id": 350930894}, {"name": "Unreviewed workflow"},
+                        {"path": ".github/workflows/sync-test-reuse.yml"}):
+            def altered(suffix="", paginate=False):
+                value = original(suffix, paginate)
+                return dict(value, **changes) if suffix == "actions/workflows/350930895" else value
+            with self.subTest(registration=changes), mock.patch.object(self.github, "get", side_effect=altered), \
+                    self.assertRaisesRegex(self.module.CleanupError, "terminal_workflow_registration_changed"):
+                self.retry()
+        self.source_changes[self.runs[700]["path"]] = (
+            b"name: Sync validation gate-38965857534-attempt-1\non:\n  workflow_dispatch:\n")
+        with self.assertRaisesRegex(self.module.CleanupError, "terminal_workflow_source_name_changed"):
+            self.retry()
+
+    def test_dynamic_run_name_is_still_bound_to_the_actual_event_and_has_a_valid_shape(self):
+        self.runs[700] = dict(self.manual_run(workflow=350930895),
+                              name="Sync validation gate-38965857534-attempt-1")
+        self.signal["workflow_run"] = dict(self.runs[700], name="Sync validation gate-1-attempt-1")
+        with self.assertRaisesRegex(self.module.CleanupError, "invalid_terminal_push_run"):
+            self.module.terminal_retry(self.github, self.policy, self.signal)
+        for name in (None, "", 7, {}, []):
+            self.runs[700]["name"] = name
+            with self.subTest(name=name), self.assertRaisesRegex(self.module.CleanupError,
+                                                               "invalid_terminal_push_run"):
+                self.retry()
+
     def documentation_completion(self):
         identifier = 499999999
         filename = self.module.DOCUMENTATION_PUSH_FILENAME
@@ -2400,7 +2449,7 @@ class TerminalRetryTests(unittest.TestCase):
         original = copy.deepcopy(self.runs[700])
         variants = [dict(event="pull_request"), dict(event="workflow_dispatch"), dict(status="in_progress"),
                     dict(workflow_id=123), dict(path=".github/workflows/branch-cleanup.yml"),
-                    dict(name="spoofed owner"), dict(head_branch="test/main/not-permanent"),
+                    dict(name=None), dict(head_branch="test/main/not-permanent"),
                     dict(repository={"id": 1, "full_name": "overte-org/overte"}),
                     dict(head_repository={"id": 1, "full_name": "foreign/fork"})]
         for changes in variants:
@@ -2450,7 +2499,7 @@ class TerminalRetryTests(unittest.TestCase):
         original = self.manual_run()
         variants = [dict(event="push"), dict(event="pull_request"), dict(head_branch="apple-ios"),
                     dict(workflow_id=350930890), dict(path=".github/workflows/project-tests.yml"),
-                    dict(name="unreviewed manual"), dict(status="in_progress", conclusion=None),
+                    dict(name=None), dict(status="in_progress", conclusion=None),
                     dict(head_repository={"id": 1, "full_name": "foreign/fork"})]
         for changes in variants:
             self.runs[700] = {**copy.deepcopy(original), **changes}

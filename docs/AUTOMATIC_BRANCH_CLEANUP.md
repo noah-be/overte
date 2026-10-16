@@ -32,6 +32,10 @@ topic hints, activity checks and the final target bookend use the current SHA.
 The report records those two identities separately. This retained source is
 only a wake-up hint, never evidence that current tests passed or work integrated.
 Unlisted, unretained, still-active and hint-free notifications cannot start it.
+For registered completion owners, the workflow identity comes from the exact
+numeric registration, its static name and path, and the immutable YAML source.
+A dynamic run display name is allowed only when the callback and freshly read
+API run agree on it; it does not replace those workflow identity checks.
 There is no last-event election: an older callback delivered after a newer one
 can perform the same fresh check. Once a branch is deleted, later callbacks
 find no matching current head. No durable marker or deletion-decision cache is
@@ -51,7 +55,7 @@ and active state. Other newly registered workflows are not admitted by this
 rule. Its completion only requests a fresh assessment; it supplies no test or
 integration authority. An active documentation owner still holds cleanup.
 
-Dynamic and unlisted completion holds still rely on a later schedule or
+Unlisted workflow completions still rely on a later schedule or
 manual assessment; the finite retry is not a delivery-time guarantee.
 
 Every assessment reads current GitHub state. It does not authorize deletion from
