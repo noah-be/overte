@@ -37,6 +37,7 @@ WORKFLOW = "noah-l-frank/overte/.github/workflows/shared-sandbox-host-diagnostic
 CASES = ("protections", "nested", "daemon", "fork-exit", "timeout")
 _BOOTSTRAP_CASES = (*CASES, "probe", "suite", "shared-probe")
 _MAX_BYTES = 65536
+_BOOTSTRAP_DIRECTORY = None
 
 
 class Unavailable(ValueError):
@@ -323,16 +324,68 @@ def bootstrap(gate, plan, case="protections"):
     os.execve(value[0], value, {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"})
 
 
+def public_bootstrap():
+    """Copy this verified controller once outside the private runner checkout.
+
+    Python opens its script after Popen drops the actual host UID. The copy is
+    public source, never a report or credential, and imports only the stdlib on
+    the fixed --bootstrap path. The original protected controller keeps ROOT.
+    """
+    global _BOOTSTRAP_DIRECTORY
+    require(os.geteuid() == 0, "bootstrap provisioning requires actual trusted root")
+    for path, modes in ((Path("/"), {0o555, 0o755}), (Path("/tmp"), {0o1777})):
+        info = path.lstat()
+        require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and stat.S_IMODE(info.st_mode) in modes,
+                "public bootstrap ancestor is not the fixed root-owned directory")
+    descriptor = os.open(Path(__file__).resolve(), os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    with os.fdopen(descriptor, "rb") as original:
+        info = os.fstat(original.fileno())
+        require(stat.S_ISREG(info.st_mode) and 0 < info.st_size <= 1_000_000,
+                "verified bootstrap source is not a bounded ordinary file")
+        body = original.read(1_000_001)
+    require(len(body) == info.st_size, "verified bootstrap source changed while reading")
+    if _BOOTSTRAP_DIRECTORY is None:
+        temporary = tempfile.TemporaryDirectory(prefix="overte-sandbox-bootstrap-", dir="/tmp")
+        try:
+            base = Path(temporary.name)
+            base.chmod(0o755)
+            target = base / "sandbox_host.py"
+            descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+            with os.fdopen(descriptor, "wb") as copied:
+                copied.write(body)
+                copied.flush()
+                os.fsync(copied.fileno())
+                os.fchmod(copied.fileno(), 0o444)
+            _BOOTSTRAP_DIRECTORY = temporary
+        except BaseException:
+            temporary.cleanup()
+            raise
+    base = Path(_BOOTSTRAP_DIRECTORY.name)
+    info = base.lstat()
+    require(base.parent == Path("/tmp") and base.resolve(strict=True) == base
+            and stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and stat.S_IMODE(info.st_mode) == 0o755,
+            "public bootstrap storage is not a fixed root-owned directory")
+    target = base / "sandbox_host.py"
+    descriptor = os.open(target, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    with os.fdopen(descriptor, "rb") as copied:
+        info = os.fstat(copied.fileno())
+        require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and stat.S_IMODE(info.st_mode) == 0o444
+                and info.st_nlink == 1 and info.st_size == len(body), "public bootstrap copy has unsafe metadata")
+        require(copied.read(len(body) + 1) == body, "public bootstrap copy differs from the verified controller")
+    return target
+
+
 def supervise(scope, plan, uid, gid, *, timeout, case="protections", _before_cleanup=None, cancelled=None):
     """Contain before exec, then kill/confirm the whole kernel subtree."""
     maximum = 900 if case == "suite" else 120 if case == "shared-probe" else 8
     limit = 2_000_000 if case == "shared-probe" else 1_000_000 if case == "suite" else _MAX_BYTES
     require(case in _BOOTSTRAP_CASES and 0 < timeout <= maximum, "unsupported fixed supervisor case or deadline")
+    launcher = public_bootstrap()
     gate_read, gate_write = os.pipe2(os.O_CLOEXEC)
     process, data, reason = None, bytearray(), None
     selector = selectors.DefaultSelector()
     try:
-        process = subprocess.Popen(["/usr/bin/python3", "-I", str(Path(__file__).resolve()), "--bootstrap", str(gate_read), str(plan), case],
+        process = subprocess.Popen(["/usr/bin/python3", "-I", str(launcher), "--bootstrap", str(gate_read), str(plan), case],
                                    user=uid, group=gid, extra_groups=(), pass_fds=(gate_read,), close_fds=True,
                                    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                    env={"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"}, start_new_session=True)
