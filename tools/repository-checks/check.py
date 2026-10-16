@@ -69,6 +69,12 @@ def metadata_edit(event: dict, event_name: str) -> bool:
     title/body shapes; a future edit field or incomplete event keeps the normal
     required jobs. No PR text, label or attestation grants execution evidence.
     """
+    if isinstance(event, dict) and event.get('action') in {'labeled', 'unlabeled'}:
+        spec = importlib.util.spec_from_file_location('trusted_metadata_event_shape',
+            ROOT / 'tools/repository-checks/metadata_context.py')
+        helper = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(helper)
+        return helper.event_only(event, event_name)
     if event_name not in {"pull_request", "pull_request_target"} or not isinstance(event, dict) \
             or event.get("action") != "edited":
         return False
@@ -124,15 +130,18 @@ def classify_metadata_event(path: Path, event_name: str) -> dict:
     except (ValueError, OSError, TypeError, AttributeError):
         metadata = False
     intent = os.environ.get('NATIVE_METADATA_INTENT', '')
+    scheduling = os.environ.get('NATIVE_METADATA_SCHEDULING', '')
     if intent not in {'', 'false', 'true'}:
         raise ValueError('invalid native metadata lane state')
+    if scheduling not in {'', 'false', 'true'} or scheduling == 'true' and intent != 'true':
+        raise ValueError('invalid native metadata scheduling state')
     if intent == 'true':
         if not metadata:
             raise ValueError('marked metadata lane no longer has a complete known event')
         # This reviewed reusable-job output selects a one-way branch, not proof.
         # The owner independently authenticates its native marker/source before
         # retaining anything. No failure can fall through to a producer.
-        result = _retained_metadata(event)
+        result = _scheduled_metadata(event) if scheduling == 'true' else _retained_metadata(event)
         if not isinstance(result, dict) or result.get('metadata_only') != 'true' \
                 or result.get('qualification') is not False:
             raise ValueError('current retained metadata qualification unavailable')
@@ -158,6 +167,15 @@ def _retained_metadata(event):
         spec.loader.exec_module(module)
         return module.MetadataVerifier(ROOT, event, os.environ).verify()
     raise ValueError('metadata caller is not a reviewed native workflow')
+
+
+def _scheduled_metadata(event):
+    """Scheduling observation only; no E/result/receipt is consumed or produced."""
+    spec = importlib.util.spec_from_file_location('trusted_metadata_scheduling',
+        ROOT / 'tools/repository-checks/metadata_context.py')
+    helper = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(helper)
+    return helper.schedule(event, os.environ, root=ROOT)
 
 
 def configuration(root: Path = ROOT) -> tuple[dict, dict]:

@@ -242,12 +242,16 @@ def metadata_generations(policy, *, root=ROOT):
     if not (type(helper) is dict and helper.get('mode') == '100644' and helper.get('type') == 'blob'):
         return None, None
     template = tree.get('tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml')
+    old_template = {'mode': '100644', 'type': 'blob', 'sha': 'd04a6dc70213d8b549bac30c11cc15eaf0182dea'}
+    old_helper = {'mode': '100644', 'type': 'blob', 'sha': '9c531c34ba559d17255768d8cae3129496fac55d'}
     generations = {row['name']: row['workflows'] for row in package.workflow_generations()
         if set(row['workflows']) == producer_api.METADATA_WORKFLOWS
-        and row['workflows'].get(producer_api.METADATA_WORKFLOW) == template}
+        and row['workflows'].get(producer_api.METADATA_WORKFLOW) in (template, old_template)}
     if not generations:
         return None, None
-    return generations, {name: {producer_api.METADATA_SOURCE: helper} for name in generations}
+    return generations, {name: {producer_api.METADATA_SOURCE: old_helper
+        if workflows[producer_api.METADATA_WORKFLOW] == old_template else helper}
+        for name, workflows in generations.items()}
 
 
 def source_blob(repository, oid):

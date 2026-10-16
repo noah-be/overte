@@ -1506,9 +1506,15 @@ class RequiredCodeQLInvocationTests(unittest.TestCase):
                           f"_PINNED_RESULTS_WORKFLOW = '{PINNED_WORKFLOW_BLOB}'\n"
                           f"_METADATA_RESULTS_WORKFLOW = '{METADATA_WORKFLOW_BLOB}'\n"
                           f"_METADATA_SOURCE_WORKFLOW = '{METADATA_SOURCE_BLOB}'\n"
+                          "_SCHEDULING_RESULTS_WORKFLOW = '" + "e9aaaed9693efc5ffb4701697ac2a4d51f5f5ba1" + "'\n"
+                          "_SCHEDULING_SOURCE_WORKFLOW = '" + "b76ade9fd7a76da21bf2cb2161deae7a262163e8" + "'\n"
                           "def result_workflow_blobs():\n"
                           "    return (_RESULTS_WORKFLOW, _RETARGET_RESULTS_WORKFLOW, "
-                          "_PINNED_RESULTS_WORKFLOW, _METADATA_RESULTS_WORKFLOW)\n")
+                          "_PINNED_RESULTS_WORKFLOW, _METADATA_RESULTS_WORKFLOW, _SCHEDULING_RESULTS_WORKFLOW)\n"
+                          "def result_workflow_sources():\n"
+                          "    return ((_RESULTS_WORKFLOW, None), (_RETARGET_RESULTS_WORKFLOW, None), "
+                          "(_PINNED_RESULTS_WORKFLOW, None), (_METADATA_RESULTS_WORKFLOW, _METADATA_SOURCE_WORKFLOW), "
+                          "(_SCHEDULING_RESULTS_WORKFLOW, _SCHEDULING_SOURCE_WORKFLOW))\n")
         self.write_policy()
         side = lambda ref, sha: {'ref': ref, 'sha': sha, 'repo': {'full_name': REPOSITORY, 'id': REPOSITORY_ID}}
         self.pr = {'number': 610, 'state': 'open', 'mergeable': True, 'merge_commit_sha': MERGE,
@@ -1650,14 +1656,31 @@ class RequiredCodeQLInvocationTests(unittest.TestCase):
         tree[1] = helper
         self.assertTrue(self.validate())
 
+    def test_fifth_caller_binds_its_own_helper_and_preserves_the_fourth_pair(self):
+        current = self.documents[f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1']['tree']
+        current[:] = [entry('.github/workflows/codeql.yml', 'e9aaaed9693efc5ffb4701697ac2a4d51f5f5ba1'),
+            entry('.github/workflows/pr-metadata-context.yml', 'b76ade9fd7a76da21bf2cb2161deae7a262163e8')]
+        self.assertTrue(self.validate())
+        current[1]['sha'] = METADATA_SOURCE_BLOB
+        with self.assertRaisesRegex(gate.GateError, 'metadata source workflow'): self.validate()
+        current[0]['sha'] = METADATA_WORKFLOW_BLOB
+        self.assertTrue(self.validate())
+        current[1]['sha'] = 'b76ade9fd7a76da21bf2cb2161deae7a262163e8'
+        with self.assertRaisesRegex(gate.GateError, 'metadata source workflow'): self.validate()
+        current[0]['sha'] = 'e9aaaed9693efc5ffb4701697ac2a4d51f5f5ba1'
+        for malformed in ({'mode':'100755'}, {'mode':'120000'}, {'type':'commit','mode':'160000'}):
+            current[1].update(malformed)
+            with self.subTest(malformed=malformed), self.assertRaises(gate.GateError): self.validate()
+            current[1] = entry('.github/workflows/pr-metadata-context.yml', 'b76ade9fd7a76da21bf2cb2161deae7a262163e8')
+
     def test_trusted_metadata_generation_inventory_must_be_complete_and_ordered(self):
         source = self.policy_root / 'tools/repository-checks/codeql.py'
         original = source.read_text()
         for mutation in (original.replace(METADATA_WORKFLOW_BLOB, WORKFLOW_BLOB),
                          original.replace(METADATA_WORKFLOW_BLOB, '0' * 40),
                          original.replace(METADATA_SOURCE_BLOB, '0' * 40),
-                         original.replace('_PINNED_RESULTS_WORKFLOW, _METADATA_RESULTS_WORKFLOW)',
-                                          '_METADATA_RESULTS_WORKFLOW, _PINNED_RESULTS_WORKFLOW)')):
+                         original.replace('_PINNED_RESULTS_WORKFLOW, _METADATA_RESULTS_WORKFLOW, _SCHEDULING_RESULTS_WORKFLOW)',
+                                          '_METADATA_RESULTS_WORKFLOW, _PINNED_RESULTS_WORKFLOW, _SCHEDULING_RESULTS_WORKFLOW)')):
             source.write_text(mutation)
             with self.subTest(mutation=mutation), self.assertRaises(gate.GateError):
                 self.validate()

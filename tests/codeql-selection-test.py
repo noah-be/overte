@@ -178,7 +178,8 @@ class LanguageSelectionTests(unittest.TestCase):
     def test_result_generations_advance_without_allowing_deployed_rollbacks(self):
         generations = CODEQL.result_workflow_blobs()
         self.assertEqual(generations, (CODEQL._RESULTS_WORKFLOW, CODEQL._RETARGET_RESULTS_WORKFLOW,
-                                      CODEQL._PINNED_RESULTS_WORKFLOW, CODEQL._METADATA_RESULTS_WORKFLOW))
+                                      CODEQL._PINNED_RESULTS_WORKFLOW, CODEQL._METADATA_RESULTS_WORKFLOW,
+                                      CODEQL._SCHEDULING_RESULTS_WORKFLOW))
         for old_index, old in enumerate(generations):
             for new_index, new in enumerate(generations):
                 before, after = self.pinned_trees()
@@ -1580,8 +1581,8 @@ class MetadataResultTests(unittest.TestCase):
             return RESULTS.MetadataVerifier(ROOT, {}, self.env, api=self.api).verify(processing_seconds=0)
 
     def test_future_recipe_is_exact_and_keeps_existing_pinned_language_selection(self):
-        for name, oid in [('codeql-metadata.yml', CODEQL._METADATA_RESULTS_WORKFLOW),
-                          ('pr-metadata-context.yml', CODEQL._METADATA_SOURCE_WORKFLOW)]:
+        for name, oid in [('codeql-metadata.yml', CODEQL._SCHEDULING_RESULTS_WORKFLOW),
+                          ('pr-metadata-context.yml', CODEQL._SCHEDULING_SOURCE_WORKFLOW)]:
             raw = (ROOT / 'tools/repository-checks/workflows/metadata-edits' / name).read_bytes()
             self.assertEqual(hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest(), oid)
         for path, expected in [('.github/branch-cleanup.json', []),
@@ -1596,6 +1597,23 @@ class MetadataResultTests(unittest.TestCase):
         previous = deepcopy(self.base_tree)
         previous[RESULTS.WORKFLOW]['sha'] = CODEQL._PINNED_RESULTS_WORKFLOW
         self.assertTrue(CODEQL.select_languages(previous, self.base_tree)['full_scan'])
+
+    def test_fifth_pair_retains_actual_analysis_verification_without_floating_old_helper(self):
+        self.runs[12]['display_title'] = self.A.ORDINARY_RUN_NAME
+        self.runs[13]['display_title'] = self.A.NONPRODUCER_RUN_NAME
+        self.workflows[RESULTS.WORKFLOW]['sha'] = CODEQL._SCHEDULING_RESULTS_WORKFLOW
+        self.workflows[self.A.METADATA_WORKFLOW]['sha'] = CODEQL._SCHEDULING_SOURCE_WORKFLOW
+        for tree in (self.base_tree, self.candidate_tree):
+            tree.update(deepcopy(self.workflows))
+            tree['tools/repository-checks/workflows/metadata-edits/codeql-metadata.yml'] = deepcopy(self.workflows[RESULTS.WORKFLOW])
+            tree['tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml'] = deepcopy(self.workflows[self.A.METADATA_WORKFLOW])
+        result = self.verify()
+        self.assertFalse(result['qualification']); self.assertEqual(result['analyses'][0]['id'], 91)
+        self.base_tree['tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml']['sha'] = CODEQL._METADATA_SOURCE_WORKFLOW
+        with self.assertRaises(RESULTS.ResultError): self.verify()
+        self.assertEqual(CODEQL.result_workflow_sources()[3],
+            ('3a273057a38255ca368d3028594fb94227ba7c3b', 'd04a6dc70213d8b549bac30c11cc15eaf0182dea'))
+        self.assertEqual(len(CODEQL.result_workflow_sources()), 5)
 
     def test_same_merge_original_native_analysis_is_freshly_revalidated_without_qualification(self):
         result = self.verify()

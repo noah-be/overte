@@ -77,6 +77,25 @@ cannot replace the first native publisher proof. The legacy whole-tree CI37
 policy shape remains separately validated; it is not silently interpreted as
 the controller-source policy.
 
+An inert title/body or unrelated-label event has a separate scheduling-only
+lane on the seven reviewed PR targets. Its native source check binds the exact
+current B/H/M, protected B/D controller and complete import inventory, reviewed
+caller/helper pair, Actions app and original attempt. The ordinary invocation
+must have completed its fixed native source step; it may still be pending or
+failed overall. The metadata invocation then uses different, nonrequired check
+names and leaves the ordinary required results unchanged. Only the exact new
+never-producer recipe may be excluded while queued: its server-rendered native
+run name, immutable source/attempt/M identity, empty artifact inventory and
+absence of heavy jobs are checked afresh. Its normal queued-to-completed
+progress does not change that scheduling identity; historical recipes still
+require their completed recognition marker. The lane does not assert
+PASS, reuse an execution receipt, capture consumer E or start replacement tests
+or analyses. The Android diagnostic-label state is independently bound; changing
+`android-long-diagnostics` retains normal qualification. Missing or changing
+native provenance stops before expensive jobs, after only a short bounded wait
+for the tiny source step. Completed result reuse remains subject to the separate
+original receipt/E, native publisher and actual selected-analysis verifiers.
+
 The seven-target workflow generation requires the reviewed helper/controller
 source on each protected target before native installation there. A candidate
 cannot enroll its own missing trusted-base helpers. Source-only propagation

@@ -432,8 +432,13 @@ class MetadataVerifier:
         require(self.env.get('GITHUB_JOB') == 'select', 'metadata verification requires its original selector job')
         tree = codeql.inputs.full_tree(self.root, 'HEAD')
         ordinary = lambda oid: {'mode': '100644', 'type': 'blob', 'sha': oid}
-        workflows = {WORKFLOW: ordinary(codeql._METADATA_RESULTS_WORKFLOW),
-                     '.github/workflows/pr-metadata-context.yml': ordinary(codeql._METADATA_SOURCE_WORKFLOW)}
+        caller_entry = tree.get('tools/repository-checks/workflows/metadata-edits/codeql-metadata.yml')
+        paired = dict(codeql.result_workflow_sources())
+        require(type(caller_entry) is dict and caller_entry.get('mode') == '100644'
+            and caller_entry.get('type') == 'blob' and paired.get(caller_entry.get('sha')) is not None,
+            'protected metadata workflow/helper pair is unavailable')
+        workflows = {WORKFLOW: caller_entry,
+                     '.github/workflows/pr-metadata-context.yml': ordinary(paired[caller_entry['sha']])}
         for active, template in ((WORKFLOW, 'codeql-metadata.yml'),
                                  ('.github/workflows/pr-metadata-context.yml', 'pr-metadata-context.yml')):
             require(tree.get('tools/repository-checks/workflows/metadata-edits/' + template) == workflows[active],

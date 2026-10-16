@@ -11,6 +11,7 @@ from pathlib import Path
 import subprocess
 import sys
 import unittest
+import zlib
 from unittest.mock import patch
 from urllib.parse import parse_qs, unquote, urlsplit
 
@@ -22,6 +23,23 @@ SPEC = importlib.util.spec_from_file_location("protocol_api_fixtures", Path(__fi
 FIXTURES = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(FIXTURES)
 NOW = FIXTURES.NOW
+
+
+# Authentic protected generation21 caller and generation20/21 relative helper.
+# Inline compressed bytes avoid a hosted Git-history dependency or new lookup
+# member. Their whole ordinary Git blob identities are independently literal.
+_HISTORICAL_METADATA_WORKFLOWS = {'tools/repository-checks/workflows/producers/repository-checks.yml': ('d9fefd275d9e3c6977cf9350a1945a6bbe5051b4', 'c-q}s>u=jO5dWUPg6WDn0Ve0Yb{;Y;ON=J#>I8|?p(qMLmd-XCSyD;LiP!dj-|?k~CClz3S<!xq$-Cq6cW<gck&~EByhsqiQZ67MiRa&VBOoJ)fO&$((Qm}_1)ZwD34`}3Wx(-|DTP~P5FQ(WAW0ljf7V`$ya{y3B_uJYB4#t<kHNp;YjM<BBP2<~(3LWP3;CN6F-w5!KOGV$cxqsNFev@xv&bK_IHLc8S%H9xY&-M@5N5y9DF1yMvzuWU-?{<ii6{KAK8;36D$L1*urxxwMtCz$wW|7G0NiIZk$1;ir4bQhAbvbaLJ)wvQ|f~=WB?@RCV~RXB*+VP$RLhG@S=j;p_hiDBXNgp)u0=6$j}QptR=uERLN9|`f(&6LZy+=3)b+bpE3rKKa;y77N?2avd}vkdgt+n4`f8eI32WMiu~=O71~ic82}?6KUx|FL-OfUl}ma7UheRav^4T9^5h9wFVXm8FB$=F4?GTXccXS!P!U4m#5vwLm~BdCs}Gun29mt>KJ`L6q`vaS7HTO$@gg5Whel4qVr2pY>brQLP@9180#A4jk5lG@wyk#4qZG{<2`LcB#U&ANCzM-h4;gk!8oH86-M<K6tDvg9wkz?IL=%rj#m)Z#MRkpoV}OzNR$J3;*?8bv33D=VlyBXM_G}WaAshOVuuuU6C}0l83?VPP^=5oSS!_emw&zIEqd5Ayx-(CGA5GMfdM_uwp-F-W>3hrtgZwua5PDG~Twap~bBw`?JK7DdFjM#<i@rh#+3aOf1b1W_NC#;oQfGI+y}hq<7@Yv(<xFUVsG<A=wTw%}6k{*y#!)!y5E);XaT9I~XQ<mHGVS7uI}V`8l!RWC^WbJq$^p{?6|;rpmLO+|Frua<`Fdr+2?Dd3i{bVTVdD#rDN*Ijroy-wxB<nRF1}WUvMNN<FXfkuRn~FLh1&>gg|aGSH6&`OtHL;lr6Q0fXGC0BOanKs8w<GS39BNOTcbi*71C&pB2kr<MluR8<d*VhlvaqMwJn5>=wlhSG61u_MkX{GjZB|n4%eyCB#bQ;>qz#;Ua;ry@4|uS`3D2<+4jM+-Gjh;`pf>#w!iaiXZPve!25N3uw$g$VqWbOYWPrJp_G>Ml+re(-yJZlT;m)G=?5stYMieE<CF`>N4v>lg`I)z4=f4xHH?E}FVG<$vn@hQ-Y=|3H{@HDMxjE1xlB0N;^479RCaZSa3oQcmB!o|q%;hiQq3+I=@R^SB>Op{QeD<n>B1H>B5Rl`$3%f>Poe1NYQg-5Xqv<S{M7BAzv%W#HW2X*L`9@~NBy%`UH4_Te{^!xKXT7{{cf+XdFsnjB|TGBdUByy9y;WACpX(njN@p}nsaLb=-TVr$t*9h#k(O|`Zsy>`1x7?^!iV?`wCTcFOK@BkL;$SI+Hny-qFjhq|ln@yXV*ai|hWQIa7FnZf&#R7P6_8t}UYo?yzL2_@P!aS^JmQuXQZrvKwpNW5nsO$u!T_hk(t#6F?%jcfTs0iZSGry9RAWGGy^YAqaPPJ2WOvMHQXC3^VEPG7}aZ?X$g0W!)vdlpDVarsMFjmor|S9<AzI1}B{^9tbXd*mA&%Iqa*k(imlkt%w!wNV74EkfVy;JFb$Y>B|beYM!A~i(cDXV<%oDsfX>*!Y0XE#yT681}A7eNd%j!S2qMLo9|X_#!cH&>bdnip>)fph~@gO7xk?pH&<9UgF|b{@KZFsntJ9FOWqnboTlI~9bM<%#uQ@0rZTzQlQ)<PHMoPJ$o%137<HqLzS@IJRfh;vVTN3VMFzYq1`x@1h5}#8FI#P?;G4It<&(66qrsc9lV@||LY)Q+<^;G)Z~-dKdebFpy7f#<b%<(`l=tnX6MulTWKL>uL__gS9kGtQGC>`d%FbffFpQ36to4riL2e~ImQ8X^LRK2(ngpyg%QXp@8|H%8PbavbhJ^?4uhMx9URI);_q8|byq|3ucw754wu15|{~0mOuV!^b_O)y^AZk3`3bhQSTf0+WILD#Kt*_|$C3e%08t=D6PWD!H|F*82*<kMq?Y-xhOsQ4#N=3y5WoHP?%|3z1PK0@?_LvV3nV5X*hxF}bXfKX}DtL=R;j>?en_sT7=_pUrb{;Rxt`GQ>B`3hbBg&V}*Y={XB!)9QLw+ZbFAElDlHpvO-!5MFPtSWN=e_<vmuLO%pRfDf<MWg5;Z8o;sUfc7&#EWGsZM^>m>-XSoQ}P6wT9$Yq0N%pg6}ycP1kE<cBN?CEMyk@kvGeuj?FRVSE+iKwMx#LUoX3kQ+x+-Y<qGap=uwQHAE&ou<!JhdA0cbo)Xc$zwk-N0Y^{#U-z`Gk`T7VVu=5-LVl7S(h%%(PVvE2weJ{hA%3q5)jVe3#zah1fMwqRN)Oz}r`_Wh?q&Dt`tSag_5l(9b#>m;!Ma&A^(v3y<=3%g&xli<wU<1ODNP)CX{0DA`~^>EYySb4lWnp'), 'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml': ('d04a6dc70213d8b549bac30c11cc15eaf0182dea', 'c-oazO>f&U488kT5J7>Q<b1E0feuTDVC`XD&?UPDvdlDEZON0Uq-oLrKFN-gG>5J8!GKBnk?-+IiWiu`#L*fRNx=zWb`OM41ei&RBCV1LV5`mJD%abk;CUVb0NPRM$krbK1rpCV@ugJcp_(wjhUd<=xOjPiUplq1L7^X%e8zZ>5TE@Dudh*5qA8@cQmd+i&{fJNV321~6p%vv09N-?6`T7e2(l;~@ifOHqZ;aos(Ry;Wu76p)G2bTKa9J>DnqhBKOZZka)iF`=slz>mX@%z@xIO9NCt$exPfDP0$<iB9z(Aa0;SP}f-r-EOVto3FA!MmjKG87&W3rp2szsk0n0;u9%KVC?Bj@YF-rNkI~w;#8Nd86>~%$N-0NQsQvR`<_6|5(N$cYpgVw8>;Db-NG{%kR5tlB{mj-`3v=pb@Vr<vEVOKvT_dr0#d9vAQ9F3Khm@t?H_wn4%z4C87DY7Lu7Fk1sd0mkeI>UdK`j%Sfwqvl=R+2WmI%PYDT{KH7cV`<oT1cyW2mW+;-xOtz{(LA-a&zLS!vr!*-neV;umnD_Q`S3LYc&9N3+xB5>qeN)|4&;@%&I*=>*DL}{AO{zoc^5N&6l&u{HE0;Ss-;@aX0xk4HdOPkJ;~w`D`(7oe6S!Lu3$ku;sgh|3PWRyhAf5&>Z#fetF+vxVnP2mjT;vb!#W>=nof(d71')}
+
+def historical_metadata_workflow(relative,generation,root):
+    historical = generation in {'protected-producer-metadata-ci-v1','protected-producer-seven-target-ci-v1'} \
+        and (relative.endswith('/metadata-edits/pr-metadata-context.yml')
+             or generation=='protected-producer-seven-target-ci-v1' and relative.endswith('/producers/repository-checks.yml'))
+    if historical:
+        oid,encoded=_HISTORICAL_METADATA_WORKFLOWS[relative]
+        raw=zlib.decompress(base64.b85decode(encoded))
+        assert hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()==oid
+        return raw
+    return (root/relative).read_bytes()
 
 
 class FakeApi:
@@ -608,7 +626,7 @@ class MetadataNonproducerTests(unittest.TestCase):
 
     def test_missing_or_forged_source_marker_cannot_hide_an_unknown_run(self):
         for shape in ("missing-edge", "wrong-edge", "duplicate-edge", "mixed-edge", "wrong-helper", "alias-parent",
-                      "wrong-caller", "foreign-head", "wrong-parents", "unknown-generation", "child-target"):
+                      "wrong-caller", "foreign-head", "wrong-parents", "unknown-generation", "unknown-target"):
             self.setUp(); c = self.case
             if shape == "missing-edge": c.runs[101]["referenced_workflows"] = []
             elif shape == "wrong-edge": c.runs[101]["referenced_workflows"][0]["sha"] = "8" * 40
@@ -623,7 +641,7 @@ class MetadataNonproducerTests(unittest.TestCase):
             elif shape == "wrong-parents":
                 c.api.mutate = lambda e,v: ({**v, "parents": list(reversed(v["parents"]))} if e.endswith("/git/commits/" + c.binding["merge_sha"]) else v)
             elif shape == "unknown-generation": c.generation[A.METADATA_WORKFLOW]["sha"] = "9" * 40
-            else: c.binding["base_ref"] = "apple-ios"
+            else: c.binding["base_ref"] = "unknown-target"
             with self.subTest(shape=shape):
                 # Direct classification avoids current() rejecting an intentionally
                 # malformed live fixture before the source-classification boundary.
@@ -729,6 +747,262 @@ class MetadataNonproducerTests(unittest.TestCase):
         self.assertEqual(marker["generation"], "metadata-v1")
         c.jobs[101].append({**deepcopy(c.jobs[101][0]), "id": 141, "name": "CodeQL (python)", "status": "queued", "conclusion": None})
         self.assertIsNone(c.adapter.metadata_observation(c.runs[101], c.binding, policy, now=NOW))
+
+
+class SchedulingFakeApi(MetadataFakeApi):
+    def json(self, endpoint):
+        path = endpoint[len(A.PREFIX):].lstrip('/').split('?', 1)[0]
+        c = self.case
+        if path == 'actions/workflows/repository-checks.yml':
+            self.calls.append(endpoint)
+            return self.mutate(endpoint, {'id': 99, 'path': c.policy.caller_path, 'state': 'active'})
+        if path.startswith('git/ref/heads/') and path.removeprefix('git/ref/heads/') == c.binding['base_ref']:
+            self.calls.append(endpoint)
+            return self.mutate(endpoint, {'ref': 'refs/heads/' + c.binding['base_ref'],
+                'object': {'type': 'commit', 'sha': c.binding['base_sha']}})
+        value = super().json(endpoint)
+        if path == 'pulls/17':
+            value['labels'] = deepcopy(c.labels)
+        return value
+
+
+class MetadataSchedulingTests(unittest.TestCase):
+    """Actual native adapter, without a descriptor or consumer environment."""
+    def setUp(self):
+        fixture = MetadataNonproducerTests()
+        fixture.setUp()
+        self.case = c = fixture.case
+        c.labels = []
+        c.generation[c.policy.caller_path]['sha'] = 'bc9c4284286b5c3d2de07a3ecf3b98393e2f2a2c'
+        c.generation[A.METADATA_WORKFLOW]['sha'] = 'b76ade9fd7a76da21bf2cb2161deae7a262163e8'
+        c.policy = replace(c.policy, metadata_generations={'metadata-v2':deepcopy(c.generation)},
+            metadata_sources={'metadata-v2': c.policy.metadata_sources['metadata-v1']})
+        c.runs[101]['display_title'] = A.NONPRODUCER_RUN_NAME
+        c.runs[100]['display_title'] = A.ORDINARY_RUN_NAME
+        c.runs[100]['referenced_workflows'].extend(deepcopy(c.runs[101]['referenced_workflows']))
+        ordinary = deepcopy(c.jobs[101][0])
+        ordinary.update(id=150, run_id=100, started_at='2026-10-15T10:00:01Z',
+            completed_at='2026-10-15T10:00:20Z',
+            check_run_url=f'https://api.github.com/{A.PREFIX}/check-runs/150',
+            steps=[{'number': 1, 'name': A.ORDINARY_SOURCE_STEP + ' (diagnostics absent)',
+                'status': 'completed', 'conclusion': 'success',
+                'started_at': '2026-10-15T10:00:02Z', 'completed_at': '2026-10-15T10:00:19Z'}])
+        # The actual ordinary source can be pending/failed before any descriptor.
+        c.jobs[100] = [ordinary]
+        c.artifacts[100] = []
+        c.api = SchedulingFakeApi(c); c.adapter = A.Adapter(c.api)
+        self.policy = A.MetadataPolicy(99, c.policy.caller_path,
+            c.policy.metadata_generations, c.policy.metadata_sources)
+
+    def schedule(self, *, diagnostics=False):
+        c = self.case
+        return c.adapter.metadata_schedule(17, 101, self.policy, diagnostics=diagnostics, now=NOW)
+
+    def test_all_seven_pending_failed_and_successful_sources_preserve_status_without_results(self):
+        c = self.case
+        for target in sorted(A.METADATA_TARGETS):
+            for status, conclusion in [('in_progress', None), ('completed', 'failure'), ('completed', 'success')]:
+                c.binding['base_ref'] = target
+                c.runs[100].update(status=status, conclusion=conclusion)
+                with self.subTest(target=target, status=status, conclusion=conclusion):
+                    value = self.schedule()
+                    self.assertEqual((value['original_status'], value['original_conclusion']), (status, conclusion))
+                    self.assertEqual(value['original_run_id'], 100)
+                    self.assertEqual(value['metadata_only'], 'true')
+                    self.assertFalse(value['qualification'])
+                    for field in ('environment', 'results', 'receipt', 'reused', 'passed_suites'):
+                        self.assertNotIn(field, value)
+        self.assertFalse(any('/actions/artifacts/' in endpoint for endpoint in c.api.calls))
+
+    def test_unproved_queued_or_failed_source_cannot_be_promoted_by_same_head_or_marker(self):
+        c = self.case
+        for shape in ('no-edge', 'missing-source-job', 'pending-source-job', 'failed-source-step',
+                      'only-metadata-step', 'no-original', 'ambiguous-original'):
+            self.setUp(); c = self.case
+            if shape == 'no-edge': c.runs[100]['referenced_workflows'] = []
+            elif shape == 'missing-source-job': c.jobs[100] = []
+            elif shape == 'pending-source-job': c.jobs[100][0].update(status='queued', conclusion=None)
+            elif shape == 'failed-source-step': c.jobs[100][0]['steps'][0]['conclusion'] = 'failure'
+            elif shape == 'only-metadata-step': c.jobs[100][0]['steps'][0]['name'] = A.METADATA_STEP
+            elif shape == 'no-original': del c.runs[100]
+            else:
+                c.runs[102] = {**deepcopy(c.runs[100]), 'id': 102, 'check_suite_id': 1102}
+                c.jobs[102] = [{**deepcopy(c.jobs[100][0]), 'id': 152, 'run_id': 102,
+                    'check_run_url': f'https://api.github.com/{A.PREFIX}/check-runs/152'}]
+                c.artifacts[102] = []
+            with self.subTest(shape=shape), self.assertRaises(P.ProtocolError): self.schedule()
+
+    def test_current_native_source_cannot_be_excluded_by_supplied_run_id_or_wrong_context(self):
+        for shape in ('wrong-current-id', 'current-completed', 'mixed-current', 'wrong-app', 'foreign',
+                      'old-attempt', 'wrong-parents', 'wrong-helper', 'unknown-workflow'):
+            self.setUp(); c = self.case
+            if shape == 'wrong-current-id': current = 999
+            else: current = 101
+            if shape == 'current-completed': c.runs[101].update(status='completed', conclusion='success')
+            elif shape == 'mixed-current': c.runs[101]['referenced_workflows'][0]['sha'] = '8' * 40
+            elif shape == 'wrong-app':
+                c.api.mutate = lambda e,v: {**v,'app':{'id':42}} if '/check-suites/' in e else v
+            elif shape == 'foreign': c.runs[100]['head_repository']['id'] = 12
+            elif shape == 'old-attempt': c.runs[100]['run_attempt'] = 2
+            elif shape == 'wrong-parents':
+                c.api.mutate = lambda e,v: {**v, 'parents': list(reversed(v['parents']))} if e.endswith('/git/commits/' + c.binding['merge_sha']) else v
+            elif shape == 'wrong-helper':
+                c.api.mutate = lambda e,v: {**v, 'tree':[{**v['tree'][0], 'sha':'9'*40}]} if e.endswith('/git/trees/'+'5'*40) else v
+            elif shape == 'unknown-workflow': c.generation[A.METADATA_WORKFLOW]['sha'] = '9'*40
+            with self.subTest(shape=shape), self.assertRaises(P.ProtocolError):
+                c.adapter.metadata_schedule(17, current, self.policy, now=NOW)
+
+    def test_native_diagnostic_state_is_bound_and_other_label_changes_are_inert(self):
+        c = self.case
+        c.labels = [{'id': 7, 'name': 'bug'}]
+        self.assertEqual(self.schedule()['original_run_id'], 100)
+        c.labels.append({'id': 8, 'name': 'android-long-diagnostics'})
+        with self.assertRaises(P.ProtocolError): self.schedule()
+        with self.assertRaises(P.ProtocolError): self.schedule(diagnostics=True)
+        c.jobs[100][0]['steps'][0]['name'] = A.ORDINARY_SOURCE_STEP + ' (diagnostics requested)'
+        self.assertEqual(self.schedule(diagnostics=True)['original_run_id'], 100)
+
+    def test_native_job_label_run_and_ref_bookends_are_fresh(self):
+        for shape in ('job', 'check', 'run', 'ref', 'labels'):
+            self.setUp(); c = self.case
+            reads = 0
+            def mutate(endpoint, value):
+                nonlocal reads
+                suffix = {'job':'/actions/runs/100/attempts/1/jobs?', 'check':'/check-runs/150',
+                    'run':'/actions/runs/100/attempts/1', 'ref':'/git/ref/heads/' + c.binding['head_ref'],
+                    'labels':'/actions/workflows/99/runs?'}[shape]
+                if suffix in endpoint:
+                    reads += 1
+                    threshold = 2 if shape != 'labels' else 1
+                    if reads >= threshold:
+                        if shape == 'job': value['jobs'][0]['steps'][0]['conclusion'] = 'failure'
+                        elif shape == 'check': value['conclusion'] = 'failure'
+                        elif shape == 'run': value['updated_at'] = '2026-10-15T10:04:31Z'
+                        elif shape == 'ref': value['object']['sha'] = '9'*40
+                        else: c.labels = [{'id':8,'name':'android-long-diagnostics'}]
+                return value
+            c.api.mutate = mutate
+            with self.subTest(shape=shape), self.assertRaises(P.ProtocolError): self.schedule()
+
+
+class NativeMetadataIntentTests(unittest.TestCase):
+    """The new exact never-producer recipe can be known before its marker."""
+    def setUp(self):
+        fixture = MetadataNonproducerTests(); fixture.setUp()
+        self.case = c = fixture.case
+        c.generation[c.policy.caller_path]['sha'] = 'bc9c4284286b5c3d2de07a3ecf3b98393e2f2a2c'
+        c.generation[A.METADATA_WORKFLOW]['sha'] = 'b76ade9fd7a76da21bf2cb2161deae7a262163e8'
+        c.policy = replace(c.policy,
+            generations={'native22': {path:deepcopy(c.generation[path]) for path in A.WORKFLOWS}},
+            metadata_generations={'metadata-v2':deepcopy(c.generation)},
+            metadata_sources={'metadata-v2':c.policy.metadata_sources['metadata-v1']})
+        c.runs[100]['referenced_workflows'].extend(deepcopy(c.runs[101]['referenced_workflows']))
+        c.runs[100]['display_title']=A.ORDINARY_RUN_NAME
+        c.runs[101].update(display_title=A.NONPRODUCER_RUN_NAME,status='queued',conclusion=None,run_started_at=None)
+        c.jobs[101] = []
+        self.policy = A.MetadataPolicy(99,c.policy.caller_path,c.policy.metadata_generations,c.policy.metadata_sources)
+
+    def observe(self):
+        c=self.case
+        return c.adapter.metadata_observation(c.runs[101],c.binding,self.policy,now=NOW)
+
+    def test_queued_native_intent_is_stable_through_real_api_progress_without_results(self):
+        c=self.case
+        queued=self.observe()
+        self.assertEqual(queued['kind'],A.METADATA_INTENT_KIND)
+        self.assertEqual(c.verify()['run_id'],100)
+        for status,conclusion in [('in_progress',None),('completed','failure'),('completed','success')]:
+            c.runs[101].update(status=status,conclusion=conclusion,run_started_at='2026-10-15T10:04:00Z')
+            with self.subTest(status=status,conclusion=conclusion): self.assertEqual(self.observe(),queued)
+        for field in ('results','environment','receipt','qualified_at','expires_at','verified','jobs','status'):
+            self.assertNotIn(field,queued)
+
+    def test_progress_during_original_verification_does_not_replace_or_fail_original(self):
+        c=self.case; reads=0
+        def mutate(endpoint,value):
+            nonlocal reads
+            if '/actions/workflows/99/runs?' in endpoint:
+                reads+=1
+                if reads==2:
+                    c.runs[101].update(status='in_progress',run_started_at='2026-10-15T10:04:00Z')
+                    c.jobs[101]=[{'id':146,'run_id':101,'run_attempt':1,'head_sha':c.binding['head_sha'],
+                        'name':A.METADATA_JOB,'status':'in_progress','conclusion':None,
+                        'started_at':'2026-10-15T10:04:01Z','completed_at':None,
+                        'check_run_url':f'https://api.github.com/{A.PREFIX}/check-runs/146'}]
+                elif reads>=3:
+                    c.runs[101].update(status='completed',conclusion='success')
+                    c.jobs[101][0].update(status='completed',conclusion='success',completed_at='2026-10-15T10:04:20Z')
+            return value
+        c.api.mutate=mutate
+        self.assertEqual(c.verify()['run_id'],100)
+        self.assertGreaterEqual(reads,4)
+
+    def test_name_alone_old_recipe_missing_source_or_late_work_cannot_exclude(self):
+        for shape in ('forged-name-old-recipe','unknown-helper','missing-source','mixed-source','wrong-app',
+                      'rerun','heavy','artifact','parents','foreign'):
+            self.setUp();c=self.case
+            if shape=='forged-name-old-recipe':
+                c.generation[c.policy.caller_path]['sha']='7'*40
+                c.policy.metadata_generations['metadata-v2'][c.policy.caller_path]['sha']='7'*40
+            elif shape=='unknown-helper': c.generation[A.METADATA_WORKFLOW]['sha']='9'*40
+            elif shape=='missing-source': c.runs[101]['referenced_workflows']=[]
+            elif shape=='mixed-source': c.runs[101]['referenced_workflows'][0]['sha']='9'*40
+            elif shape=='wrong-app': c.api.mutate=lambda e,v:{**v,'app':{'id':42}} if '/check-suites/' in e else v
+            elif shape=='rerun': c.runs[101]['run_attempt']=2
+            elif shape=='heavy':
+                c.jobs[101]=[{'id':145,'run_id':101,'run_attempt':1,'head_sha':c.binding['head_sha'],
+                    'name':'project / Shared tests','status':'queued','conclusion':None,'started_at':None,'completed_at':None,
+                    'check_run_url':f'https://api.github.com/{A.PREFIX}/check-runs/145'}]
+            elif shape=='artifact': c.artifacts[101]=[{'id':1011,'name':'not-a-result'}]
+            elif shape=='parents':
+                c.api.mutate=lambda e,v:{**v,'parents':list(reversed(v['parents']))} if e.endswith('/git/commits/'+c.binding['merge_sha']) else v
+            else:c.runs[101]['head_repository']['id']=12
+            with self.subTest(shape=shape):
+                if shape=='parents':
+                    with self.assertRaises(P.ProtocolError): self.observe()
+                    continue
+                if shape=='forged-name-old-recipe': self.assertIsNone(self.observe())
+                value=c.capture()
+                self.assertFalse(value.inventory_complete)
+                self.assertNotIn(101,value.metadata_nonproducers)
+
+    def test_native_intent_identity_rejects_immutable_drift_and_unknown_job_even_late(self):
+        c=self.case; initial=self.observe()
+        for field,value in [('id',102),('run_attempt',2),('head_sha','9'*40),('display_title','user-controlled text')]:
+            row={**c.runs[101],field:value}
+            with self.subTest(field=field),self.assertRaises(P.ProtocolError): A.metadata_inventory_record(row,initial)
+        for kind in ('late-artifact','late-heavy'):
+            self.setUp();c=self.case;reads=0
+            def mutate(endpoint,value):
+                nonlocal reads
+                target='/actions/runs/101/artifacts?' if kind=='late-artifact' else '/actions/runs/101/attempts/1/jobs?'
+                if target in endpoint:
+                    reads+=1
+                    if reads>=2:
+                        if kind=='late-artifact':
+                            value['artifacts']=[{'id':1012,'name':'late-artifact'}]
+                        else:
+                            value['jobs']=[{'id':145,'run_id':101,'run_attempt':1,'head_sha':c.binding['head_sha'],
+                                'name':'project / Shared tests','status':'queued','conclusion':None,
+                                'started_at':None,'completed_at':None,
+                                'check_run_url':f'https://api.github.com/{A.PREFIX}/check-runs/145'}]
+                            c.jobs[101]=deepcopy(value['jobs'])
+                        value['total_count']=1
+                return value
+            c.api.mutate=mutate
+            with self.subTest(kind=kind):self.assertFalse(c.capture().inventory_complete)
+
+    def test_unproven_queued_source_only_gets_a_bounded_read_only_wait(self):
+        c=self.case
+        with patch.object(c.adapter,'_capture_inventory_once',side_effect=A.SchedulingPending('source unavailable')) as read, \
+                patch.object(A.time,'sleep') as sleep:
+            result=c.adapter._capture_inventory(c.binding,c.policy,NOW)
+        self.assertEqual(read.call_count,3)
+        self.assertEqual(sleep.call_args_list,[unittest.mock.call(2),unittest.mock.call(2)])
+        self.assertEqual(result[0],[])
+        self.assertEqual(result[3],['native-scheduling-source-pending'])
+        self.assertEqual(result[-1],{})
+
 
 
 class IntegratedFakeApi(FakeApi):
@@ -1336,9 +1610,9 @@ class MainConsumerTests(unittest.TestCase):
         generation = next(item for item in generations if item['name'] == self.generation_name)
         self.generations = {item['name']:deepcopy(item['workflows']) for item in generations}
         if self.generation_name in {'protected-producer-metadata-ci-v1','protected-producer-seven-target-ci-v1'}:
-            # Derive the actual prospective native tuple from its reviewed
-            # sources. A stale hard-coded historical tuple must not hide a
-            # missing admission of the installed producer generation.
+            # Reconstruct authentic historical20/21 sources independently of
+            # today's dormant22 templates. Future installed22 has separate
+            # complete materialized-tuple fixtures; old rows never float.
             sources={'.github/workflows/project-tests.yml':postmerge.producer.TEMPLATE,
                 '.github/workflows/repository-checks.yml':'tools/repository-checks/workflows/producers/repository-checks.yml',
                 '.github/workflows/parent-qualification.yml':postmerge.TEMPLATE,
@@ -1357,7 +1631,7 @@ class MainConsumerTests(unittest.TestCase):
                 path=postmerge.ROOT/relative
                 self.assertTrue(path.is_file() and not path.is_symlink())
                 self.assertEqual(path.stat().st_mode & 0o777,0o644)
-                raw=path.read_bytes()
+                raw=historical_metadata_workflow(relative,self.generation_name,postmerge.ROOT)
                 workflows[target]={'mode':'100644','type':'blob',
                     'sha':hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()}
             self.assertEqual(workflows,generation['workflows'])
@@ -2008,7 +2282,7 @@ class MetadataRetentionConsumerTests(unittest.TestCase):
             path = C.ROOT / relative
             self.assertFalse(path.is_symlink())
             self.assertEqual(path.stat().st_mode & 0o777, 0o644)
-            raw = path.read_bytes()
+            raw = historical_metadata_workflow(relative,self.generation_name,C.ROOT)
             return {"mode": "100644", "type": "blob",
                     "sha": hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()}
         workflows = {path: blob(relative) for path, relative in sources.items()}
@@ -2016,7 +2290,8 @@ class MetadataRetentionConsumerTests(unittest.TestCase):
         c.tree = {**deepcopy(c.context.tree), **workflows,
             C.producer.TEMPLATE: workflows[".github/workflows/project-tests.yml"],
             sources[A.METADATA_WORKFLOW]: workflows[A.METADATA_WORKFLOW],
-            A.METADATA_SOURCE: blob(A.METADATA_SOURCE),
+            A.METADATA_SOURCE: {"mode":"100644","type":"blob",
+                "sha":"9c531c34ba559d17255768d8cae3129496fac55d"},
             ".github/test-suites.json": {"mode": "100644", "type": "blob", "sha": "1" * 40},
             "tests/platform-profile.json": {"mode": "100644", "type": "blob", "sha": "2" * 40},
             ".github/branch-cleanup.json": {"mode": "100644", "type": "blob", "sha": "3" * 40}}

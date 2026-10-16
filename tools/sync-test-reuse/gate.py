@@ -545,11 +545,21 @@ def validate_required_codeql_workflow(event: dict, api: GitHubApi, policy_root: 
     spec.loader.exec_module(trusted)
     generations = tuple(validate_sha(value, 'approved CodeQL result workflow')
                         for value in trusted.result_workflow_blobs())
+    pairs = trusted.result_workflow_sources()
+    if (type(pairs) is not tuple or len(pairs) != 5
+            or any(type(row) is not tuple or len(row) != 2 for row in pairs)):
+        raise GateError('approved CodeQL workflow/helper pairs unavailable')
+    sources = {validate_sha(row[0], 'approved CodeQL result workflow'):
+               None if row[1] is None else validate_sha(row[1], 'approved CodeQL metadata source')
+               for row in pairs}
     approved = set(generations)
     metadata_workflow = validate_sha(trusted._METADATA_RESULTS_WORKFLOW, 'approved CodeQL metadata workflow')
     metadata_source = validate_sha(trusted._METADATA_SOURCE_WORKFLOW, 'approved CodeQL metadata source')
-    if len(generations) != 4 or len(approved) != 4 or '0' * 40 in approved \
-            or generations[-1] != metadata_workflow or metadata_source == '0' * 40:
+    if len(generations) != 5 or len(approved) != 5 or tuple(sources) != generations \
+            or '0' * 40 in approved or any(sources[oid] is not None for oid in generations[:3]) \
+            or pairs[3] != (metadata_workflow, metadata_source) \
+            or pairs[4] != (trusted._SCHEDULING_RESULTS_WORKFLOW, trusted._SCHEDULING_SOURCE_WORKFLOW) \
+            or any(value == '0' * 40 for value in sources.values()):
         raise GateError('approved CodeQL workflow identity is unavailable')
     refs = {f'repos/{repository}/git/ref/heads/{quote(ref, safe="")}': 'refs/heads/' + ref
             for ref in (target, head_ref)}
@@ -614,9 +624,9 @@ def validate_required_codeql_workflow(event: dict, api: GitHubApi, policy_root: 
         raise GateError('candidate must retain the exact approved CodeQL security-result workflow')
     # The metadata successor invokes this relative reusable workflow. Its
     # exact caller blob cannot authorize candidate-controlled helper contents.
-    if actual['sha'] == metadata_workflow and tree.get('.github/workflows/pr-metadata-context.yml') != {
+    if sources[actual['sha']] is not None and tree.get('.github/workflows/pr-metadata-context.yml') != {
             'path': '.github/workflows/pr-metadata-context.yml',
-            'mode': '100644', 'type': 'blob', 'sha': metadata_source}:
+            'mode': '100644', 'type': 'blob', 'sha': sources[actual['sha']]}:
         raise GateError('candidate must retain the exact approved CodeQL metadata source workflow')
     _, base_tree = recursive_tree(readonly, repository, base_sha, error_type=GateError)
     previous = base_tree.get('.github/workflows/codeql.yml', {})

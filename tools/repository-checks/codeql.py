@@ -54,6 +54,11 @@ _PINNED_RESULTS_WORKFLOW = "6d55d0fe4e9edc86204c66e1fa3967681793a2cd"
 # every main PR invocation; it does not replace an analysis or security gate.
 _METADATA_RESULTS_WORKFLOW = "3a273057a38255ca368d3028594fb94227ba7c3b"
 _METADATA_SOURCE_WORKFLOW = "d04a6dc70213d8b549bac30c11cc15eaf0182dea"
+# All-target scheduling successor: the extractor/configuration is unchanged.
+# Keep the historical fourth workflow/helper pair; relative helpers are part
+# of native invocation identity and cannot follow an unrelated newest pin.
+_SCHEDULING_RESULTS_WORKFLOW = "e9aaaed9693efc5ffb4701697ac2a4d51f5f5ba1"
+_SCHEDULING_SOURCE_WORKFLOW = "b76ade9fd7a76da21bf2cb2161deae7a262163e8"
 _PYTHON_POLICY_JSONS = frozenset({
     ".github/test-suite-dependencies.json",
     ".github/android-orchestration.json", ".github/test-suites.json",
@@ -110,14 +115,21 @@ _OBJECT = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
 
 def result_workflow_blobs():
     """Finite trusted selected-result generations; never candidate anchors."""
-    return (_RESULTS_WORKFLOW, _RETARGET_RESULTS_WORKFLOW, _PINNED_RESULTS_WORKFLOW,
-            _METADATA_RESULTS_WORKFLOW)
+    return tuple(workflow for workflow, _ in result_workflow_sources())
+
+
+def result_workflow_sources():
+    """Chronological exact caller/relative-helper pairs from protected policy."""
+    return ((_RESULTS_WORKFLOW, None), (_RETARGET_RESULTS_WORKFLOW, None),
+            (_PINNED_RESULTS_WORKFLOW, None),
+            (_METADATA_RESULTS_WORKFLOW, _METADATA_SOURCE_WORKFLOW),
+            (_SCHEDULING_RESULTS_WORKFLOW, _SCHEDULING_SOURCE_WORKFLOW))
 
 
 def pinned_workflow_entries():
     """Finite successors retaining the exact reviewed 2.27.2 extractor."""
     return [{'mode': '100644', 'type': 'blob', 'sha': oid}
-            for oid in (_PINNED_RESULTS_WORKFLOW, _METADATA_RESULTS_WORKFLOW)]
+            for oid in result_workflow_blobs()[2:]]
 
 
 def result_workflow_rollback(base_entry, candidate_entry):
