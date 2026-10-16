@@ -35,6 +35,13 @@ jobs:
             /tests/requirements-host.txt
             /tests/requirements-repository.txt
             /tools/sbom/requirements-validation.txt
+      - name: Ensure the required namespace tool is available
+        run: |
+          set -euo pipefail
+          if ! test -x /usr/bin/bwrap; then
+            sudo -n /usr/bin/apt-get update
+            sudo -n /usr/bin/apt-get install --yes --no-install-recommends bubblewrap
+          fi
       - name: Provision the fixed disposable diagnostic account
         id: account
         run: |
