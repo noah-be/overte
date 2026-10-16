@@ -61,6 +61,8 @@ INDEPENDENT_HOST_PATHS = frozenset({
     "tools/test-evidence/ci-profile-test.py",
     "tools/test-evidence/runtime-ci-test.py",
     "tools/test-evidence/ci-integration-test.py",
+    "tools/repository-checks/workflows/producers/legacy/protected-project-tests-v1.yml",
+    "tools/repository-checks/workflows/producers/legacy/protected-project-tests-postmerge-v1.yml",
     "tools/repository-checks/workflows/producers/protected-project-tests.yml",
     "tools/repository-checks/workflows/producers/repository-checks.yml",
     "tools/repository-checks/workflows/producers/parent-qualification.yml",

@@ -53,12 +53,12 @@ class WorkflowGenerationTests(TemporaryGit, unittest.TestCase):
         self.generations = PACKAGES.workflow_generations()
         paths = list((ROOT / "tools/repository-checks/workflows").rglob("*.yml"))
         self.contents = {blob(path.read_bytes())["sha"]: path.read_bytes() for path in paths}
-        # Keep the exact earlier dormant fixture available without requiring
-        # historical Git objects in a shallow protected source snapshot.
-        previous = (ROOT / 'tools/repository-checks/workflows/producers/protected-project-tests.yml').read_bytes().replace(
-            b'          tools/branch-policy/check.py\n', b'').replace(b'        sparse-checkout-cone-mode: false\n', b'')
-        self.assertEqual(blob(previous)['sha'], '93f35c99ec6580b8796420997b1dcc586b7bfd95')
-        self.contents[blob(previous)['sha']] = previous
+        # Immutable historical fixtures must survive later template edits and
+        # remain available in shallow source snapshots without Git history.
+        for oid in ('93f35c99ec6580b8796420997b1dcc586b7bfd95',
+                    '861db7b76a11b9b8772e91cb24ec7cb9d918e339'):
+            self.assertIn(oid, self.contents)
+            self.assertEqual(blob(self.contents[oid])['sha'], oid)
 
     def materialize(self, generation):
         root = self.temporary()
@@ -305,12 +305,14 @@ class ProtectedProducerPermissionTests(unittest.TestCase):
             self.assertTrue(all(value == 'read' and permissions.get(key) == 'read' for key, value in actual.items()), name)
             self.assertEqual(actual, permissions if name in {'route', 'project-tests', 'producer-publication'} else {'contents': 'read'}, name)
 
-    def test_callee_changes_only_reviewed_permissions_sparse_reader_and_dormant_comment(self):
+    def test_callee_retains_permissions_readers_and_exact_historical_baseline(self):
         source = (ROOT / 'tools/repository-checks/workflows/producers/protected-project-tests.yml').read_bytes()
         self.assertEqual(source.count(b'      checks: read\n'), 3)
         self.assertEqual(source.count(b'          tools/branch-policy/check.py\n'), 6)
         self.assertEqual(source.count(b'        sparse-checkout-cone-mode: false\n'), 6)
-        previous = source.replace(b'          tools/branch-policy/check.py\n', b'').replace(
+        historical = (ROOT / 'tools/repository-checks/workflows/producers/legacy/protected-project-tests-postmerge-v1.yml').read_bytes()
+        self.assertEqual(blob(historical)['sha'], '861db7b76a11b9b8772e91cb24ec7cb9d918e339')
+        previous = historical.replace(b'          tools/branch-policy/check.py\n', b'').replace(
             b'        sparse-checkout-cone-mode: false\n', b'').replace(b'      checks: read\n', b'').replace(
             b'# Prospective protected producer; dormant wiring approved, production guards false.',
             b'# Prospective protected producer; production guards false and no active generation approval.')
