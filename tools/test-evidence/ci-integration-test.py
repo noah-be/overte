@@ -529,7 +529,7 @@ class CurrentOriginalOwnerTests(unittest.TestCase):
         self.assertEqual(P._completed_owner_outputs(self.context,self.receipt),
             {'documentation_verified':'false','workflow_contracts_verified':'false'})
 
-    def test_every_finite_full_target_uses_its_own_native_source_and_existing_platform_boundary(self):
+    def test_finite_targets_keep_native_source_but_children_cannot_use_legacy_source3(self):
         profiles={'main':inputs._AFFECTED_SHARED_PROFILE['sha'],
             'apple-main':inputs._AFFECTED_SHARED_PROFILE['sha'],'apple-ios':inputs._AFFECTED_SHARED_PROFILE['sha'],
             'android-main':'1314006455751831be60b143e46ce9c6f5398e26',
@@ -562,13 +562,23 @@ class CurrentOriginalOwnerTests(unittest.TestCase):
             # no prior main descriptor is relabelled as a child source.
             self.refresh()
             with self.subTest(target=target):
+                self.assertEqual(self.case.binding['base_ref'],target)
+                if target!='main':
+                    self.assertFalse(P._owner_target_supported(self.context))
+                    with self.assertRaises(H.Unavailable):self.verify(P.DOCUMENTATION_SUITES|P.WORKFLOW_CONTRACT_SUITES)
+                    self.assertEqual(P._completed_owner_outputs(self.context,self.receipt),
+                        {'documentation_verified':'false','workflow_contracts_verified':'false'})
+                    continue
                 value=self.verify(P.DOCUMENTATION_SUITES|P.WORKFLOW_CONTRACT_SUITES)
                 self.assertIs(value['verified'],True)
-                self.assertEqual(self.case.binding['base_ref'],target)
                 self.assertEqual(P._completed_owner_outputs(self.context,self.receipt),
                     {'documentation_verified':'true','workflow_contracts_verified':'true'})
         # Android nonempty declarations are supported only when the separately
-        # selected native shared owner actually omits platform owners.
+        # selected native shared owner actually omits platform owners. Enter
+        # the new format prerequisite for this independent planning check so a
+        # missing retained source3 does not conceal the platform guard.
+        self.context['policy']=replace(self.context['policy'],producer=replace(
+            self.context['policy'].producer,required_execution_schema=4))
         owner=self.context['plan']['owners']['shared-host'];owner['include_platform']=True
         self.assertFalse(P._owner_target_supported(self.context))
         self.assertEqual(P._completed_owner_outputs(self.context,self.receipt),

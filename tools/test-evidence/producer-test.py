@@ -562,5 +562,94 @@ class MaterializedGitContextTests(unittest.TestCase):
                 case.verify(signed(case.aggregate, 'aggregate_digest'))
 
 
+class RetainedSourceProtocolTests(unittest.TestCase):
+    """Native whole-hash protocol; source authority is an explicit fixture seam.
+
+    Real originalB/D and complete projection checks live in ci-profile-test's
+    RetainedOriginalDefaultTests. This class never substitutes JSON for them.
+    """
+    def fixture(self):
+        import base64
+        import ci_profile as C
+        case=MaterializedGitContextTests().fixture()
+        case.binding['base_ref']='apple-ios'
+        case.policy=replace(case.policy,required_execution_schema=4)
+        environment=isolated_codec_environment()
+        case.receipt['environment']=deepcopy(environment)
+        case.receipt['results']={name:{'status':'passed','fingerprint':P.inputs.suite_fingerprint(
+            case.registry,name,case.tree,environment)} for name in case.registry['suites']}
+        raw=b'tree '+b'8'*40+b'\nauthor Fixture <fixture@example.invalid> 1 +0000\ncommitter Fixture <fixture@example.invalid> 1 +0000\n\nOriginal protected default fixture\n'
+        default=hashlib.sha1(b'commit '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
+        binding={'source':case.binding['merge_sha'],'run_id':case.run.run_id,'run_attempt':1,
+            'profile':'manual-shared-host-compatibility-v1','snapshot':'sha256:'+'1'*64,
+            'git_context':case.context.git_context,'runtime_profile':'ubuntu24-host-qt5-qt6-v1',
+            'selection':{'fixture':'independently supplied source primitive'},'profile_binding':None,
+            'registry':P.digest(case.registry),'prepared':environment['prepared']['roots'],
+            'projection':'sha256:'+'2'*64,'outside_namespaces':{name:index+100 for index,name in enumerate(('user','mnt','pid','net','ipc','uts'))}}
+        envelope={'schema':1,'kind':C.RETAINED_SOURCE_KIND,'default_commit':default,'default_tree':'8'*40,
+            'commit_object':base64.b64encode(raw).decode('ascii'),'admission':{'schema':1,
+                'kind':'protected-default-controller-source-v1','target':'apple-ios',
+                'target_profile':{'mode':'100644','type':'blob','sha':'9'*40},
+                'controller_digest':case.policy.controller_digest,'lookup_digest':'sha256:'+'3'*64,
+                'base':case.binding['base_sha'],'default':default},
+            'manifest_digest':'sha256:'+'4'*64,'projection_digest':'sha256:'+'5'*64,'binding':binding}
+        case.receipt.update(schema=4,protected_source=deepcopy(envelope))
+        case.receipt=signed(case.receipt,'receipt_digest')
+        case.context=replace(case.context,environment=environment,protected_source=deepcopy(envelope))
+        case.run=replace(case.run,final_publisher=replace(case.run.final_publisher,
+            receipt_sha256=hashlib.sha256(P.canonical(case.receipt)).hexdigest()))
+        case.descriptor=P.descriptor(case.binding,case.plan,case.policy,case.run)
+        case.aggregate['descriptor_digest']=case.descriptor['descriptor_digest']
+        case.aggregate['results']['shared-host']['receipt']=case.receipt
+        case.aggregate=signed(case.aggregate,'aggregate_digest')
+        return case
+
+    def test_schema4_retains_original_source_under_same_native_whole_hash_without_environment_capture(self):
+        case=self.fixture()
+        original=deepcopy(case.receipt['environment'])
+        with patch.object(P.execution,'capture_execution_environment',side_effect=AssertionError('no consumer E')):
+            proof=case.verify()
+        self.assertTrue(proof['verified'])
+        self.assertEqual(proof['receipt_sha256'],hashlib.sha256(P.canonical(case.receipt)).hexdigest())
+        self.assertEqual(case.receipt['environment'],original)
+        self.assertNotEqual(case.receipt['protected_source']['default_commit'],case.binding['base_sha'])
+        self.assertEqual(case.receipt['protected_source'],case.context.protected_source)
+
+    def test_schema4_requires_independent_source_context_and_cannot_downgrade_to3(self):
+        case=self.fixture()
+        with self.assertRaises(P.ProtocolError):case.verify(contexts={'shared-host':replace(case.context,protected_source=None)})
+        changed=deepcopy(case.context.protected_source);changed['projection_digest']='sha256:'+'0'*64
+        with self.assertRaises(P.ProtocolError):case.verify(contexts={'shared-host':replace(case.context,protected_source=changed)})
+        receipt=deepcopy(case.receipt);receipt['schema']=3;receipt.pop('protected_source')
+        case.aggregate['results']['shared-host']['receipt']=signed(receipt,'receipt_digest')
+        with self.assertRaises(P.ProtocolError):case.verify(signed(case.aggregate,'aggregate_digest'))
+
+    def test_changed_projection_or_original_D_cannot_keep_original_native_commitment(self):
+        import base64
+        case=self.fixture()
+        for mutation in ('projection','original-D'):
+            receipt=deepcopy(case.receipt)
+            if mutation=='projection':receipt['protected_source']['projection_digest']='sha256:'+'0'*64
+            else:
+                raw=base64.b64decode(receipt['protected_source']['commit_object'])+b'changed public commit\n'
+                default=hashlib.sha1(b'commit '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
+                receipt['protected_source'].update(default_commit=default,commit_object=base64.b64encode(raw).decode('ascii'))
+                receipt['protected_source']['admission']['default']=default
+            receipt=signed(receipt,'receipt_digest')
+            aggregate=deepcopy(case.aggregate);aggregate['results']['shared-host']['receipt']=receipt
+            # Even supplying a matching explicit fixture context and renewed
+            # artifact/receipt digests cannot replace the actual native hash.
+            context=replace(case.context,protected_source=receipt['protected_source'])
+            with self.subTest(mutation=mutation),self.assertRaises(P.ProtocolError):
+                case.verify(signed(aggregate,'aggregate_digest'),contexts={'shared-host':context})
+
+    def test_legacy_policy3_retains_its_original_exact_format(self):
+        case=MaterializedGitContextTests().fixture()
+        self.assertTrue(case.verify()['verified'])
+        source4=self.fixture()
+        case.aggregate['results']['shared-host']['receipt']=source4.receipt
+        with self.assertRaises(P.ProtocolError):case.verify(signed(case.aggregate,'aggregate_digest'))
+
+
 if __name__ == "__main__":
     unittest.main()

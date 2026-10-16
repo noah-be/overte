@@ -274,6 +274,153 @@ def load_controller_projection(root):
     return value
 
 
+RETAINED_SOURCE_KIND = 'original-protected-default-source-v1'
+RETAINED_SOURCE_GENERATION = 'protected-producer-original-default-v1'
+_RETAINED_FIELDS = frozenset({'schema','kind','default_commit','default_tree','commit_object',
+    'admission','manifest_digest','projection_digest','binding'})
+_PROJECTION_BINDING = frozenset({'source','run_id','run_attempt','profile','snapshot','git_context',
+    'runtime_profile','selection','profile_binding','registry','prepared','projection','outside_namespaces'})
+
+
+def retained_source_shape(value):
+    """Bounded structural check only; native hash + immutable B/D grant authority."""
+    _require(type(value) is dict and set(value)==_RETAINED_FIELDS
+        and type(value['schema']) is int and value['schema']==1 and value['kind']==RETAINED_SOURCE_KIND,
+        'retained original source format is unsupported')
+    for key in ('default_commit','default_tree'):
+        _require(type(value[key]) is str and re.fullmatch('[0-9a-f]{40}',value[key])
+            and value[key]!='0'*40, 'retained original source identity is invalid')
+    for key in ('manifest_digest','projection_digest'):
+        _require(type(value[key]) is str and _DIGEST.fullmatch(value[key]), 'retained source digest is invalid')
+    encoded=value['commit_object']
+    _require(type(encoded) is str and 0<len(encoded)<=87_384, 'retained commit object exceeds bound')
+    try:raw=base64.b64decode(encoded,validate=True)
+    except (ValueError,UnicodeError):raise CIProfileError('retained commit object is invalid') from None
+    _require(0<len(raw)<=65_536 and base64.b64encode(raw).decode('ascii')==encoded
+        and hashlib.sha1(b'commit '+str(len(raw)).encode()+b'\0'+raw).hexdigest()==value['default_commit']
+        and raw.split(b'\n',1)[0]==b'tree '+value['default_tree'].encode('ascii'),
+        'retained original commit/tree differs')
+    admission=value['admission']
+    _require(type(admission) is dict and set(admission)=={'schema','kind','target','target_profile',
+        'controller_digest','lookup_digest','base','default'} and type(admission['schema']) is int
+        and admission['schema']==1 and admission['kind']=='protected-default-controller-source-v1'
+        and admission['target'] in _PERMANENT and admission['default']==value['default_commit'],
+        'retained original admission is incomplete')
+    _require(type(admission['base']) is str and re.fullmatch('[0-9a-f]{40}',admission['base'])
+        and admission['base']!='0'*40, 'retained original base is invalid')
+    for key in ('controller_digest','lookup_digest'):
+        _require(type(admission[key]) is str and _DIGEST.fullmatch(admission[key]), 'retained admission digest is invalid')
+    binding=value['binding']
+    _require(type(binding) is dict and set(binding)==_PROJECTION_BINDING
+        and binding['profile']=='manual-shared-host-compatibility-v1'
+        and type(binding['run_id']) is int and binding['run_id']>0
+        and type(binding['run_attempt']) is int and binding['run_attempt']==1
+        and type(binding['source']) is str and re.fullmatch('[0-9a-f]{40}',binding['source'])
+        and binding['source']!='0'*40, 'retained projection binding is incomplete')
+    for key in ('snapshot','registry','projection'):
+        _require(type(binding[key]) is str and _DIGEST.fullmatch(binding[key]), 'retained projection binding digest is invalid')
+    namespaces=binding['outside_namespaces']
+    _require(type(namespaces) is dict and set(namespaces)=={'user','mnt','pid','net','ipc','uts'}
+        and all(type(item) is int and item>0 for item in namespaces.values()), 'retained outside namespace identity is invalid')
+    _require(type(binding['prepared']) is dict and 3<=len(binding['prepared'])<=5
+        and all(type(name) is str and type(item) is str and _DIGEST.fullmatch(item)
+            for name,item in binding['prepared'].items()), 'retained prepared identity is invalid')
+    _require(len(inputs._canonical(value))<=200_000,'retained source envelope exceeds bound')
+    return value
+
+
+def _retained_projection(manifest, binding, root):
+    """Reconstruct every source/manifest/context file and directory, no exclusions."""
+    import source_admission
+    _validate_controller_manifest(manifest,root)
+    result={}
+    def add(name, raw, executable=False):
+        for parent in Path(name).parents:
+            if parent!=Path('.'):result[parent.as_posix()]={'directory':True}
+        result[name]={'mode':0o555 if executable else 0o444,'size':len(raw),
+            'sha256':hashlib.sha256(raw).hexdigest()}
+    for name in controller_paths():
+        raw,entry=source_admission.actual_bytes(root,name)
+        _require(entry==manifest['entries'].get(name),'retained projected source differs from immutable original D')
+        add(name,raw,name=='tests/run-project-tests.py')
+    add(CONTROLLER_MANIFEST,inputs._canonical(manifest))
+    _require(binding['projection']==_digest(result),'retained pre-context projection differs')
+    add('context.json',inputs._canonical({'shared_host':binding}))
+    return result
+
+
+def capture_retained_source(manifest, projection, binding, admission, *, root=ROOT):
+    """Internal supervisor output only; callers separately native-bookend B/D.
+
+    Complete tree entries remain in the sealed projection, not the bounded
+    receipt. Their exact full manifest digest is independently reconstructible
+    from immutable originalD and the retained raw commit object.
+    """
+    _validate_controller_manifest(manifest,root)
+    raw=base64.b64decode(manifest['commit_object'],validate=True)
+    actual_commit=hashlib.sha1(b'commit '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
+    actual_tree=_controller_tree_identity(manifest['entries'])
+    value={'schema':1,'kind':RETAINED_SOURCE_KIND,'default_commit':actual_commit,
+        'default_tree':actual_tree,'commit_object':base64.b64encode(raw).decode('ascii'),
+        'admission':admission,'manifest_digest':_digest(manifest),
+        'projection_digest':_digest(projection),'binding':binding}
+    retained_source_shape(value)
+    _require(_retained_projection(manifest,binding,root)==projection,
+        'complete actual retained source projection differs')
+    return json.loads(inputs._canonical(value))
+
+
+def validate_retained_source(value, base, default, *, native_binding, run_id, registry,
+                             selection, environment, root=ROOT):
+    """Revalidate original immutable B/D, never substitute consumer current D.
+
+    The envelope itself is data until the ORIGINAL native whole-receipt hash is
+    verified. Current trusted controller/import policy constrains old D bytes.
+    """
+    import source_admission
+    retained_source_shape(value)
+    _require(native_binding['base_ref']!='main' or value['default_commit']==native_binding['base_sha'],
+        'original main default differs from authenticated original base')
+    registry_raw,_=_diagnostic_file(root,'.github/test-suites.json')
+    _require(inputs._validate_registry(json.loads(registry_raw,object_pairs_hook=inputs._unique_object))==registry,
+        'retained source registry differs from current protected bytes')
+    manifest={'schema':1,'kind':CONTROLLER_KIND,'source_commit':value['default_commit'],
+        'source_tree':value['default_tree'],'commit_object':value['commit_object'],'entries':default}
+    _require(_digest(manifest)==value['manifest_digest'],'retained complete manifest differs from immutable original D')
+    _validate_controller_manifest(manifest,root)
+    expected=source_admission.compatibility(base,default,native_binding['base_ref'],
+        read_actual=lambda name:source_admission.actual_bytes(root,name),
+        actual_imports=source_admission.actual_import_inventory(root))
+    expected={**expected,'base':native_binding['base_sha'],'default':value['default_commit']}
+    _require(expected==value['admission'],'original B/D admission differs from retained source')
+    binding=value['binding']
+    _require(binding['source']==native_binding['merge_sha'] and binding['run_id']==run_id
+        and binding['selection']==selection and binding['registry']==_digest(registry),
+        'retained projection differs from native original candidate/owner')
+    # Exact schema3 materialized Git context is independently checked by the
+    # receipt/native validator; retain equality here instead of querying E.
+    import execution
+    execution.validate_git_context(binding['git_context'],native_binding['merge_sha'],native_binding['merge_tree'])
+    if environment.get('profile')==PROFILE:
+        _require(binding['runtime_profile']==PROFILE and binding['profile_binding']==environment.get('selection'),
+            'retained CI37 runtime selection differs')
+        version=environment.get('python',{}).get('version')
+        node=environment.get('tools',{}).get('node',{}).get('version')
+        _require(type(version) is str and re.fullmatch(r'3\.12\.[0-9]+',version)
+            and type(node) is str and re.fullmatch(r'v22\.[0-9]+\.[0-9]+',node), 'retained CI37 prepared versions differ')
+        roots={inputs.ISOLATED_VENV,'/opt/hostedtoolcache/Python/'+version+'/x64',
+            '/opt/hostedtoolcache/node/'+node[1:]+'/x64'}
+        _require(set(binding['prepared'])==roots,'retained CI37 prepared roots differ')
+    else:
+        _require(binding['runtime_profile']=='ubuntu24-host-qt5-qt6-v1'
+            and binding['profile_binding'] is None
+            and binding['prepared']==inputs.isolated_full_environment(environment)['roots'],
+            'retained full prepared environment differs')
+    projection=_retained_projection(manifest,binding,root)
+    _require(_digest(projection)==value['projection_digest'],'retained complete projection identity differs')
+    return value
+
+
 def load_policy(root=ROOT):
     """Read the fixed trusted policy, including its disabled preparation state."""
     path = Path(root)

@@ -181,7 +181,8 @@ def validate_git_context(value, commit, tree):
     return value
 
 
-def validate_receipt(receipt, registry, tree, *, require_all=False, expected_git_context=None):
+def validate_receipt(receipt, registry, tree, *, require_all=False, expected_git_context=None,
+                     expected_protected_source=None):
     """Verify observed names, statuses and independently recomputed fingerprints."""
     fields = {"schema", "producer", "candidate_commit", "candidate_tree", "environment", "reusable",
               "requested_suites", "include_platform", "results", "platform_results", "conclusion",
@@ -190,7 +191,8 @@ def validate_receipt(receipt, registry, tree, *, require_all=False, expected_git
             or (receipt["schema"] == 1 and set(receipt) != fields) \
             or (receipt["schema"] == 2 and set(receipt) != fields | {"platform_selection"}) \
             or (receipt["schema"] == 3 and set(receipt) != fields | {"git_context"}) \
-            or receipt["schema"] not in {1, 2, 3} or receipt["producer"] != PRODUCER:
+            or (receipt["schema"] == 4 and set(receipt) != fields | {"git_context", "protected_source"}) \
+            or receipt["schema"] not in {1, 2, 3, 4} or receipt["producer"] != PRODUCER:
         raise ExecutionError("execution receipt format is invalid")
     unsigned = dict(receipt)
     claimed = unsigned.pop("receipt_digest")
@@ -199,14 +201,28 @@ def validate_receipt(receipt, registry, tree, *, require_all=False, expected_git
     for field in ("candidate_commit", "candidate_tree"):
         if not isinstance(receipt[field], str) or not re.fullmatch(r"[0-9a-f]{40}", receipt[field]):
             raise ExecutionError("execution receipt source identity is invalid")
-    if receipt["schema"] == 3:
+    if receipt["schema"] in {3, 4}:
         validate_git_context(receipt["git_context"], receipt["candidate_commit"], receipt["candidate_tree"])
         if expected_git_context is not None and receipt["git_context"] != expected_git_context:
             raise ExecutionError("execution receipt Git context differs from independently authenticated source")
     elif expected_git_context is not None:
         raise ExecutionError("legacy execution receipt does not bind its materialized Git context")
+    if receipt['schema'] == 4:
+        # Versioned source provenance is separate from E. Only this new format
+        # loads its fixed validator; tiny/legacy execution remains unchanged.
+        import ci_profile
+        try:
+            source=ci_profile.retained_source_shape(receipt['protected_source'])
+            if source['binding']['source'] != receipt['candidate_commit'] \
+                    or source['binding']['git_context'] != receipt['git_context']:
+                raise ExecutionError('retained source does not bind original materialized candidate')
+        except ci_profile.CIProfileError as error:
+            raise ExecutionError('retained original source envelope is invalid') from error
+    if expected_protected_source is not None and (receipt['schema'] != 4
+            or receipt['protected_source'] != expected_protected_source):
+        raise ExecutionError('receipt differs from independently authenticated original protected source')
     for field in ("started_at", "completed_at"):
-        if receipt["schema"] == 3 and (not isinstance(receipt[field], str)
+        if receipt["schema"] in {3, 4} and (not isinstance(receipt[field], str)
                 or re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z", receipt[field]) is None):
             raise ExecutionError("isolated execution receipt requires whole UTC seconds")
         try:

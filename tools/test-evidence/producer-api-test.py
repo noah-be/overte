@@ -2590,5 +2590,64 @@ class AffectedPostmergeConsumerTests(unittest.TestCase):
         self.assertTrue(any(call.kwargs.get('require_all') is True for call in validate.call_args_list))
 
 
+class RetainedSourceNativeAPITests(unittest.TestCase):
+    """Actual API/descriptor/aggregate/native hash; source closure fixture seam.
+
+    Immutable B/D source closure is exercised separately by the real Git/API
+    RetainedOriginalDefaultTests. This class supplies that expected result and
+    verifies the whole native protocol, without any E query or execution.
+    """
+    def setUp(self):
+        self.fixture=MainConsumerTests()
+        self.fixture.generation_name='protected-producer-postmerge-original-e-v1'
+        self.fixture.setUp();self.addCleanup(self.fixture.doCleanups)
+        self.case,self.adapter=self.fixture.case,self.fixture.adapter
+        run=self.adapter.capture_integrated(500,self.case.plan,self.case.policy,now=NOW).observations[0].run
+        example=FIXTURES.RetainedSourceProtocolTests().fixture()
+        self.source=deepcopy(example.context.protected_source)
+        self.source['binding']['git_context']=deepcopy(self.fixture.git)
+        self.source['binding']['selection']=deepcopy(self.fixture.module.producer.selection_profile.return_value['selection'])
+        self.receipt=deepcopy(self.fixture.receipt)
+        self.receipt.update(schema=4,protected_source=deepcopy(self.source))
+        self.receipt=FIXTURES.signed(self.receipt,'receipt_digest')
+        self.case.pp=replace(self.case.pp,required_execution_schema=4)
+        self.case.policy=replace(self.case.policy,producer=self.case.pp)
+        self.case.aggregate['results']['shared-host']['receipt']=self.receipt
+        self.case.add_run(replace(run,final_publisher=replace(run.final_publisher,
+            receipt_sha256=hashlib.sha256(P.canonical(self.receipt)).hexdigest())))
+        self.case.runs[100]['pull_requests']=[]
+        self.context=P.SharedContext(self.fixture.registry,self.fixture.tree,self.receipt['environment'],
+            self.case.binding['merge_sha'],self.case.binding['merge_tree'],self.fixture.git,self.source)
+
+    def verify(self,context=None):
+        return self.adapter.verify_integrated(500,self.case.plan,self.case.policy,
+            {'shared-host':context or self.context},clock=lambda:NOW)
+
+    def test_actual_original_native_schema4_and_E_are_retained_without_consumer_measurement(self):
+        value=self.verify()
+        self.assertTrue(value['verified'])
+        self.assertEqual(value['receipt_sha256'],hashlib.sha256(P.canonical(self.receipt)).hexdigest())
+        self.assertEqual(value['expires_at'],self.case.aggregate['expires_at'])
+        self.assertEqual(value['source_chain']['producer_commit'],self.receipt['candidate_commit'])
+        self.assertNotEqual(value['source_chain']['producer_commit'],self.case.integrated)
+        self.fixture.module.execution.capture_execution_environment.assert_not_called()
+        self.fixture.module.execution.execute.assert_not_called()
+
+    def test_native_api_cannot_accept_schema4_without_independent_original_source(self):
+        with self.assertRaises(P.ProtocolError):self.verify(replace(self.context,protected_source=None))
+        changed=deepcopy(self.source);changed['projection_digest']='sha256:'+'0'*64
+        with self.assertRaises(P.ProtocolError):self.verify(replace(self.context,protected_source=changed))
+
+    def test_renewed_artifact_and_receipt_digests_cannot_change_native_source_commitment(self):
+        changed=deepcopy(self.receipt);changed['protected_source']['projection_digest']='sha256:'+'0'*64
+        changed=FIXTURES.signed(changed,'receipt_digest')
+        self.case.aggregate['results']['shared-host']['receipt']=changed
+        self.case.aggregate=FIXTURES.signed(self.case.aggregate,'aggregate_digest')
+        run=self.adapter.capture_integrated(500,self.case.plan,self.case.policy,now=NOW).observations[0].run
+        self.case.artifacts[100]=self.case.artifacts[100][:1]
+        self.case.artifact(run,'aggregate',self.case.aggregate)
+        with self.assertRaises(P.ProtocolError):self.verify(replace(self.context,protected_source=changed['protected_source']))
+
+
 if __name__ == "__main__":
     unittest.main()

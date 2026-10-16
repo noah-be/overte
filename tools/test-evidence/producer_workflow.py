@@ -113,6 +113,40 @@ def _host_policy():
     return module
 
 
+def execution_schema(policy, tree, target):
+    """A new complete reviewed generation alone enrolls retained source proof."""
+    generation=policy.package_policy().validate_tree_wiring(tree)
+    if generation==ci_profile.RETAINED_SOURCE_GENERATION:
+        return 4
+    if target!='main':
+        raise PreExecutionUnavailable('child protected proof requires retained original default source generation')
+    return 3
+
+
+def retained_receipt_source(receipt, binding, adapter, registry, selected, run_id, *, root=ROOT):
+    """Authenticate original D selected by a native-hash-bound source envelope.
+
+    This must run before SharedContext is constructed, then again at the final
+    native/context bookend. It never selects D from consumer currentdefault.
+    """
+    if receipt.get('schema')!=4:
+        host.require(binding['base_ref']=='main' and receipt.get('schema')==3,
+                     'child original protected default source is missing')
+        return None
+    value=ci_profile.retained_source_shape(receipt.get('protected_source'))
+    identity, _=adapter._commit(value['default_commit'])
+    host.require(identity==value['default_tree'],'original immutable D tree differs')
+    from types import SimpleNamespace
+    api=SimpleNamespace(get=adapter._object)
+    base=source_admission.api_tree(api,binding['base_sha'],tree_reader=adapter.api.immutable_tree)
+    default=source_admission.api_tree(api,value['default_commit'],tree_reader=adapter.api.immutable_tree)
+    expected=ci_profile.validate_retained_source(value,base,default,native_binding=binding,
+        run_id=run_id,registry=registry,selection=selected,environment=receipt['environment'],root=root)
+    host.require(expected['binding']['git_context']==expected_git_context(adapter,binding),
+                 'retained original projection Git context differs from independent native source')
+    return expected
+
+
 def _event_binding(event, binding):
     repository = {'full_name': 'noah-l-frank/overte', 'id': 1319052603}
     host.require(isinstance(event, dict) and all(event.get('repository', {}).get(key) == value
@@ -619,9 +653,10 @@ def prepare(candidate, event, environment, adapter):
     template=project_template(policy,candidate_tree)
     blob = sandbox._git(ROOT, 'ls-tree', '-z', refs['default'], '--', template).split(b'\t')[0].split()[-1].decode()
     controller = source_context['controller_digest']
+    schema = execution_schema(policy,candidate_tree,binding['base_ref'])
     producer = protocol.Policy('noah-l-frank/overte', 1319052603, 15368, '.github/workflows/project-tests.yml',
         blob, environment['GITHUB_REF'], ('pull_request',), controller, sandbox.contract(ROOT)['digest'],
-        required_execution_schema=3)
+        required_execution_schema=schema)
     # The execution controller separately validates the COMPLETE package tuple.
     # The API adapter authenticates its fixed reusable source-chain projection;
     # only trusted complete generations can contribute that projection.
@@ -930,18 +965,33 @@ def protected_receipt(batch, context, cancelled, installed):
                                              now, root=ROOT, isolated=True)
         except (attested.AttestedReuseUnavailable, runtime_ci.CIEnvironmentError) as error:
             raise PreExecutionUnavailable('original selected environment has no qualified admission') from error
+    source=None
+    if context['policy'].producer.required_execution_schema==4:
+        try:
+            manifest=ci_profile.load_controller_projection(batch.policy)
+            host.require(manifest['source_commit']==context['refs']['default'],
+                         'actual retained source differs from native admitted D')
+            source=ci_profile.capture_retained_source(manifest,batch.projection,batch.binding,
+                context['source_context'],root=ROOT)
+        except (ci_profile.CIProfileError,OSError,ValueError) as error:
+            raise PreExecutionUnavailable('original source projection cannot be retained') from error
     options = {'preexecution_unavailable':PreExecutionUnavailable} if context.get('profile') == ci_profile.PROFILE else {}
     statuses, before, after = shared.check_batch(batch, context['registry'], cancelled, installed,
         names=context['plan']['owners']['shared-host']['suites'], admit=admit, **options)
     host.require(not cancelled and before == after, 'protected execution did not finish successfully')
+    if source is not None:
+        host.require(ci_profile.capture_retained_source(ci_profile.load_controller_projection(batch.policy),
+            batch.projection,batch.binding,context['source_context'],root=ROOT)==source,
+            'original protected source projection changed after candidate execution')
     original = git_context(batch.snapshot)
     host.require(original == context['git_context'], 'actual materialized Git context differs from immutable API source')
     names = [entry['name'] for entry in statuses]
-    receipt = {'schema': 3, 'producer': execution.PRODUCER, 'candidate_commit': context['binding']['merge_sha'],
+    receipt = {'schema': context['policy'].producer.required_execution_schema, 'producer': execution.PRODUCER, 'candidate_commit': context['binding']['merge_sha'],
         'candidate_tree': context['binding']['merge_tree'], 'git_context': original, 'environment': before, 'reusable': True,
         'requested_suites': names, 'include_platform': context['plan']['owners']['shared-host']['include_platform'],
         'results': {name: {'status': 'passed', 'fingerprint': inputs.suite_fingerprint(context['registry'], name, tree, before)} for name in names},
         'platform_results': {}, 'conclusion': 'success', 'started_at': started, 'completed_at': utc_seconds()}
+    if source is not None:receipt['protected_source']=source
     receipt['receipt_digest'] = execution.digest(receipt)
     execution.validate_receipt(receipt, context['registry'], tree, expected_git_context=context['git_context'])
     return receipt
@@ -957,7 +1007,19 @@ def publication(context, descriptor, receipt, run, now, descriptor_expires_at):
                  and protocol._time(owner.completed_at) <= protocol._time(final.job.started_at)
                  and protocol._time(run.publisher.completed_at) <= protocol._time(owner.started_at),
                  'shared execution lacks successful ordered native jobs')
-    host.require(receipt.get('schema') == 3, 'isolated publisher cannot publish a legacy receipt')
+    schema=context['policy'].producer.required_execution_schema
+    host.require(receipt.get('schema') == schema and schema in {3,4}, 'isolated publisher has the wrong versioned receipt')
+    if schema==4:
+        retained=receipt.get('protected_source')
+        host.require(ci_profile.retained_source_shape(retained)['admission']==context['source_context'],
+                     'original default source changed before native final publication')
+        manifest=ci_profile.capture_controller_manifest(ROOT,context['refs']['default'])
+        ci_profile.validate_retained_source(retained,inputs.full_tree(context['candidate'],context['binding']['base_sha']),
+            manifest['entries'],native_binding=context['binding'],run_id=run.run_id,registry=context['registry'],
+            selection=context['selected'],environment=receipt['environment'],root=ROOT)
+        host.require(ci_profile._digest(manifest)==retained['manifest_digest']
+            and ci_profile._digest(ci_profile._retained_projection(manifest,retained['binding'],ROOT))==retained['projection_digest'],
+            'native publisher cannot reconstruct original full projection')
     tree = inputs.full_tree(context['candidate'], context['binding']['merge_sha'])
     execution.validate_receipt(receipt, context['registry'], tree, expected_git_context=context['git_context'])
     host.require(receipt['candidate_commit'] == context['binding']['merge_sha'] and receipt['candidate_tree'] == context['binding']['merge_tree']
@@ -1001,6 +1063,8 @@ def _owner_target_supported(context):
         return False
     if target == 'main':
         return True
+    if context['policy'].producer.required_execution_schema != 4:
+        return False
     owner = context['plan']['owners']['shared-host']
     return (context['profile'] == FULL_PROFILE and context['selected']['full_host'] is True
         and owner['suites'] == list(context['registry']['suites'])
@@ -1009,7 +1073,8 @@ def _owner_target_supported(context):
 
 def _completed_owner_outputs(context, receipt):
     """Dispatch hints only, emitted after actual selected publication validates."""
-    supported = (_host_policy().package_policy().validate_wiring(context['candidate']) == CURRENT_OWNER_GENERATION
+    supported = (_host_policy().package_policy().validate_wiring(context['candidate']) in {
+                    CURRENT_OWNER_GENERATION,ci_profile.RETAINED_SOURCE_GENERATION}
                  and _owner_target_supported(context))
     passed = {name for name, result in receipt['results'].items() if result['status'] == 'passed'} if supported else set()
     return {'documentation_verified': str(DOCUMENTATION_SUITES <= passed).lower(),
@@ -1033,7 +1098,8 @@ def verify_current_owners(candidate, event, environment, adapter, *, demanded,
                  'current owner candidate is outside the exact native checkout')
     context = prepare(candidate, event, environment, adapter)
     package = _host_policy().package_policy()
-    host.require(package.validate_wiring(candidate) == CURRENT_OWNER_GENERATION
+    owner_generation=package.validate_wiring(candidate)
+    host.require(owner_generation in {CURRENT_OWNER_GENERATION,ci_profile.RETAINED_SOURCE_GENERATION}
                  and _owner_target_supported(context)
                  and demanded <= set(context['plan']['owners']['shared-host']['suites']),
                  'current owner requires the exact enrolled generation and every actual command')
@@ -1078,13 +1144,15 @@ def verify_current_owners(candidate, event, environment, adapter, *, demanded,
     host.require(raw is not None and facts is not None, 'current original aggregate is unavailable')
     aggregate = protocol.read_artifact(raw, 'aggregate', facts, run, now=clock())
     receipt = aggregate.get('results', {}).get('shared-host', {}).get('receipt')
-    host.require(type(receipt) is dict and receipt.get('schema') == 3,
-                 'current owner requires an actual isolated original receipt')
+    host.require(type(receipt) is dict and receipt.get('schema') == context['policy'].producer.required_execution_schema,
+                 'current owner requires the actual versioned isolated original receipt')
     tree = inputs.full_tree(candidate, context['binding']['merge_sha'])
     host.require(tree.get('tests/platform-profile.json') == context['source_context']['target_profile'],
                  'current owner platform declaration differs from its actual protected source admission')
+    retained=retained_receipt_source(receipt,context['binding'],adapter,context['registry'],
+        context['selected'],run.run_id)
     shared_context = protocol.SharedContext(context['registry'], tree, receipt['environment'],
-        context['binding']['merge_sha'], context['binding']['merge_tree'], context['git_context'])
+        context['binding']['merge_sha'], context['binding']['merge_tree'], context['git_context'],retained)
     verified = protocol._verify_original_payload(raw, facts, context['binding'], context['plan'],
         context['policy'].producer, observation, contexts={'shared-host': shared_context}, now=clock())
     host.require(receipt['requested_suites'] == context['plan']['owners']['shared-host']['suites']
@@ -1099,7 +1167,7 @@ def verify_current_owners(candidate, event, environment, adapter, *, demanded,
     final, final_observation, final_outer = observe()
     host.require(final == initial and final_observation == observation and final_outer == outer
                  and prepare(candidate, event, environment, adapter) == context
-                 and package.validate_wiring(candidate) == CURRENT_OWNER_GENERATION
+                 and package.validate_wiring(candidate) == owner_generation
                  and clock() < protocol._time(verified['expires_at']),
                  'current original proof, native jobs, artifacts or protected source changed')
     return {**verified, 'kind': 'current-original-pr-owners', 'qualification': False, 'reusable': False,

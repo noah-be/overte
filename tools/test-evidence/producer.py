@@ -115,6 +115,7 @@ class SharedContext:
     candidate_commit: str
     candidate_tree: str
     git_context: dict | None = None
+    protected_source: dict | None = None
 
 
 _SHA = re.compile(r"[0-9a-f]{40}")
@@ -226,7 +227,7 @@ def policy_digest(policy):
             or not policy.events or any(event not in {"pull_request", "workflow_dispatch", "push"} for event in policy.events) \
             or type(policy.max_age_seconds) is not int or not 0 < policy.max_age_seconds <= 604800:
         raise ProtocolError("producer workflow or validity policy is unsupported")
-    if type(policy.required_execution_schema) is not int or policy.required_execution_schema not in {1, 3}:
+    if type(policy.required_execution_schema) is not int or policy.required_execution_schema not in {1, 3, 4}:
         raise ProtocolError("producer execution schema policy is unsupported")
     return digest(asdict(policy))
 
@@ -484,10 +485,14 @@ def _verify_original_payload(raw, artifact, binding, plan, policy, selected, *, 
             inputs._validate_registry(context.registry)
             inputs._validate_tree(context.tree)
             inputs._environment(context.environment)
-            if policy.required_execution_schema == 3 and (receipt.get("schema") != 3 or context.git_context is None):
+            if policy.required_execution_schema in {3, 4} and (
+                    receipt.get("schema") != policy.required_execution_schema or context.git_context is None):
                 raise ProtocolError("isolated publication requires original materialized Git context")
+            if policy.required_execution_schema == 4 and context.protected_source is None:
+                raise ProtocolError('original protected default source was not independently authenticated')
             execution.validate_receipt(receipt, context.registry, context.tree,
-                                       expected_git_context=context.git_context)
+                                       expected_git_context=context.git_context,
+                                       expected_protected_source=context.protected_source)
             if context.candidate_commit != binding["merge_sha"] or context.candidate_tree != binding["merge_tree"] \
                     or receipt["reusable"] is not True or receipt["environment"] != context.environment \
                     or receipt["candidate_commit"] != binding["merge_sha"] or receipt["candidate_tree"] != binding["merge_tree"] \

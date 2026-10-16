@@ -34,7 +34,8 @@ TEMPLATE = 'tools/repository-checks/workflows/producers/parent-qualification.yml
 SOURCE_READY = True
 GENERATIONS = {'postmerge-original-e-v1', 'protected-producer-postmerge-original-e-v1',
                'protected-producer-ci37-v1', 'protected-producer-metadata-ci-v1',
-               'protected-producer-seven-target-ci-v1', producer.PLATFORM_GENERATION}
+               'protected-producer-seven-target-ci-v1', producer.PLATFORM_GENERATION,
+               ci_profile.RETAINED_SOURCE_GENERATION}
 DOCUMENTATION_SUITES = frozenset({'documentation-contracts','documentation','policy-consistency'})
 
 
@@ -149,7 +150,8 @@ def _policy(policy, registry, binding, controller, adapter, root, selected, *, c
               'trusted protected producer template unavailable')
     original = P.Policy(A.REPOSITORY, 1319052603, 15368, '.github/workflows/project-tests.yml',
         entry['sha'], f"refs/pull/{binding['pull_request']}/merge", ('pull_request',), controller,
-        sandbox.contract(root)['digest'], required_execution_schema=3)
+        sandbox.contract(root)['digest'], required_execution_schema=producer.execution_schema(policy,
+            full_tree(adapter,binding['merge_sha'])[1],binding['base_ref']))
     generations = {}
     for generation in policy.package_policy().workflow_generations():
         workflows = generation['workflows']
@@ -309,7 +311,8 @@ def verify_main(event, environment, adapter, *, root=ROOT, clock=lambda: datetim
     A.require(raw is not None and facts is not None, 'original aggregate unavailable')
     aggregate = P.read_artifact(raw, 'aggregate', facts, observation.run, now=clock())
     receipt = aggregate.get('results', {}).get('shared-host', {}).get('receipt')
-    A.require(type(receipt) is dict and receipt.get('schema') == 3, 'original isolated execution receipt unavailable')
+    A.require(type(receipt) is dict and receipt.get('schema') == api_policy.producer.required_execution_schema,
+              'original versioned isolated execution receipt unavailable')
     original_git = producer.expected_git_context(adapter, snapshot.binding)
     execution.validate_receipt(receipt, registry, original_tree,
         require_all=original_profile['profile'] != ci_profile.PROFILE and not affected, expected_git_context=original_git)
@@ -333,8 +336,10 @@ def verify_main(event, environment, adapter, *, root=ROOT, clock=lambda: datetim
         reused_suites, runtime_admission = reuse['reused'], admission['policy']
     if documentation:
         A.require(DOCUMENTATION_SUITES <= set(reused_suites), 'documentation owner requires actual verification')
+    retained=producer.retained_receipt_source(receipt,snapshot.binding,adapter,registry,selected,
+        authority['run_id'],root=root)
     context = P.SharedContext(registry, original_tree, original_environment,
-                             snapshot.binding['merge_sha'], original_tree_sha, original_git)
+                             snapshot.binding['merge_sha'], original_tree_sha, original_git,retained)
     # The original data above supplies no authority. Only these fresh complete
     # snapshots authenticate the owner, attempt, hash publisher, E and expiry.
     verified = adapter.verify_integrated(run_id, plan, api_policy, {'shared-host': context}, clock=clock)
@@ -348,7 +353,8 @@ def verify_main(event, environment, adapter, *, root=ROOT, clock=lambda: datetim
         and clock() < P._time(verified['expires_at'])
         and execution.checkout_identity(root)==(references['default'],default_tree_sha)
         and integrated_controller(policy,previous,current,local,target,root)==controller
-        and default_authority(adapter,references)==source_authority,
+        and default_authority(adapter,references)==source_authority
+        and producer.retained_receipt_source(receipt,snapshot.binding,adapter,registry,selected,authority['run_id'],root=root)==retained,
         'original proof changed before consumer completion')
     # Independent package owners are never inferred from shared proof. Their
     # exact immutable delta controls whether checkout/Node/package routing is
@@ -359,7 +365,7 @@ def verify_main(event, environment, adapter, *, root=ROOT, clock=lambda: datetim
     return {'schema': 1, 'kind': 'original-pr-main-reuse' if target=='main' else 'original-pr-target-reuse', 'target':target, 'reusable': False,
         'current_commit': source, 'current_tree': current_tree_sha, 'current_push_run_id': run_id,
         'original_commit': snapshot.binding['merge_sha'], 'original_git_context': original_git,
-        'original_proof': verified, 'original_environment_digest': admission['environment_digest'],
+        'original_proof': verified, 'original_protected_source':retained, 'original_environment_digest': admission['environment_digest'],
         'runtime_admission': runtime_admission, 'reused_suites': reused_suites, 'executed_suites': [],
         'package_work': package_work,
         **({'external_platform_required': True, 'platform_partition': partition['digest'],

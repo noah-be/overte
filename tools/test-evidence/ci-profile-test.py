@@ -763,5 +763,145 @@ class ControllerGenerationTests(unittest.TestCase):
                 self.selection,self.trusted,self.trusted,self.registry,root=self.root)
 
 
+class RetainedOriginalDefaultTests(unittest.TestCase):
+    """Actual immutable B != D + complete projected source, no E/tool probe."""
+    def setUp(self):
+        import sandbox
+        import source_admission as S
+        self.sandbox,self.S=sandbox,S
+        fixture=ControllerGenerationTests();fixture.setUp();self.addCleanup(fixture.doCleanups)
+        self.fixture=fixture;self.root=fixture.root;self.registry=fixture.registry
+        self.base=fixture.source;self.before=deepcopy(fixture.trusted)
+        (self.root/'noncontroller-original-D.txt').write_bytes(b'actual full original D manifest member\n')
+        fixture.git('add','--all')
+        fixture.git('-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','--quiet','-m','Distinct original protected default D')
+        self.default=fixture.git('rev-parse','HEAD').decode().strip()
+        self.manifest=C.capture_controller_manifest(self.root,self.default)
+        self.tree=self.manifest['source_tree']
+        self.binding={'repository':'noah-l-frank/overte','repository_id':1319052603,'pull_request':17,
+            'head_repository_id':1319052603,'base_ref':'apple-ios','base_sha':self.base,
+            'head_ref':'fixture-topic','head_sha':'2'*40,'merge_sha':'3'*40,'merge_tree':self.tree,
+            'merge_parents':[self.base,'2'*40]}
+        self.git_context={'profile':'streamed-candidate-source-v1','commits':{
+            '3'*40:{'commit':'3'*40,'tree':self.tree,'parents':[self.base,'2'*40]},
+            self.base:{'commit':self.base,'tree':C._controller_tree_identity(self.before),'parents':[]},
+            '2'*40:{'commit':'2'*40,'tree':'4'*40,'parents':[]}},'shallow':[]}
+        spec=importlib.util.spec_from_file_location('retained_source_protocol_fixture',C.ROOT/'tools/test-evidence/producer-test.py')
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        self.environment=module.isolated_codec_environment()
+        self.selection={'suites':list(self.registry['suites']),'full_host':True,'include_platform':True,'reason':'fixture-full'}
+        self.admission={**S.compatibility(self.before,self.manifest['entries'],'apple-ios',
+            read_actual=lambda name:S.actual_bytes(self.root,name),actual_imports=S.actual_import_inventory(self.root)),
+            'base':self.base,'default':self.default}
+        self.context={'source':'3'*40,'run_id':100,'run_attempt':1,'profile':'manual-shared-host-compatibility-v1',
+            'snapshot':'sha256:'+'1'*64,'git_context':self.git_context,'runtime_profile':'ubuntu24-host-qt5-qt6-v1',
+            'selection':self.selection,'profile_binding':None,'registry':C._digest(self.registry),
+            'prepared':self.environment['prepared']['roots'],
+            'outside_namespaces':{name:index+100 for index,name in enumerate(('user','mnt','pid','net','ipc','uts'))}}
+        self.projection=self.root.parent/'projection';self.projection.mkdir(mode=0o755)
+        for name in C.controller_paths():
+            sandbox._write_source(self.projection,name,(self.root/name).read_bytes(),executable=name=='tests/run-project-tests.py')
+        sandbox._write_source(self.projection,C.CONTROLLER_MANIFEST,inputs._canonical(self.manifest))
+        self.context['projection']=C._digest(sandbox._files(self.projection))
+        sandbox._write_source(self.projection,'context.json',inputs._canonical({'shared_host':self.context}))
+        self.inventory=sandbox._files(self.projection)
+        self.envelope=C.capture_retained_source(self.manifest,self.inventory,self.context,self.admission,root=self.root)
+
+    def validate(self,value=None,base=None,default=None):
+        return C.validate_retained_source(self.envelope if value is None else value,
+            self.before if base is None else base,self.manifest['entries'] if default is None else default,
+            native_binding=self.binding,run_id=100,registry=self.registry,selection=self.selection,
+            environment=self.environment,root=self.root)
+
+    def test_original_distinct_D_and_complete_manifest_projection_are_retained_without_E_changes(self):
+        original=deepcopy(self.environment)
+        self.assertNotEqual(self.base,self.default)
+        self.assertEqual(self.validate(),self.envelope)
+        self.assertEqual(self.envelope['default_commit'],self.default)
+        self.assertEqual(self.envelope['default_tree'],self.tree)
+        self.assertEqual(self.envelope['manifest_digest'],C._digest(self.manifest))
+        self.assertEqual(self.envelope['projection_digest'],C._digest(self.inventory))
+        self.assertIn('context.json',self.inventory)
+        self.assertIn(C.CONTROLLER_MANIFEST,self.inventory)
+        self.assertEqual(self.environment,original)
+        self.assertLess(len(inputs._canonical(self.envelope)),200_000)
+
+    def test_whole_manifest_noncontroller_content_and_native_source_cannot_be_substituted(self):
+        changed=deepcopy(self.manifest['entries'])
+        changed['noncontroller-original-D.txt']['sha']='e'*40
+        with self.assertRaises(C.CIProfileError):self.validate(default=changed)
+        for field,value in (('default_commit',self.base),('default_tree','f'*40),
+                ('manifest_digest','sha256:'+'0'*64),('commit_object','!invalid-base64!')):
+            envelope=deepcopy(self.envelope);envelope[field]=value
+            with self.subTest(field=field),self.assertRaises(C.CIProfileError):self.validate(envelope)
+        for field,value in (('source','9'*40),('run_id',101),('run_attempt',2),('registry','sha256:'+'0'*64)):
+            envelope=deepcopy(self.envelope);envelope['binding'][field]=value
+            with self.subTest(binding=field),self.assertRaises(C.CIProfileError):self.validate(envelope)
+
+    def test_complete_context_modes_membership_and_projection_digest_are_not_excluded(self):
+        for mutation in ('projection','pre-context','outside-namespace','extra-context','source-mode','extra-projected-file'):
+            envelope=deepcopy(self.envelope)
+            if mutation=='projection':envelope['projection_digest']='sha256:'+'0'*64
+            elif mutation=='pre-context':envelope['binding']['projection']='sha256:'+'0'*64
+            elif mutation=='outside-namespace':envelope['binding']['outside_namespaces']['mnt']+=1
+            elif mutation=='extra-context':envelope['binding']['new_unbound_input']=True
+            else:
+                inventory=deepcopy(self.inventory)
+                if mutation=='source-mode':inventory['tools/test-evidence/execution.py']['mode']=0o555
+                else:inventory['unreviewed.txt']={'mode':0o444,'size':0,'sha256':hashlib.sha256(b'').hexdigest()}
+                with self.subTest(mutation=mutation),self.assertRaises(C.CIProfileError):
+                    C.capture_retained_source(self.manifest,inventory,self.context,self.admission,root=self.root)
+                continue
+            with self.subTest(mutation=mutation),self.assertRaises(C.CIProfileError):self.validate(envelope)
+
+    def test_original_base_current_controller_import_and_enrolled_profile_remain_required(self):
+        for name in ('tools/test-evidence/execution.py','tests/platform-profile.json'):
+            before=deepcopy(self.before);before[name]['sha']='e'*40
+            with self.subTest(name=name),self.assertRaises(ValueError):self.validate(base=before)
+        before=deepcopy(self.before);before['tools/test-evidence/unreviewed.py']=self.fixture.blob(b'# new import\n')
+        with self.assertRaises(ValueError):self.validate(base=before)
+        path=self.root/'tools/test-evidence/execution.py';raw=path.read_bytes()
+        path.write_bytes(raw+b'\n# changed after source capture\n')
+        try:
+            with self.assertRaises(C.CIProfileError):self.validate()
+        finally:path.write_bytes(raw)
+
+    def test_actual_immutable_API_reader_uses_original_D_not_consumer_default(self):
+        import producer_api as A
+        import producer_workflow as W
+        outer=self
+        records={self.default:(self.tree,[]),**{oid:(entry['tree'],entry['parents']) for oid,entry in self.git_context['commits'].items()}}
+        maps={self.tree:self.manifest['entries'],C._controller_tree_identity(self.before):self.before}
+        calls=[]
+        class Api:
+            def json(self,endpoint):
+                calls.append(endpoint)
+                prefix=A.PREFIX+'/git/commits/'
+                if not endpoint.startswith(prefix):raise AssertionError('no currentdefault lookup or live request')
+                oid=endpoint[len(prefix):];tree,parents=records[oid]
+                return {'sha':oid,'tree':{'sha':tree},'parents':[{'sha':item} for item in parents]}
+            def immutable_tree(self,oid):
+                calls.append('immutable:'+oid)
+                return {'sha':oid,'truncated':False,'tree':[{'path':name,**entry} for name,entry in maps[oid].items()]}
+        receipt={'schema':4,'protected_source':self.envelope,'environment':self.environment}
+        adapter=A.Adapter(Api())
+        actual=W.retained_receipt_source(receipt,self.binding,adapter,self.registry,self.selection,100,root=self.root)
+        self.assertEqual(actual,self.envelope)
+        self.assertTrue(any(self.default in name for name in calls))
+        self.assertFalse(any('heads/main' in name or 'branches/main' in name for name in calls))
+        with self.assertRaises(ValueError):W.retained_receipt_source({'schema':3},self.binding,adapter,self.registry,self.selection,100,root=self.root)
+
+    def test_only_exact_unenrolled_future_generation_can_emit_new_child_receipt(self):
+        import producer_workflow as W
+        from types import SimpleNamespace
+        for generation, target, expected in (('protected-producer-seven-target-ci-v1','main',3),
+                (C.RETAINED_SOURCE_GENERATION,'apple-ios',4),(C.RETAINED_SOURCE_GENERATION,'main',4)):
+            policy=SimpleNamespace(package_policy=lambda:SimpleNamespace(validate_tree_wiring=lambda tree:generation))
+            self.assertEqual(W.execution_schema(policy,{},target),expected)
+        for generation in ('protected-producer-seven-target-ci-v1','unknown'):
+            policy=SimpleNamespace(package_policy=lambda:SimpleNamespace(validate_tree_wiring=lambda tree:generation))
+            with self.subTest(generation=generation),self.assertRaises(W.PreExecutionUnavailable):W.execution_schema(policy,{},'apple-ios')
+
+
 if __name__ == "__main__":
     unittest.main()
