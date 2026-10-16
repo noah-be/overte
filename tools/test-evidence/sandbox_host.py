@@ -623,7 +623,7 @@ def verify_qualification_source(source, revision, *, root=ROOT):
     configuration, filters, hooks, refs or downloaded objects are consulted.
     """
     names = {*source.contract(root)["sources"], "tools/test-evidence/sandbox_host.py",
-             "tools/test-evidence/sandbox_host_fixture.py", "tools/test-evidence/workflows/shared-sandbox-host-diagnostic.yml",
+             "tools/test-evidence/sandbox_host_fixture.py", "tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml",
              ".github/workflows/shared-sandbox-host-diagnostic.yml"}
     require(re.fullmatch(r"[0-9a-f]{40}", revision), "qualification source is not immutable")
     raw = source._git(root, "ls-tree", "-rz", "--full-tree", revision, "--", *sorted(names))
@@ -717,8 +717,9 @@ def run_host():
     result = {"schema": 1, "status": "started", "authority": "none", "production_qualified": False,
               "source": os.environ["GITHUB_SHA"], "image": {name: os.environ[name] for name in ("ImageOS", "ImageVersion")},
               "kernel": os.uname().release, "tools": tools, "account_uid": uid, "cases": {}, "runtime_compatibility": "unqualified",
-              "diagnostic_sources": {name: "sha256:" + hashlib.sha256((Path(__file__).parent / name).read_bytes()).hexdigest()
-                                     for name in ("sandbox_host.py", "sandbox_host_fixture.py", "workflows/shared-sandbox-host-diagnostic.yml")}}
+              "diagnostic_sources": {name: "sha256:" + hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
+                                     for name in ("tools/test-evidence/sandbox_host.py", "tools/test-evidence/sandbox_host_fixture.py",
+                                                  "tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml")}}
     with tempfile.TemporaryDirectory(prefix="overte-boundary-diagnostic-") as temporary, ExitStack() as stack:
         base = Path(temporary)
         base.chmod(0o755)

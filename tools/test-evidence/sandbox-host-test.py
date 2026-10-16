@@ -431,7 +431,7 @@ class ImmutableQualificationSourceTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         names = {*sandbox.contract()["sources"], "tools/test-evidence/sandbox_host.py",
-                 "tools/test-evidence/sandbox_host_fixture.py", "tools/test-evidence/workflows/shared-sandbox-host-diagnostic.yml",
+                 "tools/test-evidence/sandbox_host_fixture.py", "tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml",
                  ".github/workflows/shared-sandbox-host-diagnostic.yml"}
         for name in names:
             path = self.root / name
@@ -601,7 +601,7 @@ class GuardianTests(unittest.TestCase):
 
 class FixedResultTests(unittest.TestCase):
     def test_manual_workflow_matches_template_without_pr_trigger_or_success_skip(self):
-        template = (H.ROOT / "tools/test-evidence/workflows/shared-sandbox-host-diagnostic.yml").read_text()
+        template = (H.ROOT / "tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml").read_text()
         self.assertIn("workflow_dispatch: null", template)
         self.assertNotIn("pull_request:", template)
         self.assertNotIn("workflow_call:", template)

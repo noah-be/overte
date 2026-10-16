@@ -1499,7 +1499,7 @@
           "tools/sbom/requirements-validation.txt",
           "tools/test-evidence/sandbox_host.py",
           "tools/test-evidence/sandbox_host_fixture.py",
-          "tools/test-evidence/workflows/shared-sandbox-host-diagnostic.yml",
+          "tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml",
           ".github/workflows/shared-sandbox-host-diagnostic.yml"
         ]
       }

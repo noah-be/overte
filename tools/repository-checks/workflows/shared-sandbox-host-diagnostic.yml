@@ -34,6 +34,7 @@ jobs:
             /.github/shared-sandbox.json
             /.github/workflows/shared-sandbox-host-diagnostic.yml
             /tools/test-evidence/
+            /tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml
             /tests/requirements-host.txt
             /tests/requirements-repository.txt
             /tools/sbom/requirements-validation.txt
