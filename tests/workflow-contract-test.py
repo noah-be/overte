@@ -3,6 +3,7 @@
 
 import fnmatch
 import ast
+import base64
 import hashlib
 import importlib.util
 import json
@@ -12,7 +13,9 @@ import re
 import subprocess
 import sys
 import textwrap
+import tempfile
 import unittest
+import zlib
 from unittest import mock
 
 
@@ -49,13 +52,22 @@ FULL_SHA_ACTION = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
 PROTECTED_GENERATIONS = (
     'protected-shared-producer-v1', 'protected-producer-postmerge-original-e-v1',
     'protected-producer-ci37-v1', 'protected-producer-metadata-ci-v1',
-    'protected-producer-seven-target-ci-v1',
+    'protected-producer-seven-target-ci-v1', 'protected-producer-original-default-v1',
 )
-METADATA_PRODUCER_GENERATIONS = PROTECTED_GENERATIONS[-2:]
+METADATA_PRODUCER_GENERATIONS = PROTECTED_GENERATIONS[-3:]
 SELECTED_SYNC_GENERATIONS = (
     'npm-consumers-sync-ci-v1', 'npm-consumers-metadata-edits-v1',
     'android-owned-npm5-sync-ci-v1', *PROTECTED_GENERATIONS,
 )
+
+# Exact historical metadata recipe; available even in a shallow source checkout.
+_HISTORICAL_METADATA_CODEQL = 'c-rk*ZBrXL68`RAp?Fgnn`OoZOd!sZT5oVA+_8p@P3m%4$|cXpSYa$pBn{xa{P%5*G-HiDPO`}s_vJ`cu%%Y3U!QI@KcQnT=9nooCkjVcVI<QqBvNwm6eWU4B5nvGcQ{lip^T9TVTR+y2O{7@gd|TzNDz+ZR7%QOP-A#by68EN$RDS*8fV=aLP;uT`Zq!ofmt{svWwo%F=g8bCrM0v_cP^kTk{s2M)`*QmdrRK%da=W{p=?+<d@kk305=d(<{aWG4~?mqx#lXYb%&X^-Q8T9t-k5B~lp*wMa6tctSwSZ6rwkNiINS!5RGkcaw-J5?$V#G7>I`(%7ouqYwn?qWaDO+Cy9LuT!tp5+bbmr6vnGQ-moHOAs8@YVbWwg&-_k=<T0S4=Hk|GF8w#l?pL(1O5y_8xkW!tI+!t$8<_Vtbj4%0=OkH24_<x;j>I*6#%;{!PBG*mqz4$>_7bY5nWL=ODDlC7uVC6-=fc--DS9nslc^=z|#2y?*H^Drx9dYc?zOX%W`ytJmUusJ$i&5lxV^kW>-W86D*0|ZB*_ms$$~YxN??9i>5xD%agJ(jWoGevWf>%YJ+En^C|Na!LPtHV0tA|Qmeh=lguS~cKIe>j5AH9^inm0yER9G&R;EElhM#=w<O|NAIc2iTF`T3)q0P$0X311I4@(AN*$*`D==iO+&i+B2)__73!OU^Eaq`d2Oo(^X!C;+5&?%5O$s4#e2W*dky)*g(FQA|fr*(+E(<cAHtE-iuW6EiubU>f%fYUHRs!BEnpi2XX`A`hX5}48And7H_?ea6J>#WeW(kC+Q}_iSXz&fi5HBf)kjY3POr)>VGo7SNrT%UwXm<>_&^h6$^5>MLN;_gdTZW}1RfQh84aS_si!RdPFBM6ojZRA)l*mj3>YqXu_atO2D-ISE%R>@kcO$*t%t^EDC6-#0pONrdYoWtks=PQzDpA5?8ZIn-9)8v*tx%tXW54c2dtqmn>|-46Pw-)T|8RFd!UvB#JMD1iaA)^mZ-Sq+Cp!RIHwQsG*eMv^LKt_8Z(w^eHF}g18X${Hs<>DL5t(9$sIdX<r3LbO(am*m*NFgKlphKb=^Vu|C^3cqi9;k4EF|%Box13gvk9)}JeIAcAcjy@&_G})h(8KfL1L|#`V|TJl`cUj^LohVP+kBr43GgjYs@l`ZbG=YfJR-jRICto<C^Zp%kk*!-~B<!eu`fcR<_chH#&LUAOGGT^^SX^-uPrN>JLWdRCN-sMJ&w{)nyAg(?!pG*XRocm2oe3M{9!tO%MgiVhKrQEx~qX1=SzEI2paX_-)*O4FZqPd!v{2eACYWb%kQk`@OFzjQq>pvy0LB#i+jS8yq1(aoZ<B)<iVYa88-N0%Tq~1ETcnIsE`oPZtpH{_@A9Kq0!bGbJjV`4LGp!R`-dhb=&>Hnad+#C3tRIcQmEA@YZ9sS`ru+@^f^tvBqChc9~-cv5OxbfpdC46n5j6EcOy(^=L;rBr&}8yufN60P5}M!Jm1b$LuTu$oOS{z#&bPf`xedjbGR<L^ndthLjb_GbyTd|z<xhP&@;llWSN`or9cI*$qxyH`@bzQ#7sS~nS=<sD{Lq25W(Dm3xYFTZ%_Z#-v<&J!*a(g(H?cVTxb_&f{ym`-xCbNK4=g}cyEb~uPRj$}g<G`v+&yk?;Lg|Y6P8qKD|VOesIGH!3ZV#T|3=&*#Bma-(e=bvNmQg=T)*)xku%B0e5W}`U2jbg~Y<~kGS&Li~p2FEEu5Rk}xq6{^>clZX&P|!sA*}EtE=xsw+nOV|nLUJwX3x=-58bFYKA~iT9AiJUPFnQ~hfYQ4Jju@C>X<MCc$<uiQ6x>4VMH)-f9C_$xWA!MVCvvHC6V|;ynb-UxAKkZPETj^R2}HHSpb3t=C8ANqDG^Yg8qU4i9q|5x$QWOfg*+Moj+ESc{zl`NeG$7|{jw&S9=fvmg;u#lQw?B8Ie=+;&o-Wo;=P_S^J<BjSvNh^?|IcI=svbTH^H&6Cg@$!0XB2cuwA_oplIg5L8=F?RF(8u_jpu7-@nly@3sF{x4+iEXQ5y_R{_X#waCwF6!fPU-u<OwWh}G|(A-qUml`boH9Q+MDphsj^V`~GJ2ufdq`x{9^d2kz=JLHF_X(qVTQ{F}uH%+c%BWhA+P*O@Od1_pn(o&ynsyEkr~6O#qr-Oen6wW_doSudKIlxzB-+Q5&i)iX**nzYcY?ix;K@e$vvSo%Go`@Nt(L8e&_J{*uNUAls7|sK@mr?BJl}^<j9^l8vm5Ll1iLG%F~sBD<4&Nk2tG(vh3qCkRuZgS!zU??Vf+J}A-7=a<7`1RPwACEr7+@gp65o2To^-?zsk$4=lhgGuOZ;wKyH^0Qz%3N6xXP)-OM*OJI~LK`+uB{U-w@PPtFGJQ&9V>h;S>2W%k`IhkoMd`d_-V4z<x3e^tAl0oHGcE{nncWPs_3%oX%OFm7uVXi)9z>`9P2E9;u>r5M;73-B|1<>u<J>4cYibi*j8Ecb)T3C_2bi>6z4-kLMpc?G@vzA?&ukAy10J<mivN?q83>I_6S<=?P>+J8P8zv>S!PDh(Vr35EK=$|V{tHw6wr#I-GzWHyz;udT8ifg_nuS?44w6;-FN-C+J+nEXv%W~DBl$6IJ5HMZK;!{?cx^@=WL{FcVNVl4Zgfou3VQzQ}gvCG#9w30d%7~;V$Il+^J_VeFfyqvp8<9AyeRa~6d)TJX{|8?G_`qw!P(?pwD1&(fVOmD}rwHp0x6<9a3)bH5|LdVjj!F5Sbc&cQN>>hY){62+XN0!0_y2PaK+r!PpY{eXE_yHe!!O`f#aQ}>=7L#?8(W27Y*G8-$ihqkb^ld4C#?MizY_pz'
+
+def historical_metadata_codeql():
+    raw = zlib.decompress(base64.b85decode(_HISTORICAL_METADATA_CODEQL))
+    if hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest() != '3a273057a38255ca368d3028594fb94227ba7c3b':
+        raise AssertionError('historical metadata CodeQL recipe changed')
+    return raw.decode()
 
 
 def has_automatic_app_trigger(source):
@@ -90,19 +102,30 @@ def codeql_generation(case, source):
     case.assertEqual(blob(previous.read_text()), policy._RESULTS_WORKFLOW)
     case.assertEqual(blob(successor.read_text()), policy._RETARGET_RESULTS_WORKFLOW)
     case.assertEqual(blob(pinned.read_text()), policy._PINNED_RESULTS_WORKFLOW)
-    case.assertEqual(blob(metadata.read_text()), policy._METADATA_RESULTS_WORKFLOW)
+    case.assertEqual(blob(historical_metadata_codeql()), policy._METADATA_RESULTS_WORKFLOW)
+    case.assertEqual(blob(metadata.read_text()), policy._SCHEDULING_RESULTS_WORKFLOW)
+    helper = metadata.with_name('pr-metadata-context.yml')
+    case.assertEqual(blob(helper.read_text()), policy._SCHEDULING_SOURCE_WORKFLOW)
+    case.assertIn((blob(metadata.read_text()), blob(helper.read_text())), policy.result_workflow_sources())
     known = {policy._SELECTIVE_WORKFLOW: 'selective', policy._RESULTS_WORKFLOW: 'results',
              policy._RETARGET_RESULTS_WORKFLOW: 'retarget-results',
              policy._PINNED_RESULTS_WORKFLOW: 'pinned-results',
-             policy._METADATA_RESULTS_WORKFLOW: 'metadata-pinned-results'}
+             policy._METADATA_RESULTS_WORKFLOW: 'metadata-pinned-results',
+             policy._SCHEDULING_RESULTS_WORKFLOW: 'scheduling-pinned-results'}
     identity = blob(source)
     case.assertIn(identity, known, 'unreviewed CodeQL workflow cannot inherit omission contracts')
     return known[identity]
 
 
 def codeql_analyze_condition(case, source):
-    return ("needs.select.outputs.metadata_only != 'true' && needs.select.outputs.scan == 'true'"
-            if codeql_generation(case, source) in {'retarget-results', 'pinned-results', 'metadata-pinned-results'} else "needs.select.outputs.scan == 'true'")
+    generation = codeql_generation(case, source)
+    condition = ("needs.select.outputs.metadata_only != 'true' && needs.select.outputs.scan == 'true'"
+                 if generation in {'retarget-results', 'pinned-results', 'metadata-pinned-results', 'scheduling-pinned-results'}
+                 else "needs.select.outputs.scan == 'true'")
+    if generation == 'scheduling-pinned-results':
+        intent = "github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics'))"
+        condition = "always() && !cancelled() && needs.select.result == 'success' && " + condition + ' && !(' + intent + ')'
+    return condition
 
 
 def reviewed_package_generation():
@@ -129,15 +152,56 @@ def reviewed_package_generation():
     return name
 
 
+def prospective_package_tree():
+    """Read the exact six future22 endpoints, independently of active source13."""
+    spec = importlib.util.spec_from_file_location(
+        'prospective_workflow_packages', ROOT / 'tools/repository-checks/package_checks.py')
+    packages = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(packages)
+    sources = {
+        '.github/workflows/project-tests.yml': 'producers/protected-project-tests-android-platform.yml',
+        '.github/workflows/parent-qualification.yml': 'producers/parent-qualification-android-platform.yml',
+        '.github/workflows/repository-checks.yml': 'producers/repository-checks.yml',
+        '.github/workflows/sync-validation.yml': 'sync-ci-selection.yml',
+        '.github/workflows/browser-client.yml': 'npm-consumers/browser-client.yml',
+        '.github/workflows/pr-metadata-context.yml': 'metadata-edits/pr-metadata-context.yml',
+    }
+    tree = {}
+    for target, relative in sources.items():
+        path = ROOT / 'tools/repository-checks/workflows' / relative
+        if path.is_symlink() or not path.is_file() or path.stat().st_mode & 0o777 != 0o644:
+            raise AssertionError('future recipe must be an ordinary644 source')
+        raw = path.read_bytes()
+        tree[target] = {'mode': '100644', 'type': 'blob',
+            'sha': hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()}
+    if packages.validate_tree_wiring(tree) != 'protected-producer-original-default-v1':
+        raise AssertionError('future sources require the complete exact22 generation')
+    return packages, tree
+
+
+def selected_sync_recipe():
+    """Keep deployed13/14/20/21 selected-sync recipes distinct from future22."""
+    spec = importlib.util.spec_from_file_location(
+        'selected_sync_packages', ROOT / 'tools/repository-checks/package_checks.py')
+    packages = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(packages)
+    generation = reviewed_package_generation()
+    row = next(row for row in packages.workflow_generations() if row['name'] == generation)
+    raw = SYNC_VALIDATION_WORKFLOW.read_bytes()
+    entry = {'mode': '100644', 'type': 'blob',
+        'sha': hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()}
+    if SYNC_VALIDATION_WORKFLOW.is_symlink() or SYNC_VALIDATION_WORKFLOW.stat().st_mode & 0o777 != 0o644 \
+            or row['workflows']['.github/workflows/sync-validation.yml'] != entry:
+        raise AssertionError('synchronization recipe differs from its whole deployed generation')
+    return generation in SELECTED_SYNC_GENERATIONS
+
+
 def sync_condition(legacy, selected, *, setup=False):
     """Admit selected conditions only with an exact complete reviewed caller."""
-    staged = ROOT / 'tools/repository-checks/workflows/sync-ci-selection.yml'
-    if SYNC_VALIDATION_WORKFLOW.read_bytes() != staged.read_bytes():
+    if not selected_sync_recipe():
         return legacy
-    if reviewed_package_generation() not in SELECTED_SYNC_GENERATIONS:
-        raise AssertionError('selected synchronization requires the exact complete generation')
     if setup:
-        steps = workflow_data(staged.read_text())['jobs']['validate']['steps']
+        steps = workflow_data(SYNC_VALIDATION_WORKFLOW.read_text())['jobs']['validate']['steps']
         product = next(step for step in steps if step['name'] == 'Verify exact candidate suites and complete runtime identity')
         if 'SYNC_VALIDATOR_PYTHON' in product.get('env', {}):
             expected = "${{ steps.select.outputs.consumer_setup == 'none' && steps.select.outputs.native_setup != '' && 'python3' || 'build/host-tests-env/bin/python' }}"
@@ -168,6 +232,10 @@ def assert_project_caller_routing(case, source):
                      "needs.route.outputs.package_set != '[]'")
         if metadata:
             condition = "needs.route.outputs.metadata_only != 'true' && (" + condition + ")"
+        if reviewed_package_generation() == 'protected-producer-original-default-v1':
+            condition = "always() && !cancelled() && needs.route.result == 'success' && " + condition
+            intent = "github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics'))"
+            condition += " && !(" + intent + ")"
         case.assertEqual(workflow_data(source)['jobs']['project']['if'], condition)
         return 'package_host_mode'
     # An unadmitted caller cannot inherit the successor's formatting-only omission.
@@ -284,7 +352,7 @@ class LightweightWorkflowContracts(unittest.TestCase):
             source = path.read_text(encoding="utf-8")
             self.assertEqual(workflow_events(source)['push']['paths-ignore'], ['**/*.md'])
         source = CODEQL_WORKFLOW.read_text(encoding="utf-8")
-        if codeql_generation(self, source) in {'results', 'retarget-results', 'pinned-results', 'metadata-pinned-results'}:
+        if codeql_generation(self, source) in {'results', 'retarget-results', 'pinned-results', 'metadata-pinned-results', 'scheduling-pinned-results'}:
             # Required context is published for docs; the immutable selector
             # omits both analyzer jobs, rather than omitting the entire check.
             self.assertNotIn('paths-ignore', workflow_events(source)['pull_request'])
@@ -401,8 +469,8 @@ class CodeQLWorkflowContracts(unittest.TestCase):
         generation=codeql_generation(self,self.source)
         local=[action for action in actions if action.startswith('./')]
         self.assertEqual(local,['./.github/workflows/pr-metadata-context.yml']
-                         if generation=='metadata-pinned-results' else [])
-        self.assertEqual(len(actions),8 if generation=='metadata-pinned-results' else
+                         if generation in {'metadata-pinned-results', 'scheduling-pinned-results'} else [])
+        self.assertEqual(len(actions),8 if generation in {'metadata-pinned-results', 'scheduling-pinned-results'} else
             7 if generation in {'results','retarget-results','pinned-results'} else 5)
         self.assertEqual([action for action in actions if action not in local and not FULL_SHA_ACTION.fullmatch(action)], [])
         codeql = [action for action in actions if action.startswith("github/codeql-action/")]
@@ -436,7 +504,7 @@ class CodeQLWorkflowContracts(unittest.TestCase):
         aggregate = self.source.split('  codeql-checks:', 1)[1]
         self.assertIn('if: always()', aggregate)
         self.assertIn('needs: [select, analyze]', aggregate)
-        selected = codeql_generation(self, self.source) in {'retarget-results', 'pinned-results', 'metadata-pinned-results'}
+        selected = codeql_generation(self, self.source) in {'retarget-results', 'pinned-results', 'metadata-pinned-results', 'scheduling-pinned-results'}
         job = workflow_data(self.source)['jobs']['codeql-checks']
         self.assertEqual(job['if'], "always() && (needs.select.result != 'success' || needs.select.outputs.metadata_only != 'true')"
                          if selected else 'always()')
@@ -456,7 +524,7 @@ class CodeQLWorkflowContracts(unittest.TestCase):
 
 
     def test_selected_results_are_independent_and_cannot_bypass_the_truth_table(self):
-        if codeql_generation(self, self.source) not in {'results', 'retarget-results', 'pinned-results', 'metadata-pinned-results'}:
+        if codeql_generation(self, self.source) not in {'results', 'retarget-results', 'pinned-results', 'metadata-pinned-results', 'scheduling-pinned-results'}:
             self.skipTest("Selected-result generation is covered by its staged workflow contracts")
         workflow = workflow_data(self.source)
         job = workflow['jobs']['codeql-checks']
@@ -556,6 +624,18 @@ class PinnedCodeQLResultWorkflowContracts(CodeQLWorkflowContracts):
             result = subprocess.run(['bash', '-c', version['run']],
                                     env=dict(os.environ, CODEQL_VERSION=value), capture_output=True)
             self.assertEqual(result.returncode == 0, expected)
+
+
+class HistoricalMetadataCodeQLResultWorkflowContracts(CodeQLWorkflowContracts):
+    @classmethod
+    def setUpClass(cls):
+        cls.source = historical_metadata_codeql()
+
+
+class SchedulingCodeQLResultWorkflowContracts(CodeQLWorkflowContracts):
+    @classmethod
+    def setUpClass(cls):
+        cls.source = (ROOT / 'tools/repository-checks/workflows/metadata-edits/codeql-metadata.yml').read_text()
 
 
 class BranchGovernanceWorkflowContracts(unittest.TestCase):
@@ -658,9 +738,11 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         import yaml
         source = SYNC_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
         workflow = yaml.safe_load(source)
-        self.assertEqual(workflow['permissions'], sync_condition(
-            {'actions': 'read', 'contents': 'read', 'pull-requests': 'read'},
-            {'actions': 'read', 'checks': 'read', 'contents': 'read', 'pull-requests': 'read'}))
+        selected_sync_recipe()  # Also checks the complete deployed tuple.
+        permissions = {'actions': 'read', 'contents': 'read', 'pull-requests': 'read'}
+        staged = ROOT / 'tools/repository-checks/workflows/sync-ci-selection.yml'
+        if source == staged.read_text(): permissions['checks'] = 'read'
+        self.assertEqual(workflow['permissions'], permissions)
         self.assertNotRegex(source, r"(?m)^\s+[a-z-]+: write$")
         self.assertNotIn("secrets.", source)
         steps = workflow['jobs']['validate']['steps']
@@ -668,7 +750,7 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         self.assertEqual([(step['path'], step['ref'], step['persist-credentials']) for step in checkouts],
                          [('trusted', 'main', False), ('candidate', '${{ inputs.expected_merge_sha }}', False)])
         staged = ROOT / 'tools/repository-checks/workflows/sync-ci-selection.yml'
-        if source == staged.read_text():
+        if selected_sync_recipe():
             spec = importlib.util.spec_from_file_location(
                 'sync_workflow_packages', ROOT / 'tools/repository-checks/package_checks.py')
             packages = importlib.util.module_from_spec(spec); spec.loader.exec_module(packages)
@@ -734,22 +816,40 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
             self.assertEqual(step['env']['EXPECTED_SELECTION'], '${{ steps.select.outputs.selection }}')
         self.assertNotIn('candidate/tests/run-project-tests.py', source)
 
+    def test_selected_sync_contract_rejects_foreign_mode_and_alias_recipes(self):
+        # A legitimate historical selected recipe remains valid when a newer
+        # canonical recipe is merely staged. Neither hash nor mode is inferred
+        # from a scheduling atom or a mutable file of the same name.
+        self.assertIn(reviewed_package_generation(), SELECTED_SYNC_GENERATIONS)
+        self.assertTrue(selected_sync_recipe())
+        raw = SYNC_VALIDATION_WORKFLOW.read_bytes()
+        with tempfile.TemporaryDirectory(prefix='overte-sync-contract-') as directory:
+            candidate = Path(directory) / 'sync-validation.yml'
+            for change in ('foreign', 'mode', 'alias'):
+                if candidate.exists() or candidate.is_symlink(): candidate.unlink()
+                candidate.write_bytes(raw + (b'\n# foreign source\n' if change == 'foreign' else b''))
+                candidate.chmod(0o644)
+                if change == 'mode': candidate.chmod(0o755)
+                elif change == 'alias': candidate.unlink(); candidate.symlink_to(SYNC_VALIDATION_WORKFLOW)
+                with self.subTest(change=change), mock.patch.object(
+                        sys.modules[__name__], 'SYNC_VALIDATION_WORKFLOW', candidate), self.assertRaises(AssertionError):
+                    sync_condition('legacy', 'selected')
+
     def test_staged_sync_has_one_exact_complete_generation(self):
         spec = importlib.util.spec_from_file_location(
             'staged_sync_packages', ROOT / 'tools/repository-checks/package_checks.py')
         packages = importlib.util.module_from_spec(spec); spec.loader.exec_module(packages)
-        tree = {}
-        generation=reviewed_package_generation()
-        paths=packages.METADATA_WORKFLOW_PATHS if generation in METADATA_PRODUCER_GENERATIONS else packages.CONSUMER_WORKFLOW_PATHS
-        for relative in paths:
-            path = ROOT / relative
-            if path.name == 'sync-validation.yml':
-                path = ROOT / 'tools/repository-checks/workflows/sync-ci-selection.yml'
-            value = path.read_bytes()
-            tree[relative] = {'mode': '100644', 'type': 'blob', 'sha': hashlib.sha1(
-                b'blob ' + str(len(value)).encode() + b'\0' + value).hexdigest()}
-        self.assertEqual(packages.validate_tree_wiring(tree), reviewed_package_generation())
-        self.assertIn(reviewed_package_generation(),SELECTED_SYNC_GENERATIONS)
+        packages, tree = prospective_package_tree()
+        self.assertEqual(packages.validate_tree_wiring(tree), 'protected-producer-original-default-v1')
+        self.assertIn('protected-producer-original-default-v1', SELECTED_SYNC_GENERATIONS)
+        self.assertIn(reviewed_package_generation(), SELECTED_SYNC_GENERATIONS)
+        deployed = next(row for row in packages.workflow_generations()
+                        if row['name'] == reviewed_package_generation())['workflows']
+        self.assertEqual(packages.validate_tree_wiring(deployed), reviewed_package_generation())
+        if deployed['.github/workflows/sync-validation.yml'] != tree['.github/workflows/sync-validation.yml']:
+            mixed = {path: dict(entry) for path, entry in deployed.items()}
+            mixed['.github/workflows/sync-validation.yml'] = dict(tree['.github/workflows/sync-validation.yml'])
+            with self.assertRaises(ValueError): packages.validate_tree_wiring(mixed)
         for relative in tree:
             changed = {path: dict(entry) for path, entry in tree.items()}
             changed[relative]['sha'] = '0' * 40
@@ -1082,30 +1182,26 @@ class ProjectWorkflowContracts(unittest.TestCase):
             'prospective_workflow_contract_packages', ROOT / 'tools/repository-checks/package_checks.py')
         packages = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(packages)
-        sources = {
-            '.github/workflows/project-tests.yml': 'producers/protected-project-tests.yml',
-            '.github/workflows/parent-qualification.yml': 'producers/parent-qualification.yml',
-            '.github/workflows/repository-checks.yml': 'producers/repository-checks.yml',
-            '.github/workflows/sync-validation.yml': 'sync-ci-selection.yml',
-            '.github/workflows/browser-client.yml': 'npm-consumers/browser-client.yml',
-            '.github/workflows/pr-metadata-context.yml': 'metadata-edits/pr-metadata-context.yml',
-        }
-        tree = {}
-        for target, relative in sources.items():
-            path = ROOT / 'tools/repository-checks/workflows' / relative
-            self.assertFalse(path.is_symlink())
-            self.assertEqual(path.stat().st_mode & 0o777, 0o644)
-            raw = path.read_bytes()
-            tree[target] = {'mode': '100644', 'type': 'blob',
-                'sha': hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()}
+        packages, tree = prospective_package_tree()
         generation = packages.validate_tree_wiring(tree)
-        self.assertEqual(generation, 'protected-producer-seven-target-ci-v1')
+        self.assertEqual(generation, 'protected-producer-original-default-v1')
+        historical = next(row for row in packages.workflow_generations()
+                          if row['name'] == 'protected-producer-seven-target-ci-v1')
+        self.assertEqual(packages.validate_tree_wiring(historical['workflows']), historical['name'])
         project = (ROOT / 'tools/repository-checks/workflows/producers/protected-project-tests.yml').read_text()
         caller = (ROOT / 'tools/repository-checks/workflows/producers/repository-checks.yml').read_text()
-        # Model installation only after independently validating all six actual
-        # canonical blobs. The active legacy tuple is not rewritten by a test.
-        with mock.patch.object(sys.modules[__name__], 'reviewed_package_generation', return_value=generation):
+        # Preserve the exact historical21 host-template contract separately.
+        raw = project.encode()
+        self.assertEqual(hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest(),
+                         historical['workflows']['.github/workflows/project-tests.yml']['sha'])
+        with mock.patch.object(sys.modules[__name__], 'reviewed_package_generation', return_value=historical['name']):
             assert_reviewed_host_selection(self, project)
+        # Installation22 is admitted only after all actual future endpoint bytes
+        # match the complete catalog, including separate mandatory platform work.
+        future = workflow_data((ROOT / 'tools/repository-checks/workflows/producers/protected-project-tests-android-platform.yml').read_text())
+        self.assertIn('platform-tests', future['jobs'])
+        self.assertIn('platform-tests', future['jobs']['project-results']['needs'])
+        with mock.patch.object(sys.modules[__name__], 'reviewed_package_generation', return_value=generation):
             self.assertEqual(assert_project_caller_routing(self, caller), 'package_host_mode')
             with self.assertRaises(AssertionError):
                 assert_project_caller_routing(self, caller + '\n# unreviewed caller\n')

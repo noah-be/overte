@@ -394,6 +394,11 @@ class ProtectedProducerPermissionTests(unittest.TestCase):
         old = yaml.safe_load((ROOT / 'tools/repository-checks/workflows/android-owned/repository-checks.yml').read_text())
         source = (ROOT / 'tools/repository-checks/workflows/producers/repository-checks.yml').read_text()
         prospective = yaml.safe_load(source)
+        historical_path = ROOT / 'tools/repository-checks/workflows/producers/legacy/repository-checks-metadata-v1.yml'
+        self.assertEqual(blob(historical_path.read_bytes())['sha'], 'b9022d17b985f93838b92cb42c7e2d873e7cb11f')
+        historical_raw = historical_workflow_bytes()['d9fefd275d9e3c6977cf9350a1945a6bbe5051b4']
+        self.assertEqual(blob(historical_raw)['sha'], 'd9fefd275d9e3c6977cf9350a1945a6bbe5051b4')
+        historical = yaml.safe_load(historical_raw)
         permissions = {'contents': 'read', 'actions': 'read', 'pull-requests': 'read', 'checks': 'read'}
         expected = deepcopy(old)
         expected['jobs']['project']['permissions'] = permissions
@@ -431,10 +436,72 @@ class ProtectedProducerPermissionTests(unittest.TestCase):
         verify = outer['steps'][-1]
         verify['env']['GH_TOKEN'] = '${{ github.token }}'
         verify['run'] = verify['run'].replace(' verify --needs-json', ' verify --event "$GITHUB_EVENT_PATH" --needs-json')
-        self.assertEqual(prospective, expected)
+        self.assertEqual(historical, expected)
+        # The old21 recipe remains byte-exact above. Current22 has its own
+        # complete source tuple and cannot inherit permissions from a mixed pair.
+        sources = {
+            '.github/workflows/project-tests.yml': 'producers/protected-project-tests-android-platform.yml',
+            '.github/workflows/parent-qualification.yml': 'producers/parent-qualification-android-platform.yml',
+            '.github/workflows/repository-checks.yml': 'producers/repository-checks.yml',
+            '.github/workflows/sync-validation.yml': 'sync-ci-selection.yml',
+            '.github/workflows/browser-client.yml': 'npm-consumers/browser-client.yml',
+            '.github/workflows/pr-metadata-context.yml': 'metadata-edits/pr-metadata-context.yml',
+        }
+        tree = {}
+        for target, relative in sources.items():
+            path = ROOT / 'tools/repository-checks/workflows' / relative
+            self.assertFalse(path.is_symlink())
+            self.assertEqual(path.stat().st_mode & 0o777, 0o644)
+            tree[target] = blob(path.read_bytes())
+        self.assertEqual(PACKAGES.validate_tree_wiring(tree), 'protected-producer-original-default-v1')
+        for path in tree:
+            for change in ('missing', 'mixed', 'mode'):
+                changed = deepcopy(tree)
+                if change == 'missing': del changed[path]
+                elif change == 'mode': changed[path]['mode'] = '100755'
+                else:
+                    previous = next(row for row in PACKAGES.workflow_generations()
+                                    if row['name'] == 'protected-producer-metadata-ci-v1')
+                    other = next(entry for entry in previous['workflows'].values() if entry != tree[path])
+                    changed[path] = deepcopy(other)
+                with self.subTest(path=path, change=change), self.assertRaises(ValueError):
+                    PACKAGES.validate_tree_wiring(changed)
         self.assertEqual(prospective['permissions'], {'contents': 'read'})
         self.assertEqual(prospective['jobs']['project']['uses'], './.github/workflows/project-tests.yml')
         self.assertNotIn('secrets', prospective['jobs']['project'])
+        for role in ('metadata-source', 'route', 'project', 'repository-checks'):
+            self.assertEqual(prospective['jobs'][role]['permissions'], permissions, role)
+        for name, job in prospective['jobs'].items():
+            actual = job.get('permissions', prospective['permissions'])
+            if name == 'native':
+                self.assertEqual(actual, {'contents': 'read', 'packages': 'read'})
+            else:
+                self.assertTrue(all(value == 'read' and key in permissions for key, value in actual.items()), name)
+            self.assertNotIn('secrets', job)
+        intent = "github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics'))"
+        self.assertEqual(prospective['jobs']['metadata-source']['if'], "github.event_name == 'pull_request'")
+        self.assertEqual(prospective['jobs']['metadata-source']['with'], {'nonproducer_intent': '${{ ' + intent + ' }}'})
+        self.assertEqual(prospective['run-name'], '${{ (' + intent + ") && 'Overte native metadata nonproducer v2' || 'Overte native ordinary qualification v2' }}")
+        for role, condition in (
+                ('project', "(needs.route.outputs.package_host_mode == 'full' || needs.route.outputs.package_host_mode == 'tool-dependencies' || needs.route.outputs.package_set != '[]')"),
+                ('native', "needs.route.outputs.native != 'skip'"),
+                ('android', "needs.route.outputs.android_required == 'true'"),
+                ('workflow-security', "needs.route.outputs.security == 'true'")):
+            self.assertEqual(prospective['jobs'][role]['if'],
+                "always() && !cancelled() && needs.route.result == 'success' && needs.route.outputs.metadata_only != 'true' && " + condition + ' && !(' + intent + ')')
+        candidate = next(step['with'] for step in prospective['jobs']['repository-checks']['steps']
+                         if step.get('with', {}).get('path') == 'candidate')
+        self.assertFalse(candidate['persist-credentials'])
+        self.assertFalse(candidate['sparse-checkout-cone-mode'])
+        self.assertEqual(candidate['sparse-checkout'], '.github\ntests/platform-profile.json\n')
+        future_callee = yaml.safe_load((ROOT / 'tools/repository-checks/workflows/producers/protected-project-tests-android-platform.yml').read_text())
+        self.assertEqual(future_callee['permissions'], {'contents': 'read'})
+        for name, job in future_callee['jobs'].items():
+            actual = job.get('permissions', future_callee['permissions'])
+            self.assertEqual(actual, permissions if name in {
+                'route', 'project-tests', 'project-results', 'producer-publication', 'platform-tests'}
+                else {'contents': 'read'}, name)
+            self.assertNotIn('secrets', job)
         callee = yaml.safe_load((ROOT / 'tools/repository-checks/workflows/producers/protected-project-tests.yml').read_text())
         self.assertEqual(callee['permissions'], {'contents': 'read'})
         for name, job in callee['jobs'].items():
