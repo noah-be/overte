@@ -126,9 +126,14 @@ class QualificationTests(unittest.TestCase):
             deployed.write_text(canonical)
             report = health.Doctor(root, config).local()
             self.assertEqual(report["status"], "PASS", report)
-            # YAML permits this spelling, but our repository's
-            # workflow structure contract requires an unquoted trigger key.
-            previous = canonical.replace("\non:\n", "\n'on':\n", 1)
+            # Valid quoted trigger keys retain the actual workflow contract.
+            quoted = canonical.replace("\non:\n", "\n'on':\n", 1)
+            self.assertNotEqual(quoted, canonical)
+            deployed.write_text(quoted)
+            report = health.Doctor(root, config).local()
+            self.assertEqual(report["status"], "PASS", report)
+            # A mismatched quote remains invalid YAML, not a spelling waiver.
+            previous = canonical.replace("\non:\n", "\n'on\":\n", 1)
             self.assertNotEqual(previous, canonical)
             deployed.write_text(previous)
             report = health.Doctor(root, config).local()

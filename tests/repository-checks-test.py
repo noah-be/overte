@@ -941,11 +941,13 @@ class AggregateTests(unittest.TestCase):
             'android-owned-npm5-sync-ci-v1': 'android-owned/repository-checks.yml',
             'protected-producer-metadata-ci-v1': 'producers/repository-checks.yml',
             'protected-producer-seven-target-ci-v1': 'producers/repository-checks.yml',
+            'protected-producer-original-default-v1': 'producers/repository-checks.yml',
         }
         metadata = generation in metadata_callers
         if metadata:
             self.assertEqual(source, (ROOT / 'tools/repository-checks/workflows' / metadata_callers[generation]).read_text())
-        protected = generation in ('protected-producer-metadata-ci-v1', 'protected-producer-seven-target-ci-v1')
+        protected = generation in ('protected-producer-metadata-ci-v1', 'protected-producer-seven-target-ci-v1',
+                                   'protected-producer-original-default-v1')
         if generation == 'android-owned-npm5-sync-ci-v1' or protected:
             spec = importlib.util.spec_from_file_location('aggregate_android_generation',
                 ROOT / 'tools/repository-checks/android_gate.py')
@@ -957,7 +959,10 @@ class AggregateTests(unittest.TestCase):
                 self.assertTrue(path.is_file() and not path.is_symlink() and not path.stat().st_mode & 0o111)
                 tree[relative] = android._blob(path.read_bytes())
             self.assertEqual(android.validate_tree_wiring(tree), generation)
-            self.assertEqual(dependencies, required_jobs | {'native', 'android'})
+            if generation == 'protected-producer-original-default-v1':
+                self.assertEqual(dependencies, required_jobs | {'native', 'android', 'workflow-contracts'})
+            else:
+                self.assertEqual(dependencies, required_jobs | {'native', 'android'})
         else:
             self.assertTrue(dependencies <= required_jobs | {'native', 'direct-browser', 'browser-client'})
         if CONFIG.get('native_required', False) or 'main' in CONFIG.get('native_required_branches', []):
@@ -969,10 +974,20 @@ class AggregateTests(unittest.TestCase):
         if metadata:
             self.assertEqual(jobs['repository-checks']['if'],
                 "always() && (needs.route.result != 'success' || needs.route.outputs.metadata_only != 'true')")
-            for name in dependencies - {'route'} | {'repository-checks'}:
+            renamed = dependencies - {'route', 'workflow-contracts'} | {'repository-checks'}
+            for name in renamed:
                 self.assertEqual(jobs[name]['name'],
                     "${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && '" + name +
                     " (metadata unchanged)' || '" + name + "' }}")
+            if generation == 'protected-producer-original-default-v1':
+                fallback = jobs['workflow-contracts']
+                self.assertEqual(set(fallback['needs']), {'route', 'project'})
+                self.assertIn("always() && needs.route.result == 'success'", fallback['if'])
+                self.assertIn("(needs.project.result == 'success' || needs.project.result == 'skipped')", fallback['if'])
+                self.assertIn("needs.route.outputs.metadata_only != 'true'", fallback['if'])
+                self.assertIn("needs.route.outputs.security == 'true'", fallback['if'])
+                self.assertIn("needs.project.outputs.workflow_contracts_verified != 'true'", fallback['if'])
+                self.assertNotIn('name', fallback)
         else:
             self.assertEqual(jobs['repository-checks']['if'], 'always()')
         self.assertNotIn("paths:", source)
