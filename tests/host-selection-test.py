@@ -756,6 +756,19 @@ class HostSelectionTests(unittest.TestCase):
             changed=copy_git_tree(self.tree);changed[path]['sha']='b'*40
             self.assertTrue(self.selected(['tools/branch-cleanup/cleanup.py'],tree=changed)['include_platform'],path)
 
+    def test_reviewed_ci37_route_never_loads_the_ineligible_full_setup_graph(self):
+        path='tools/branch-cleanup/cleanup.py'
+        candidate=copy_git_tree(self.tree);candidate[path]['sha']='b'*40
+        options={'tree':candidate,'base_tree':self.tree,'trusted_tree':self.tree}
+        with patch.object(HOST.inputs,'load_dependencies',side_effect=AssertionError('no graph read')), \
+                patch.object(HOST.inputs,'plan_affected',side_effect=AssertionError('no graph/tree hashing')), \
+                patch.object(HOST,'affected_selection',wraps=HOST.affected_selection) as graph:
+            selected=self.selected([path],**options)
+        self.assertEqual(set(selected['suites']),self.ci_quick)
+        self.assertFalse(selected['full_host']);self.assertFalse(selected['include_platform'])
+        self.assertEqual(graph.call_count,1)
+        self.assertIs(graph.call_args.kwargs['allow_full_host'],False)
+
     def test_fixed_boundary_controls_keep_their_owners_and_exact_controller_generation(self):
         paths = ('.github/shared-sandbox.json', '.github/workflows/shared-sandbox-host-diagnostic.yml',
                  'tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml',

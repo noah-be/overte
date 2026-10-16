@@ -325,7 +325,8 @@ def select(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_
                             'reviewed-protected-producer-transition'}:
         return legacy
     registry = inputs.load_registry(ROOT / '.github/test-suites.json')
-    affected = affected_selection(registry, tree, base_tree, trusted_tree, paths)
+    affected = affected_selection(registry, tree, base_tree, trusted_tree, paths,
+                                  allow_full_host=legacy['full_host'])
     if affected is None:
         return legacy
     if affected['reason'] == 'protected-dependencies-unavailable':
@@ -392,12 +393,17 @@ def _select_legacy(tree, paths, regular, *, unknown=False, trusted_tree=None, ca
     return {'suites': names, 'reason': reason, 'full_host': True, 'include_platform': True}
 
 
-def affected_selection(registry, tree, base_tree, trusted_tree, paths):
+def affected_selection(registry, tree, base_tree, trusted_tree, paths, *, allow_full_host=True):
     """Use only an already protected graph; missing legacy graphs retain legacy routing.
 
     A graph/source rollout cannot certify itself. Every unavailable or changed
     protected authority keeps the complete existing gate, before any execution.
     """
+    # Every currently supported graph subset needs complete host preparation.
+    # It cannot improve an independently proved Qt-free route, so do not read
+    # or hash that graph merely to reject its broader setup afterwards.
+    if allow_full_host is False:
+        return None
     snapshots = (tree, base_tree, trusted_tree)
     if all(isinstance(snapshot, dict) and inputs.AFFECTED_POLICY not in snapshot for snapshot in snapshots):
         return None
