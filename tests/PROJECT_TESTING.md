@@ -605,11 +605,12 @@ This is a new controller epoch. Earlier producer generations cannot supply its
 proof. The isolated `/work` safe-directory runtime variant has a separate false
 source capability, preserving legacy runtime admission unchanged.
 
-The two additive complete five-workflow generations permit installing this
-parent while either the legacy or protected project owner is present. All 16
-previous generations remain valid. The later protected-owner installation
+The additive complete five-workflow generations permit installing this parent
+while either the legacy or protected project owner is present. All 18 protected
+previous generations remain valid, alongside the new CI37 producer tuple. The later protected-owner installation
 still changes exactly its caller and callee and retains the approved parent.
-No active workflow or production policy is changed here. Hosted boundary,
+The active manual diagnostic matches its canonical source; production reuse
+remains disabled. Hosted boundary,
 full-profile and final-publisher qualification, the protected runtime epoch and
 reviewed source activation are required before either producer or consumer can
 authorize reuse. Child consumers remain separate work. A successful lookup
@@ -661,8 +662,11 @@ only authenticated original E. It creates no consumer environment or proof.
 
 Source and policy flags remain false. The finite source/definition generation
 must be refreshed after reviewed composition; changed implementation bytes
-conservatively require actual fallback. Active workflows and protected templates
-are unchanged. Existing outer preparation still installs Java. CI37 adds no
+conservatively require actual fallback. The dormant protected producer selects
+its profile before Java setup. Protected CI37 uses three prepared roots; the
+full profile retains its existing four roots and Java/Qt prerequisites. A
+successful pre-execution CI37 fallback restores Java before the existing legacy
+path; a failure after execution starts cannot reach that fallback. CI37 adds no
 prepared Java mount or Java environment/PATH entry; the system
 `/usr` tree remains read-only. The CI37 schema asserts no Java capability.
 The canonical manual diagnostic has a separate fixed `ci37` choice, using the
@@ -670,8 +674,8 @@ same protected source and cleanup checks with exactly 37 commands and actual E
 before/after. Its dedicated diagnostic capture still requires the exact finite
 generation while allowing the source/policy production gates to stay false.
 Its result always has `authority: none`, `production_qualified: false` and
-`reusable: false`. The active manual workflow requires a separately reviewed
-copy before that choice can run. No hosted CI37 capture, qualification, runtime
+`reusable: false`. The active manual workflow includes the reviewed canonical
+choice. No hosted CI37 capture, qualification, runtime
 cost or speedup is established.
 
 After final source composition, refresh host reader metadata/`REVIEWED_PROGRAMS`
@@ -699,9 +703,9 @@ The three variable Markdown leaves still use the documentation route and skip
 host execution; the producer declines an unused descriptor. Other JSON/helper
 changes retain existing actual execution. Source preparation and fake API/Git
 tests establish this admission boundary, without hosted qualification or
-activation. Before production enablement, canonical preparation must also move
-Java setup behind independent full-profile selection and provide the reviewed
-three-root CI37 preparation; that template change remains separate work.
+activation. The canonical protected preparation implements independent profile
+selection and the three-root CI37 setup; actual manual CI37 qualification is
+still required before production enablement.
 The focused offline checks are `python3 tools/test-evidence/ci-profile-test.py`
 and `python3 tools/test-evidence/runtime-ci-test.py`, plus the focused
 `ci-integration-test.py` and fake consumer cases; they use fake identity facts
