@@ -3,6 +3,7 @@
 from contextlib import ExitStack
 from copy import deepcopy
 from datetime import datetime, timezone
+import importlib.util
 import json
 from pathlib import Path
 import tempfile
@@ -236,37 +237,37 @@ class CaptureBoundaryTests(unittest.TestCase):
                     with self.assertRaises(C.CIEnvironmentError):C._include_search(Path('/usr/bin/cc'),'c',gcc)
 
     def test_shipping_guard_fails_before_any_identity_probe(self):
-        with patch.object(C,'_query',side_effect=AssertionError('no queries before source admission')):
+        with patch.object(C.ci_profile,'SOURCE_READY',False), \
+                patch.object(C,'_query',side_effect=AssertionError('no queries before source admission')):
             with self.assertRaises(C.CIEnvironmentError):C.capture_ci_environment({}, {}, {}, {})
 
-    def test_fixed_diagnostic_uses_real_finite_guard_with_both_activation_gates_disabled(self):
-        registry=C.inputs.load_registry(C.ROOT/'.github/test-suites.json')
-        entry={'mode':'100644','type':'blob','sha':'a'*40}
-        tree={C.ci_profile.POLICY:dict(entry),'tests/fixture.py':dict(entry)}
-        tree[C.ci_profile.PINNED_SOURCE]=C.ci_profile._pinned_source_entry(C.ROOT)
-        data=(C.ROOT/C.ci_profile.DATA_PATH).read_bytes()
-        data_sha=C.hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
-        tree[C.ci_profile.DATA_PATH]={'mode':'100644','type':'blob','sha':data_sha}
-        policy=C.ci_profile.load_policy()
-        policy['definition_digest']=C.ci_profile.definition_digest(registry)
-        policy['generation_digest']=C.ci_profile.generation(tree,registry)
-        selected={'suites':list(C.ci_profile.SUITES),'reason':'reviewed-ci-only-inputs',
-            'full_host':False,'include_platform':False}
-        self.assertFalse(C.ci_profile.SOURCE_READY);self.assertFalse(policy['enabled'])
-        with patch.object(C.ci_profile,'load_policy',return_value=policy), \
+    def test_fixed_diagnostic_uses_actual_source_with_both_activation_gates_disabled(self):
+        spec=importlib.util.spec_from_file_location('actual_ci37_diagnostic_fixture',
+            Path(__file__).with_name('ci-profile-test.py'))
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        fixture=module.DiagnosticActualSourceTests();fixture.setUp();self.addCleanup(fixture.doCleanups)
+        fixture.policy['enabled']=False
+        fixture.write(C.ci_profile.POLICY,json.dumps(fixture.policy).encode());fixture.commit()
+        with patch.object(C.ci_profile,'SOURCE_READY',False), \
              patch.object(C,'_query',side_effect=AssertionError('no real host query in fixture')), \
              patch.object(C,'_measure_ci_environment',return_value={'actual-measurement-fixture':True}) as measure:
-            self.assertEqual(C.capture_ci_environment_diagnostic(selected,tree,tree,registry,read_blob=lambda oid:data),
-                             {'actual-measurement-fixture':True})
-            self.assertEqual(measure.call_args.args[0]['suites'],list(C.ci_profile.SUITES))
+            options={'root':fixture.root,'source':fixture.source,'source_root':fixture.root,'read_blob':fixture.blob}
+            self.assertEqual(C.capture_ci_environment_diagnostic(fixture.selection,fixture.tree,fixture.tree,
+                fixture.registry,**options),{'actual-measurement-fixture':True})
+            binding=measure.call_args.args[0]
+            self.assertEqual(binding['kind'],C.ci_profile.DIAGNOSTIC_KIND)
+            self.assertEqual(binding['actual_selection']['suites'],list(C.ci_profile.SUITES))
+            self.assertNotEqual(binding['actual_selection']['generation_digest'],fixture.policy['generation_digest'])
             measure.reset_mock()
-            changed=deepcopy(tree);changed['tests/fixture.py']['sha']='b'*40
-            with self.assertRaises(C.CIEnvironmentError):C.capture_ci_environment_diagnostic(selected,changed,tree,registry,read_blob=lambda oid:data)
+            changed=deepcopy(fixture.tree);changed['tests/fixture.py']={'mode':'100644','type':'blob','sha':'b'*40}
+            with self.assertRaises(C.CIEnvironmentError):
+                C.capture_ci_environment_diagnostic(fixture.selection,changed,fixture.tree,fixture.registry,**options)
             measure.assert_not_called()
-            with self.assertRaises(C.CIEnvironmentError):C.capture_ci_environment(selected,tree,tree,registry)
+            with self.assertRaises(C.CIEnvironmentError):
+                C.capture_ci_environment(fixture.selection,fixture.tree,fixture.tree,fixture.registry,root=fixture.root)
             measure.assert_not_called()
             with self.assertRaises(TypeError):
-                C.capture_ci_environment(selected,tree,tree,registry,_diagnostic=True)
+                C.capture_ci_environment(fixture.selection,fixture.tree,fixture.tree,fixture.registry,_diagnostic=True)
 
     def test_sensitive_overrides_are_rejected_before_tool_or_sysroot_queries(self):
         for name in ('QT_PLUGIN_PATH','OVERTE_QML_TEST_RUNNER','JAVA_HOME','NODE_OPTIONS','PYTHONPATH',
@@ -304,7 +305,7 @@ class CaptureBoundaryTests(unittest.TestCase):
         self.assertIn('make',C._TOOLS)
         self.assertIn('compiler',C.runtime._COMMANDS)
         self.assertTrue(C.runtime._QT_MODULES)
-        self.assertFalse(C.ci_profile.SOURCE_READY)
+        self.assertEqual(C.ci_profile.ENVIRONMENT_SCHEMA,2)
 
     def test_elf_relocatable_startup_objects_are_not_sent_to_ldd(self):
         with tempfile.TemporaryDirectory() as folder:

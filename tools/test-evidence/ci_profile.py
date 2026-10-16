@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Finite, dormant CI37 source admission without executing candidate code.
+"""Finite CI37 source admission without executing candidate code.
 
 This deliberately conservative generation binds the complete immutable tree,
 including import shadows, discovery membership, subprocess implementations and
@@ -13,9 +13,11 @@ from __future__ import annotations
 from datetime import datetime
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import stat
+import subprocess
 import unicodedata
 
 import inputs
@@ -27,9 +29,10 @@ PINNED_SOURCE = ".github/android-orchestration.json"
 DATA_PATH = ".github/branch-cleanup.json"
 ENVIRONMENT_SCHEMA = 2
 PROFILE = "ubuntu24-ci37-v1"
-# Source-only preparation. Neither changing JSON nor a caller-selected suite
-# list can activate this profile. No CLI or workflow override is provided.
-SOURCE_READY = False
+# Controlled native source capability, never execution evidence. Policy, exact
+# future generation and native execution still apply; no CLI override exists.
+SOURCE_READY = True
+DIAGNOSTIC_KIND = 'ci37-actual-source-diagnostic-v1'
 SUITES = (
     "producer-proof", "producer-api", "dependency-releases", "project-runner",
     "python-test-runner", "repository-checks", "android-build-inputs",
@@ -319,3 +322,99 @@ def validate_selection(selection, candidate_tree, trusted_tree, registry, *, tar
             "suites": list(SUITES), "definition_digest": definitions,
             "generation_digest": candidate_generation, "policy_digest": policy_identity(value),
             "pinned_source": {"path": PINNED_SOURCE, **pinned}}
+
+
+def _diagnostic_source(source_root, source):
+    """Read an actual immutable diagnostic checkout, never a supplied tree hint."""
+    _require(type(source) is str and re.fullmatch(r'[0-9a-f]{40}', source)
+             and source != '0'*40, 'diagnostic source commit is unavailable')
+    _require(isinstance(source_root,(str,Path)), 'diagnostic source root is unavailable')
+    source_root = Path(source_root)
+    _require(source_root.is_absolute() and '..' not in source_root.parts, 'diagnostic source root is invalid')
+    current = Path(source_root.anchor)
+    for part in source_root.parts[1:]:
+        current /= part
+        _require(not current.is_symlink(), 'diagnostic source root contains an alias')
+    environment = {k:v for k,v in os.environ.items() if not k.startswith('GIT_')}
+    environment.update(GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL='/dev/null',
+                       GIT_TERMINAL_PROMPT='0', GIT_NO_LAZY_FETCH='1')
+    def read(*arguments):
+        value = subprocess.run(['git','--no-replace-objects','-c','core.hooksPath=/dev/null',
+            '-c','core.fsmonitor=false','-c','maintenance.auto=false','-c','gc.auto=0',
+            '-c','safe.directory='+str(Path(source_root)),*arguments],cwd=source_root,env=environment,
+            check=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=30).stdout
+        _require(len(value) <= 32_000_000, 'diagnostic source exceeds its immutable bound')
+        return value
+    try:
+        _require(read('rev-parse','--verify','HEAD^{commit}').decode().strip() == source,
+                 'diagnostic actual HEAD differs from its protected source')
+        tree_oid = read('rev-parse','--verify',source+'^{tree}').decode().strip()
+        _require(re.fullmatch(r'[0-9a-f]{40}',tree_oid), 'diagnostic tree identity is unavailable')
+        tree = {}
+        for record in read('ls-tree','-rz','--full-tree',source).split(b'\0'):
+            if not record: continue
+            fields,path = record.split(b'\t',1)
+            mode,kind,oid = fields.decode().split()
+            path = path.decode('utf-8')
+            _require(path not in tree and len(tree) < 200_000, 'diagnostic inventory is ambiguous')
+            tree[path] = {'mode':mode,'type':kind,'sha':oid}
+        inputs._validate_tree(tree)
+        _require(tree and all(e['mode'] in {'100644','100755'} and e['type']=='blob'
+                             for e in tree.values()), 'diagnostic inventory is not complete ordinary source')
+        return tree_oid,tree
+    except (OSError,subprocess.SubprocessError,UnicodeError,ValueError) as error:
+        if isinstance(error,CIProfileError): raise
+        raise CIProfileError('diagnostic immutable source is unavailable') from error
+
+
+def _diagnostic_file(root, relative):
+    path = Path(root)
+    _require(path.is_absolute() and '..' not in path.parts, 'diagnostic protected root is invalid')
+    current = Path(path.anchor)
+    for part in (*path.parts[1:],*Path(relative).parts):
+        current /= part
+        _require(not current.is_symlink(), 'diagnostic protected input contains an alias')
+    info = current.stat()
+    _require(stat.S_ISREG(info.st_mode) and not info.st_mode & 0o111 and info.st_size <= 1_000_000,
+             'diagnostic protected input is not bounded ordinary data')
+    raw = current.read_bytes()
+    _require(len(raw) <= 1_000_000, 'diagnostic protected input exceeds its bound')
+    return raw,{'mode':'100644','type':'blob','sha':hashlib.sha1(
+        b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()}
+
+
+def _diagnostic_selection(selection, candidate_tree, trusted_tree, registry, *, source, source_root, root=ROOT,
+                         target='main', read_blob=None):
+    """Measure exact actual source with a distinct, production-inadmissible binding.
+
+    Shipping future-generation policy remains untouched. Only this manual API
+    derives a local generation expectation from the independently read checkout.
+    Both the parent and protected probe call it; no producer accepts its result.
+    """
+    tree_oid,actual = _diagnostic_source(source_root,source)
+    _require(actual == candidate_tree == trusted_tree, 'diagnostic supplied inventory differs from actual source')
+    raw,entry = _diagnostic_file(root,POLICY)
+    _require(actual.get(POLICY)==entry, 'diagnostic policy differs from actual immutable source')
+    policy = _validate_policy(json.loads(raw,object_pairs_hook=inputs._unique_object))
+    registry_raw,registry_entry = _diagnostic_file(root,'.github/test-suites.json')
+    _require(actual.get('.github/test-suites.json') == registry_entry
+             and inputs._validate_registry(json.loads(registry_raw,object_pairs_hook=inputs._unique_object)) == registry,
+             'diagnostic registry differs from actual protected source')
+    _require(all(actual.get(path,{}).get('mode') in {'100644','100755'}
+        and actual[path]['type']=='blob' for name in SUITES for path in registry['suites'][name]['closure']['required']),
+        'diagnostic fixed owner implementation is missing')
+    derived = {**policy,'generation_digest':generation(actual,registry)}
+    admitted = validate_selection(selection,actual,actual,registry,target=target,policy=derived,
+        require_enabled=False,root=root,read_blob=read_blob)
+    return {'kind':DIAGNOSTIC_KIND,'source_commit':source,'source_tree':tree_oid,
+            'production_policy_digest':policy_identity(policy),'actual_selection':admitted}
+
+
+def diagnostic_selection(*args, **kwargs):
+    """Fixed diagnostic entrypoint; malformed source never becomes a measurement."""
+    try:
+        return _diagnostic_selection(*args,**kwargs)
+    except CIProfileError:
+        raise
+    except (OSError,ValueError,TypeError,KeyError,UnicodeError,subprocess.SubprocessError) as error:
+        raise CIProfileError('diagnostic actual source binding is unavailable') from error

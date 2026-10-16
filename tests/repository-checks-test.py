@@ -353,7 +353,8 @@ class NativeMetadataContextTests(unittest.TestCase):
             'GITHUB_WORKFLOW_REF': 'noah-l-frank/overte/.github/workflows/repository-checks.yml@refs/pull/17/merge'}
 
     def test_disabled_marker_never_claims_a_nonproducer_or_qualification(self):
-        result = self.marker.recognize(self.event, self.environment, root=self.root)
+        with patch.object(self.marker,'SOURCE_READY',False):
+            result = self.marker.recognize(self.event, self.environment, root=self.root)
         self.assertEqual(result['metadata_intent'], 'false'); self.assertFalse(result['qualification'])
         self.assertTrue(result['metadata_edit']); self.assertNotIn('run_id', result)
 

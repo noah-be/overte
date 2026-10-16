@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prospective protected reusable-PR producer; production admission is disabled.
+"""Protected reusable-PR producer; source capability is not qualification.
 
 Only native server context and the fixed read-only API establish invocation
 facts. No CLI argument supplies an endpoint, command, policy flag or proof.
@@ -35,7 +35,7 @@ import runtime_ci
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE = 'tools/repository-checks/workflows/producers/protected-project-tests.yml'
-PRODUCTION_READY = False
+PRODUCTION_READY = True
 DESCRIPTOR_JOB = 'project / Publish producer descriptor'
 SHARED_JOB = 'project / Shared tests'
 PUBLISH_PREFIX = 'project / Publish final producer '
@@ -532,8 +532,8 @@ def main(argv=None):
     parser.add_argument('role', choices=('descriptor', 'shared', 'publish'))
     parser.add_argument('--candidate', type=Path, required=True)
     args = parser.parse_args(argv)
-    # Deliberately unreachable until the actual kernel boundary, complete E,
-    # prepared profile and original publisher source have all been qualified.
+    # A controlled first native attempt may establish the first qualified E and
+    # completed publisher. Source capability alone supplies neither proof.
     try:
         protected_admission()
     except PreExecutionUnavailable:

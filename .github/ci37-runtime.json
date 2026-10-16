@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "enabled": false,
+  "enabled": true,
   "profile": "ubuntu24-ci37-v1",
   "epoch": "ubuntu24-ci37-20261016-v1",
   "not_before": "2026-10-16T00:00:00Z",

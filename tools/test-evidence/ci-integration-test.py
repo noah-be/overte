@@ -23,6 +23,47 @@ import sandbox_host as H
 import sandbox_shared as S
 
 
+def fixed_system_setup(script, missing=(), *, install=True):
+    """Execute the actual shell against real fixture files, without root/apt.
+
+    Only the fixed /usr/bin prefix is relocated into a temporary filesystem.
+    A separate host-PATH directory always has every tool, reproducing why
+    command-v checks were insufficient for the isolated system-only PATH.
+    """
+    tools={'bash','cmake','ctest','ninja','make','gmake','g++','gcc','c++','cc','git','jq',
+           'pkg-config','unshare','as','ld','ar','ranlib','sha256sum','env','ldd','dpkg-query'}
+    with tempfile.TemporaryDirectory() as temporary:
+        root=Path(temporary);system=root/'system';shadow=root/'host-path'
+        system.mkdir();shadow.mkdir();log=root/'apt.log'
+        for directory,names in ((system,tools-set(missing)),(shadow,tools)):
+            for name in names:
+                path=directory/name;path.write_text('#!/bin/sh\nexit 0\n');path.chmod(0o755)
+        sudo=shadow/'sudo'
+        sudo.write_text('''#!/usr/bin/python3
+import os, pathlib, sys
+args=sys.argv[1:]
+with open(os.environ['SETUP_LOG'],'a') as output:output.write(' '.join(args)+'\\n')
+if 'install' in args and os.environ['FIXTURE_INSTALL']=='true':
+    packages={'cmake':('cmake','ctest'),'ninja-build':('ninja',),
+              'make':('make','gmake'),'g++':('gcc','g++','cc','c++')}
+    for package in args:
+        for name in packages.get(package,()):
+            path=pathlib.Path(os.environ['FIXED_SYSTEM_BIN'])/name
+            path.write_text('#!/bin/sh\\nexit 0\\n');path.chmod(0o755)
+''');sudo.chmod(0o755)
+        prefix=script.split('test ! -e /opt/overte-ci',1)[0]
+        relocated=prefix.replace('/usr/bin/',str(system)+'/')
+        # Check the resulting executable lookup, not a mocked which response.
+        relocated+='\nPATH="$FIXED_SYSTEM_BIN:$PATH"\ncommand -v cmake\ncommand -v ctest\ncommand -v ninja\n'
+        result=subprocess.run(['/usr/bin/bash','-euc',relocated],capture_output=True,text=True,
+            env={'PATH':str(shadow),'SETUP_LOG':str(log),'FIXED_SYSTEM_BIN':str(system),
+                 'FIXTURE_INSTALL':str(install).lower()})
+        recorded=[line.replace(str(system),'/usr/bin') for line in log.read_text().splitlines()] if log.exists() else []
+        resolved=result.stdout.splitlines()
+        expected=[str(system/name) for name in ('cmake','ctest','ninja')]
+        return result,recorded,resolved,expected
+
+
 class SelectionIntegrationTests(unittest.TestCase):
     def setUp(self):
         self.registry = inputs.load_registry(C.ROOT/'.github/test-suites.json')
@@ -211,8 +252,14 @@ class ProbeAndManualIntegrationTests(unittest.TestCase):
         entry={'mode':'100644','type':'blob','sha':hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()}
         tree={C.POLICY:entry};binding={'runtime_profile':C.PROFILE,'source':'a'*40,'selection':{'suites':list(C.SUITES)},
                                      'profile_binding':{'fixed':'binding'}}
+        diagnostic_binding={'kind':C.DIAGNOSTIC_KIND,'source_commit':'a'*40,
+                            'actual_selection':binding['profile_binding']}
         def capture(*args,**options):
             options['read_blob'](entry['sha'])
+            if 'source' in options:
+                self.assertEqual(options['source'],'a'*40)
+                self.assertEqual(options['source_root'],Path('/work'))
+                return {'selection':diagnostic_binding}
             return {'selection':binding['profile_binding']}
         def git(repository,*args,**options):
             # Exercise the real reader's Path arithmetic contract: a string
@@ -228,8 +275,9 @@ class ProbeAndManualIntegrationTests(unittest.TestCase):
               patch.object(runtime_ci,'capture_ci_environment_diagnostic',side_effect=capture) as diagnostic):
             self.probe.shared_environment(binding)
             production.assert_called_once();diagnostic.assert_not_called()
-            self.probe.shared_environment({**binding,'diagnostic_only':True})
+            self.probe.shared_environment({**binding,'diagnostic_only':True,'profile_binding':diagnostic_binding})
             diagnostic.assert_called_once()
+            with self.assertRaises(ValueError):self.probe.shared_environment({**binding,'diagnostic_only':True})
             for mutation in ({'diagnostic_only':'true'},{'source':'HEAD'},{'profile_binding':{'forged':True}}):
                 with self.subTest(mutation=mutation),self.assertRaises(ValueError):
                     self.probe.shared_environment({**binding,**mutation})
@@ -247,7 +295,7 @@ class ProbeAndManualIntegrationTests(unittest.TestCase):
         with patch.object(H,'host_context') as context,self.assertRaises(H.Unavailable):S.run_host(profile='unknown')
         context.assert_not_called()
 
-    def test_manual_ci37_retains_complete_source_guard_and_exact_fixed_inventory(self):
+    def test_manual_ci37_forwards_actual_source_and_diagnostic_binding_before_fixed_inventory(self):
         registry=inputs.load_registry(C.ROOT/'.github/test-suites.json')
         tree={path:{'mode':'100644','type':'blob','sha':'a'*40} for path in (C.POLICY,'.github/test-suites.json')}
         tree[C.PINNED_SOURCE]=C._pinned_source_entry(C.ROOT)
@@ -257,6 +305,19 @@ class ProbeAndManualIntegrationTests(unittest.TestCase):
         policy={'schema':1,'enabled':False,'profile':C.PROFILE,'epoch':'manual-ci37-fixture',
             'not_before':'2026-10-16T00:00:00Z','max_age_seconds':259200,'suites':list(C.SUITES),
             'definition_digest':C.definition_digest(registry),'generation_digest':C.generation(tree,registry)}
+        immutable=deepcopy(tree)
+        diagnostic_binding={'kind':C.DIAGNOSTIC_KIND,'source_commit':'a'*40,'source_tree':'b'*40,
+            'production_policy_digest':C.policy_identity(policy),'actual_selection':{'fixture':'diagnostic-only'}}
+        def diagnostic(selected,candidate,trusted,actual_registry,**options):
+            self.assertEqual(options['source'],'a'*40)
+            self.assertEqual(options['source_root'],S.ROOT);self.assertEqual(options['root'],S.ROOT)
+            self.assertEqual(selected,{'suites':list(C.SUITES),'reason':'reviewed-ci-only-inputs',
+                'full_host':False,'include_platform':False})
+            self.assertEqual(actual_registry,registry)
+            if candidate!=immutable or trusted!=immutable:
+                raise C.CIProfileError('fixture immutable source differs')
+            self.assertEqual(options['read_blob'](data_oid),data)
+            return deepcopy(diagnostic_binding)
         real_stat,real_read=Path.stat,Path.read_text
         fixed={'/usr/bin/bwrap','/usr/bin/unshare','/usr/bin/python3','/usr/bin/sudo'}
         def fake_stat(path,*a,**k):
@@ -279,6 +340,7 @@ class ProbeAndManualIntegrationTests(unittest.TestCase):
               patch.object(S,'prepared_identity',return_value={}),patch.object(inputs,'load_registry',return_value=registry),
               patch.object(sandbox,'_git',side_effect=lambda *a,**k:data if a[-1]==data_oid else b''),
               patch.object(inputs,'full_tree',return_value=tree),patch.object(C,'load_policy',return_value=policy),
+              patch.object(C,'diagnostic_selection',side_effect=diagnostic) as selected_profile,
               patch.object(C,'SOURCE_READY',False),patch.object(S,'materialize_source',return_value={'digest':'fixed','git_context':{}}),
               patch.object(S,'project_policy',return_value={}),patch.object(S,'Batch',side_effect=batch),
               patch.object(S,'check_batch',side_effect=check) as checked,patch.object(S.execution,'_write_receipt')):
@@ -286,6 +348,8 @@ class ProbeAndManualIntegrationTests(unittest.TestCase):
             context.assert_called_once();checked.assert_called_once()
             self.assertEqual(prepared.call_args.kwargs,{'profile':C.PROFILE})
             self.assertEqual(made[0].binding['selection']['suites'],list(C.SUITES))
+            self.assertEqual(made[0].binding['profile_binding'],diagnostic_binding)
+            selected_profile.assert_called_once()
             self.assertIs(made[0].binding['diagnostic_only'],True)
             self.assertEqual(result['authority'],'none');self.assertIs(result['production_qualified'],False)
             self.assertIs(result['reusable'],False);self.assertEqual(len(result['suites']),37)
@@ -308,28 +372,16 @@ class ProbeAndManualIntegrationTests(unittest.TestCase):
         self.assertEqual(quick['if'],"inputs.profile == 'ci37'")
         self.assertNotIn('JAVA',quick['run']);self.assertNotIn('qml-module',quick['run']);self.assertNotIn('libglm',quick['run'])
         self.assertIn('root:root',quick['run']);self.assertIn('go-w',quick['run'])
-        # Execute only the actual prerequisite selection prefix. All commands
-        # are temporary fixtures; sudo records arguments and installs nothing.
-        prefix=quick['run'].split('test ! -e /opt/overte-ci',1)[0]
-        tools={'cmake','ctest','ninja','make','gmake','g++','gcc'}
         cases=[(set(),[]),({'ninja'},['ninja-build']),({'ctest'},['cmake']),
                ({'gmake','gcc'},['make','g++']),({'g++','gcc'},['g++'])]
         for missing,packages in cases:
-            with self.subTest(missing=missing),tempfile.TemporaryDirectory() as temporary:
-                root=Path(temporary);binpath=root/'bin';binpath.mkdir();log=root/'apt.log'
-                for name in tools-missing:
-                    path=binpath/name;path.write_text('#!/bin/sh\nexit 0\n');path.chmod(0o755)
-                sudo=binpath/'sudo'
-                sudo.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$SETUP_LOG"\n')
-                sudo.chmod(0o755)
-                subprocess.run(['/usr/bin/bash','-euc',prefix],check=True,capture_output=True,text=True,
-                    env={'PATH':str(binpath),'SETUP_LOG':str(log)})
-                if packages:
-                    self.assertEqual(log.read_text().splitlines(),[
+            with self.subTest(missing=missing):
+                result,recorded,resolved,expected=fixed_system_setup(quick['run'],missing)
+                self.assertEqual(result.returncode,0,result.stderr)
+                self.assertEqual(resolved,expected)
+                self.assertEqual(recorded,[
                         '-n /usr/bin/apt-get update',
-                        '-n /usr/bin/apt-get install --no-install-recommends -y '+' '.join(packages)])
-                else:
-                    self.assertFalse(log.exists())
+                        '-n /usr/bin/apt-get install --no-install-recommends -y '+' '.join(packages)] if packages else [])
 
 
 class ProtectedSetupTemplateTests(unittest.TestCase):
@@ -391,7 +443,10 @@ class ProtectedSetupTemplateTests(unittest.TestCase):
         for name in ('Set up Java','Verify runner prerequisites'):
             self.assertEqual({key:value for key,value in self.steps[name].items() if key!='if'},old[name])
         name='Install QML and portable C++ contract prerequisites'
-        self.assertEqual(self.steps[name],old[name])
+        original=deepcopy(self.steps[name])
+        original['run']=original['run'].replace('  cmake ninja-build \\\n','')
+        original['run']=original['run'].split('for tool in bash cmake ctest',1)[0]
+        self.assertEqual(original,old[name])
         for name,digest in (
             ('Verify runner prerequisites','36a8510ed3474fdb512d8c6932392e463e3e15dcca1488e68ba34a3b968a792a'),
             ('Prepare the protected trusted host environment','8971d9d719129a6f74c233bf864a73f5fea3f089f6ca862d155bd36afaa7aafd')):
@@ -421,24 +476,64 @@ class ProtectedSetupTemplateTests(unittest.TestCase):
 
     def test_actual_ci37_shell_installs_only_missing_fixed_native_tools(self):
         script=self.steps['Prepare the protected CI37 host environment']['run']
-        prefix=script.split('test ! -e /opt/overte-ci',1)[0]
-        tools={'cmake','ctest','ninja','make','gmake','g++','gcc'}
         cases=[(set(),[]),({'cmake','ctest'},['cmake']),({'ninja'},['ninja-build']),
-               ({'make','gmake'},['make']),({'gmake','gcc'},['make','g++'])]
+               ({'make','gmake'},['make']),({'gmake','gcc'},['make','g++']),({'cc','c++'},['g++'])]
         for missing,packages in cases:
-            with self.subTest(missing=missing),tempfile.TemporaryDirectory() as temporary:
-                folder=Path(temporary);log=folder/'apt.log'
-                for name in tools-missing:
-                    path=folder/name;path.write_text('#!/bin/sh\nexit 0\n');path.chmod(0o755)
-                sudo=folder/'sudo'
-                sudo.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$SETUP_LOG"\n');sudo.chmod(0o755)
-                subprocess.run(['/usr/bin/bash','-euc',prefix],check=True,capture_output=True,
-                               env={'PATH':str(folder),'SETUP_LOG':str(log)})
-                self.assertEqual(log.read_text().splitlines() if log.exists() else [],[
+            with self.subTest(missing=missing):
+                result,recorded,resolved,expected=fixed_system_setup(script,missing)
+                self.assertEqual(result.returncode,0,result.stderr)
+                self.assertEqual(resolved,expected)
+                self.assertEqual(recorded,[
                     '-n /usr/bin/apt-get update',
                     '-n /usr/bin/apt-get install --no-install-recommends -y '+' '.join(packages)] if packages else [])
         self.assertNotIn('JAVA',script)
         self.assertNotIn('qml',script)
+
+    def test_full_and_ci37_actual_shells_install_system_tools_even_when_host_path_has_them(self):
+        import yaml
+        manual=yaml.safe_load((C.ROOT/'tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml').read_bytes())
+        steps={row['name']:row for row in manual['jobs']['boundary-diagnostic']['steps']}
+        scripts=(steps['Install existing mandatory portable host contract prerequisites']['run'],
+                 steps['Prepare the fixed Qt-free CI37 diagnostic tools']['run'],
+                 self.steps['Install QML and portable C++ contract prerequisites']['run'],
+                 self.steps['Prepare the protected CI37 host environment']['run'])
+        for script in scripts:
+            with self.subTest(full='qml-module' in script):
+                result,recorded,resolved,expected=fixed_system_setup(script,{'cmake','ctest','ninja'})
+                self.assertEqual(result.returncode,0,result.stderr)
+                self.assertEqual(resolved,expected)
+                install=next(line.split() for line in recorded if ' install ' in line)
+                self.assertEqual(install.count('cmake'),1);self.assertEqual(install.count('ninja-build'),1)
+                result,_,_,_=fixed_system_setup(script,{'cmake','ctest','ninja'},install=False)
+                self.assertNotEqual(result.returncode,0)
+                self.assertIn('Missing fixed system prerequisite: cmake',result.stderr)
+
+    def test_ci37_missing_fixed_binutils_or_base_tool_fails_before_preparation(self):
+        import yaml
+        manual=yaml.safe_load((C.ROOT/'tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml').read_bytes())
+        quick=next(row for row in manual['jobs']['boundary-diagnostic']['steps']
+                   if row['name']=='Prepare the fixed Qt-free CI37 diagnostic tools')['run']
+        for script in (quick,self.steps['Prepare the protected CI37 host environment']['run']):
+            for tool in ('as','ld','ar','ranlib','sha256sum','env','ldd','dpkg-query'):
+                with self.subTest(tool=tool,manual=script==quick):
+                    result,recorded,_,_=fixed_system_setup(script,{tool})
+                    self.assertNotEqual(result.returncode,0)
+                    self.assertIn('Missing fixed system prerequisite: '+tool,result.stderr)
+                    self.assertEqual(recorded,[])
+
+    def test_required_runtime_tools_report_only_fixed_allowlisted_names(self):
+        runtime=S.runtime
+        for name in runtime._COMMANDS:
+            with self.subTest(name=name),patch.object(runtime,'_checked_executable',
+                    side_effect=runtime.RuntimeIdentityError('/private/path token=secret')) as lookup:
+                with self.assertRaises(runtime.RuntimeIdentityError) as caught:runtime._required_tool(name)
+                self.assertEqual(str(caught.exception),'a required host tool cannot be identified: '+name)
+                lookup.assert_called_once_with(runtime._COMMANDS[name][0])
+        for name in ('/private/path','secret-executable',None,1):
+            with self.subTest(name=name),patch.object(runtime,'_checked_executable') as lookup:
+                with self.assertRaisesRegex(runtime.RuntimeIdentityError,'^unsupported required host tool role$'):
+                    runtime._required_tool(name)
+                lookup.assert_not_called()
 
     def test_actual_ci37_three_root_validator_rejects_java_aliases_and_other_versions(self):
         script=self.steps['Prepare the protected CI37 host environment']['run']

@@ -114,6 +114,16 @@ def _checked_executable(value: str) -> Path:
         raise _fail("a required host tool cannot be identified") from error
 
 
+def _required_tool(name: str) -> Path:
+    """Expose only a fixed public tool role, never a discovered path or output."""
+    if type(name) is not str or name not in _COMMANDS:
+        raise _fail("unsupported required host tool role")
+    try:
+        return _checked_executable(_COMMANDS[name][0])
+    except RuntimeIdentityError:
+        raise _fail("a required host tool cannot be identified: " + name) from None
+
+
 def _file_digest(path: Path) -> str:
     try:
         digest = hashlib.sha256()
@@ -443,7 +453,7 @@ def capture_host_environment() -> dict:
     tools = {}
     resolved_tools = {}
     for name, (executable, *arguments) in _COMMANDS.items():
-        path = _checked_executable(executable)
+        path = _required_tool(name)
         if name == "npm":
             # npm is a JavaScript entrypoint with an /usr/bin/env node shebang.
             # The sanitized query PATH must not replace setup-node's identified

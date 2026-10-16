@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dormant actual CI37 environment identity; never an execution receipt.
+"""Actual CI37 environment identity; never an execution receipt.
 
 This separate profile does not project, relabel or weaken the full Qt profile.
 Only fixed read-only identity queries run here. Unsupported discovery fails
@@ -401,11 +401,15 @@ def _process():
         'limits': {name: list(resource.getrlimit(getattr(resource, name))) for name in _LIMITS}}
 
 
-def _capture_ci_environment(selection, candidate_tree, trusted_tree, registry, *, root=ROOT, target='main', _diagnostic=False, read_blob=None):
+def _capture_ci_environment(selection, candidate_tree, trusted_tree, registry, *, root=ROOT, target='main', _diagnostic=False,
+                            read_blob=None, source=None, source_root=None):
     """Actual protected BEFORE/AFTER query; no caller may invent optional tools."""
-    binding = ci_profile.validate_selection(selection, candidate_tree, trusted_tree, registry,
-                                            target=target,policy=ci_profile.load_policy(root),require_enabled=not _diagnostic,root=root,
-                                            read_blob=read_blob)
+    if _diagnostic:
+        binding = ci_profile.diagnostic_selection(selection,candidate_tree,trusted_tree,registry,
+            source=source,source_root=source_root,root=root,target=target,read_blob=read_blob)
+    else:
+        binding = ci_profile.validate_selection(selection, candidate_tree, trusted_tree, registry,
+            target=target,policy=ci_profile.load_policy(root),root=root,read_blob=read_blob)
     return _measure_ci_environment(binding,root=root)
 
 
@@ -474,6 +478,9 @@ def _validate_environment(environment, qualified_at, expires_at, now, selection,
     No tool probe, installation or consumer environment capture occurs here.
     Changed runtime/source context cannot inherit this separate profile.
     """
+    require(not isinstance(environment,dict) or not isinstance(environment.get('selection'),dict)
+        or environment['selection'].get('kind') != ci_profile.DIAGNOSTIC_KIND,
+        'manual diagnostic source binding cannot enter production admission')
     policy = ci_profile.load_policy(root)
     binding = ci_profile.validate_selection(selection, candidate_tree, trusted_tree, registry,target=target,policy=policy,root=root,
                                             read_blob=read_blob)
@@ -639,16 +646,17 @@ def capture_ci_environment(selection, candidate_tree, trusted_tree, registry, *,
         raise CIEnvironmentError('CI37 capture is unavailable; actual fallback is required') from error
 
 
-def capture_ci_environment_diagnostic(selection, candidate_tree, trusted_tree, registry, *, root=ROOT, target='main', read_blob=None):
+def capture_ci_environment_diagnostic(selection, candidate_tree, trusted_tree, registry, *, root=ROOT, target='main',
+                                      read_blob=None, source=None, source_root=None):
     """Fixed source-qualified measurement only; never activation, admission or reuse.
 
-    This dedicated diagnostic API retains the exact finite selection, source,
-    command definitions and actual measurement. Only the two activation gates
-    are bypassed; ordinary capture and original-E admission remain gated.
+    This dedicated API binds the complete actual immutable source and real
+    protected policy, independently of the future production generation. Its
+    distinct binding cannot enter ordinary capture or original-E admission.
     """
     try:
         return _capture_ci_environment(selection,candidate_tree,trusted_tree,registry,
-                                       root=root,target=target,_diagnostic=True,read_blob=read_blob)
+            root=root,target=target,_diagnostic=True,read_blob=read_blob,source=source,source_root=source_root)
     except CIEnvironmentError:
         raise
     except (ValueError,KeyError,TypeError,AttributeError,RuntimeError,OSError,subprocess.SubprocessError) as error:

@@ -4,6 +4,7 @@
 from copy import deepcopy
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 import tempfile
 import unittest
@@ -76,10 +77,10 @@ class CIProfileTests(ProfileFixture):
         })
         self.assertEqual(len(result["suites"]), 37)
 
-    def test_shipping_profile_and_policy_remain_independently_disabled(self):
-        self.assertFalse(C.SOURCE_READY)
+    def test_shipping_controlled_attempt_still_requires_both_independent_gates(self):
+        self.assertTrue(C.SOURCE_READY)
         shipping = C.load_policy()
-        self.assertFalse(shipping["enabled"])
+        self.assertTrue(shipping["enabled"])
         self.assertEqual(shipping["suites"], list(C.SUITES))
         for source_ready, enabled in ((False, False), (False, True), (True, False)):
             policy = {**self.policy, "enabled": enabled}
@@ -450,6 +451,109 @@ class PolicyFileTests(ProfileFixture):
         self.path.parent.symlink_to(target, target_is_directory=True)
         with self.assertRaises(C.CIProfileError):
             C.load_policy(self.root)
+
+
+class DiagnosticActualSourceTests(unittest.TestCase):
+    """Actual immutable Git inventory, no suite or host identity execution."""
+    def setUp(self):
+        temporary=tempfile.TemporaryDirectory();self.addCleanup(temporary.cleanup)
+        self.root=Path(temporary.name)
+        self.registry=inputs.load_registry(C.ROOT/'.github/test-suites.json')
+        required={p for name in C.SUITES for p in self.registry['suites'][name]['closure']['required']}
+        for p in required:self.write(p,b'fixed diagnostic source fixture\n')
+        self.write('.github/test-suites.json',json.dumps(self.registry).encode())
+        self.write(C.PINNED_SOURCE,(C.ROOT/C.PINNED_SOURCE).read_bytes())
+        self.write(C.DATA_PATH,(C.ROOT/C.DATA_PATH).read_bytes())
+        self.policy={**C.load_policy(),'enabled':True,'generation_digest':'sha256:'+'f'*64,
+                     'definition_digest':C.definition_digest(self.registry)}
+        self.write(C.POLICY,json.dumps(self.policy).encode())
+        self.git('init','-q','--initial-branch=main')
+        self.git('config','user.name','Diagnostic fixture');self.git('config','user.email','fixture@example.invalid')
+        self.commit()
+        self.selection={'suites':list(C.SUITES),'reason':'reviewed-ci-only-inputs',
+                        'full_host':False,'include_platform':False}
+
+    def write(self,path,raw):
+        p=self.root/path;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(raw);p.chmod(0o644)
+
+    def git(self,*arguments):
+        return subprocess.check_output(['git','-c','core.hooksPath=/dev/null','-c','commit.gpgsign=false',
+            *arguments],cwd=self.root,stderr=subprocess.PIPE).decode().strip()
+
+    def commit(self):
+        self.git('add','--all');self.git('commit','-qm','Complete immutable diagnostic source')
+        self.source=self.git('rev-parse','HEAD');self.tree=inputs.full_tree(self.root,self.source)
+
+    def blob(self,oid):
+        return subprocess.check_output(['git','cat-file','blob',oid],cwd=self.root)
+
+    def binding(self,**options):
+        return C.diagnostic_selection(options.pop('selection',self.selection),
+            options.pop('candidate',self.tree),options.pop('trusted',self.tree),
+            options.pop('registry',self.registry),source=options.pop('source',self.source),
+            source_root=self.root,root=self.root,read_blob=self.blob,**options)
+
+    def test_actual_git_source_can_measure_while_shipping_generation_stays_future_and_unchanged(self):
+        before=(self.root/C.POLICY).read_bytes()
+        value=self.binding()
+        self.assertEqual(value['kind'],C.DIAGNOSTIC_KIND)
+        self.assertEqual(value['source_commit'],self.source)
+        self.assertEqual(value['source_tree'],self.git('rev-parse','HEAD^{tree}'))
+        self.assertEqual(value['production_policy_digest'],C.policy_identity(self.policy))
+        self.assertEqual(value['actual_selection']['generation_digest'],C.generation(self.tree,self.registry))
+        self.assertNotEqual(value['actual_selection']['generation_digest'],self.policy['generation_digest'])
+        self.assertEqual((self.root/C.POLICY).read_bytes(),before)
+        with patch.object(C,'SOURCE_READY',True),self.assertRaises(C.CIProfileError):
+            C.validate_selection(self.selection,self.tree,self.tree,self.registry,policy=self.policy,
+                root=self.root,read_blob=self.blob)
+
+    def test_changed_source_inventory_registry_and_requested_owner_cannot_be_measured(self):
+        changed=deepcopy(self.tree);changed['unknown.py']={'mode':'100644','type':'blob','sha':'a'*40}
+        registry=deepcopy(self.registry);registry['suites'][C.SUITES[0]]['command'].append('--unreviewed')
+        for options in ({'source':'a'*40},{'candidate':changed},{'trusted':changed},{'registry':registry},
+                {'selection':{**self.selection,'suites':[*C.SUITES,'device-control-plane-full']}},
+                {'selection':{**self.selection,'include_platform':True}}):
+            with self.subTest(options=list(options)),self.assertRaises(C.CIProfileError):self.binding(**options)
+        self.git('commit','--allow-empty','-qm','Different commit with same tree')
+        with self.assertRaises(C.CIProfileError):self.binding()
+
+    def test_actual_protected_policy_and_registry_blob_modes_and_aliases_are_mandatory(self):
+        for relative in (C.POLICY,'.github/test-suites.json'):
+            path=self.root/relative;raw=path.read_bytes()
+            try:
+                path.write_bytes(raw+b'\n')
+                with self.assertRaises(C.CIProfileError):self.binding()
+                path.write_bytes(raw);path.chmod(0o755)
+                with self.assertRaises(C.CIProfileError):self.binding()
+                path.chmod(0o644);path.unlink();alias=self.root/'outside';alias.write_bytes(raw);path.symlink_to(alias)
+                with self.assertRaises(C.CIProfileError):self.binding()
+            finally:
+                path.unlink();path.write_bytes(raw);path.chmod(0o644)
+        missing=next(p for n in C.SUITES for p in self.registry['suites'][n]['closure']['required']
+                     if p not in {C.POLICY,C.PINNED_SOURCE,C.DATA_PATH,'.github/test-suites.json'})
+        (self.root/missing).unlink();self.commit()
+        with self.assertRaises(C.CIProfileError):self.binding()
+
+    def test_diagnostic_binding_cannot_enter_production_even_when_actual_generation_matches(self):
+        import runtime_ci
+        self.policy['generation_digest']=C.generation(self.tree,self.registry)
+        self.write(C.POLICY,json.dumps(self.policy).encode());self.commit()
+        value=self.binding()
+        self.assertEqual(value['actual_selection']['generation_digest'],self.policy['generation_digest'])
+        with patch.object(runtime_ci.ci_profile,'validate_selection',side_effect=AssertionError('no production conversion')):
+            with self.assertRaises(runtime_ci.CIEnvironmentError):
+                runtime_ci.validate_environment({'selection':value},None,None,None,self.selection,
+                    self.tree,self.tree,self.registry,root=self.root,read_blob=self.blob)
+
+    def test_committed_registry_definitions_and_policy_schema_cannot_be_redefined(self):
+        changed=deepcopy(self.registry)
+        changed['suites'][C.SUITES[0]]['command'].append('--new-recipe')
+        self.write('.github/test-suites.json',json.dumps(changed).encode());self.commit()
+        with self.assertRaises(C.CIProfileError):self.binding(registry=changed)
+        self.write('.github/test-suites.json',json.dumps(self.registry).encode())
+        self.write(C.POLICY,json.dumps({**self.policy,'diagnostic_generation_override':'unreviewed'}).encode())
+        self.commit()
+        with self.assertRaises(C.CIProfileError):self.binding()
 
 
 if __name__ == "__main__":

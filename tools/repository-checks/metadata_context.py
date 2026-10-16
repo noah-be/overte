@@ -19,7 +19,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = 'tools/repository-checks/metadata_context.py'
-SOURCE_READY = False
+SOURCE_READY = True
 REPOSITORY = 'noah-l-frank/overte'
 REPOSITORY_ID = 1319052603
 MARKER_STEP = 'Authenticated one-way metadata non-producer'
