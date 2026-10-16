@@ -1225,7 +1225,11 @@ class SharedHostCompatibilityTests(unittest.TestCase):
             layout = sandbox.Layout(*paths)
             prepared = ((), Path("/opt/hostedtoolcache/Python/3.12.12/x64"),
                         Path("/opt/hostedtoolcache/node/22.20.0/x64"), Path("/usr/lib/jvm/temurin-17-jdk-amd64"))
-            plan = SHARED.shared_plan(layout, ["python", "tests/fake.py", "--require-qml"], prepared, {})
+            # This fixture checks the command/mount plan, not the local JDK's
+            # ownership. Real temporary certificate aliases are covered below.
+            with patch.object(SHARED, "prepared_external_inputs", return_value=()) as external:
+                plan = SHARED.shared_plan(layout, ["python", "tests/fake.py", "--require-qml"], prepared, {})
+            external.assert_called_once_with(prepared)
             args = plan["argv"]
             self.assertEqual(args[-3:], ["/opt/overte-ci/venv/bin/python", "tests/fake.py", "--require-qml"])
             triples = [args[i + 1:i + 3] for i, value in enumerate(args) if value == "--setenv"]
