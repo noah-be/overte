@@ -26,6 +26,7 @@ jobs:
           tools/sync-test-reuse
           tools/repository-checks
           tools/sbom
+          tools/branch-policy/check.py
           tests/run-project-tests.py
           tests/platform-profile.json
           tests/requirements-host.txt

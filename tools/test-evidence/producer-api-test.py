@@ -1259,6 +1259,21 @@ class MainConsumerSourceTests(unittest.TestCase):
         self.assertEqual(set(new['jobs']),{'qualify-parent'})
         job=new['jobs']['qualify-parent'];self.assertEqual(job['name'],old['jobs']['qualify-parent']['name'])
         self.assertEqual(job['permissions'],{'contents':'read','actions':'read','pull-requests':'read','checks':'read'})
+        # Admission reads these immutable files directly, without sparse Git
+        # fallback. Every protected role must materialize the complete closure.
+        _, manifests=C.attested.runtime._requirement_inventory(C.ROOT)
+        required={*C.attested.runtime._TRUSTED_EXECUTION_FILES,*C.attested._CONSUMER_FILES,*manifests,
+                  *C.producer.controller_sources(C.producer._host_policy())}
+        templates=(new,yaml.safe_load((C.ROOT/C.producer.TEMPLATE).read_text()))
+        for template in templates:
+            for owner in template['jobs'].values():
+                for step in owner.get('steps',[]):
+                    if step.get('with',{}).get('path')!='trusted':continue
+                    self.assertIs(step['with'].get('sparse-checkout-cone-mode'),False)
+                    patterns=step['with']['sparse-checkout'].splitlines()
+                    for relative in required:
+                        self.assertTrue(any(relative==p or relative.startswith(p+'/') for p in patterns),
+                                        (step['name'],relative))
         names=[row['name'] for row in job['steps']]
         lookup=names.index('Look up original protected PR proof before candidate setup')
         self.assertLess(lookup,names.index('Check out the exact parent commit'))
@@ -1285,7 +1300,13 @@ class MainConsumerSourceTests(unittest.TestCase):
         for before,after in (('android-owned-npm5-sync-ci-v1','postmerge-original-e-v1'),
                               ('protected-shared-producer-v1','protected-producer-postmerge-original-e-v1')):
             self.assertEqual(set(current[after]),set(current[before]))
-            self.assertEqual([p for p in current[after] if current[after][p]!=current[before][p]],['.github/workflows/parent-qualification.yml'])
+            changed=['.github/workflows/parent-qualification.yml']
+            if after=='protected-producer-postmerge-original-e-v1':
+                changed.insert(0,'.github/workflows/project-tests.yml')
+                project_blob=subprocess.check_output(['git','hash-object','--stdin'],
+                    input=(C.ROOT/C.producer.TEMPLATE).read_bytes()).decode().strip()
+                self.assertEqual(current[after]['.github/workflows/project-tests.yml']['sha'],project_blob)
+            self.assertEqual([p for p in current[after] if current[after][p]!=current[before][p]],changed)
             self.assertEqual(current[after]['.github/workflows/parent-qualification.yml']['sha'],blob)
 
     def test_disabled_cli_has_zero_api_and_writes_no_shared_pass_or_legacy_receipt(self):
