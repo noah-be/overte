@@ -201,6 +201,46 @@ def source_blob(repository, oid):
     return sandbox._git(repository,'cat-file','blob',oid,limit=64_000)
 
 
+def _affected_full_selection(policy, registry, selected, candidate_tree, base_tree, trusted_tree, paths,
+                             regular, *, root, target):
+    """Admit a main-only subset without changing the isolated full runtime.
+
+    The selector's label or supplied names are insufficient. Reconstruct the
+    protected dependency plan and its legacy preparation boundary independently;
+    neither the candidate graph nor a future receipt can select its own work.
+    """
+    try:
+        host.require(target == 'main' and regular is True,
+                     'affected producer requires ordinary main inputs')
+        raw_registry = sandbox._source(root, '.github/test-suites.json')
+        actual_registry = inputs._validate_registry(json.loads(raw_registry, object_pairs_hook=inputs._unique_object))
+        registry_entry = {'mode': '100644', 'type': 'blob', 'sha': hashlib.sha1(
+            b'blob ' + str(len(raw_registry)).encode('ascii') + b'\0' + raw_registry).hexdigest()}
+        host.require(actual_registry == registry and all(
+            tree.get('.github/test-suites.json') == registry_entry for tree in (base_tree, candidate_tree, trusted_tree)),
+            'affected command definitions differ from protected registry bytes')
+        raw = inputs.load_dependencies(root / inputs.AFFECTED_POLICY, registry)
+        native = json.loads(raw)['suites'].get('device-control-plane-full', {})
+        host.require(all(policy.ci_owned(path) for path in native.get('native_independent_paths', ())),
+                     'affected native lookup has an unreviewed independence exception')
+        plan = inputs.plan_affected(registry, raw, base_tree, candidate_tree, trusted_tree)
+        expected = {'suites': plan['required'], 'reason': 'protected-affected-dependencies',
+                    'full_host': True, 'include_platform': False, 'affected': plan}
+        host.require(selected == expected and selected['full_host'] is True
+                     and selected['include_platform'] is False and plan['paths'] == paths,
+                     'affected owner differs from independently derived protected dependencies')
+        names = execution.select_common(registry, plan['required'])
+        host.require(names == plan['required'] and bool(names), 'affected owner is empty or noncanonical')
+        legacy = policy._select_legacy(candidate_tree, paths, regular, base_tree=base_tree,
+            trusted_tree=trusted_tree, candidate_root=root, trusted_root=root, target=target)
+        host.require(legacy['full_host'] is True and legacy['reason'] not in {
+            'unknown-or-nonregular-inventory', 'unowned-inputs', 'reviewed-protected-producer-transition'}
+            and set(names) < set(execution.select_common(registry, legacy['suites'])),
+            'affected owner cannot widen preparation or replace a full installation gate')
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
+        raise PreExecutionUnavailable('affected subset has no independent protected full admission') from error
+
+
 def selection_profile(policy, registry, candidate_tree, base_tree, trusted_tree, *, root=ROOT, target='main', read_blob=None):
     """Derive the owner from complete immutable inputs, never receipt claims."""
     inputs._validate_registry(registry)
@@ -213,7 +253,8 @@ def selection_profile(policy, registry, candidate_tree, base_tree, trusted_tree,
     selected = policy.select(candidate_tree, paths, regular, base_tree=base_tree, trusted_tree=trusted_tree,
                              candidate_root=root, trusted_root=root, target=target)
     if selected.get('reason') == 'protected-affected-dependencies':
-        raise PreExecutionUnavailable('affected subset requires existing nonreusable execution')
+        _affected_full_selection(policy, registry, selected, candidate_tree, base_tree, trusted_tree,
+                                 paths, regular, root=root, target=target)
     names = execution.select_common(registry, selected['suites'])
     profile = FULL_PROFILE
     binding = None
