@@ -1236,7 +1236,29 @@ class AndroidPlatformPartitionTests(unittest.TestCase):
                     [row['name'] for row in self.declarations[target]['required_suites']])
                 self.assertEqual(self.profile,original)
                 P.protocol.validate_plan({'owners':{'shared-host':value['common_owner']}})
-        self.assertNotIn(P.PLATFORM_GENERATION,{row['name'] for row in self.package.workflow_generations()})
+        self.assertIn(P.PLATFORM_GENERATION,{row['name'] for row in self.package.workflow_generations()})
+
+    def test_admitted_seven_target_ci_owner_does_not_invent_platform_work(self):
+        names=list(C.SUITES)
+        self.profile={'profile':C.PROFILE,'binding':{'generation_kind':C.SEVEN_CONTROLLER_KIND,
+            'profile':C.PROFILE,'suites':names},'suites':names,
+            'selection':{'suites':names,'full_host':False,'include_platform':False,
+                         'reason':'reviewed-ci-only-inputs'}}
+        original=deepcopy(self.profile)
+        for target in self.declarations:
+            self.select_target(target)
+            with self.subTest(target=target):self.assertIsNone(self.partition())
+        self.assertEqual(self.profile,original)
+        for mutation in ('binding','old-kind','profile','order','platform','target-profile'):
+            self.profile=deepcopy(original);saved=deepcopy(self.base)
+            if mutation=='binding':self.profile['binding']=None
+            elif mutation=='old-kind':self.profile['binding']['generation_kind']=C.CONTROLLER_KIND
+            elif mutation=='profile':self.profile['profile']=P.FULL_PROFILE
+            elif mutation=='order':self.profile['suites']=list(reversed(names))
+            elif mutation=='platform':self.profile['selection']['include_platform']=True
+            else:self.base[P.source_admission.PROFILE]['sha']='e'*40
+            with self.subTest(mutation=mutation),self.assertRaises(P.PreExecutionUnavailable):self.partition()
+            self.base=saved
 
     def test_old_or_unknown_generation_cannot_enable_platform_partition(self):
         for name in ('protected-producer-seven-target-ci-v1','unknown'):

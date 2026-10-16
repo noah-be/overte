@@ -383,6 +383,22 @@ def platform_partition(policy, profile, registry, candidate_tree, base_tree, tru
         return None
     if policy.package_policy().validate_tree_wiring(candidate_tree) != PLATFORM_GENERATION:
         return None
+    # selection_profile independently admits this versioned Qt-free owner.
+    # It never selected Android declarations, so there is nothing to split.
+    # A full-host profile cannot waive platform work with a false boolean.
+    selected = profile.get('selection', {})
+    binding = profile.get('binding')
+    if (profile.get('profile') == ci_profile.PROFILE and type(binding) is dict
+            and binding.get('generation_kind') == ci_profile.SEVEN_CONTROLLER_KIND
+            and binding.get('profile') == ci_profile.PROFILE
+            and binding.get('suites') == list(ci_profile.SUITES)
+            and selected.get('full_host') is False and selected.get('include_platform') is False
+            and profile.get('suites') == selected.get('suites')
+            and bool(profile['suites']) and profile['suites'] == [
+                name for name in ci_profile.SUITES if name in profile['suites']]
+            and all(tree.get(source_admission.PROFILE) == source_admission.ordinary(
+                source_admission.TARGET_PROFILES[target]) for tree in (base_tree,candidate_tree))):
+        return None
     try:
         for tree in (base_tree, candidate_tree, trusted_tree):
             inputs._validate_tree(tree)
