@@ -67,6 +67,96 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(report["status"], "unavailable")
         self.assertFalse(report["production_qualified"])
 
+    def test_generic_failure_categories_expose_no_message_path_command_or_output(self):
+        secret='PRIVATE-fixture-secret-::error::-command-env-output'
+        cases=[(FileNotFoundError(2,secret,'/private/'+secret),'FileNotFoundError',2),
+            (PermissionError(13,secret,'/private/'+secret),'PermissionError',13),
+            (OSError(999999,secret),'OSError',None),(ValueError(secret),'ValueError',None),
+            (KeyError(secret),'KeyError',None),
+            (subprocess.CalledProcessError(1,[secret],output=secret,stderr=secret),'CalledProcessError',None),
+            (subprocess.TimeoutExpired([secret],5,output=secret,stderr=secret),'TimeoutExpired',None)]
+        for error,kind,number in cases:
+            with self.subTest(kind=kind),patch.object(H,'run_host',side_effect=error), \
+                    patch.object(H.sys,'stdout',new_callable=io.StringIO) as output:
+                self.assertEqual(H.main([]),1)
+            raw=output.getvalue();report=json.loads(raw)
+            self.assertEqual(report['status'],'unavailable')
+            self.assertEqual(report['authority'],'none');self.assertIs(report['production_qualified'],False)
+            self.assertEqual(report['error'],'required host diagnostic operation failed')
+            item=report['failure']['chain'][0]
+            self.assertEqual((item['exception_class'],item['errno']),(kind,number))
+            self.assertEqual(item['source'],'tools/test-evidence/sandbox_host.py')
+            self.assertEqual(item['stage'],'profile-entry')
+            self.assertNotIn(secret,raw);self.assertNotIn('/private/',raw)
+            self.assertLess(len(raw),5000)
+
+    def test_failure_chain_and_public_input_hints_are_closed_and_bounded(self):
+        class SecretSubclassOfValueError(ValueError):pass
+        error=SecretSubclassOfValueError('private data')
+        for _ in range(6):
+            outer=KeyError('private data');outer.__context__=error;error=outer
+        summary=H.failure_summary(error)
+        self.assertEqual(len(summary['chain']),4);self.assertTrue(summary['chain_truncated'])
+        self.assertNotIn('private',json.dumps(summary));self.assertNotIn('SecretSubclass',json.dumps(summary))
+        self.assertEqual(H.failure_summary(SecretSubclassOfValueError())['chain'][0]['exception_class'],'ValueError')
+        for filename,label in (('/usr/lib/jvm/private-leaf','system-jvm'),
+                ('/opt/overte-ci/venv/private-leaf','prepared-venv'),('/private/unknown',None),
+                ('/usr/lib/jvm-shadow/private',None),('/opt/hostedtoolcache/Python/3.12.15/x64/private','prepared-python')):
+            item=H.failure_summary(FileNotFoundError(2,'private message',filename))['chain'][0]
+            self.assertEqual(item.get('input_root'),label)
+            self.assertNotIn('private',json.dumps(item))
+
+    def test_script_entrypoint_and_shared_import_have_one_unavailable_class(self):
+        # Exercise the real script entrypoint, but substitute its complete
+        # shared workload with a fixed refusal. No host operation can start.
+        source=H.ROOT/'tools/test-evidence/sandbox_host.py'
+        script=('import runpy,sys,types\n'
+            'shared=types.ModuleType("sandbox_shared")\n'
+            'def refused():\n'
+            ' import sandbox_host\n'
+            ' raise sandbox_host.Unavailable("fixed public fixture refusal")\n'
+            'shared.run_host=refused\n'
+            'sys.modules["sandbox_shared"]=shared\n'
+            'sys.argv=['+repr(str(source))+',"--profile","shared-host"]\n'
+            'runpy.run_path('+repr(str(source))+',run_name="__main__")\n')
+        result=subprocess.run([sys.executable,'-I','-c',script],capture_output=True,text=True,timeout=10)
+        self.assertEqual(result.returncode,1)
+        report=json.loads(result.stdout)
+        self.assertEqual(report['error'],'fixed public fixture refusal')
+        self.assertEqual(report['failure']['chain'][0]['exception_class'],'Unavailable')
+        self.assertEqual(report['status'],'unavailable');self.assertFalse(report['production_qualified'])
+
+    def test_foreign_loaded_controller_is_not_replaced_or_executed(self):
+        foreign=SimpleNamespace(private='untrusted module fixture')
+        with patch.dict(sys.modules,{'sandbox_host':foreign}), \
+                patch.object(SHARED,'run_host',side_effect=AssertionError('foreign controller reached workload')), \
+                patch.object(H.sys,'stdout',new_callable=io.StringIO) as output:
+            self.assertEqual(H.main(['--profile','shared-host']),1)
+            self.assertIs(sys.modules['sandbox_host'],foreign)
+        report=json.loads(output.getvalue())
+        self.assertEqual(report['status'],'unavailable');self.assertFalse(report['production_qualified'])
+        self.assertEqual(report['failure']['chain'][0]['stage'],'trusted-module-identity')
+        self.assertNotIn('untrusted module fixture',output.getvalue())
+
+    def test_actual_prepared_alias_failure_has_public_source_stage_without_secret_path(self):
+        original=Path.lstat
+        def trusted_stat(path,*args,**kwargs):
+            value=original(path,*args,**kwargs)
+            return SimpleNamespace(st_mode=value.st_mode,st_uid=0,st_size=value.st_size)
+        with tempfile.TemporaryDirectory(prefix='private-fixture-') as temporary:
+            root=Path(temporary);(root/'private-link').symlink_to(root/'private-missing')
+            with (patch.object(SHARED,'VENV',root),patch.object(Path,'lstat',trusted_stat),
+                  patch.object(SHARED,'run_host',side_effect=lambda:SHARED.prepared_identity(())),
+                  patch.object(H.sys,'stdout',new_callable=io.StringIO) as output):
+                self.assertEqual(H.main(['--profile','shared-host']),1)
+            raw=output.getvalue();item=json.loads(raw)['failure']['chain'][0]
+            self.assertEqual(item['exception_class'],'FileNotFoundError')
+            self.assertEqual(item['errno'],2)
+            self.assertEqual(item['stage'],'prepared-input-identity')
+            self.assertEqual(item['source'],'tools/test-evidence/sandbox_shared.py')
+            self.assertGreater(item['line'],0)
+            self.assertNotIn('private-',raw);self.assertNotIn(temporary,raw)
+
     def test_fixed_account_requires_actual_distinct_uid_and_no_sudo_grants(self):
         account = SimpleNamespace(pw_uid=2001, pw_gid=2001, pw_shell="/usr/sbin/nologin")
         denied = SimpleNamespace(returncode=1, stdout=b"User overte-ci-qualification is not allowed to run sudo on host.\n", stderr=b"")
@@ -1278,6 +1368,29 @@ class SharedHostCompatibilityTests(unittest.TestCase):
                     self.assertEqual(events[0:2], ["guardian-ready", "work"])
                     self.assertEqual(events[-3:], ["close-guardian", "kill-empty", "close-scope"])
                     self.assertEqual(batch.scopes, [])
+
+    def test_cleanup_failure_retains_original_safe_error_and_still_kills_owned_scope(self):
+        events=[]
+        with tempfile.TemporaryDirectory() as temporary:
+            base=Path(temporary);candidate=base/'source';policy=base/'policy'
+            candidate.mkdir();policy.mkdir()
+            batch=SHARED.Batch(base,candidate,policy,{},{},{},((),None,None,None),Path('/unused'),2001,2001,{})
+            def close():events.append('scope-close');raise PermissionError(13,'private cleanup','/private/secret')
+            scope=SimpleNamespace(populated=lambda:0,kill_and_wait=lambda:events.append('kill-empty'),close=close)
+            guardian=SimpleNamespace(finish=lambda:{},close=lambda:events.append('guardian-close'))
+            with (patch.object(SHARED.os,'chown'),patch.object(SHARED,'shared_plan',return_value={'argv':['fake-only']}),
+                  patch.object(H,'OwnedScope',return_value=scope),patch.object(H,'Guardian',return_value=guardian),
+                  patch.object(H,'supervise',side_effect=KeyError('private original suite failure')),
+                  patch.object(SHARED,'run_host',side_effect=lambda:batch.launch(['python','fake.py'],900,[])),
+                  patch.object(H.sys,'stdout',new_callable=io.StringIO) as output):
+                self.assertEqual(H.main(['--profile','shared-host']),1)
+            raw=output.getvalue();report=json.loads(raw)
+            self.assertEqual(report['status'],'unavailable');self.assertFalse(report['production_qualified'])
+            self.assertEqual(events,['guardian-close','kill-empty','scope-close'])
+            self.assertEqual([row['exception_class'] for row in report['failure']['chain']],['PermissionError','KeyError'])
+            self.assertTrue(all(row['source']=='tools/test-evidence/sandbox_shared.py' for row in report['failure']['chain']))
+            self.assertNotEqual(*[row['line'] for row in report['failure']['chain']])
+            self.assertNotIn('private',raw);self.assertNotIn('/private',raw)
 
     def test_manual_profile_is_finite_and_pr_production_paths_remain_denied(self):
         template = (H.ROOT / ".github/workflows/shared-sandbox-host-diagnostic.yml").read_text()

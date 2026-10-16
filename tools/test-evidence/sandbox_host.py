@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from contextlib import ExitStack
 import argparse
+import errno
 import grp
 import hashlib
 import importlib.util
@@ -42,6 +43,100 @@ _BOOTSTRAP_DIRECTORY = None
 
 class Unavailable(ValueError):
     pass
+
+
+_PUBLIC_FAILURE_SOURCES = (
+    'sandbox_host.py', 'sandbox_shared.py', 'sandbox.py', 'sandbox_probe.py',
+    'runtime.py', 'runtime_ci.py', 'execution.py', 'inputs.py', 'ci_profile.py',
+)
+_PUBLIC_FAILURE_STAGES = {
+    'host_context': 'native-context', 'verify_account': 'account-permissions',
+    'command': 'fixed-host-command', 'prepare_delegation': 'kernel-delegation',
+    'verify_source': 'trusted-source', 'verify_qualification_source': 'trusted-source',
+    'prepared_tools': 'prepared-tool-selection', 'prepared_identity': 'prepared-input-identity',
+    'materialize_source': 'candidate-materialization', 'materialize_candidate_snapshot': 'candidate-materialization',
+    'project_policy': 'policy-projection', 'check_batch': 'shared-batch',
+    'run_suites': 'selected-suites', 'probe': 'protected-runtime-probe',
+    'capture_host_environment': 'actual-full-runtime', 'capture_ci_environment': 'actual-ci37-runtime',
+    '_git': 'immutable-git-read', '_file_hash': 'readonly-file-hash',
+    'kill_and_wait': 'kernel-kill-and-empty', 'empty': 'kernel-empty-check',
+    'populated': 'kernel-empty-check', 'close': 'scope-or-guardian-cleanup',
+    'finish': 'guardian-cleanup-proof', 'launch': 'contained-command',
+    'supervise': 'contained-process', '_write_receipt': 'diagnostic-report-write',
+    'run_host': 'profile-control', 'main': 'profile-entry',
+    '_shared_controller_module': 'trusted-module-identity',
+}
+_PUBLIC_EXCEPTION_KINDS = (
+    (Unavailable, 'Unavailable'), (FileNotFoundError, 'FileNotFoundError'),
+    (PermissionError, 'PermissionError'), (NotADirectoryError, 'NotADirectoryError'),
+    (IsADirectoryError, 'IsADirectoryError'), (TimeoutError, 'TimeoutError'),
+    (OSError, 'OSError'), (subprocess.TimeoutExpired, 'TimeoutExpired'),
+    (subprocess.CalledProcessError, 'CalledProcessError'), (subprocess.SubprocessError, 'SubprocessError'),
+    (KeyError, 'KeyError'), (UnicodeError, 'UnicodeError'), (ValueError, 'ValueError'),
+)
+_PUBLIC_FAILURE_INPUTS = (
+    (r'/opt/overte-ci/venv(?:/|$)', 'prepared-venv'),
+    (r'/opt/hostedtoolcache/Python/3\.12\.[0-9]+/x64(?:/|$)', 'prepared-python'),
+    (r'/opt/hostedtoolcache/node/22\.[0-9]+\.[0-9]+/x64(?:/|$)', 'prepared-node'),
+    (r'/opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17\.[0-9.-]+/x64(?:/|$)', 'prepared-java-cache'),
+    (r'/usr/lib/jvm(?:/|$)', 'system-jvm'),
+    (r'/sys/fs/cgroup(?:/|$)', 'kernel-cgroup'),
+)
+
+
+def failure_summary(error):
+    """Public types/callsites only; never exception text, paths, args or output.
+
+    Inspect at most four private cause/context links. This retains the original
+    operation if a finally/temporary cleanup raises a second error, without
+    altering cleanup, exception propagation or the unavailable verdict.
+    """
+    sources = {str(ROOT / 'tools/test-evidence' / name): 'tools/test-evidence/' + name
+               for name in _PUBLIC_FAILURE_SOURCES}
+    chain, seen = [], set()
+    while isinstance(error, BaseException) and id(error) not in seen and len(chain) < 4:
+        seen.add(id(error))
+        kind = next((name for cls, name in _PUBLIC_EXCEPTION_KINDS if isinstance(error, cls)), 'OtherException')
+        number = error.errno if isinstance(error, OSError) else None
+        number = number if type(number) is int and 0 < number <= 4095 else None
+        item = {'exception_class': kind, 'errno': number, 'errno_name': errno.errorcode.get(number),
+                'stage': 'unclassified-host-operation'}
+        # Emit only a fixed public root label, never the actual filename or
+        # relative leaf. Unknown/private paths supply no hint at all.
+        filename = error.filename if isinstance(error, OSError) else None
+        if type(filename) is str and len(filename) <= 2048:
+            for pattern, label in _PUBLIC_FAILURE_INPUTS:
+                if re.match(pattern, filename):
+                    item['input_root'] = label
+                    break
+        trace = error.__traceback__
+        frames, callers = 0, []
+        while trace is not None and frames < 64:
+            code = trace.tb_frame.f_code
+            if (code.co_filename in sources and code.co_name not in {'require', '_require'}
+                    and type(trace.tb_lineno) is int and 0 < trace.tb_lineno <= 1_000_000):
+                callers.append({'source': sources[code.co_filename], 'line': trace.tb_lineno,
+                                'stage': _PUBLIC_FAILURE_STAGES.get(code.co_name, 'trusted-controller-operation')})
+                callers = callers[-4:]
+            trace = trace.tb_next
+            frames += 1
+        if callers:
+            item.update(callers[-1], callers=callers[:-1])
+        chain.append(item)
+        error = error.__cause__ if error.__cause__ is not None else error.__context__
+    return {'chain': chain, 'chain_truncated': isinstance(error, BaseException) and id(error) not in seen}
+
+
+def _shared_controller_module():
+    # The workflow executes this file as __main__, while sandbox_shared imports
+    # sandbox_host. Preserve one reviewed controller/global state and one
+    # Unavailable class. Never replace an already loaded foreign module.
+    current = sys.modules.get(__name__)
+    require(isinstance(current, type(sys)) and vars(current) is globals(),
+            'diagnostic controller module identity is unavailable')
+    existing = sys.modules.get('sandbox_host')
+    require(existing is None or existing is current, 'diagnostic controller module identity is ambiguous')
+    sys.modules['sandbox_host'] = current
 
 
 def require(condition, message):
@@ -930,6 +1025,7 @@ def main(argv=None):
         return 1
     try:
         if arguments.profile in {"shared-host", "ci37"}:
+            _shared_controller_module()
             sys.path.insert(0, str(Path(__file__).resolve().parent))
             import sandbox_shared
             result = sandbox_shared.run_host_ci37() if arguments.profile == "ci37" else sandbox_shared.run_host()
@@ -938,7 +1034,8 @@ def main(argv=None):
         code = 0
     except (Unavailable, OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
         result = {"schema": 1, "status": "unavailable", "authority": "none", "production_qualified": False,
-                  "error": str(error) if isinstance(error, Unavailable) else "required host diagnostic operation failed"}
+                  "error": str(error) if isinstance(error, Unavailable) else "required host diagnostic operation failed",
+                  "failure": failure_summary(error)}
         code = 1
     print(json.dumps(result, sort_keys=True, separators=(",", ":"), allow_nan=False))
     return code
