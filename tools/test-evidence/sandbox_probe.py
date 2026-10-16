@@ -123,9 +123,21 @@ def shared_environment(binding):
                 b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()}:
             raise ValueError('CI37 candidate policy differs from protected policy')
         registry = inputs.load_registry(Path('/overte-policy/.github/test-suites.json'))
+        expected=binding.get('profile_binding')
+        if diagnostic and isinstance(expected,dict) and expected.get('kind')==ci_profile.DIAGNOSTIC_KIND:
+            expected=expected.get('actual_selection')
+        # This root-owned expected namespace selects the input transport only.
+        # capture independently reloads real policy and rejects a missing/wrong
+        # manifest before any identity query; it cannot grant source authority.
+        if isinstance(expected,dict) and expected.get('generation_kind')==ci_profile.CONTROLLER_KIND:
+            manifest=ci_profile.load_controller_projection(Path('/overte-policy'))
+            trusted_tree=manifest['entries']
+        else:
+            manifest=None;trusted_tree=tree
         capture = runtime_ci.capture_ci_environment_diagnostic if diagnostic else runtime_ci.capture_ci_environment
         options = {'source':source,'source_root':Path('/work')} if diagnostic else {}
-        environment = capture(binding['selection'],tree,tree,registry,root=Path('/overte-policy'),
+        if manifest is not None:options['controller_manifest']=manifest
+        environment = capture(binding['selection'],tree,trusted_tree,registry,root=Path('/overte-policy'),
             read_blob=lambda oid:sandbox._git(Path('/work'),'cat-file','blob',oid,limit=64_000),**options)
         if environment['selection'] != binding.get('profile_binding'):
             raise ValueError('CI37 actual capture differs from root-selected owner')

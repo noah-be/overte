@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import hashlib
+import base64
 import json
 import os
 from pathlib import Path
@@ -33,6 +34,9 @@ PROFILE = "ubuntu24-ci37-v1"
 # future generation and native execution still apply; no CLI override exists.
 SOURCE_READY = True
 DIAGNOSTIC_KIND = 'ci37-actual-source-diagnostic-v1'
+CONTROLLER_KIND = 'ci37-protected-controller-v1'
+CONTROLLER_EPOCH = 'ubuntu24-ci37-controller-20261016-v1'
+CONTROLLER_MANIFEST = 'ci37-controller-source.json'
 SUITES = (
     "producer-proof", "producer-api", "dependency-releases", "project-runner",
     "python-test-runner", "repository-checks", "android-build-inputs",
@@ -99,7 +103,12 @@ def _digest(value):
 
 
 def _validate_policy(value):
-    _require(isinstance(value, dict) and set(value) == _FIELDS, "unsupported CI37 policy fields")
+    _require(isinstance(value, dict) and set(value) in (_FIELDS, (_FIELDS-{'generation_digest'})|{'generation_kind'}),
+             "unsupported CI37 policy fields")
+    controller = 'generation_kind' in value
+    if controller:
+        _require(value['generation_kind']==CONTROLLER_KIND and value.get('epoch')==CONTROLLER_EPOCH,
+                 'unsupported protected-controller generation namespace or epoch')
     _require(type(value["schema"]) is int and value["schema"] == 1
              and type(value["enabled"]) is bool and value["profile"] == PROFILE,
              "unsupported CI37 policy profile")
@@ -116,9 +125,150 @@ def _validate_policy(value):
     _require(type(value["max_age_seconds"]) is int and 0 < value["max_age_seconds"] <= 259200,
              "unsupported CI37 validity policy")
     _require(value["suites"] == list(SUITES), "CI37 policy must retain the exact ordered inventory")
-    for name in ("definition_digest", "generation_digest"):
+    for name in ('definition_digest',) if controller else ("definition_digest", "generation_digest"):
         _require(isinstance(value[name], str) and _DIGEST.fullmatch(value[name]),
                  "missing reviewed CI37 generation identity")
+    return value
+
+
+def controller_paths():
+    """Fixed protected loader closure; never paths supplied by a candidate."""
+    import source_admission
+    return sorted(set(source_admission.CONTROLLERS)|set(source_admission.IMPORT_MEMBERS))
+
+
+def _controller_tree_identity(entries):
+    """Reconstruct a complete ordinary Git tree without invoking candidate Git."""
+    inputs._validate_tree(entries)
+    root={}
+    for name,entry in entries.items():
+        _require(entry['type']=='blob' and entry['mode'] in {'100644','100755'},
+                 'controller manifest contains a nonordinary object')
+        node=root;parts=name.split('/')
+        for part in parts[:-1]:
+            node=node.setdefault(part,{})
+            _require(type(node) is dict, 'controller tree has a file/directory collision')
+        _require(parts[-1] not in node, 'controller tree has a duplicate/collision')
+        node[parts[-1]]=(entry['mode'],entry['sha'])
+    def tree(node):
+        raw=b''
+        for name,value in sorted(node.items(),key=lambda item:(item[0]+('/' if type(item[1]) is dict else '')).encode('utf-8')):
+            mode,oid=('40000',tree(value)) if type(value) is dict else value
+            raw+=mode.encode()+b' '+name.encode('utf-8')+b'\0'+bytes.fromhex(oid)
+        return hashlib.sha1(b'tree '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
+    _require(bool(entries), 'controller manifest has no complete source')
+    return tree(root)
+
+
+def capture_controller_manifest(root, trusted_source):
+    """Called only after native B/D admission, on the actual protected checkout."""
+    tree,entries=_diagnostic_source(root,trusted_source)
+    _require(_controller_tree_identity(entries)==tree, 'actual controller tree does not match immutable Git')
+    size=_controller_git(root,'cat-file','-s',trusted_source)
+    _require(re.fullmatch(rb'[0-9]{1,7}\n',size) and 0<int(size)<=1_000_000,
+             'controller commit object exceeds its bound')
+    commit=_controller_git(root,'cat-file','commit',trusted_source)
+    _require(len(commit)==int(size),'controller commit object size changed')
+    value={'schema':1,'kind':CONTROLLER_KIND,'source_commit':trusted_source,'source_tree':tree,
+           'commit_object':base64.b64encode(commit).decode('ascii'),'entries':entries}
+    _validate_controller_manifest(value,root)
+    return value
+
+
+def _validate_controller_manifest(value, root):
+    """Authenticate the fixed projected files and complete import lookup.
+
+    Manifest ownership/native D provenance is supplied by the root supervisor;
+    this pure parser never turns a candidate map into source authority.
+    """
+    import source_admission
+    _require(type(value) is dict and set(value)=={'schema','kind','source_commit','source_tree','commit_object','entries'}
+        and type(value['schema']) is int and value['schema']==1 and value['kind']==CONTROLLER_KIND
+        and type(value['source_commit']) is str and re.fullmatch('[0-9a-f]{40}',value['source_commit'])
+        and value['source_commit']!='0'*40 and type(value['source_tree']) is str
+        and re.fullmatch('[0-9a-f]{40}',value['source_tree']), 'controller source manifest is malformed')
+    encoded=value['commit_object']
+    _require(type(encoded) is str and 0<len(encoded)<=1_333_336, 'controller commit encoding exceeds its bound')
+    try:commit=base64.b64decode(encoded,validate=True)
+    except (ValueError,UnicodeError):raise CIProfileError('controller commit encoding is invalid') from None
+    _require(0<len(commit)<=1_000_000 and base64.b64encode(commit).decode('ascii')==encoded
+        and hashlib.sha1(b'commit '+str(len(commit)).encode()+b'\0'+commit).hexdigest()==value['source_commit']
+        and commit.split(b'\n',1)[0]==b'tree '+value['source_tree'].encode('ascii'),
+        'controller immutable commit/tree identity differs')
+    entries=value['entries']
+    _require(type(entries) is dict and 0<len(entries)<=200_000
+        and len(inputs._canonical(value))<=32_000_000, 'controller source manifest exceeds its bound')
+    _require(_controller_tree_identity(entries)==value['source_tree'], 'controller manifest tree identity differs')
+    files={}
+    for name in controller_paths():
+        expected=entries.get(name)
+        mode='100755' if name=='tests/run-project-tests.py' else '100644'
+        _require(type(expected) is dict and expected.get('type')=='blob' and expected.get('mode')==mode,
+                 'controller source closure is missing or nonordinary')
+        raw,actual=source_admission.actual_bytes(root,name)
+        _require(actual==expected, 'actual projected controller source differs from immutable D')
+        files[name]=actual
+    imports={path:entry for path,entry in entries.items()
+        if any(path==prefix or path.startswith(prefix+'/') for prefix in source_admission.IMPORT_ROOTS)}
+    _require(set(imports)==set(source_admission.IMPORT_MEMBERS), 'controller import membership is not reviewed')
+    directories={str(parent) for path in imports for parent in Path(path).parents
+        if any(str(parent)==prefix or str(parent).startswith(prefix+'/') for prefix in source_admission.IMPORT_ROOTS)}
+    _require(source_admission.actual_import_inventory(root)=={'files':imports,'directories':sorted(directories)},
+             'actual projected import lookup differs from immutable D')
+    return entries
+
+
+def controller_generation(entries, registry):
+    """Dynamic actual protected D identity in a distinct runtime namespace."""
+    import source_admission
+    inputs._validate_tree(entries)
+    imports={path for path in entries if any(path==prefix or path.startswith(prefix+'/')
+        for prefix in source_admission.IMPORT_ROOTS)}
+    _require(imports==set(source_admission.IMPORT_MEMBERS), 'controller generation lookup membership is unknown')
+    rows=[]
+    for name in controller_paths():
+        entry=entries.get(name);mode='100755' if name=='tests/run-project-tests.py' else '100644'
+        _require(type(entry) is dict and entry.get('mode')==mode and entry.get('type')=='blob',
+                 'controller generation is incomplete or nonordinary')
+        item={'path':name,**entry}
+        # These exact existing cycles retain independent raw policy/Android
+        # pin checks. No candidate execution-source fingerprint is projected.
+        if name in {POLICY,PINNED_SOURCE}:item.pop('sha')
+        rows.append(item)
+    return _digest({'kind':CONTROLLER_KIND,'entries':rows,'definition_digest':definition_digest(registry)})
+
+
+def _controller_git(root,*arguments):
+    environment={name:value for name,value in os.environ.items() if not name.startswith('GIT_')}
+    environment.update(GIT_CONFIG_NOSYSTEM='1',GIT_CONFIG_GLOBAL='/dev/null',GIT_TERMINAL_PROMPT='0',GIT_NO_LAZY_FETCH='1')
+    raw=subprocess.check_output(['/usr/bin/git','--no-replace-objects','-c','core.hooksPath=/dev/null',
+        '-c','core.fsmonitor=false','-c','maintenance.auto=false','-c','gc.auto=0',
+        '-c','safe.directory='+str(root),*arguments],cwd=root,env=environment,
+        stderr=subprocess.PIPE,timeout=30)
+    _require(len(raw)<=1_000_000,'controller Git object exceeds its byte bound')
+    return raw
+
+
+def _actual_controller_manifest(root):
+    source=_controller_git(root,'rev-parse','--verify','HEAD^{commit}').decode('ascii').strip()
+    return capture_controller_manifest(root,source)
+
+
+def load_controller_projection(root):
+    """Internal probe input from the supervisor's sealed root-owned projection."""
+    root=Path(root);path=root/CONTROLLER_MANIFEST
+    _require(root.is_absolute() and '..' not in root.parts, 'controller projection root is invalid')
+    current=Path(root.anchor)
+    for part in path.parts[1:]:
+        current/=part
+        _require(not current.is_symlink(), 'controller projection contains an alias')
+    info=path.stat()
+    _require(stat.S_ISREG(info.st_mode) and info.st_uid==0 and info.st_nlink==1
+        and stat.S_IMODE(info.st_mode)==0o444 and 0<info.st_size<=32_000_000,
+        'controller manifest is not sealed root-owned ordinary input')
+    raw=path.read_bytes();_require(len(raw)<=32_000_000,'controller manifest exceeds its byte bound')
+    value=json.loads(raw,object_pairs_hook=inputs._unique_object)
+    _validate_controller_manifest(value,root)
     return value
 
 
@@ -269,7 +419,8 @@ def generation(tree, registry):
 
 
 def validate_selection(selection, candidate_tree, trusted_tree, registry, *, target="main",
-                       regular=True, unknown=False, policy=None, require_enabled=True, root=ROOT, read_blob=None):
+                       regular=True, unknown=False, policy=None, require_enabled=True, root=ROOT, read_blob=None,
+                       controller_manifest=None):
     """Admit only the independently recomputed main CI37 selection and generation.
 
     Production callers leave require_enabled at its default. False is for pure
@@ -300,10 +451,37 @@ def validate_selection(selection, candidate_tree, trusted_tree, registry, *, tar
              "CI37 package work requires its finite independent owner")
     definitions = definition_digest(registry)
     _require(definitions == value["definition_digest"], "CI37 command definitions changed")
-    candidate_generation = generation(candidate_tree, registry)
-    trusted_generation = generation(trusted_tree, registry)
-    _require(candidate_generation == trusted_generation == value["generation_digest"],
-             "CI37 executable, discovery or lookup generation changed")
+    controller=value.get('generation_kind')==CONTROLLER_KIND
+    if controller:
+        for tree in (candidate_tree,trusted_tree):
+            inputs._validate_tree(tree)
+            _require(bool(tree) and all(entry['mode'] in {'100644','100755'} and entry['type']=='blob'
+                for entry in tree.values()), 'controller CI37 requires complete ordinary candidate inventories')
+            _require(all(tree.get(path,{}).get('mode') in {'100644','100755'}
+                and tree[path]['type']=='blob' for name in SUITES for path in registry['suites'][name]['closure']['required']),
+                'controller CI37 selected owner implementation is missing')
+        manifest=_actual_controller_manifest(root) if controller_manifest is None else controller_manifest
+        actual=_validate_controller_manifest(manifest,root)
+        raw,actual_policy=_diagnostic_file(root,POLICY)
+        _require(_validate_policy(json.loads(raw,object_pairs_hook=inputs._unique_object))==value,
+                 'controller policy differs from actual protected bytes')
+        registry_raw,registry_entry=_diagnostic_file(root,'.github/test-suites.json')
+        _require(inputs._validate_registry(json.loads(registry_raw,object_pairs_hook=inputs._unique_object))==registry
+            and all(tree.get('.github/test-suites.json')==registry_entry for tree in (candidate_tree,trusted_tree,actual))
+            and actual.get(POLICY)==actual_policy==trusted_tree.get(POLICY)==candidate_tree.get(POLICY)
+            and all(tree.get('tests/platform-profile.json')==actual.get('tests/platform-profile.json')
+                for tree in (candidate_tree,trusted_tree)), 'controller candidate declarations differ from actual D')
+        _require(actual.get('tests/platform-profile.json',{}).get('sha')=='d63537504c20204de9d35d9be61da72a56df59c3',
+                 'controller CI37 requires the exact empty shared platform')
+        candidate_generation=controller_generation(actual,registry)
+        _require(controller_generation(trusted_tree,registry)==candidate_generation,
+                 'supplied trusted context differs from actual D controllers')
+    else:
+        _require(controller_manifest is None, 'legacy whole-tree profile does not accept controller manifests')
+        candidate_generation = generation(candidate_tree, registry)
+        trusted_generation = generation(trusted_tree, registry)
+        _require(candidate_generation == trusted_generation == value["generation_digest"],
+                 "CI37 executable, discovery or lookup generation changed")
     old_policy, new_policy = trusted_tree.get(POLICY), candidate_tree.get(POLICY)
     _require(isinstance(old_policy, dict) and old_policy == new_policy
              and old_policy["mode"] == "100644" and old_policy["type"] == "blob",
@@ -318,10 +496,12 @@ def validate_selection(selection, candidate_tree, trusted_tree, registry, *, tar
         _cleanup_data(tree.get(DATA_PATH),read_blob)
     # Data contents belong to suite fingerprints and native source binding,
     # not runtime E: original and current admitted holds may legitimately differ.
-    return {"schema": ENVIRONMENT_SCHEMA, "profile": PROFILE, "epoch": value["epoch"],
+    binding={"schema": ENVIRONMENT_SCHEMA, "profile": PROFILE, "epoch": value["epoch"],
             "suites": list(SUITES), "definition_digest": definitions,
             "generation_digest": candidate_generation, "policy_digest": policy_identity(value),
             "pinned_source": {"path": PINNED_SOURCE, **pinned}}
+    if controller:binding['generation_kind']=CONTROLLER_KIND
+    return binding
 
 
 def _diagnostic_source(source_root, source):
@@ -384,7 +564,7 @@ def _diagnostic_file(root, relative):
 
 
 def _diagnostic_selection(selection, candidate_tree, trusted_tree, registry, *, source, source_root, root=ROOT,
-                         target='main', read_blob=None):
+                         target='main', read_blob=None, controller_manifest=None):
     """Measure exact actual source with a distinct, production-inadmissible binding.
 
     Shipping future-generation policy remains untouched. Only this manual API
@@ -403,9 +583,9 @@ def _diagnostic_selection(selection, candidate_tree, trusted_tree, registry, *, 
     _require(all(actual.get(path,{}).get('mode') in {'100644','100755'}
         and actual[path]['type']=='blob' for name in SUITES for path in registry['suites'][name]['closure']['required']),
         'diagnostic fixed owner implementation is missing')
-    derived = {**policy,'generation_digest':generation(actual,registry)}
+    derived = policy if policy.get('generation_kind')==CONTROLLER_KIND else {**policy,'generation_digest':generation(actual,registry)}
     admitted = validate_selection(selection,actual,actual,registry,target=target,policy=derived,
-        require_enabled=False,root=root,read_blob=read_blob)
+        require_enabled=False,root=root,read_blob=read_blob,controller_manifest=controller_manifest)
     return {'kind':DIAGNOSTIC_KIND,'source_commit':source,'source_tree':tree_oid,
             'production_policy_digest':policy_identity(policy),'actual_selection':admitted}
 
