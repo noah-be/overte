@@ -628,7 +628,8 @@ class HostSelectionTests(unittest.TestCase):
         self.assertTrue(selected['full_host'])
 
     def test_exact_ci_admissions_do_not_waive_neighboring_tests_or_runtime_readers(self):
-        self.assertEqual(len(HOST.CI_ROLLOUT_PATHS),50)
+        self.assertEqual(len(HOST.CI_ROLLOUT_PATHS),51)
+        self.assertIn('tools/test-evidence/affected-test.py',HOST.CI_ROLLOUT_PATHS)
         for path in ('tools/test-evidence/new-reader.py','tools/test-evidence/postmerge_extra.py',
                      'tools/test-evidence/runtime_ci_extra.py', '.github/ci37-runtime-extra.json',
                      'tests/project-suite-self-test-extra.py',
