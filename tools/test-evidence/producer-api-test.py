@@ -3183,5 +3183,184 @@ class ImmutableOriginalSourceTransportTests(unittest.TestCase):
         with self.assertRaises(A.ApiError):self.read(oid,b' ' *1_500_001)
 
 
+class UnchangedParentTests(unittest.TestCase):
+    """Native/API fixtures plus actual raw Git, never a test/E execution."""
+    def setUp(self):
+        import os
+        import tempfile
+        from types import SimpleNamespace
+        import postmerge as C
+        self.C = C
+        temporary = tempfile.TemporaryDirectory(prefix='overte-empty-parent-')
+        self.addCleanup(temporary.cleanup)
+        self.candidate = Path(temporary.name)
+        def git(*args):
+            return subprocess.check_output(['git','-c','commit.gpgsign=false',*args],
+                cwd=self.candidate,stderr=subprocess.PIPE,text=True).strip()
+        self.git = git
+        git('init','-q','--initial-branch=main'); git('config','user.name','Fixture')
+        git('config','user.email','fixture@example.invalid')
+        self.package = C.producer._host_policy().package_policy()
+        generation = next(row for row in self.package.workflow_generations()
+            if row['name'] == C.producer.PLATFORM_GENERATION)
+        for name, entry in generation['workflows'].items():
+            body = subprocess.check_output(['git','cat-file','blob',entry['sha']],cwd=C.ROOT)
+            path = self.candidate/name; path.parent.mkdir(parents=True,exist_ok=True); path.write_bytes(body)
+        (self.candidate/'native.cpp').write_text('unchanged product input\n')
+        git('add','.'); git('commit','-qm','Protected before')
+        self.base = git('rev-parse','HEAD'); self.tree = git('rev-parse','HEAD^{tree}')
+        self.source = git('commit-tree',self.tree,'-p',self.base,'-m','Adopt integrated history')
+        git('checkout','-q','--detach',self.source)
+        self.current = C.inputs.full_tree(self.candidate,self.source)
+        self.local = deepcopy(self.current)
+        # Finite D/controller admission is tested in source-admission tests.
+        # This API fixture holds that source constant while raw B/M are real.
+        self.local[C.producer.PLATFORM_PARENT_TEMPLATE] = deepcopy(self.current['.github/workflows/parent-qualification.yml'])
+        self.default = 'd'*40; self.default_tree = 'e'*40
+        self.binding = {'base_ref':'main','base_sha':self.base,'merge_sha':self.source,
+            'merge_tree':self.tree,'pull_request':17}
+        self.refs = {'target':self.source,'default':self.default,'default_ref':'main',
+            'integration':{'tree':self.tree,'workflow_path':'.github/workflows/parent-qualification.yml',
+                'workflow_id':77}}
+        self.event = {'ref':'refs/heads/main','before':self.base,'after':self.source,
+            'deleted':False,'forced':False,'repository':{'full_name':A.REPOSITORY,'id':1319052603}}
+        self.native = {'GITHUB_ACTIONS':'true','GITHUB_REPOSITORY':A.REPOSITORY,
+            'GITHUB_REPOSITORY_ID':'1319052603','GITHUB_EVENT_NAME':'push','GITHUB_REF':'refs/heads/main',
+            'GITHUB_REF_TYPE':'branch','GITHUB_RUN_ATTEMPT':'1','GITHUB_JOB':'common-parent',
+            'RUNNER_ENVIRONMENT':'github-hosted','ImageOS':'ubuntu24','GITHUB_SHA':self.source,
+            'GITHUB_WORKFLOW_SHA':self.source,'GITHUB_RUN_ID':'500',
+            'GITHUB_WORKFLOW_REF':A.REPOSITORY+'/.github/workflows/parent-qualification.yml@refs/heads/main'}
+        self.attempt = {'id':500,'run_attempt':1,'head_sha':self.source,'status':'in_progress',
+            'conclusion':None,'path':self.refs['integration']['workflow_path'],'workflow_id':77,
+            'event':'push','head_branch':'main','check_suite_id':91}
+        self.job = {'name':'Common parent tests','status':'in_progress','conclusion':None,'steps':[]}
+        self.now = NOW
+        def obj(path):
+            if path == 'branches/main': return {'name':'main','protected':True,'commit':{'sha':self.default}}
+            self.assertIn(path,('actions/runs/500','actions/runs/500/attempts/1'))
+            return deepcopy(self.attempt)
+        def native_job(row,attempt,app,**kwargs):
+            self.assertEqual(app,15368); self.assertEqual(kwargs,{'final_name':'Common parent tests'})
+            return SimpleNamespace(status=row['status'],conclusion=row['conclusion'],job_id=9,
+                started_at='2026-10-15T10:00:00Z',completed_at='2026-10-15T10:02:00Z')
+        self.adapter = SimpleNamespace(_integrated_current=lambda run,app,now:(deepcopy(self.binding),deepcopy(self.refs)),
+            _object=obj,_pages=lambda path,key:[deepcopy(self.job)],_job=native_job)
+        self.adapter._commit = lambda oid:(self.default_tree if oid==self.default else self.tree,[])
+        self.adapter.api = SimpleNamespace(immutable_tree=lambda oid:{'sha':oid,'truncated':False,
+            'tree':[{'path':name,**entry} for name,entry in
+                (self.local if oid==self.default_tree else self.current).items()]})
+        checkout=C.execution.checkout_identity; full_tree=C.inputs.full_tree
+        patches=[patch.dict(os.environ,self.native,clear=True),
+            patch.object(C.execution,'checkout_identity',side_effect=lambda root:
+                (self.default,self.default_tree) if root==C.ROOT else checkout(root)),
+            patch.object(C.inputs,'full_tree',side_effect=lambda root,oid:
+                self.local if root==C.ROOT else full_tree(root,oid)),
+            patch.object(C,'integrated_controller_for_reuse',return_value='sha256:'+'1'*64),
+            patch.object(C.producer,'_host_policy',return_value=SimpleNamespace(package_policy=lambda:self.package)),
+            patch.object(C.execution,'execute',side_effect=AssertionError('no empty execution')),
+            patch.object(C.execution,'capture_execution_environment',side_effect=AssertionError('no empty E'))]
+        for item in patches:item.start();self.addCleanup(item.stop)
+
+    def test_native_equal_tree_lookup_and_raw_validation_emit_no_execution_authority(self):
+        value=self.C.lookup(self.event,self.native,self.adapter)
+        self.assertFalse(value['reused']);self.assertTrue(value['no_execution'])
+        proof=self.C.verify_no_execution(self.event,self.native,self.adapter,candidate=self.candidate)
+        self.assertEqual(proof,value['proof']);self.assertIsNone(proof['execution'])
+        self.assertFalse(proof['reusable']);self.assertFalse(proof['qualification'])
+        self.assertEqual(proof['executed_suites'],[]);self.assertEqual(proof['reused_suites'],[])
+        self.assertNotIn('environment',proof);self.assertNotIn('receipt_digest',proof)
+
+    def test_raw_nonempty_or_native_context_drift_cannot_use_scheduling_observation(self):
+        before=self.C.no_execution_context(self.event,self.native,self.adapter)
+        for mutation in ({'GITHUB_SHA':self.base},{'GITHUB_JOB':'foreign'},
+                {'GITHUB_RUN_ATTEMPT':'2'},{'GITHUB_EVENT_NAME':'workflow_dispatch'}):
+            with self.subTest(mutation=mutation),self.assertRaises(ValueError):
+                self.C.verify_no_execution(self.event,{**self.native,**mutation},self.adapter,candidate=self.candidate)
+        (self.candidate/'native.cpp').write_text('actual product change\n')
+        self.git('add','.');self.git('commit','-qm','Changed actual checkout')
+        with self.assertRaises(ValueError):
+            self.C.verify_no_execution(self.event,self.native,self.adapter,candidate=self.candidate)
+        self.assertIsNone(before['execution'])
+
+    def test_ordinary_changed_push_refuses_before_a_second_complete_source_lookup(self):
+        from unittest.mock import Mock
+        integrated=self.adapter._integrated_current
+        self.adapter._integrated_current=Mock(side_effect=AssertionError('unnecessary duplicate source lookup'))
+        self.adapter._commit=lambda oid:('9'*40 if oid==self.base else self.tree,[])
+        with self.assertRaises(ValueError):
+            self.C.no_execution_context(self.event,self.native,self.adapter)
+        self.adapter._integrated_current.assert_not_called()
+        self.adapter._integrated_current=integrated
+
+    def test_missing_wrong_generation_source_or_full_inventory_declines_before_setup(self):
+        for kind in ('tree','member','canonical','default','before','authority'):
+            original_current=deepcopy(self.current);original_refs=deepcopy(self.refs);event=deepcopy(self.event)
+            if kind=='tree':self.binding['merge_tree']='9'*40
+            elif kind=='member':self.current['native.cpp']['sha']='9'*40
+            elif kind=='canonical':self.local[self.C.producer.PLATFORM_PARENT_TEMPLATE]['sha']='9'*40
+            elif kind=='default':self.refs['default_ref']='foreign'
+            elif kind=='before':event['before']='9'*40
+            else:self.native['GITHUB_REPOSITORY_ID']='42'
+            with self.subTest(kind=kind),self.assertRaises(ValueError):
+                self.C.no_execution_context(event,self.native,self.adapter,candidate=self.candidate)
+            self.current=original_current;self.refs=original_refs;self.binding['merge_tree']=self.tree
+            self.native['GITHUB_REPOSITORY_ID']='1319052603'
+
+    def test_native_completed_validation_step_is_mandatory_and_not_a_suite_pass(self):
+        proof=self.C.no_execution_context(self.event,self.native,self.adapter,candidate=self.candidate)
+        self.job.update(status='completed',conclusion='success',steps=[{
+            'name':'Independently verify unchanged parent inputs','status':'completed','conclusion':'success',
+            'started_at':'2026-10-15T10:00:30Z','completed_at':'2026-10-15T10:01:30Z'}])
+        self.C.producer._completed_empty_parent(self.adapter,proof,self.native)
+        for field,value in (('conclusion','failure'),('status','skipped'),('name','Execute host tests')):
+            original=deepcopy(self.job)
+            self.job['steps'][0][field]=value
+            with self.subTest(field=field),self.assertRaises(ValueError):
+                self.C.producer._completed_empty_parent(self.adapter,proof,self.native)
+            self.job=original
+
+    def test_parent_aggregate_rederives_raw_proof_and_rejects_unexecuted_claims(self):
+        import os
+        self.native['GITHUB_JOB']='qualify-parent'
+        self.job.update(status='completed',conclusion='success',steps=[{
+            'name':'Independently verify unchanged parent inputs','status':'completed','conclusion':'success',
+            'started_at':'2026-10-15T10:00:30Z','completed_at':'2026-10-15T10:01:30Z'}])
+        needs={'route':{'result':'skipped','outputs':{}},'common-parent':{'result':'success','outputs':{}},
+            'platform-tests':{'result':'skipped','outputs':{}}}
+        self.C.producer.verify_platform_parent(self.candidate,self.event,self.native,self.adapter,needs)
+        for name in ('route','platform-tests'):
+            for record in ({'result':'success','outputs':{}},
+                    {'result':'skipped','outputs':{'verified':'true'}}):
+                changed=deepcopy(needs);changed[name]=record
+                with self.subTest(name=name,record=record),self.assertRaises(ValueError):
+                    self.C.producer.verify_platform_parent(self.candidate,self.event,self.native,self.adapter,changed)
+        # The Android planner must accept *only* independently empty plans,
+        # and produce no selected common or platform command inventory.
+        target='android-main';self.binding['base_ref']=target
+        self.event['ref']='refs/heads/'+target
+        self.native.update(GITHUB_REF='refs/heads/'+target,GITHUB_JOB='route',
+            GITHUB_WORKFLOW_REF=A.REPOSITORY+'/.github/workflows/parent-qualification.yml@refs/heads/'+target)
+        with patch.dict(os.environ,self.native,clear=True), \
+             patch.object(self.C.producer.source_admission,'shared_platform_supported',return_value=True), \
+             patch.object(self.C.inputs,'load_registry',return_value={'suites':{}}):
+            context=self.C.producer.current_platform_context(self.candidate,self.event,self.native,self.adapter)
+            self.assertIsNone(context['selected']);self.assertIsNone(context['platform_partition'])
+            self.assertEqual(context['package_plan']['host_mode'],'unchanged')
+            needs['route']={'result':'success','outputs':self.C.producer.parent_route_outputs(context)}
+            self.native['GITHUB_JOB']='qualify-parent'
+            self.C.producer.verify_platform_parent(self.candidate,self.event,self.native,self.adapter,needs)
+
+    def test_future_parent_checks_raw_inputs_before_node_and_never_executes_empty(self):
+        import yaml
+        data=yaml.safe_load((self.C.ROOT/self.C.producer.PLATFORM_PARENT_TEMPLATE).read_text())
+        steps=data['jobs']['common-parent']['steps'];by_name={row['name']:row for row in steps}
+        verify=by_name['Independently verify unchanged parent inputs']
+        self.assertEqual(verify['if'],"steps.route.outputs.package_host_mode == 'unchanged'")
+        self.assertIn('--verify-empty --candidate candidate',verify['run'])
+        self.assertLess(steps.index(verify),steps.index(by_name['Set up Node.js']))
+        self.assertIn("steps.route.outputs.package_host_mode != 'unchanged'",by_name['Set up Node.js']['if'])
+        self.assertIn('false/false/true',by_name['Require an explicit reuse or actual-execution route']['run'])
+
+
 if __name__ == "__main__":
     unittest.main()
