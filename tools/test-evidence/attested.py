@@ -29,8 +29,9 @@ PRODUCER = "overte-attested-shared-reuse-v1"
 # Source-level blocker: enabling JSON policy cannot repair legacy API/source/
 # uploader guarantees. Remove only with reviewed authenticated-owner integration.
 ACTIVATION_READY = False
-# Separate source qualification for the protected /work Git exception. Enabling
-# the legacy JSON policy cannot admit this not-yet-qualified isolated profile.
+# Separate source qualification for the protected /work profile. Its trusted
+# policy must also bind the exact namespace locale and safe-directory override;
+# this capability never enables the legacy terminal above.
 ISOLATED_ADMISSION_READY = False
 _DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 _VERSION = re.compile(r"[0-9]+(?:\.[0-9]+)+(?:[-+][A-Za-z0-9_.-]+)?\Z")
@@ -132,6 +133,10 @@ def load_policy(root=ROOT, *, isolated=False):
     for name in ("LANG", "LC_ALL", "LC_CTYPE", "TZ"):
         require(not value["flags"][name] or re.fullmatch(r"[A-Za-z0-9_.+/@:-]{1,100}", value["flags"][name]),
                 "unsupported runtime locale policy")
+    if isolated:
+        require({name: value["flags"][name] for name in ("LANG", "LC_ALL", "LC_CTYPE", "TZ")} == {
+            "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "LC_CTYPE": "", "TZ": ""},
+            "isolated runtime policy differs from the fixed namespace locale")
     require(value["enabled"] is True, "attested runtime reuse is disabled by trusted policy")
     return value
 

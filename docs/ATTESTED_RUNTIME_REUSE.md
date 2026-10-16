@@ -16,6 +16,48 @@ guard rejects the terminal even with enabled trusted policy. Removing it require
 reviewed authenticated producer integration and a new qualification of those
 changed controller bytes.
 
+## Protected supervisor capability
+
+The separate protected producer and original-PR main consumer use
+`producer_workflow.PRODUCTION_READY`, `sandbox.ACTIVATION_READY`,
+`attested.ISOLATED_ADMISSION_READY` and, for consumption,
+`postmerge.SOURCE_READY`. These source capabilities are still false in this
+preparation. They cannot be enabled by candidate JSON or CLI arguments.
+`sandbox.ACTIVATION_READY` applies only to the protected supervisor; the legacy
+`sandbox.execute` and `sandbox.capture_after_execution` entrypoints always fail.
+The legacy `attested.ACTIVATION_READY` terminal remains false and is independent
+of protected original-environment admission.
+
+The exact disabled [`shared-sandbox.json`](../.github/shared-sandbox.json) object
+is the diagnostic/legacy configuration identity used by the fixed namespace
+plan. Its `enabled: false`, empty `qualified_hosts` and contract qualification
+`unavailable` do not describe the separate protected producer's permission.
+They must remain unchanged when that producer is qualified. Supplying enabled
+JSON or host assertions is rejected. A manual diagnostic always records
+`authority: none`, `production_qualified: false` and `reusable: false`, including
+when the protected source capabilities are true.
+
+Protected execution additionally needs a reviewed enabled original-runtime
+policy in a fresh isolated epoch. Its exact namespace flags include
+`LANG=C.UTF-8`, `LC_ALL=C.UTF-8`, empty `LC_CTYPE`/`TZ` and
+`git_process_overrides=maintenance-disabled-safe-work`. The latter identifies
+only the fixed `/work` safe-directory exception. The old ordinary profile
+rejects that override. The descriptor checks these trusted policy prerequisites
+before setup; no policy check replaces native API/source authentication, actual
+protected before/after runtime measurements, kernel-confirmed empty scopes or
+final publication. Policy denial before suites selects existing actual
+execution. Started-suite, cleanup and post-measurement failures remain failures.
+
+Actual hosted boundary and complete shared-suite qualification must precede
+activation. This source preparation supplies neither a qualified image nor a
+qualification timestamp. The final enabled policy and source flags themselves
+must be included in the later original execution's runtime/controller identity.
+The manual diagnostic records environment digests and suite/cleanup results;
+it does not call the future enabled isolated admission policy. Its success alone
+therefore cannot qualify that policy. The first authenticated native producer
+must admit its actual original environment before starting any suite and must
+complete protected execution/publication before reuse can be claimed.
+
 ## Admission is separate from producer authentication
 
 `validate_environment(environment, qualified_at, expires_at, now)` checks recorded

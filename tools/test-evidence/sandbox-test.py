@@ -46,7 +46,22 @@ class PolicyTests(Fixture):
         policy = S.load_policy(self.root)
         self.assertIs(policy["enabled"], False)
         self.assertEqual(policy["qualified_hosts"], [])
-        self.assertIs(S.ACTIVATION_READY, False)
+
+    def test_protected_capability_does_not_enable_legacy_execution_or_qualified_json(self):
+        for capability in (False, 1, 'true', True):
+            with self.subTest(capability=capability), patch.object(S, 'ACTIVATION_READY', capability):
+                if capability is True:
+                    S.require_protected_execution(self.root)
+                else:
+                    with self.assertRaises(S.SandboxUnavailable): S.require_protected_execution(self.root)
+                self.assertFalse(S.load_policy(self.root)['enabled'])
+                for call in (S.execute, S.capture_after_execution):
+                    with self.assertRaises(S.SandboxUnavailable): call(qualified=True)
+        policy = S.load_policy(self.root)
+        policy['enabled'] = True
+        (self.root / S.POLICY).write_text(json.dumps(policy))
+        with patch.object(S, 'ACTIVATION_READY', True), self.assertRaises(S.SandboxUnavailable):
+            S.require_protected_execution(self.root)
 
     def test_unknown_boolean_missing_or_supplied_qualification_cannot_enable_policy(self):
         original = S.load_policy(self.root)
@@ -481,7 +496,6 @@ class StreamedCandidateTests(GitFixture):
         self.assertEqual(S._file_hash(destination / "large.bin"), S._file_hash(path))
         self.assertEqual(self.status(destination, "status", "--porcelain"), "")
         self.assertEqual(value["profile"], "streamed-candidate-source-v1")
-        self.assertFalse(S.ACTIVATION_READY)
 
     def test_repeated_blobs_and_subtrees_are_read_from_git_once(self):
         for directory in ("first", "second"):

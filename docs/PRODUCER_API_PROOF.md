@@ -166,6 +166,29 @@ older result.
 
 ## Remaining activation dependencies
 
+The protected source-capability preparation remains disabled. Its
+[capability and policy boundary](ATTESTED_RUNTIME_REUSE.md#protected-supervisor-capability)
+keeps the legacy sandbox and legacy attested terminal unavailable. After actual
+host qualification, establish the reviewed producer/consumer capabilities and
+isolated original-runtime policy on protected `main` while the legacy PR caller
+and callee remain installed. Approved parent-consumer and CodeQL copies must
+likewise be established before the producer installation.
+
+The subsequent producer installation must change exactly the two approved
+active PR caller/callee files through the existing complete finite transition.
+All controller, policy, registry, requirement and template bytes must remain
+identical to that trusted base. This lets the first original protected full60
+execution authenticate its base controller again on the main push, preserving
+its original merge, environment and native final-publisher commitment. Combining
+capability or epoch changes with the two-file installation prevents that
+reconstruction and requires actual fallback. Neither this ordering nor a manual
+diagnostic proves the first native protected execution or postmerge reuse.
+
+CI37 source/policy activation is separate. It remains disabled until its actual
+hosted profile passes and its exact generation certificate matches the installed
+workflow bytes. No active-generation projection or child-branch activation is
+introduced by the protected full60 installation.
+
 No current workflow publishes this protocol's early descriptor and terminal
 aggregate. The staged shared execution artifact alone is diagnostic evidence,
 not a complete aggregate or producer-authority claim. Before activation, a

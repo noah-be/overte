@@ -46,6 +46,22 @@ class PreExecutionUnavailable(host.Unavailable):
     """No candidate suite has started; existing mandatory execution is needed."""
 
 
+def protected_admission(*, root=None):
+    """Check trusted capabilities/policy before setup, never host qualification.
+
+    Native context, complete source ownership, actual before/after E and kernel
+    cleanup remain mandatory in the selected supervisor and final publisher.
+    """
+    if PRODUCTION_READY is not True:
+        raise PreExecutionUnavailable('protected producer source is not qualified')
+    root = ROOT if root is None else root
+    try:
+        sandbox.require_protected_execution(root)
+        attested.load_policy(root, isolated=True)
+    except (sandbox.SandboxUnavailable, attested.AttestedReuseUnavailable) as error:
+        raise PreExecutionUnavailable('protected producer policy is not qualified') from error
+
+
 def utc_seconds(now=None):
     value = datetime.now(timezone.utc) if now is None else now
     protocol._now(value)
@@ -431,7 +447,7 @@ def _directory(name, *, root_only=False):
 
 def shared_execution(candidate, event, environment, adapter):
     """Actual selected supervisor; called only after fixed production admission."""
-    host.require(PRODUCTION_READY and sandbox.ACTIVATION_READY, 'protected shared execution is not qualified')
+    protected_admission()
     host.require(os.geteuid() == 0 and re.fullmatch(r'[1-9][0-9]*', environment.get('SUDO_UID', '')),
                  'protected shared execution requires the trusted root supervisor')
     number, _ = _native(environment)
@@ -490,12 +506,14 @@ def main(argv=None):
     args = parser.parse_args(argv)
     # Deliberately unreachable until the actual kernel boundary, complete E,
     # prepared profile and original publisher source have all been qualified.
-    if not PRODUCTION_READY or not sandbox.ACTIVATION_READY:
+    try:
+        protected_admission()
+    except PreExecutionUnavailable:
         if args.role == 'descriptor':
             print('Protected shared producer disabled; required nonreusable execution remains selected.')
             _output({'protected_full': 'false'})
             return 0
-        raise host.Unavailable('protected shared producer is not qualified')
+        raise
     event_path = Path(os.environ['GITHUB_EVENT_PATH'])
     host.require(event_path.is_file() and not event_path.is_symlink() and event_path.stat().st_size <= 1_000_000,
                  'native event inventory is unavailable')

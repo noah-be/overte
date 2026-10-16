@@ -1166,6 +1166,7 @@ class MainConsumerTests(unittest.TestCase):
             S3='script-archive/marketplace/S3Server', BROWSER='browser-client')
         self.patches = [patch.object(postmerge,'SOURCE_READY',True),
             patch.object(postmerge.producer,'PRODUCTION_READY',True),
+            patch.object(postmerge.sandbox,'ACTIVATION_READY',True),
             patch.object(postmerge.attested,'ISOLATED_ADMISSION_READY',True),
             patch.object(postmerge.execution,'checkout_identity',return_value=(self.case.integrated,self.case.binding['merge_tree'])),
             patch.object(postmerge.inputs,'full_tree',return_value=self.tree),
@@ -1255,6 +1256,7 @@ class MainConsumerTests(unittest.TestCase):
 
     def test_each_source_guard_off_has_zero_api_and_no_policy_json_enable(self):
         for module,name in ((self.module,'SOURCE_READY'),(self.module.producer,'PRODUCTION_READY'),
+                (self.module.sandbox,'ACTIVATION_READY'),
                 (self.module.attested,'ISOLATED_ADMISSION_READY')):
             self.api.calls.clear()
             with patch.object(module,name,False):self.assertFalse(self.lookup()['reused'])
@@ -1598,11 +1600,11 @@ class MainConsumerSourceTests(unittest.TestCase):
     def test_disabled_cli_has_zero_api_and_writes_no_shared_pass_or_legacy_receipt(self):
         import postmerge as C
         import tempfile,os
-        self.assertFalse(C.SOURCE_READY)
         with tempfile.TemporaryDirectory() as folder:
             output=Path(folder)/'output';output.touch()
             report=Path(folder)/'report.json'
-            with patch.dict(os.environ,{'GITHUB_OUTPUT':str(output)}),patch.object(C.A,'Adapter',side_effect=AssertionError('zero API')):
+            with patch.dict(os.environ,{'GITHUB_OUTPUT':str(output)}),patch.object(C,'SOURCE_READY',False), \
+                    patch.object(C.A,'Adapter',side_effect=AssertionError('zero API')):
                 self.assertEqual(C.main(['--report',str(report)]),0)
             self.assertEqual(output.read_text(),'shared_reused=false\npackage_work=true\n')
             self.assertEqual(json.loads(report.read_text()),{'reused':False,'reason':'protected-consumer-not-qualified'})

@@ -1288,9 +1288,43 @@ class SharedHostCompatibilityTests(unittest.TestCase):
         self.assertIn("java-version: '17'", template)
         self.assertNotIn("workflow_call:", template)
         self.assertNotIn("pull_request:", template)
-        self.assertFalse(sandbox.ACTIVATION_READY)
-        for call in (sandbox.execute, sandbox.capture_after_execution):
-            with self.assertRaises(sandbox.SandboxUnavailable):call()
+        with patch.object(sandbox,'ACTIVATION_READY',True):
+            for call in (sandbox.execute, sandbox.capture_after_execution):
+                with self.assertRaises(sandbox.SandboxUnavailable):call()
+
+    def test_manual_result_cannot_gain_production_authority_from_source_capabilities(self):
+        import producer_workflow as producer
+        before={'fixture':'recorded E without tool probes'}
+        original_stat=Path.stat
+        original_os_stat=os.stat
+        tools={'/usr/bin/bwrap','/usr/bin/unshare','/usr/bin/python3','/usr/bin/sudo'}
+        def fixed_tool(path,*args,**kwargs):
+            return SimpleNamespace(st_mode=0o100755,st_uid=0) if str(path) in tools else original_stat(path,*args,**kwargs)
+        def namespace_stat(path,*args,**kwargs):
+            return SimpleNamespace(st_ino=1) if str(path).startswith('/proc/self/ns/') else original_os_stat(path,*args,**kwargs)
+        batch=SimpleNamespace(protected=Path('/unwritten-protected'),proofs=['fake cleanup proof'])
+        patches=[patch.object(producer,'PRODUCTION_READY',True),patch.object(sandbox,'ACTIVATION_READY',True),
+              patch.object(producer.attested,'ISOLATED_ADMISSION_READY',True),
+              patch.dict(os.environ,context(),clear=True),patch.object(H,'host_context',return_value=1001),
+              patch.object(Path,'read_text',return_value='ID=ubuntu\nVERSION_ID="24.04"\n'),
+              patch.object(Path,'stat',fixed_tool),patch.object(H,'verify_account',return_value=(2001,2001)),
+              patch.object(SHARED,'verify_source',return_value=[]),patch.object(SHARED,'prepared_tools',return_value=((),None,None,None)),
+              patch.object(SHARED,'prepared_identity',return_value={}),patch.object(H,'prepare_delegation'),
+              patch.object(SHARED.inputs,'load_registry',return_value={'suites':{}}),patch.object(SHARED.signal,'signal'),
+              patch.object(SHARED,'materialize_source',return_value={'digest':'fixture snapshot','git_context':{}}),
+              patch.object(SHARED,'project_policy',return_value={}),patch.object(sandbox,'_write_source'),
+              patch.object(sandbox,'_files',return_value={}),patch.object(SHARED,'Batch',return_value=batch),
+              patch.object(SHARED.os,'stat',side_effect=namespace_stat),
+              patch.object(SHARED,'check_batch',return_value=([],before,before)),
+              patch.object(SHARED.execution,'_write_receipt')]
+        with ExitStack() as stack:
+            mocks=[stack.enter_context(item) for item in patches]
+            result=SHARED.run_host()
+        self.assertEqual(result['status'],'shared-host-diagnostic-passed')
+        self.assertEqual(result['authority'],'none')
+        self.assertIs(result['production_qualified'],False)
+        self.assertIs(result['reusable'],False)
+        mocks[-1].assert_called_once()
 
 
 class SharedHostSourceTests(unittest.TestCase):
@@ -1451,13 +1485,65 @@ class ProtectedSelectedProducerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             output=Path(temporary)/'native-output';output.touch(mode=0o600)
             with (patch.dict(os.environ,{'GITHUB_OUTPUT':str(output)}),
+                  patch.object(self.producer,'PRODUCTION_READY',False),
                   patch.object(self.producer.producer_api,'Adapter',side_effect=AssertionError('no API'))):
                 self.assertEqual(self.producer.main(['descriptor','--candidate',temporary]),0)
                 self.assertEqual(output.read_text(),'protected_full=false\n')
                 for role in ('shared','publish'):
                     with self.assertRaises(H.Unavailable):self.producer.main([role,'--candidate',temporary])
-        self.assertFalse(self.producer.PRODUCTION_READY)
-        self.assertFalse(sandbox.ACTIVATION_READY)
+
+    def production_policy(self,root):
+        for name in (sandbox.POLICY,self.producer.attested.POLICY):
+            path=root/name;path.parent.mkdir(parents=True,exist_ok=True)
+            path.write_bytes((H.ROOT/name).read_bytes())
+        path=root/self.producer.attested.POLICY
+        policy=json.loads(path.read_text())
+        policy['enabled']=True
+        policy['flags'].update(git_process_overrides='maintenance-disabled-safe-work',LC_ALL='C.UTF-8')
+        path.write_text(json.dumps(policy))
+
+    def test_protected_policy_admission_precedes_descriptor_setup_and_native_api(self):
+        p=self.producer
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);self.production_policy(root)
+            output=root/'output';output.touch()
+            with (patch.object(p,'ROOT',root),patch.object(p,'PRODUCTION_READY',True),
+                  patch.object(sandbox,'ACTIVATION_READY',True),patch.object(p.attested,'ISOLATED_ADMISSION_READY',True),
+                  patch.dict(os.environ,{'GITHUB_OUTPUT':str(output)},clear=True),
+                  patch.object(p.producer_api,'Adapter',side_effect=AssertionError('no API before admission')),
+                  patch.object(p.shared,'prepared_tools',side_effect=AssertionError('no setup before admission'))):
+                p.protected_admission()
+                for field,value in (('enabled',False),('git_process_overrides','maintenance-disabled'),('LC_ALL','')):
+                    self.production_policy(root)
+                    path=root/p.attested.POLICY;policy=json.loads(path.read_text())
+                    (policy if field=='enabled' else policy['flags'])[field]=value
+                    path.write_text(json.dumps(policy));output.write_text('')
+                    with self.subTest(field=field):
+                        self.assertEqual(p.main(['descriptor','--candidate',temporary]),0)
+                        self.assertEqual(output.read_text(),'protected_full=false\n')
+                        with self.assertRaises(p.PreExecutionUnavailable):p.shared_execution(root,{},os.environ,None)
+                self.production_policy(root)
+                for module,name in ((p,'PRODUCTION_READY'),(sandbox,'ACTIVATION_READY'),(p.attested,'ISOLATED_ADMISSION_READY')):
+                    with self.subTest(name=name),patch.object(module,name,False),self.assertRaises(p.PreExecutionUnavailable):
+                        p.protected_admission()
+
+    def test_enabled_source_capabilities_cannot_admit_foreign_native_invocation(self):
+        p=self.producer
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);self.production_policy(root)
+            candidate=root/'candidate';candidate.mkdir()
+            event=root/'event.json';event.write_text(json.dumps({'pull_request':{'head':{'repo':{'id':1319052603}}}}))
+            environment={**context(),'GITHUB_EVENT_PATH':str(event),'GITHUB_WORKSPACE':str(root),
+                'GITHUB_EVENT_NAME':'pull_request','GITHUB_BASE_REF':'main','GITHUB_HEAD_REF':'fix/main/example',
+                'GITHUB_REF':'refs/pull/17/merge','GITHUB_REPOSITORY':'overte-org/overte',
+                'GITHUB_WORKFLOW_REF':'noah-l-frank/overte/.github/workflows/repository-checks.yml@refs/pull/17/merge'}
+            with (patch.object(p,'ROOT',root),patch.object(p,'PRODUCTION_READY',True),
+                  patch.object(sandbox,'ACTIVATION_READY',True),patch.object(p.attested,'ISOLATED_ADMISSION_READY',True),
+                  patch.dict(os.environ,environment,clear=True),patch.object(p.producer_api,'Adapter',return_value=SimpleNamespace(
+                      current=lambda *_:self.fail('foreign context reached native API'))),
+                  patch.object(p,'_host_policy',side_effect=AssertionError('no candidate reader')),
+                  self.assertRaises(H.Unavailable)):
+                p.main(['descriptor','--candidate',str(candidate)])
 
     def test_receipt_timestamp_uses_whole_utc_seconds_without_renewing_time(self):
         from datetime import datetime,timezone

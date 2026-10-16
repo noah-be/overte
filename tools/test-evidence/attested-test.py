@@ -34,7 +34,9 @@ class RuntimeFixture(unittest.TestCase):
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_bytes((A.ROOT / relative).read_bytes())
         self.policy = json.loads((self.root / A.POLICY).read_text())
-        self.policy["enabled"] = True  # Test-only trusted policy; shipping policy remains false.
+        # Explicit legacy fixture, independent of a future protected-only epoch.
+        self.policy.update(enabled=True,epoch='legacy-admission-fixture-v1',not_before='2026-10-15T00:00:00Z')
+        self.policy['flags'].update(git_process_overrides='maintenance-disabled',LC_ALL='')
         self.write_policy()
         self.environment = {
             "schema": 1, "profile": "ubuntu24-host-qt5-qt6-v1",
@@ -70,10 +72,10 @@ class RuntimeFixture(unittest.TestCase):
 
 class AdmissionTests(RuntimeFixture):
     def test_isolated_work_exception_needs_separate_source_capability_and_exact_trusted_policy(self):
-        self.assertFalse(A.ISOLATED_ADMISSION_READY)
         self.policy['flags']['git_process_overrides'] = 'maintenance-disabled-safe-work'
+        self.policy['flags']['LC_ALL'] = 'C.UTF-8'
         self.write_policy(); self.environment['flags'] = deepcopy(self.policy['flags']); self.bind_controller()
-        with self.assertRaises(A.AttestedReuseUnavailable):
+        with patch.object(A,'ISOLATED_ADMISSION_READY',False), self.assertRaises(A.AttestedReuseUnavailable):
             A.validate_environment(self.environment,QUALIFIED,EXPIRES,NOW,root=self.root,isolated=True)
         with patch.object(A,'ISOLATED_ADMISSION_READY',True):
             value=A.validate_environment(self.environment,QUALIFIED,EXPIRES,NOW,root=self.root,isolated=True)
@@ -85,6 +87,19 @@ class AdmissionTests(RuntimeFixture):
                 with self.subTest(variant=variant),self.assertRaises(A.AttestedReuseUnavailable):
                     A.validate_environment(self.environment,QUALIFIED,EXPIRES,NOW,root=self.root,isolated=True)
 
+    def test_isolated_locale_must_match_actual_fixed_namespace_before_runtime_admission(self):
+        self.policy['flags'].update(git_process_overrides='maintenance-disabled-safe-work', LC_ALL='C.UTF-8')
+        with patch.object(A,'ISOLATED_ADMISSION_READY',True):
+            self.write_policy()
+            self.assertEqual(A.load_policy(self.root,isolated=True)['flags'],self.policy['flags'])
+            for name,value in (('LANG','C'),('LC_ALL',''),('LC_CTYPE','C.UTF-8'),('TZ','UTC')):
+                original=self.policy['flags'][name]
+                self.policy['flags'][name]=value;self.write_policy()
+                with self.subTest(name=name),self.assertRaises(A.AttestedReuseUnavailable):
+                    A.load_policy(self.root,isolated=True)
+                self.policy['flags'][name]=original
+        self.assertFalse(A.ACTIVATION_READY)
+
     def test_original_environment_is_retained_without_measuring_or_installing_consumer(self):
         original = deepcopy(self.environment)
         with patch.object(runtime, "capture_host_environment", side_effect=AssertionError("unused VM")), \
@@ -94,8 +109,7 @@ class AdmissionTests(RuntimeFixture):
         self.assertEqual(value["environment_digest"], A._digest(original))
         self.assertEqual(value["policy"]["epoch"], self.policy["epoch"])
 
-    def test_shipping_policy_is_disabled_and_no_argument_can_enable_it(self):
-        with self.assertRaises(A.AttestedReuseUnavailable): A.load_policy()
+    def test_disabled_trusted_policy_cannot_admit_original_environment(self):
         self.policy["enabled"] = False; self.write_policy(); self.bind_controller()
         with self.assertRaises(A.AttestedReuseUnavailable): self.admit()
 
