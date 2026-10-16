@@ -323,6 +323,19 @@ complete fallback, even for Markdown or valid parent qualification. This is
 conservative: a listed path inherited unchanged from the parent also forces
 fallback. No new direct-sync, topology, or ruleset exception is introduced.
 
+The prospective Android sole-owner transition registers six exact repair targets
+only for `main` to `android-main`: the two legacy Android workflow files and
+the four contract files listed in `.github/android-owner-transfer.json`. These
+repairs allow the staged ownership handoff to reach full sync validation; they
+always require the complete fallback. The independent Android owner gate checks
+all six files against their trusted handoff bytes and modes, preserves the
+complete product profile, and requires the approved caller/callee/project
+generation with its independent 40-execution normal PR inventory. Neighboring
+files and other targets gain no repair registration. Hosted qualification is
+still pending: required target activation remains empty, the activation blocker
+remains set, and the outer repository verifier continues to reject merging the
+prospective Android owner. A successful sync fallback alone is not admission.
+
 The Phone preview-cancellation transition registers only the existing
 `android/phone/tests/phone-voice-clock-fixture.cpp` and
 `android/phone/tests/phone-voice-clock-test.py` paths. They allow the Phone-owned

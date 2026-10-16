@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Complete dormant Android ownership-transfer tests; no Android/product builds."""
 from contextlib import redirect_stderr, redirect_stdout
-from copy import deepcopy
+from copy import copy, deepcopy
 import importlib.util
 import io
 import json
@@ -297,6 +297,48 @@ class AndroidOwnerTransferTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unreviewed predecessor"):
             handoff.validate_sources(self.source(), "android-phone", policy_root=self.policy_root, previous=before)
 
+    def test_android_main_sync_registration_cannot_bypass_complete_owner_validation(self):
+        transfer = handoff.policy()
+        paths = set(transfer["legacy_workflows"]) | set(transfer["source_contracts"])
+        sync = json.loads((ROOT / ".github/sync-test-reuse.json").read_text())
+        self.assertEqual(set(sync["reconciliation_repair_paths"]["android-main"]), paths)
+        self.assertEqual(len(paths), 6)
+        self.fixture.workflow_files(); self.fixture.merge()
+        event = deepcopy(self.fixture.event)
+        event["pull_request"]["base"]["ref"] = "android-main"
+        gate.validate_execution_generation(self.candidate, event, policy_root=self.policy_root)
+        plan = gate.candidate_plan(self.candidate, event, self.fixture.sha, policy_root=self.policy_root)
+        self.assertTrue(plan["required"])
+        self.assertEqual(len(gate.android().plan(self.candidate, "android-main", views=plan["views"])["executions"]), 40)
+        # The sync registration permits inspection, never arbitrary repaired bytes.
+        # Mutate immutable Git entries so this exercises the real generation and
+        # source validators without executing candidate commands or building SDKs.
+        source = self.source()
+        previous = gate._sources(self.candidate, event["pull_request"]["base"]["sha"])
+        targets = paths | {".github/workflows/repository-checks.yml", gate.WORKFLOW,
+                           ".github/workflows/project-tests.yml"}
+        for target in sorted(targets):
+            for mutation in ("altered", "missing", "symlink"):
+                changed = copy(source)
+                changed.entries = deepcopy(source.entries)
+                if mutation == "missing":
+                    changed.entries.pop(target)
+                elif mutation == "symlink":
+                    changed.entries[target]["mode"] = "120000"
+                else:
+                    changed.entries[target]["sha"] = "a" * 40
+                with self.subTest(target=target, mutation=mutation), \
+                        patch.object(gate, "_sources", side_effect=lambda _candidate, commit=None:
+                                     previous if commit is not None else changed), \
+                        self.assertRaises(ValueError):
+                    gate.validate_execution_generation(self.candidate, event, policy_root=self.policy_root)
+        trusted = gate.load_policy()
+        self.assertEqual(trusted["required_branches"], [])
+        self.assertEqual(trusted["activation_blockers"], ["prospective-generation-hosted-qualification"])
+        self.assertFalse(gate.ACTIVATION_READY)
+        with self.assertRaisesRegex(ValueError, "activation blocked"):
+            gate.admit(self.candidate, event, policy_root=self.policy_root)
+
     def test_profile_minimum_and_unknown_extra_are_complete_and_no_alias_is_allowed(self):
         self.fixture.workflow_files()
         path = self.candidate / "tests/platform-profile.json"
@@ -556,6 +598,211 @@ class AndroidOwnerTransferTests(unittest.TestCase):
         self.assertIn("trusted/tools/repository-checks/android_handoff.py", project)
         self.assertNotIn("--exclude", project)
         self.assertNotIn("continue-on-error", (ROOT / handoff.OWNED / "android-required.yml").read_text())
+
+
+class SyncOwnerIntegrationTests(unittest.TestCase):
+    """Actual owner/Sync execution; topology attestation has separate API regressions."""
+    def setUp(self):
+        self.transfer = AndroidOwnerTransferTests(methodName="runTest")
+        self.transfer.setUp()
+        self.addCleanup(self.transfer.doCleanups)
+        self.transfer.prepare_project(extra=True)
+        self.candidate = self.transfer.candidate
+        self.directory = self.transfer.directory
+        self.fixture = self.transfer.fixture
+        self.fixture.event["number"] = 17
+        self.repository = {"full_name": gate.REPOSITORY, "id": gate.REPOSITORY_ID}
+        self.pr = deepcopy(self.fixture.event["pull_request"])
+        self.pr.update(number=17, state="open", mergeable=True, merge_commit_sha=self.fixture.sha, labels=[])
+        self.pr["head"]["ref"] = "android-main"
+        self.calls = []
+        self.api = SimpleNamespace(json=self.api_read)
+        self.request = SimpleNamespace(repository=gate.REPOSITORY, repository_id=gate.REPOSITORY_ID,
+            number=17, base="android-phone", base_sha=self.pr["base"]["sha"], head="android-main",
+            head_sha=self.pr["head"]["sha"], head_repository_id=gate.REPOSITORY_ID, merge_sha=self.fixture.sha,
+            parent="android-main", parent_sha=self.pr["head"]["sha"], profile="android-phone",
+            classification="direct", repair_paths=(), changed_paths=tuple(self.fixture.plan()["paths"]))
+        self.args = SimpleNamespace(candidate=self.candidate, repository=gate.REPOSITORY, pull_request=17,
+            mode="fallback", profile="android-phone", base_sha=self.request.base_sha, head_sha=self.request.head_sha,
+            merge_sha=self.request.merge_sha, junit=self.directory / "sync.xml", receipt=self.directory / "sync.json")
+        self.validation = load("android_owned_actual_sync_validator", "tools/test-evidence/validate-sync.py")
+        self.transport = SimpleNamespace(load_config=lambda: {"repository": gate.REPOSITORY, "repository_id": gate.REPOSITORY_ID},
+            classify_event=lambda event, config, api: self.request,
+            branch_sha=lambda api, repository, branch: self.request.base_sha if branch == self.request.base else self.request.parent_sha)
+        original_loader = self.validation._trusted_module
+        self.enterContext(patch.object(self.validation, "_gate", return_value=self.transport))
+        self.enterContext(patch.object(self.validation, "_trusted_module", side_effect=lambda name, path:
+            handoff if name == "sync_android_platform_owner" else original_loader(name, path)))
+        self.enterContext(patch.object(handoff, "gate", return_value=gate))
+        self.enterContext(patch.object(shared.inputs, "load_registry", return_value=self.transfer.registry))
+        self.enterContext(patch.object(shared, "capture_execution_environment", return_value=OBSERVED))
+        self.enterContext(patch.dict(os.environ, {"GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_REF": "refs/heads/main",
+            "GITHUB_WORKFLOW_REF": gate.REPOSITORY + "/.github/workflows/sync-validation.yml@refs/heads/main"}))
+
+    def api_read(self, endpoint):
+        self.calls.append(endpoint)
+        if endpoint == "repos/" + gate.REPOSITORY:
+            return deepcopy(self.repository)
+        if endpoint == "repos/" + gate.REPOSITORY + "/pulls/17":
+            return deepcopy(self.pr)
+        raise AssertionError("unregistered authenticated source-PR transport")
+
+    def validate(self):
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            return self.validation.validate_sync(self.args, api=self.api)
+
+    def refresh_candidate(self):
+        self.fixture.fixture.commit()
+        head = self.fixture.git("rev-parse", "HEAD")
+        tree = self.fixture.git("rev-parse", "HEAD^{tree}")
+        merge = self.fixture.git("commit-tree", tree, "-p", self.request.base_sha, "-p", head,
+                                 "-m", "Exact source-PR merge after fixture change")
+        self.fixture.git("checkout", "--quiet", "--detach", merge)
+        self.fixture.sha = merge
+        self.pr["head"]["sha"] = head
+        self.pr["merge_commit_sha"] = merge
+        self.request.head_sha = self.request.parent_sha = self.args.head_sha = head
+        self.request.merge_sha = self.args.merge_sha = merge
+        self.request.changed_paths = tuple(self.fixture.git("diff", "--name-only", self.request.base_sha, merge).splitlines())
+
+    def test_sync_executes_all_shared_and_every_remaining_profile_extra_once(self):
+        before = {name: value for name, value in os.environ.items() if name.startswith("GITHUB_")}
+        result = self.validate()
+        observed = result["execution"]
+        self.assertEqual(set(result["executed_suites"]), {"first", "second"})
+        self.assertEqual(observed["schema"], 2)
+        self.assertFalse(observed["reusable"])
+        self.assertIsNone(observed["environment"])
+        self.assertEqual(set(result["pending_platform_owners"]), {handoff.PICO})
+        self.assertFalse(result["reusable"])
+        self.assertFalse(result["qualification"])
+        self.assertEqual(result["reused_suites"], [])
+        self.assertIsNone(result["parent_evidence"])
+        self.assertEqual(set(observed["platform_results"]), {item["name"] for item in self.transfer.profile["suites"]} - {handoff.PICO})
+        for name in set(observed["platform_results"]) | {"first", "second"}:
+            self.assertEqual((self.candidate / "build" / name).read_text(), "actual")
+        self.assertFalse((self.candidate / "build" / handoff.PICO).exists())
+        self.assertEqual({name: value for name, value in os.environ.items() if name.startswith("GITHUB_")}, before)
+        with self.assertRaisesRegex(ValueError, "pending independent"):
+            shared.validate_receipt(observed, self.transfer.registry, shared.inputs.full_tree(self.candidate), require_all=True)
+        self.assertGreaterEqual(self.calls.count("repos/" + gate.REPOSITORY + "/pulls/17"), 3)
+
+    def test_prerequisite_selection_binds_pending_owner_without_execution(self):
+        with patch.object(shared, "execute", side_effect=AssertionError("planning cannot execute commands")):
+            selected = self.validation.select_sync(self.args, api=self.api)
+        self.assertEqual(selected["lane"], "complete")
+        self.assertTrue(selected["full_host"])
+        self.assertFalse(selected["reusable"])
+        self.assertEqual(set(selected["pending_platform_owners"]), {handoff.PICO})
+        self.assertIn("platform_owner_policy", selected)
+        self.args.expected_selection = selected["selection"]
+        self.assertEqual(self.validate()["ci_selection"], selected)
+
+    def test_actual_candidate_generation_change_after_commands_fails_closed(self):
+        original_execute = shared.execute
+        def changed_generation(*args, **kwargs):
+            result = original_execute(*args, **kwargs)
+            (self.candidate / ".github/workflows/repository-checks.yml").write_text("unreviewed caller\n")
+            return result
+        with patch.object(shared, "execute", side_effect=changed_generation), \
+                self.assertRaisesRegex(shared.ExecutionError, "immutable tracked inputs"):
+            self.validate()
+        self.assertFalse(self.args.receipt.exists())
+
+    def test_foreign_or_stale_actual_api_source_cannot_omit_a_command(self):
+        original = deepcopy(self.pr)
+        mutations = [lambda p: p.update(state="closed"), lambda p: p.update(merge_commit_sha="f" * 40),
+                     lambda p: p["base"].update(sha="b" * 40), lambda p: p["head"].update(sha="a" * 40),
+                     lambda p: p["head"]["repo"].update(full_name="foreign/repository"),
+                     lambda p: p.update(mergeable=None), lambda p: p.pop("labels")]
+        for mutate in mutations:
+            self.pr = deepcopy(original); mutate(self.pr)
+            with self.subTest(pr=self.pr), patch.object(shared, "execute") as execute, self.assertRaises(ValueError):
+                self.validate()
+            execute.assert_not_called()
+        self.pr = original
+
+    def test_real_shared_failure_cannot_publish_pending_success(self):
+        (self.candidate / "tests/first.py").write_text("raise RuntimeError('real selected suite failure')\n")
+        self.refresh_candidate()
+        with self.assertRaisesRegex(ValueError, "selected shared or product"):
+            self.validate()
+        self.assertFalse(self.args.receipt.exists())
+
+    def test_real_remaining_product_failure_cannot_publish_pending_success(self):
+        item = next(item for item in self.transfer.profile["suites"] if item["name"] != handoff.PICO)
+        (self.candidate / item["entrypoint"]).write_text("raise RuntimeError('real profile suite failure')\n")
+        self.refresh_candidate()
+        with self.assertRaisesRegex(ValueError, "selected shared or product"):
+            self.validate()
+        self.assertFalse(self.args.receipt.exists())
+
+    def test_actual_label_or_permanent_ref_drift_rejects_success_after_commands(self):
+        original_execute = shared.execute
+        def changed_labels(*args, **kwargs):
+            result = original_execute(*args, **kwargs)
+            self.pr["labels"] = [{"name": "android-long-diagnostics"}]
+            return result
+        with patch.object(shared, "execute", side_effect=changed_labels), self.assertRaisesRegex(ValueError, "labels changed"):
+            self.validate()
+        self.assertFalse(self.args.receipt.exists())
+        self.pr["labels"] = []
+        self.transport.branch_sha = lambda *args: "f" * 40
+        with self.assertRaisesRegex(ValueError, "branch moved"):
+            self.validate()
+        self.assertFalse(self.args.receipt.exists())
+
+    def test_forged_pending_plan_or_missing_product_result_cannot_publish_success(self):
+        original_execute = shared.execute
+        for mutation in ("pending-plan", "missing-product"):
+            def forged(*args, **kwargs):
+                status, returned = original_execute(*args, **kwargs)
+                observed = deepcopy(returned)
+                if mutation == "pending-plan":
+                    observed["platform_selection"]["delegated"][handoff.PICO]["plan"] = "sha256:" + "0" * 64
+                else:
+                    observed["platform_results"].pop(next(iter(observed["platform_results"])))
+                observed["receipt_digest"] = shared.digest({key: value for key, value in observed.items() if key != "receipt_digest"})
+                shared._write_receipt(kwargs["receipt_path"], observed)
+                return status, observed
+            with self.subTest(mutation=mutation), patch.object(shared, "execute", side_effect=forged), self.assertRaises(ValueError):
+                self.validate()
+            self.assertFalse(self.args.receipt.exists())
+
+    def test_legacy_sync_generation_executes_its_pico_profile_in_full(self):
+        self.fixture.workflow_files(owned=False)
+        # workflow_files commits the fixture; form its actual new source-PR merge.
+        head = self.fixture.git("rev-parse", "HEAD")
+        tree = self.fixture.git("rev-parse", "HEAD^{tree}")
+        merge = self.fixture.git("commit-tree", tree, "-p", self.request.base_sha, "-p", head,
+                                 "-m", "Exact legacy source-PR merge")
+        self.fixture.git("checkout", "--quiet", "--detach", merge)
+        self.pr["head"]["sha"] = head; self.pr["merge_commit_sha"] = merge
+        self.request.head_sha = self.request.parent_sha = self.args.head_sha = head
+        self.request.merge_sha = self.args.merge_sha = merge
+        result = self.validate()
+        self.assertEqual(result["execution"]["schema"], 1)
+        self.assertNotIn("pending_platform_owners", result)
+        self.assertEqual(set(result["execution"]["platform_results"]), {item["name"] for item in self.transfer.profile["suites"]})
+        self.assertEqual((self.candidate / "build" / handoff.PICO).read_text(), "actual")
+
+    def test_missing_mandatory_repository_gate_cannot_supply_skip_authority(self):
+        with patch.object(self.validation, "_repository_owner_policy", return_value={}), \
+                patch.object(shared, "execute") as execute, self.assertRaisesRegex(ValueError, "mandatory canonical"):
+            self.validate()
+        execute.assert_not_called()
+
+    def test_pending_sync_success_never_substitutes_for_android_execution(self):
+        result = self.validate()
+        expected = gate.candidate_plan(self.candidate, {"repository": self.repository, "number": 17,
+            "pull_request": self.pr}, self.request.merge_sha)
+        for conclusion in ("failure", "skipped", "cancelled", None):
+            with self.subTest(conclusion=conclusion), self.assertRaises(ValueError):
+                gate.verify_outer({"result": conclusion, "outputs": {}}, expected)
+        with self.assertRaises(ValueError):
+            gate.verify_outer({"result": "success", "outputs": result["pending_platform_owners"]}, expected)
+        with self.assertRaisesRegex(ValueError, "blocked"):
+            gate.admit(self.candidate, {"repository": self.repository, "pull_request": self.pr})
 
 
 if __name__ == "__main__":

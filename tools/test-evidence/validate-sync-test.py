@@ -518,6 +518,15 @@ class IsolatedConsumerTests(unittest.TestCase):
         self.assertFalse(self.args.receipt.exists())
         self.assertEqual(self.executed(), [])
 
+    def test_partial_ci_selection_cannot_claim_pending_platform_execution(self):
+        self.ci_fixture()
+        with patch.object(VALIDATION, "_sync_platform_owner", side_effect=AssertionError("partial CI cannot delegate product commands")):
+            selected = self.ci_prepare()
+            result = self.validate()
+        self.assertEqual(selected["lane"], "affected-ci")
+        self.assertNotIn("pending_platform_owners", selected)
+        self.assertNotIn("pending_platform_owners", result)
+
     def test_ci_execution_observes_exact_selected_commands_without_reuse_or_product_run(self):
         self.ci_fixture(); selected = self.ci_prepare()
         with patch.object(execution, "execute", side_effect=AssertionError("complete executor must remain separate")), \

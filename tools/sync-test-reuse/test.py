@@ -699,6 +699,51 @@ class ProductRepairContracts(unittest.TestCase):
                 self.inspect(*self.fixture([{"filename": path, "status": "modified"}],
                                           target="android-phone"))
 
+    def test_android_owner_handoff_repairs_require_full_fallback(self):
+        transfer = json.loads((HERE.parents[1] / ".github/android-owner-transfer.json").read_text())
+        paths = set(transfer["legacy_workflows"]) | set(transfer["source_contracts"])
+        self.assertEqual(len(paths), 6)
+        self.assertEqual(gate.allowed_repair_paths(config(), "android-main"), paths)
+        event, settings, api = self.fixture(target="android-main")
+        request = self.classify(event, settings, api)
+        self.assertEqual(set(request.repair_paths), paths)
+        self.assertTrue(paths - set(request.parent_changed_paths))
+        self.inspect(event, settings, api)
+        # Even one registered path inherited from the parent keeps full fallback.
+        for path in sorted(paths):
+            with self.subTest(path=path):
+                self.inspect(*self.fixture([{"filename": path, "status": "modified"}],
+                                          target="android-main"))
+
+    def test_android_owner_handoff_does_not_admit_neighbors_or_other_targets(self):
+        paths = config()["reconciliation_repair_paths"]["android-main"]
+        repairs = [{"filename": path, "status": "modified"} for path in paths]
+        for path in ("android/common/tests/ci/extra.py", "android/phone/tests/extra.py",
+                     ".github/workflows/android-required.yml", ".github/workflows/project-tests.yml",
+                     "tools/repository-checks/android_gate.py", "libraries/audio-client/src/AudioClient.cpp"):
+            with self.subTest(path=path), self.assertRaises(gate.GateError):
+                self.classify(*self.fixture(repairs + [{"filename": path, "status": "modified"}],
+                                            target="android-main"))
+        for target in ("android-phone", "android-vr", "android-vr-pico", "apple-main", "apple-ios"):
+            with self.subTest(target=target), self.assertRaises(gate.GateError):
+                self.classify(*self.fixture(repairs, target=target))
+
+    def test_android_owner_handoff_preserves_exact_reconciliation_attestation(self):
+        for mutation in ("parents", "head-tree", "merge-tree", "parent-ref", "foreign-head"):
+            event, settings, api = self.fixture(target="android-main")
+            if mutation == "parents":
+                api.documents[f"repos/{REPOSITORY}/git/commits/{HEAD}"]["parents"].reverse()
+            elif mutation in ("head-tree", "merge-tree"):
+                sha = HEAD if mutation == "head-tree" else MERGE
+                api.documents[f"repos/{REPOSITORY}/git/trees/{sha}?recursive=1"]["tree"][0]["sha"] = "9" * 40
+            elif mutation == "parent-ref":
+                api.documents[f"repos/{REPOSITORY}/git/ref/heads/main"]["object"]["sha"] = "9" * 40
+            else:
+                for pr in (event["pull_request"], api.documents[f"repos/{REPOSITORY}/pulls/610"]):
+                    pr["head"]["repo"]["id"] = REPOSITORY_ID + 1
+            with self.subTest(mutation=mutation), self.assertRaises(gate.GateError):
+                self.classify(event, settings, api)
+
     def test_phone_clock_repairs_cannot_carry_neighbor_or_shared_changes(self):
         for path in (
                 "android/phone/tests/phone-voice-clock-extra.cpp",
