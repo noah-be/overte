@@ -170,6 +170,11 @@ class AffectedProtectedAdmissionTests(unittest.TestCase):
         cls.registry_raw=(C.ROOT/'.github/test-suites.json').read_bytes()
         source=inputs.full_tree(C.ROOT,'HEAD')
         graph=json.loads(inputs.load_dependencies(C.ROOT/inputs.AFFECTED_POLICY,cls.registry))
+        # This historical source3/main-only contract deliberately retains its
+        # schema1 graph. SevenTargetProfileTests independently covers schema2
+        # and all seven source4 targets with their complete target identities.
+        graph['schema']=1
+        graph.pop('targets',None)
         required=set(inputs.AFFECTED_AUTHORITY)
         required.update(graph['suites']['device-control-plane-full']['native_independent_paths'])
         for suite in cls.registry['suites'].values():
@@ -315,6 +320,7 @@ class AffectedProtectedAdmissionTests(unittest.TestCase):
     def test_actual_receipt_path_admits_full_e_and_keeps_only_selected_results(self):
         prepared=self.profile();names=prepared['suites'];events=[]
         context={'profile':prepared['profile'],'selected':prepared['selection'],'registry':self.registry,
+            'policy':SimpleNamespace(producer=SimpleNamespace(required_execution_schema=3)),
             'refs':{'default':'b'*40},'binding':{'merge_sha':'a'*40,'merge_tree':'c'*40},'git_context':{},
             'plan':{'owners':{'shared-host':{'suites':names,'include_platform':False}}}}
         batch=SimpleNamespace(candidate=Path('/candidate'),snapshot={})
