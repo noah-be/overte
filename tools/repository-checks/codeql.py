@@ -78,6 +78,14 @@ _GLOBAL_PATHS = {
     "AGENTS.md", ".gitattributes", ".gitignore", ".gitmodules", ".codeqlignore", ".tool-versions",
     "tools/repository-checks/codeql.py", "tools/repository-checks/check.py", "tools/test-evidence/inputs.py",
 }
+# These exact controls execute from protected policy, never the candidate.
+# Pinned AutoBuild/FileExtractor at a7057b836 excludes .py from JS discovery;
+# even Node shebang detection requires a suffix-free file. Python still scans
+# their changed source. New paths, modes, packs and analysis controls stay full.
+_PINNED_PYTHON_CONTROLS = frozenset({
+    "tools/repository-checks/check.py", "tools/repository-checks/codeql.py",
+    "tools/test-evidence/inputs.py",
+})
 _PYTHON_EXTENSIONS = {".py", ".pyw", ".pyi", ".thrift"}
 _JAVASCRIPT_EXTENSIONS = {
     ".js", ".jsx", ".mjs", ".cjs", ".es6", ".es", ".xsjs", ".xsjslib",
@@ -225,6 +233,24 @@ def _global_input(path: str, pack_roots=()) -> bool:
             or relative.suffix.lower() in _QUERY_EXTENSIONS or name.endswith(".dbscheme.stats"))
 
 
+def _pinned_python_control(change, base_tree, candidate_tree, pack_roots):
+    """Only existing ordinary Python controls outside every custom query pack.
+
+    Complete workflow/configuration and alias guards run before this exception.
+    The same pinned workflow must remain on both sides: a deployment cannot
+    certify itself. Candidate controller bytes are source, never selection code.
+    """
+    workflow = '.github/workflows/codeql.yml'
+    return (change['path'] in _PINNED_PYTHON_CONTROLS
+            and base_tree.get(workflow) == candidate_tree.get(workflow)
+            and base_tree.get(workflow) in pinned_workflow_entries()
+            and not any(PurePosixPath(change['path']).is_relative_to(root) for root in pack_roots)
+            and not any(name.startswith(('LGTM_INDEX_', 'CODEQL_EXTRACTOR_JAVASCRIPT_OPTION_',
+                                         'CODEQL_EXTRACTOR_PYTHON_OPTION_')) for name in os.environ)
+            and all(type(change[side]) is dict and change[side]['mode'] == '100644'
+                    and change[side]['type'] == 'blob' for side in ('before', 'after')))
+
+
 def _python_requirements_manifest(name: str) -> bool:
     """Recognize named requirements without ambiguous nested repetition."""
     stem, separator, extension = name.rpartition(".")
@@ -304,9 +330,12 @@ def select_languages(base_tree: dict | None, candidate_tree: dict | None, *, eve
     # its whole directory is shared control, including removed/renamed packs.
     pack_roots = {PurePosixPath(path).parent for path in base_tree.keys() | candidate_tree.keys()
                   if PurePosixPath(path).name.lower() in _PACK_MANIFESTS}
+    python_controls = set()
     for change in changes:
         if _global_input(change['path'], pack_roots):
-            return _result(LANGUAGES, [{"code": "shared-analysis-control", "path": change['path']}], changes)
+            if not _pinned_python_control(change, base_tree, candidate_tree, pack_roots):
+                return _result(LANGUAGES, [{"code": "shared-analysis-control", "path": change['path']}], changes)
+            python_controls.add(change['path'])
     languages, reasons = set(), []
     for change in changes:
         path = change["path"]
@@ -323,6 +352,7 @@ def select_languages(base_tree: dict | None, candidate_tree: dict | None, *, eve
         languages.update(selected)
         reasons.append({"code": ("reviewed-pinned-native-source" if inert_native else
                                  "reviewed-pinned-ci-metadata" if inert_metadata else
+                                 "reviewed-pinned-python-control" if path in python_controls else
                                  "language-input" if selected else "markdown-only-input"), "path": path})
     return _result(languages, reasons, changes)
 

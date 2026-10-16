@@ -398,6 +398,97 @@ class LanguageSelectionTests(unittest.TestCase):
                     self.assertEqual(plan["reasons"][0]["code"], "unavailable-complete-inventory")
 
 
+class PythonControlSelectionTests(unittest.TestCase):
+    controls = ('tools/repository-checks/check.py', 'tools/repository-checks/codeql.py',
+                'tools/test-evidence/inputs.py')
+
+    def trees(self, workflow=None):
+        before = reviewed_tree() | {path: entry() for path in self.controls}
+        before['.github/workflows/codeql.yml']['sha'] = workflow or CODEQL._PINNED_RESULTS_WORKFLOW
+        return before, deepcopy(before)
+
+    def test_only_three_existing_ordinary_controls_need_fresh_python_under_both_pinned_recipes(self):
+        self.assertEqual(CODEQL._PINNED_PYTHON_CONTROLS, set(self.controls))
+        for workflow in (CODEQL._PINNED_RESULTS_WORKFLOW, CODEQL._METADATA_RESULTS_WORKFLOW):
+            for path in self.controls:
+                for event in ('pull_request', 'push'):
+                    before, after = self.trees(workflow); after[path] = entry('b')
+                    with self.subTest(workflow=workflow, path=path, event=event):
+                        plan = CODEQL.select_languages(before, after, event=event,
+                            read_blob=lambda _: self.fail('Python selection must not load candidate source'))
+                        self.assertEqual(plan['languages'], ['python'])
+                        self.assertEqual(plan['reasons'], [{'code': 'reviewed-pinned-python-control', 'path': path}])
+                        self.assertFalse(plan['full_scan'])
+
+    def test_global_controls_queries_and_pack_roots_override_the_exception(self):
+        for subject in self.controls:
+            for path in ('AGENTS.md', '.gitattributes', 'custom/query.ql', 'custom/model.qll',
+                         'custom/security.qls', 'custom/codeql-config.yml', 'custom/qlpack.yml'):
+                before, after = self.trees(); after[subject] = entry('b'); after[path] = entry('c')
+                with self.subTest(subject=subject, path=path):
+                    self.assertEqual(CODEQL.select_languages(before, after)['languages'], list(CODEQL.LANGUAGES))
+            for manifest in ('qlpack.yml', str(Path(subject).parent / 'qlpack.yml')):
+                before, after = self.trees(); before[manifest] = after[manifest] = entry()
+                after[subject] = entry('b')
+                with self.subTest(subject=subject, manifest=manifest):
+                    self.assertEqual(CODEQL.select_languages(before, after)['reasons'][0]['code'], 'shared-analysis-control')
+
+    def test_membership_modes_and_unchanged_aliases_cannot_inherit_python_control_ownership(self):
+        for path in self.controls:
+            for mutation in ('addition', 'deletion', 'rename', 'before-mode', 'after-mode',
+                             'symlink', 'gitlink', 'unchanged-alias', 'unchanged-gitlink'):
+                before, after = self.trees(); after[path] = entry('b')
+                if mutation == 'addition': del before[path]
+                elif mutation == 'deletion': del after[path]
+                elif mutation == 'rename': after[path + '.renamed.py'] = after.pop(path)
+                elif mutation == 'before-mode': before[path] = entry(mode='100755')
+                elif mutation == 'after-mode': after[path] = entry('b', mode='100755')
+                elif mutation in ('symlink', 'gitlink'):
+                    after[path] = entry('b', mode='120000' if mutation == 'symlink' else '160000')
+                else:
+                    before['unrelated'] = after['unrelated'] = entry(mode='120000' if mutation == 'unchanged-alias' else '160000')
+                with self.subTest(path=path, mutation=mutation):
+                    self.assertTrue(CODEQL.select_languages(before, after)['full_scan'])
+
+    def test_unpinned_changed_or_unknown_controls_and_extractor_options_stay_full(self):
+        for workflow in (CODEQL._REVIEWED_CONTROLS['.github/workflows/codeql.yml'], CODEQL._SELECTIVE_WORKFLOW,
+                         CODEQL._RESULTS_WORKFLOW, CODEQL._RETARGET_RESULTS_WORKFLOW):
+            before, after = self.trees(workflow); after[self.controls[0]] = entry('b')
+            self.assertTrue(CODEQL.select_languages(before, after)['full_scan'])
+        for side in ('before', 'after'):
+            for path in CODEQL._REVIEWED_CONTROLS:
+                before, after = self.trees(); after[self.controls[0]] = entry('b')
+                (before if side == 'before' else after)[path] = entry('c')
+                with self.subTest(side=side, path=path):
+                    self.assertEqual(CODEQL.select_languages(before, after)['reasons'][0]['code'], 'unreviewed-analysis-configuration')
+        before, after = self.trees(); after[self.controls[0]] = entry('b')
+        after['.github/workflows/codeql.yml']['sha'] = CODEQL._METADATA_RESULTS_WORKFLOW
+        self.assertTrue(CODEQL.select_languages(before, after)['full_scan'])
+        for name in ('LGTM_INDEX_FILETYPES', 'CODEQL_EXTRACTOR_JAVASCRIPT_OPTION_TEST',
+                     'CODEQL_EXTRACTOR_PYTHON_OPTION_TEST'):
+            before, after = self.trees(); after[self.controls[0]] = entry('b')
+            with self.subTest(name=name), patch.dict(CODEQL.os.environ, {name: 'unreviewed'}):
+                self.assertTrue(CODEQL.select_languages(before, after)['full_scan'])
+
+    def test_mixed_delta_unions_every_language_and_unknown_input_without_prefix_waivers(self):
+        for path, expected in (('browser/src/main.ts', list(CODEQL.LANGUAGES)),
+                               ('other.py', ['python']), ('docs/design.md', ['python']),
+                               ('.github/test-suites.json', ['python']),
+                               ('.github/ci37-runtime.json', list(CODEQL.LANGUAGES)),
+                               ('tools/repository-checks/check.py.unknown', list(CODEQL.LANGUAGES)),
+                               ('tools/test-evidence/inputs.py.unknown', list(CODEQL.LANGUAGES))):
+            before, after = self.trees(); after[self.controls[0]] = entry('b')
+            if path == '.github/test-suites.json': before[path] = entry()
+            after[path] = entry('c')
+            with self.subTest(path=path):
+                self.assertEqual(CODEQL.select_languages(before, after)['languages'], expected)
+        before, after = self.trees(); after[self.controls[0]] = entry('b')
+        for event in ('schedule', 'workflow_dispatch', 'pull_request_target'):
+            self.assertTrue(CODEQL.select_languages(before, after, event=event)['full_scan'])
+        for left, right in ((None, after), (before, None), ({}, after)):
+            self.assertTrue(CODEQL.select_languages(left, right)['full_scan'])
+
+
 class NativeLeafSelectionTests(unittest.TestCase):
     def setUp(self):
         self.before = reviewed_tree()
@@ -563,6 +654,29 @@ class ImmutableRepositoryTests(unittest.TestCase):
                    (ROOT/'tools/repository-checks/workflows/metadata-edits/codeql-pinned.yml').read_text())
         self.write('native/Example.cpp','int value = 1;\n')
         return self.commit()
+
+    def test_python_control_uses_complete_target_delta_and_never_loads_candidate_controllers(self):
+        self.write('.github/workflows/codeql.yml',
+                   (ROOT/'tools/repository-checks/workflows/metadata-edits/codeql-pinned.yml').read_text())
+        base = self.commit()
+        self.write('tools/test-evidence/inputs.py', 'raise RuntimeError("never import candidate controls")\n')
+        head = self.commit()
+        merge = self.git('commit-tree', self.git('rev-parse', head+'^{tree}'), '-p', base, '-p', head,
+                         '-m', 'Ordinary Python controller merge fixture')
+        self.assertEqual(CODEQL.select_repository(self.root, base, merge)['languages'], ['python'])
+        self.write('browser/main.ts', 'export const changedEarlier = true;\n')
+        first_head = self.commit()
+        self.write('tools/test-evidence/inputs.py', 'raise RuntimeError("corrective source still never imports")\n')
+        second_head = self.commit()
+        current_merge = self.git('commit-tree', self.git('rev-parse', second_head+'^{tree}'),
+                                '-p', base, '-p', second_head, '-m', 'Whole PR retains earlier JavaScript change')
+        # The prior-head delta is insufficient input for a PR decision.
+        self.assertEqual(CODEQL.select_repository(self.root, first_head, second_head)['languages'], ['python'])
+        plan = CODEQL.select_repository(self.root, base, current_merge)
+        self.assertEqual(plan['languages'], list(CODEQL.LANGUAGES))
+        self.assertEqual({row['path'] for row in plan['changes']}, {'browser/main.ts', 'tools/test-evidence/inputs.py'})
+        self.write('tools/test-evidence/inputs.py', 'uncommitted candidate data never changes selection\n')
+        self.assertEqual(CODEQL.select_repository(self.root, base, current_merge), plan)
 
     def test_real_native_blob_selection_ignores_dirty_checkout_and_bounds_unknown_inputs(self):
         base=self.pinned_native_base()
@@ -804,6 +918,20 @@ class SelectedResultTests(unittest.TestCase):
         self.instances = {9: [{'ref': self.env['GITHUB_REF'], 'commit_sha': self.candidate,
             'category': '/language:python', 'state': 'open', 'analysis_key': RESULTS.ANALYSIS_KEY}]}
         with self.assertRaisesRegex(RESULTS.ResultError, 'open CodeQL finding'): self.verify()
+
+    def test_pinned_python_control_still_requires_current_analysis_and_cannot_hide_failed_or_pending_jobs(self):
+        self.pinned_policy_candidate('tools/test-evidence/inputs.py', replacement='raise RuntimeError("never import")\n')
+        self.assertEqual(self.verify()['languages'], ['python'])
+        self.env['CODEQL_EXPECTED_LANGUAGES'] = '[]'
+        with self.assertRaisesRegex(RESULTS.ResultError, 'independent immutable selection'): self.verify()
+        self.env['CODEQL_EXPECTED_LANGUAGES'] = '["python"]'
+        original = deepcopy(self.jobs)
+        for conclusion, status in (('failure', 'completed'), (None, 'in_progress')):
+            self.jobs = deepcopy(original); self.jobs[0].update(conclusion=conclusion, status=status)
+            with self.subTest(conclusion=conclusion, status=status), self.assertRaises(RESULTS.ResultError): self.verify()
+        self.jobs = original
+        self.analyses[0]['commit_sha'] = self.base
+        with self.assertRaises(RESULTS.ResultError): self.verify()
 
     def test_pinned_result_verifier_independently_rejects_every_older_result_workflow(self):
         self.pinned_policy_candidate()
