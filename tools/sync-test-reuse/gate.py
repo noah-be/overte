@@ -543,10 +543,13 @@ def validate_required_codeql_workflow(event: dict, api: GitHubApi, policy_root: 
         raise GateError('trusted CodeQL workflow policy unavailable')
     trusted = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(trusted)
-    generations = tuple(validate_sha(getattr(trusted, key, None), 'approved CodeQL result workflow')
-                        for key in ('_RESULTS_WORKFLOW', '_RETARGET_RESULTS_WORKFLOW', '_PINNED_RESULTS_WORKFLOW'))
+    generations = tuple(validate_sha(value, 'approved CodeQL result workflow')
+                        for value in trusted.result_workflow_blobs())
     approved = set(generations)
-    if len(approved) != 3 or '0' * 40 in approved:
+    metadata_workflow = validate_sha(trusted._METADATA_RESULTS_WORKFLOW, 'approved CodeQL metadata workflow')
+    metadata_source = validate_sha(trusted._METADATA_SOURCE_WORKFLOW, 'approved CodeQL metadata source')
+    if len(generations) != 4 or len(approved) != 4 or '0' * 40 in approved \
+            or generations[-1] != metadata_workflow or metadata_source == '0' * 40:
         raise GateError('approved CodeQL workflow identity is unavailable')
     refs = {f'repos/{repository}/git/ref/heads/{quote(ref, safe="")}': 'refs/heads/' + ref
             for ref in (target, head_ref)}
@@ -609,6 +612,12 @@ def validate_required_codeql_workflow(event: dict, api: GitHubApi, policy_root: 
     actual = tree.get('.github/workflows/codeql.yml', {})
     if actual.get('mode') != '100644' or actual.get('type') != 'blob' or actual.get('sha') not in approved:
         raise GateError('candidate must retain the exact approved CodeQL security-result workflow')
+    # The metadata successor invokes this relative reusable workflow. Its
+    # exact caller blob cannot authorize candidate-controlled helper contents.
+    if actual['sha'] == metadata_workflow and tree.get('.github/workflows/pr-metadata-context.yml') != {
+            'path': '.github/workflows/pr-metadata-context.yml',
+            'mode': '100644', 'type': 'blob', 'sha': metadata_source}:
+        raise GateError('candidate must retain the exact approved CodeQL metadata source workflow')
     _, base_tree = recursive_tree(readonly, repository, base_sha, error_type=GateError)
     previous = base_tree.get('.github/workflows/codeql.yml', {})
     if previous.get('mode') != '100644' or previous.get('type') != 'blob':

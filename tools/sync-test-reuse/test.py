@@ -48,6 +48,8 @@ WORKFLOW_BLOB = "6" * 40
 CODEQL_BASE_TREE = "7" * 40
 RETARGET_WORKFLOW_BLOB = "8" * 40
 PINNED_WORKFLOW_BLOB = "9" * 40
+METADATA_WORKFLOW_BLOB = "a" * 40
+METADATA_SOURCE_BLOB = "b" * 40
 
 
 class GitHubApiDiagnosticsTests(unittest.TestCase):
@@ -1501,7 +1503,12 @@ class RequiredCodeQLInvocationTests(unittest.TestCase):
         source.parent.mkdir(parents=True)
         source.write_text(f"_RESULTS_WORKFLOW = '{WORKFLOW_BLOB}'\n_SELECTIVE_WORKFLOW = '{PARENT}'\n"
                           f"_RETARGET_RESULTS_WORKFLOW = '{RETARGET_WORKFLOW_BLOB}'\n"
-                          f"_PINNED_RESULTS_WORKFLOW = '{PINNED_WORKFLOW_BLOB}'\n")
+                          f"_PINNED_RESULTS_WORKFLOW = '{PINNED_WORKFLOW_BLOB}'\n"
+                          f"_METADATA_RESULTS_WORKFLOW = '{METADATA_WORKFLOW_BLOB}'\n"
+                          f"_METADATA_SOURCE_WORKFLOW = '{METADATA_SOURCE_BLOB}'\n"
+                          "def result_workflow_blobs():\n"
+                          "    return (_RESULTS_WORKFLOW, _RETARGET_RESULTS_WORKFLOW, "
+                          "_PINNED_RESULTS_WORKFLOW, _METADATA_RESULTS_WORKFLOW)\n")
         self.write_policy()
         side = lambda ref, sha: {'ref': ref, 'sha': sha, 'repo': {'full_name': REPOSITORY, 'id': REPOSITORY_ID}}
         self.pr = {'number': 610, 'state': 'open', 'mergeable': True, 'merge_commit_sha': MERGE,
@@ -1611,7 +1618,9 @@ class RequiredCodeQLInvocationTests(unittest.TestCase):
     def test_pinned_workflow_admits_only_forward_exact_result_generations(self):
         current = self.documents[f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1']['tree'][0]
         previous = self.documents[f'repos/{REPOSITORY}/git/trees/{CODEQL_BASE_TREE}?recursive=1']['tree'][0]
-        generations = (WORKFLOW_BLOB, RETARGET_WORKFLOW_BLOB, PINNED_WORKFLOW_BLOB)
+        self.documents[f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1']['tree'].append(
+            entry('.github/workflows/pr-metadata-context.yml', METADATA_SOURCE_BLOB))
+        generations = (WORKFLOW_BLOB, RETARGET_WORKFLOW_BLOB, PINNED_WORKFLOW_BLOB, METADATA_WORKFLOW_BLOB)
         for old_index, old in enumerate(generations):
             for new_index, new in enumerate(generations):
                 previous['sha'], current['sha'] = old, new
@@ -1624,6 +1633,36 @@ class RequiredCodeQLInvocationTests(unittest.TestCase):
         for mode, kind in (('100755', 'blob'), ('120000', 'blob'), ('160000', 'commit')):
             current.update(mode=mode, type=kind)
             with self.subTest(mode=mode), self.assertRaises(gate.GateError): self.validate()
+
+    def test_metadata_successor_requires_exact_ordinary_relative_source(self):
+        tree = self.documents[f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1']['tree']
+        tree[0]['sha'] = METADATA_WORKFLOW_BLOB
+        with self.assertRaisesRegex(gate.GateError, 'metadata source workflow'):
+            self.validate()
+        helper = entry('.github/workflows/pr-metadata-context.yml', METADATA_SOURCE_BLOB)
+        tree.append(helper)
+        self.assertTrue(self.validate())
+        for changes in ({'sha': HEAD}, {'mode': '100755'}, {'mode': '120000'},
+                        {'mode': '160000', 'type': 'commit'}):
+            tree[1] = {**helper, **changes}
+            with self.subTest(changes=changes), self.assertRaisesRegex(gate.GateError, 'metadata source workflow'):
+                self.validate()
+        tree[1] = helper
+        self.assertTrue(self.validate())
+
+    def test_trusted_metadata_generation_inventory_must_be_complete_and_ordered(self):
+        source = self.policy_root / 'tools/repository-checks/codeql.py'
+        original = source.read_text()
+        for mutation in (original.replace(METADATA_WORKFLOW_BLOB, WORKFLOW_BLOB),
+                         original.replace(METADATA_WORKFLOW_BLOB, '0' * 40),
+                         original.replace(METADATA_SOURCE_BLOB, '0' * 40),
+                         original.replace('_PINNED_RESULTS_WORKFLOW, _METADATA_RESULTS_WORKFLOW)',
+                                          '_METADATA_RESULTS_WORKFLOW, _PINNED_RESULTS_WORKFLOW)')):
+            source.write_text(mutation)
+            with self.subTest(mutation=mutation), self.assertRaises(gate.GateError):
+                self.validate()
+        source.write_text(original)
+        self.assertTrue(self.validate())
 
     def test_old_workflow_fake_named_job_missing_and_nonregular_cannot_pass(self):
         tree = self.documents[f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1']
