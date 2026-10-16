@@ -2,6 +2,11 @@ name: Workflow security
 
 on:
   workflow_call:
+    inputs:
+      defer_workflow_contracts:
+        type: boolean
+        default: false
+        description: Exact caller verifies contracts after the shared owner; this input grants no test authority
   push:
     branches: [main]
     paths:
@@ -74,5 +79,5 @@ jobs:
         run: gitleaks dir --redact=100 --no-banner --no-color .github
 
       - name: Verify fail-closed workflow contracts
-        if: always()
+        if: always() && inputs.defer_workflow_contracts != true
         run: PYTHONDONTWRITEBYTECODE=1 python3 tests/workflow-contract-test.py

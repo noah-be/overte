@@ -10,6 +10,7 @@
     "tools/workflow-security/**",
     "tools/branch-cleanup/**",
     "tools/repository-checks/**",
+    "tools/test-evidence/**",
     "tools/ios-build-qualification/**",
     "tests/ios-build-qualification-test.py",
     "tools/repository-policy/**",
@@ -28,6 +29,14 @@
   ],
   "native_required": false,
   "native_required_branches": [
+    "main"
+  ],
+  "direct_browser_required_branches": [],
+  "package_checks_required_branches": [
+    "main"
+  ],
+  "browser_client_required_branches": [],
+  "codeql_results_required_branches": [
     "main"
   ]
 }

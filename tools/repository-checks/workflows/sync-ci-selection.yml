@@ -1,0 +1,166 @@
+# Staged source only; deploy only after complete trusted workflow-generation admission.
+name: Sync validation
+run-name: Sync validation ${{ inputs.correlation }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      correlation: {required: true, type: string}
+      mode: {required: true, type: choice, options: [reuse, fallback]}
+      profile: {required: true, type: string}
+      pull_request: {required: true, type: string}
+      expected_base_sha: {required: true, type: string}
+      expected_head_sha: {required: true, type: string}
+      expected_merge_sha: {required: true, type: string}
+
+permissions:
+  actions: read
+  checks: read
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: sync-validation-${{ inputs.pull_request }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate exact synchronization
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      OVERTE_QML_TEST_RUNNER: /usr/lib/qt6/bin/qmltestrunner
+    steps:
+      - name: Check out trusted validator
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: trusted
+          persist-credentials: false
+      - name: Recheck live PR identity
+        env:
+          BASE_SHA: ${{ inputs.expected_base_sha }}
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ inputs.expected_head_sha }}
+          MERGE_SHA: ${{ inputs.expected_merge_sha }}
+          PULL_REQUEST: ${{ inputs.pull_request }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$MERGE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$PULL_REQUEST" =~ ^[1-9][0-9]*$ ]]
+          actual=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PULL_REQUEST")
+          [[ "$(jq -r .base.sha <<< "$actual")" == "$BASE_SHA" ]]
+          [[ "$(jq -r .head.sha <<< "$actual")" == "$HEAD_SHA" ]]
+          [[ "$(jq -r .merge_commit_sha <<< "$actual")" == "$MERGE_SHA" ]]
+      - name: Check out the immutable candidate merge without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.expected_merge_sha }}
+          path: candidate
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Independently select affected synchronization prerequisites
+        id: select
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MODE: ${{ inputs.mode }}
+          PROFILE: ${{ inputs.profile }}
+          BASE_SHA: ${{ inputs.expected_base_sha }}
+          HEAD_SHA: ${{ inputs.expected_head_sha }}
+          MERGE_SHA: ${{ inputs.expected_merge_sha }}
+          PULL_REQUEST: ${{ inputs.pull_request }}
+        run: >-
+          python3 -B trusted/tools/test-evidence/validate-sync.py
+          --select-only --output "$GITHUB_OUTPUT"
+          --candidate candidate --repository "$GITHUB_REPOSITORY" --pull-request "$PULL_REQUEST"
+          --mode "$MODE" --profile "$PROFILE" --base-sha "$BASE_SHA" --head-sha "$HEAD_SHA" --merge-sha "$MERGE_SHA"
+          --junit build/test-results/sync-selected.xml --receipt build/test-results/sync-validation.json
+      - name: Set up candidate Python
+        if: (steps.select.outputs.consumer_setup != 'none' || steps.select.outputs.native_setup == '') && (steps.select.outputs.lane != 'legacy-bounded' || inputs.profile != 'documentation')
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+      - name: Set up candidate Node.js
+        if: (steps.select.outputs.consumer_setup != 'none' || steps.select.outputs.native_setup == '') && (steps.select.outputs.lane != 'legacy-bounded' || inputs.profile != 'documentation')
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "22"
+      - name: Set up candidate Java
+        if: (steps.select.outputs.consumer_setup != 'none' || steps.select.outputs.native_setup == '') && steps.select.outputs.full_host == 'true'
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install candidate host prerequisites
+        if: (steps.select.outputs.consumer_setup != 'none' || steps.select.outputs.native_setup == '') && steps.select.outputs.full_host == 'true'
+        run: |
+          sudo apt-get -o Acquire::Retries=4 update
+          sudo apt-get -o Acquire::Retries=4 install --no-install-recommends -y \
+            qml-module-qttest qtdeclarative5-dev-tools qt6-base-dev qt6-base-dev-tools pkg-config libglm-dev \
+            qtdeclarative5-dev qml-module-qtquick2 qml-module-qtquick-controls2 qml-module-qtquick-layouts qml-module-qtquick-window2 \
+            qt6-declarative-dev qt6-declarative-dev-tools qt6-webchannel-dev libqt5webchannel5-dev \
+            qml-module-qt-labs-folderlistmodel qml6-module-qt-labs-folderlistmodel \
+            qml6-module-qtqml qml6-module-qtqml-models qml6-module-qtqml-workerscript \
+            qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts \
+            qml6-module-qtquick-templates qml6-module-qtquick-window \
+            qml6-module-qt-labs-settings qml6-module-qtquick-dialogs qml6-module-qttest
+          pkg-config --print-errors --exists Qt5Quick Qt5WebChannel Qt5Network Qt6Quick Qt6WebChannel Qt6Network
+      - name: Prepare isolated shared and product Python validators
+        if: (steps.select.outputs.consumer_setup != 'none' || steps.select.outputs.native_setup == '') && steps.select.outputs.lane != 'legacy-bounded'
+        env:
+          GH_TOKEN: ""
+          GITHUB_TOKEN: ""
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          unshare --user --map-root-user --net true
+          python3 -m venv build/host-tests-env
+          build/host-tests-env/bin/python -m pip install --disable-pip-version-check -r trusted/tests/requirements-host.txt
+      - name: Verify bounded synchronization without product setup
+        if: steps.select.outputs.lane == 'legacy-bounded'
+        env:
+          EXPECTED_SELECTION: ${{ steps.select.outputs.selection }}
+          GH_TOKEN: ${{ github.token }}
+          PROFILE: ${{ inputs.profile }}
+          BASE_SHA: ${{ inputs.expected_base_sha }}
+          HEAD_SHA: ${{ inputs.expected_head_sha }}
+          MERGE_SHA: ${{ inputs.expected_merge_sha }}
+          PULL_REQUEST: ${{ inputs.pull_request }}
+        run: >-
+          python3 -B trusted/tools/test-evidence/validate-sync.py
+          --candidate candidate --repository "$GITHUB_REPOSITORY" --pull-request "$PULL_REQUEST"
+          --mode reuse --profile "$PROFILE" --base-sha "$BASE_SHA" --head-sha "$HEAD_SHA" --merge-sha "$MERGE_SHA"
+          --expected-selection "$EXPECTED_SELECTION"
+          --junit build/test-results/sync-selected.xml --receipt build/test-results/sync-validation.json
+      - name: Verify exact candidate suites and complete runtime identity
+        if: steps.select.outputs.lane != 'legacy-bounded'
+        env:
+          SYNC_VALIDATOR_PYTHON: ${{ steps.select.outputs.consumer_setup == 'none' && steps.select.outputs.native_setup != '' && 'python3' || 'build/host-tests-env/bin/python' }}
+          EXPECTED_NATIVE_SETUP: ${{ steps.select.outputs.native_setup }}
+          EXPECTED_SELECTION: ${{ steps.select.outputs.selection }}
+          GH_TOKEN: ${{ github.token }}
+          MODE: ${{ inputs.mode }}
+          PROFILE: ${{ inputs.profile }}
+          BASE_SHA: ${{ inputs.expected_base_sha }}
+          HEAD_SHA: ${{ inputs.expected_head_sha }}
+          MERGE_SHA: ${{ inputs.expected_merge_sha }}
+          PULL_REQUEST: ${{ inputs.pull_request }}
+        run: >-
+          "$SYNC_VALIDATOR_PYTHON" -B trusted/tools/test-evidence/validate-sync.py
+          --candidate candidate --repository "$GITHUB_REPOSITORY" --pull-request "$PULL_REQUEST"
+          --mode "$MODE" --profile "$PROFILE" --base-sha "$BASE_SHA" --head-sha "$HEAD_SHA" --merge-sha "$MERGE_SHA"
+          --expected-selection "$EXPECTED_SELECTION" --expected-native-setup "$EXPECTED_NATIVE_SETUP"
+          --junit build/test-results/sync-selected.xml --receipt build/test-results/sync-validation.json
+      - name: Upload validation test reports
+        if: always() && (steps.select.outputs.lane != 'legacy-bounded' || inputs.profile != 'documentation')
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: sync-validation-reports-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            build/test-results/
+            candidate/build/test-results/*.xml
+            candidate/build/test-results/device-self-tests.json
+          if-no-files-found: warn
+          retention-days: 7
