@@ -64,11 +64,12 @@ def verify_source(revision):
     return names
 
 
-def materialize_source(revision, destination):
+def materialize_source(revision, destination, *, repository=None):
     """Match the canonical depth-2 checkout without fabricating more history."""
-    parents = sandbox._raw_commit_identity(ROOT, revision)['parents']
+    repository = ROOT if repository is None else repository
+    parents = sandbox._raw_commit_identity(repository, revision)['parents']
     host.require(len(parents) <= 7, 'shared-host source has too many immediate parents for its bounded Git context')
-    return sandbox.materialize_candidate_snapshot(ROOT, revision, destination, context_revisions=tuple(parents))
+    return sandbox.materialize_candidate_snapshot(repository, revision, destination, context_revisions=tuple(parents))
 
 
 def project_policy(destination, names):
@@ -288,10 +289,13 @@ class BoundedLog:
         self.output.flush()
 
 
-def run_suites(batch, registry, cancelled, *, report):
+def run_suites(batch, registry, cancelled, *, report, names=None):
     """Use the existing controller and its actual 900s device timeout rule."""
     controller = execution._runner()
-    suites = [controller.Suite(name, entry['layer'], tuple(entry['command'])) for name, entry in registry['suites'].items()]
+    names = execution.select_common(registry, names)
+    host.require(bool(names), 'shared-host batch requires a nonempty trusted selection')
+    suites = [controller.Suite(name, registry['suites'][name]['layer'], tuple(registry['suites'][name]['command']))
+              for name in names]
     previous = controller.run_command
     controller.run_command = batch.run_command
     observations = []
@@ -309,7 +313,7 @@ def run_suites(batch, registry, cancelled, *, report):
     finally:
         controller.run_command = previous
     if not (code == 0 and not cancelled and len(observations) == len(suites)
-            and [entry['name'] for entry in observations] == list(registry['suites'])
+            and [entry['name'] for entry in observations] == names
             and all(entry['status'] == 'passed' for entry in observations)):
         failed = [entry for entry in observations if entry['status'] != 'passed']
         detail = {'exit_code': code, 'cancelled': bool(cancelled), 'selected': len(suites), 'observed': len(observations),
@@ -320,11 +324,15 @@ def run_suites(batch, registry, cancelled, *, report):
     return [{'name': entry['name'], 'status': entry['status']} for entry in observations]
 
 
-def check_batch(batch, registry, cancelled, installed):
+def check_batch(batch, registry, cancelled, installed, *, names=None, admit=None):
     sandbox.verify_snapshot(batch.candidate, batch.snapshot)
     host.require(sandbox._files(batch.policy) == batch.projection, 'protected shared-host projection changed')
     before = batch.probe(cancelled)
-    statuses = run_suites(batch, registry, cancelled, report=batch.protected / 'suites.xml')
+    # Runtime admission happens before any candidate suite. An unsupported E
+    # can select nonreusable execution; a started suite failure never can.
+    if admit is not None:
+        admit(before)
+    statuses = run_suites(batch, registry, cancelled, report=batch.protected / 'suites.xml', names=names)
     batch.empty()
     after = batch.probe(cancelled)
     host.require(before == after, 'full protected shared-host environment changed after kernel cleanup')

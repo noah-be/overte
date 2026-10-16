@@ -1041,5 +1041,187 @@ class SharedHostSourceTests(unittest.TestCase):
 def runtime_files():
     return SHARED.runtime._TRUSTED_EXECUTION_FILES
 
+
+class ProtectedSelectedProducerTests(unittest.TestCase):
+    """Fake commands/API facts only; no hosted/runtime qualification is claimed."""
+    def setUp(self):
+        import producer_workflow
+        self.producer = producer_workflow
+
+    def test_selected_subset_uses_existing_runner_once_with_real_device_timeout_rule(self):
+        registry = SHARED.inputs.load_registry(H.ROOT / '.github/test-suites.json')
+        names = ['device-control-plane-full', 'branch-policy']
+        calls = []
+        batch = SimpleNamespace(run_command=lambda command, timeout, cancelled: calls.append((command, timeout)) or (0, '', ''))
+        with tempfile.TemporaryDirectory() as temporary:
+            statuses = SHARED.run_suites(batch, registry, [], report=Path(temporary)/'suites.xml', names=names)
+        expected = [name for name in registry['suites'] if name in names]
+        self.assertEqual([row['name'] for row in statuses], expected)
+        self.assertEqual(len(calls), 2)
+        device = next((command, timeout) for command, timeout in calls if '--require-qml' in command)
+        self.assertEqual(device[1], 900)
+        self.assertEqual(device[0][-2:], ['--timeout-seconds', '900'])
+        for invalid in ([], ['unknown'], ['branch-policy','branch-policy']):
+            calls.clear()
+            with tempfile.TemporaryDirectory() as temporary, self.assertRaises((H.Unavailable, SHARED.execution.ExecutionError)):
+                SHARED.run_suites(batch, registry, [], report=Path(temporary)/'bad.xml', names=invalid)
+            self.assertEqual(calls, [])
+
+    def test_runtime_admission_precedes_suite_start_and_post_failure_has_no_retry(self):
+        events=[]
+        batch=SimpleNamespace(candidate=Path('/fixture'),snapshot={},policy=Path('/policy'),projection={},
+            protected=Path('/protected'), prepared=((),None,None,Path('/usr/lib/jvm/fake')),
+            empty=lambda:events.append('empty'), probe=lambda _:events.append('probe') or {'E':1})
+        with (patch.object(sandbox,'verify_snapshot'), patch.object(sandbox,'_files',return_value={}),
+              patch.object(SHARED,'prepared_identity',return_value={}),
+              patch.object(SHARED,'run_suites',side_effect=lambda *a,**k:events.append('suite') or [])):
+            def admit(_):events.append('admit');raise self.producer.PreExecutionUnavailable('unqualified E')
+            with self.assertRaises(self.producer.PreExecutionUnavailable):SHARED.check_batch(batch,{},[],{},admit=admit)
+            self.assertEqual(events,['probe','admit'])
+        events.clear()
+        with (patch.object(sandbox,'verify_snapshot'),patch.object(sandbox,'_files',return_value={}),
+              patch.object(SHARED,'run_suites',side_effect=H.Unavailable('actual timeout')) as run):
+            with self.assertRaises(H.Unavailable):SHARED.check_batch(batch,{},[],{},admit=lambda _:events.append('admit'))
+            self.assertEqual(run.call_count,1)
+            self.assertEqual(events,['probe','admit'])
+
+    def test_schema_context_is_reconstructed_from_immutable_api_commits(self):
+        binding={'merge_sha':'a'*40,'merge_tree':'d'*40,'merge_parents':['b'*40,'c'*40]}
+        facts={'a'*40:('d'*40,['b'*40,'c'*40]),'b'*40:('e'*40,['f'*40]),'c'*40:('e'*40,['b'*40])}
+        adapter=SimpleNamespace(_commit=lambda oid:facts[oid])
+        observed=self.producer.expected_git_context(adapter,binding)
+        self.assertEqual(observed['shallow'],['b'*40])
+        self.assertEqual(list(observed['commits']),['a'*40,'b'*40,'c'*40])
+        facts['a'*40]=('d'*40,['c'*40,'b'*40])
+        with self.assertRaises(H.Unavailable):self.producer.expected_git_context(adapter,binding)
+
+    def test_native_source_context_rejects_other_workflow_attempt_target_and_repo(self):
+        environment={**context(),'GITHUB_EVENT_NAME':'pull_request','GITHUB_BASE_REF':'main',
+            'GITHUB_HEAD_REF':'fix/main/example','GITHUB_REF':'refs/pull/17/merge',
+            'GITHUB_WORKFLOW_REF':'noah-l-frank/overte/.github/workflows/repository-checks.yml@refs/pull/17/merge'}
+        self.assertEqual(self.producer._native(environment),(17,123))
+        for key,value in (('GITHUB_REPOSITORY','overte-org/overte'),('GITHUB_REPOSITORY_ID','1'),
+                ('GITHUB_BASE_REF','apple-ios'),('GITHUB_EVENT_NAME','workflow_dispatch'),('GITHUB_RUN_ATTEMPT','2'),
+                ('GITHUB_WORKFLOW_REF','other/workflow'),('GITHUB_WORKFLOW_SHA','b'*40)):
+            with self.subTest(key=key),self.assertRaises(H.Unavailable):self.producer._native({**environment,key:value})
+
+    def test_event_payload_cannot_replace_fresh_api_base_head_or_pr_identity(self):
+        repository={'id':1319052603,'full_name':'noah-l-frank/overte'}
+        binding={'pull_request':17,'base_ref':'main','head_ref':'fix/main/example','base_sha':'a'*40,'head_sha':'b'*40}
+        event={'repository':repository,'number':17,'pull_request':{'number':17,
+            'base':{'repo':repository,'ref':'main','sha':'a'*40},'head':{'repo':repository,'ref':'fix/main/example','sha':'b'*40}}}
+        self.producer._event_binding(event,binding)
+        for side,key,value in (('base','sha','7'*40),('head','sha','8'*40),('base','ref','apple-ios'),
+                               ('head','repo',{'id':1,'full_name':'contributor/fork'})):
+            changed=deepcopy(event);changed['pull_request'][side][key]=value
+            with self.subTest(side=side,key=key),self.assertRaises(H.Unavailable):self.producer._event_binding(changed,binding)
+        event['pull_request']['number']=18
+        with self.assertRaises(H.Unavailable):self.producer._event_binding(event,binding)
+
+    def test_disabled_descriptor_uses_no_api_and_no_cli_flag_can_enable_production(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output=Path(temporary)/'native-output';output.touch(mode=0o600)
+            with (patch.dict(os.environ,{'GITHUB_OUTPUT':str(output)}),
+                  patch.object(self.producer.producer_api,'Adapter',side_effect=AssertionError('no API'))):
+                self.assertEqual(self.producer.main(['descriptor','--candidate',temporary]),0)
+                self.assertEqual(output.read_text(),'protected_full=false\n')
+                for role in ('shared','publish'):
+                    with self.assertRaises(H.Unavailable):self.producer.main([role,'--candidate',temporary])
+        self.assertFalse(self.producer.PRODUCTION_READY)
+        self.assertFalse(sandbox.ACTIVATION_READY)
+
+    def test_receipt_timestamp_uses_whole_utc_seconds_without_renewing_time(self):
+        from datetime import datetime,timezone
+        self.assertEqual(self.producer.utc_seconds(datetime(2026,10,16,10,11,12,999999,tzinfo=timezone.utc)),
+                         '2026-10-16T10:11:12Z')
+
+    def api_fixture(self):
+        import importlib.util
+        spec=importlib.util.spec_from_file_location('protected_native_api_fixture',Path(__file__).with_name('producer-api-test.py'))
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        case=module.AdapterTests();case.setUp()
+        case.runs[100].update(status='in_progress',conclusion=None)
+        for job in case.jobs[100]:
+            if job['name']==self.producer.SHARED_JOB:job.update(status='in_progress',conclusion=None,completed_at=None)
+        context={'run_id':100,'binding':case.binding,'policy':case.policy}
+        return case,context
+
+    def test_actual_readonly_adapter_binds_active_native_owner_and_first_attempt(self):
+        case,context=self.api_fixture()
+        observed=self.producer.current_run(context,case.adapter,'shared')
+        self.assertEqual(observed.owners['shared-host'].job_id,120)
+        self.assertIsNone(observed.final_publisher)
+        self.assertEqual(observed.publisher.conclusion,'success')
+        self.assertTrue(case.api.calls)
+        for mutation in ('attempt','source','duplicate','head','missing','app'):
+            case,context=self.api_fixture()
+            if mutation=='attempt':case.runs[100]['run_attempt']=2
+            elif mutation=='source':case.runs[100]['referenced_workflows'][0]['sha']='7'*40
+            elif mutation=='duplicate':case.jobs[100].append(deepcopy(case.jobs[100][1]))
+            elif mutation=='head':case.runs[100]['head_sha']='7'*40
+            elif mutation=='missing':case.jobs[100]=[job for job in case.jobs[100] if job['name']!=self.producer.SHARED_JOB]
+            else:
+                old=case.api.mutate
+                case.api.mutate=lambda endpoint,value: {**value,'app':{'id':1}} if '/check-runs/' in endpoint else old(endpoint,value)
+            with self.subTest(mutation=mutation),self.assertRaises((H.Unavailable,self.producer.protocol.ProtocolError)):
+                self.producer.current_run(context,case.adapter,'shared')
+
+    def test_final_builder_matches_independent_protocol_and_rejects_failed_or_altered_receipts(self):
+        from dataclasses import replace
+        from datetime import datetime,timezone
+        import importlib.util
+        spec=importlib.util.spec_from_file_location('protected_protocol_fixture',Path(__file__).with_name('producer-test.py'))
+        fixtures=importlib.util.module_from_spec(spec);spec.loader.exec_module(fixtures)
+        p=self.producer
+        def fixture():
+            case=fixtures.MaterializedGitContextTests().fixture()
+            run=replace(case.run,status='in_progress',conclusion=None,final_publisher=replace(case.run.final_publisher,
+                job=replace(case.run.final_publisher.job,status='in_progress',conclusion=None,completed_at=None)))
+            context={'binding':case.binding,'plan':case.plan,'registry':case.registry,'git_context':case.context.git_context,
+                'candidate':Path('/unexecuted-fixture'),'policy':SimpleNamespace(producer=case.policy)}
+            return case,run,context
+        case,run,context=fixture()
+        now=datetime(2026,10,15,10,4,tzinfo=timezone.utc)
+        with (patch.object(p.inputs,'full_tree',return_value=case.tree),
+              patch.object(p.attested,'validate_environment') as admit):
+            value=p.publication(context,case.descriptor,case.receipt,run,now,'2026-10-16T10:00:00Z')
+        self.assertEqual(admit.call_args.args[0],case.environment)
+        self.assertTrue(case.verify(value)['verified'])
+        self.assertEqual(value['results']['shared-host']['receipt'],case.receipt)
+        for mutation in ('legacy','failure','cancelled','hash','context','missing','source'):
+            case,run,context=fixture()
+            if mutation=='legacy':case.receipt['schema']=1;del case.receipt['git_context']
+            elif mutation in {'failure','cancelled'}:
+                run=replace(run,owners={'shared-host':replace(run.owners['shared-host'],conclusion=mutation)})
+            elif mutation=='hash':run=replace(run,final_publisher=replace(run.final_publisher,receipt_sha256='0'*64))
+            elif mutation=='context':context['git_context']={**context['git_context'],'shallow':[]}
+            elif mutation=='missing':run=replace(run,owners={})
+            else:case.receipt['candidate_commit']='7'*40
+            with (self.subTest(mutation=mutation),patch.object(p.inputs,'full_tree',return_value=case.tree),
+                  patch.object(p.attested,'validate_environment'),self.assertRaises((H.Unavailable,p.execution.ExecutionError))):
+                p.publication(context,case.descriptor,case.receipt,run,now,'2026-10-16T10:00:00Z')
+
+    def test_prospective_template_retains_quick_path_and_has_one_protected_owner(self):
+        import yaml
+        p=self.producer
+        old=yaml.safe_load((H.ROOT/'tools/repository-checks/workflows/host/project-tests.yml').read_text())
+        new=yaml.safe_load((H.ROOT/p.TEMPLATE).read_text())
+        self.assertEqual(set(new['jobs']),set(old['jobs'])|{'producer-publication'})
+        for name in ('tool-dependencies','package-checks','project-results'):
+            self.assertEqual(new['jobs'][name],old['jobs'][name])
+        steps={row['name']:row for row in new['jobs']['project-tests']['steps']}
+        self.assertEqual(steps['Install QML and portable C++ contract prerequisites'],next(
+            row for row in old['jobs']['project-tests']['steps'] if row['name']=='Install QML and portable C++ contract prerequisites'))
+        self.assertEqual(steps['Run independently selected host contracts']['if'],"steps.protected.outputs.protected_executed != 'true'")
+        root=steps['Execute the selected protected shared owner']
+        self.assertEqual(root['if'],"needs.route.outputs.protected_full == 'true'")
+        for required in ('--wait --pipe','--property=Delegate=yes','--property=KillMode=control-group',
+                         '/usr/bin/env -i','producer_workflow.py" shared'):
+            self.assertIn(required,root['run'])
+        self.assertEqual(new['jobs']['producer-publication']['name'],
+            'Publish final producer ${{ needs.project-tests.outputs.receipt_sha256 }}')
+        active=(H.ROOT/'.github/workflows/project-tests.yml').read_bytes()
+        self.assertNotEqual(active,(H.ROOT/p.TEMPLATE).read_bytes())
+
 if __name__ == "__main__":
     unittest.main()

@@ -39,6 +39,7 @@ class Policy:
     controller_digest: str
     runtime_contract: str
     max_age_seconds: int = 86400
+    required_execution_schema: int = 1
 
 
 @dataclass(frozen=True)
@@ -113,6 +114,7 @@ class SharedContext:
     environment: dict
     candidate_commit: str
     candidate_tree: str
+    git_context: dict | None = None
 
 
 _SHA = re.compile(r"[0-9a-f]{40}")
@@ -224,6 +226,8 @@ def policy_digest(policy):
             or not policy.events or any(event not in {"pull_request", "workflow_dispatch", "push"} for event in policy.events) \
             or type(policy.max_age_seconds) is not int or not 0 < policy.max_age_seconds <= 604800:
         raise ProtocolError("producer workflow or validity policy is unsupported")
+    if type(policy.required_execution_schema) is not int or policy.required_execution_schema not in {1, 3}:
+        raise ProtocolError("producer execution schema policy is unsupported")
     return digest(asdict(policy))
 
 
@@ -460,7 +464,10 @@ def verify_aggregate(raw, artifact, binding, plan, policy, observations, *, inve
             inputs._validate_registry(context.registry)
             inputs._validate_tree(context.tree)
             inputs._environment(context.environment)
-            execution.validate_receipt(receipt, context.registry, context.tree)
+            if policy.required_execution_schema == 3 and (receipt.get("schema") != 3 or context.git_context is None):
+                raise ProtocolError("isolated publication requires original materialized Git context")
+            execution.validate_receipt(receipt, context.registry, context.tree,
+                                       expected_git_context=context.git_context)
             if context.candidate_commit != binding["merge_sha"] or context.candidate_tree != binding["merge_tree"] \
                     or receipt["reusable"] is not True or receipt["environment"] != context.environment \
                     or receipt["candidate_commit"] != binding["merge_sha"] or receipt["candidate_tree"] != binding["merge_tree"] \

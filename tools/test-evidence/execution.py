@@ -151,7 +151,37 @@ def platform_suites(candidate, known):
         raise ExecutionError("candidate platform profile cannot be validated") from error
 
 
-def validate_receipt(receipt, registry, tree, *, require_all=False):
+def validate_git_context(value, commit, tree):
+    """Validate the declared depth-2 source shape; this is not authentication.
+
+    A protected consumer must independently reconstruct and compare this object.
+    Content-scoped suite fingerprints deliberately do not include commit IDs.
+    """
+    if not isinstance(value, dict) or set(value) != {"profile", "commits", "shallow"} \
+            or value["profile"] != "streamed-candidate-source-v1" \
+            or not isinstance(value["commits"], dict) or not 1 <= len(value["commits"]) <= 8:
+        raise ExecutionError("execution receipt Git context is invalid")
+    commits = value["commits"]
+    for oid, identity in commits.items():
+        if not isinstance(oid, str) or re.fullmatch(r"[0-9a-f]{40}", oid) is None or set(oid) == {"0"} \
+                or not isinstance(identity, dict) or set(identity) != {"commit", "tree", "parents"} \
+                or identity["commit"] != oid or not isinstance(identity["tree"], str) \
+                or re.fullmatch(r"[0-9a-f]{40}", identity["tree"]) is None or set(identity["tree"]) == {"0"} \
+                or not isinstance(identity["parents"], list) or len(identity["parents"]) > 64 \
+                or any(not isinstance(parent, str) or re.fullmatch(r"[0-9a-f]{40}", parent) is None
+                       or set(parent) == {"0"} for parent in identity["parents"]) \
+                or len(set(identity["parents"])) != len(identity["parents"]):
+            raise ExecutionError("execution receipt commit identity is invalid")
+    if commit not in commits or commits[commit]["tree"] != tree \
+            or set(commits) != {commit, *commits[commit]["parents"]}:
+        raise ExecutionError("execution receipt does not describe the exact target and immediate parents")
+    shallow = sorted(oid for oid, identity in commits.items() if set(identity["parents"]) - commits.keys())
+    if value["shallow"] != shallow:
+        raise ExecutionError("execution receipt history boundary is untruthful")
+    return value
+
+
+def validate_receipt(receipt, registry, tree, *, require_all=False, expected_git_context=None):
     """Verify observed names, statuses and independently recomputed fingerprints."""
     fields = {"schema", "producer", "candidate_commit", "candidate_tree", "environment", "reusable",
               "requested_suites", "include_platform", "results", "platform_results", "conclusion",
@@ -159,7 +189,8 @@ def validate_receipt(receipt, registry, tree, *, require_all=False):
     if not isinstance(receipt, dict) or type(receipt.get("schema")) is not int \
             or (receipt["schema"] == 1 and set(receipt) != fields) \
             or (receipt["schema"] == 2 and set(receipt) != fields | {"platform_selection"}) \
-            or receipt["schema"] not in {1, 2} or receipt["producer"] != PRODUCER:
+            or (receipt["schema"] == 3 and set(receipt) != fields | {"git_context"}) \
+            or receipt["schema"] not in {1, 2, 3} or receipt["producer"] != PRODUCER:
         raise ExecutionError("execution receipt format is invalid")
     unsigned = dict(receipt)
     claimed = unsigned.pop("receipt_digest")
@@ -168,7 +199,16 @@ def validate_receipt(receipt, registry, tree, *, require_all=False):
     for field in ("candidate_commit", "candidate_tree"):
         if not isinstance(receipt[field], str) or not re.fullmatch(r"[0-9a-f]{40}", receipt[field]):
             raise ExecutionError("execution receipt source identity is invalid")
+    if receipt["schema"] == 3:
+        validate_git_context(receipt["git_context"], receipt["candidate_commit"], receipt["candidate_tree"])
+        if expected_git_context is not None and receipt["git_context"] != expected_git_context:
+            raise ExecutionError("execution receipt Git context differs from independently authenticated source")
+    elif expected_git_context is not None:
+        raise ExecutionError("legacy execution receipt does not bind its materialized Git context")
     for field in ("started_at", "completed_at"):
+        if receipt["schema"] == 3 and (not isinstance(receipt[field], str)
+                or re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z", receipt[field]) is None):
+            raise ExecutionError("isolated execution receipt requires whole UTC seconds")
         try:
             stamp = datetime.fromisoformat(receipt[field].replace("Z", "+00:00"))
         except (TypeError, AttributeError, ValueError) as error:
