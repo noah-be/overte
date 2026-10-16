@@ -50,6 +50,12 @@ _PINNED_RESULTS_WORKFLOW = "6d55d0fe4e9edc86204c66e1fa3967681793a2cd"
 _PYTHON_POLICY_JSONS = frozenset({
     ".github/android-orchestration.json", ".github/test-suites.json",
 })
+# Ordinary metadata leaves outside both pinned extractors. This does not admit
+# analysis/security controls, YAML, new paths, or a floating extractor version.
+_INERT_CI_JSONS = frozenset({
+    ".github/branch-cleanup.json", ".github/issue-policy.json",
+    ".github/repository-health.json", ".github/dependency-releases.json",
+})
 _GLOBAL_PATHS = {
     "AGENTS.md", ".gitattributes", ".gitignore", ".gitmodules", ".codeqlignore", ".tool-versions",
     "tools/repository-checks/codeql.py", "tools/repository-checks/check.py", "tools/test-evidence/inputs.py",
@@ -92,6 +98,21 @@ def _pinned_policy_json(change, base_tree, candidate_tree):
     """
     pinned = {"mode": "100644", "type": "blob", "sha": _PINNED_RESULTS_WORKFLOW}
     return (change['path'] in _PYTHON_POLICY_JSONS
+            and all(tree.get('.github/workflows/codeql.yml') == pinned for tree in (base_tree, candidate_tree))
+            and all(isinstance(change[side], dict) and change[side]['mode'] == '100644'
+                    and change[side]['type'] == 'blob' for side in ('before', 'after')))
+
+
+def _pinned_ci_metadata(change, base_tree, candidate_tree):
+    """Four existing generic JSON leaves supply no pinned language input.
+
+    The reviewed JS filter excludes their names and its single-file TS parser
+    cannot read imported JSON. Python traverses modules rather than these JSON
+    leaves; the fixed no-build workflow executes no candidate generators.
+    Whole-tree aliases, packs and actual analysis controls are checked first.
+    """
+    pinned = {"mode": "100644", "type": "blob", "sha": _PINNED_RESULTS_WORKFLOW}
+    return (change['path'] in _INERT_CI_JSONS
             and all(tree.get('.github/workflows/codeql.yml') == pinned for tree in (base_tree, candidate_tree))
             and all(isinstance(change[side], dict) and change[side]['mode'] == '100644'
                     and change[side]['type'] == 'blob' for side in ('before', 'after')))
@@ -192,11 +213,18 @@ def select_languages(base_tree: dict | None, candidate_tree: dict | None, *, eve
         path = change["path"]
         if _global_input(path, pack_roots):
             return _result(LANGUAGES, [{"code": "shared-analysis-control", "path": path}], changes)
-        selected = ("python",) if _pinned_policy_json(change, base_tree, candidate_tree) else _source_languages(path)
+        inert_metadata = _pinned_ci_metadata(change, base_tree, candidate_tree)
+        if inert_metadata:
+            selected = ()
+        elif _pinned_policy_json(change, base_tree, candidate_tree):
+            selected = ("python",)
+        else:
+            selected = _source_languages(path)
         if selected is None:
             return _result(LANGUAGES, [{"code": "unknown-analysis-input", "path": path}], changes)
         languages.update(selected)
-        reasons.append({"code": "language-input" if selected else "markdown-only-input", "path": path})
+        reasons.append({"code": ("reviewed-pinned-ci-metadata" if inert_metadata else
+                                 "language-input" if selected else "markdown-only-input"), "path": path})
     return _result(languages, reasons, changes)
 
 

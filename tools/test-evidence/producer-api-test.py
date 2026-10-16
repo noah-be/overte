@@ -3,6 +3,7 @@
 
 from copy import deepcopy
 from dataclasses import replace
+import base64
 import hashlib
 import importlib.util
 import json
@@ -976,6 +977,84 @@ class IntegratedSourceTests(unittest.TestCase):
 
 
 class ReadOnlyBoundaryTests(unittest.TestCase):
+    def blob(self, content=b'{"holds":{}}\n'):
+        identity=hashlib.sha1(b'blob '+str(len(content)).encode()+b'\0'+content).hexdigest()
+        value={'sha':identity,'size':len(content),'encoding':'base64',
+            'content':base64.b64encode(content).decode()+'\n',
+            'url':'https://api.github.com/'+A.PREFIX+'/git/blobs/'+identity,'node_id':'fixture-node'}
+        return identity,value
+
+    def read_blob(self, identity, value, **options):
+        raw=value if isinstance(value,bytes) else json.dumps(value).encode()
+        with patch.object(A.GitHubReadOnly,'_request',return_value=raw) as request:
+            result=A.GitHubReadOnly().immutable_blob(identity,**options)
+        request.assert_called_once_with(A.PREFIX+'/git/blobs/'+identity,100_000)
+        return result
+
+    def test_immutable_blob_authenticates_exact_bytes_and_fixed_cli_endpoint(self):
+        content=b'{"holds":{}}\n'
+        identity,value=self.blob(content)
+        self.assertEqual(self.read_blob(identity,value,maximum=len(content)),content)
+        real,commands=subprocess.Popen,[]
+        raw=json.dumps(value).encode()
+        def child(command,**kwargs):
+            commands.append(command)
+            return real([sys.executable,'-c','import sys;sys.stdout.buffer.write('+repr(raw)+')'],**kwargs)
+        with patch.object(A.shutil,'which',return_value='/usr/bin/gh'), \
+             patch.object(A.subprocess,'Popen',side_effect=child):
+            self.assertEqual(A.GitHubReadOnly().immutable_blob(identity),content)
+        self.assertEqual(len(commands),1)
+        self.assertEqual(commands[0][-1],A.PREFIX+'/git/blobs/'+identity)
+        self.assertIn('GET',commands[0]);self.assertIn('github.com',commands[0])
+        self.assertIn('X-GitHub-Api-Version: 2026-03-10',commands[0])
+
+    def test_immutable_blob_has_no_path_ref_version_or_larger_limit_override(self):
+        identity,_=self.blob()
+        for invalid in (None,'0'*40,'A'*40,'a'*39,'a'*40+'?ref=main','../other',
+                A.PREFIX+'/git/blobs/'+'a'*40,'refs/heads/main'):
+            with self.subTest(identity=invalid),patch.object(A.GitHubReadOnly,'_request') as request, \
+                 self.assertRaises(A.ApiError):A.GitHubReadOnly().immutable_blob(invalid)
+            request.assert_not_called()
+        for maximum in (True,False,None,'64000',0,-1,64_001,20_000_000,1.0):
+            with self.subTest(maximum=maximum),patch.object(A.GitHubReadOnly,'_request') as request, \
+                 self.assertRaises(A.ApiError):A.GitHubReadOnly().immutable_blob(identity,maximum)
+            request.assert_not_called()
+        for options in ({'path':'policy.json'},{'ref':'main'},{'endpoint':'other'},{'api_version':'2022-11-28'}):
+            with self.subTest(options=options),patch.object(A.GitHubReadOnly,'_request') as request, \
+                 self.assertRaises(TypeError):A.GitHubReadOnly().immutable_blob(identity,**options)
+            request.assert_not_called()
+
+    def test_immutable_blob_rejects_rebound_content_identity_metadata_or_size(self):
+        identity,original=self.blob()
+        variants=[{'sha':'a'*40},{'url':'https://api.github.com/repos/overte-org/overte/git/blobs/'+identity},
+            {'url':'https://api.github.com/'+A.PREFIX+'/git/blobs/'+'a'*40},
+            {'encoding':'utf-8'},{'size':True},{'size':-1},{'size':original['size']-1},
+            {'size':64_001},{'content':[]},{'node_id':{}},{'unexpected':'field'},
+            {'content':base64.b64encode(b'altered').decode(),'size':len(b'altered')}]
+        for change in variants:
+            with self.subTest(change=next(iter(change))),self.assertRaises(A.ApiError):
+                self.read_blob(identity,{**original,**change})
+        for value in (None,[],{},'unknown'):
+            with self.subTest(shape=value),self.assertRaises(A.ApiError):self.read_blob(identity,value)
+
+    def test_immutable_blob_accepts_only_strict_canonical_base64_with_api_lf_wrapping(self):
+        identity,original=self.blob(b'a')
+        self.assertEqual(self.read_blob(identity,{**original,'content':'YQ==\n'}),b'a')
+        for content in ('YR==','YQ=','YQ===','YQ==!','YQ== ','YQ==\r\n','\u20ac', 'YQ==YQ=='):
+            with self.subTest(content=content),self.assertRaises(A.ApiError):
+                self.read_blob(identity,{**original,'content':content})
+
+    def test_immutable_blob_bounds_raw_json_and_decoded_bytes_and_rejects_duplicate_fields(self):
+        identity,value=self.blob()
+        for raw in (b' '*100_001,b'{"size":1,'+json.dumps(value).encode()[1:],
+                b'{"content":"YQ==",'+json.dumps(value).encode()[1:],b'{"size":NaN}'):
+            with self.subTest(length=len(raw)),self.assertRaises(A.ApiError):self.read_blob(identity,raw)
+        for size in (64_000,64_001):
+            content=b'a'*64_001
+            with self.subTest(size=size),self.assertRaises(A.ApiError):
+                self.read_blob(identity,{**value,'size':size,'content':base64.b64encode(content).decode()})
+        with self.assertRaises(A.ApiError):self.read_blob(identity,value,maximum=value['size']-1)
+
     def test_legacy_pr_version_is_explicit_and_unavailable_for_other_endpoints(self):
         real, commands = subprocess.Popen, []
         def child(command, **kwargs):
@@ -1046,6 +1125,9 @@ class MainConsumerTests(unittest.TestCase):
         import postmerge
         from types import SimpleNamespace
         self.module = postmerge
+        self.real_host_policy = postmerge.producer._host_policy
+        self.real_full_tree = postmerge.inputs.full_tree
+        self.real_selection_profile = getattr(postmerge.producer, 'selection_profile', None)
         fixture = IntegratedSourceTests(); fixture.setUp()
         self.case, self.api, self.adapter = fixture.case, fixture.api, fixture.adapter
         self.case.originals[self.case.binding['base_sha']] = ('6'*40, ['7'*40])
@@ -1089,6 +1171,10 @@ class MainConsumerTests(unittest.TestCase):
             patch.object(postmerge.inputs,'full_tree',return_value=self.tree),
             patch.object(postmerge.inputs,'load_registry',return_value=self.registry),
             patch.object(postmerge.producer,'_host_policy',return_value=SimpleNamespace(package_policy=lambda:package)),
+            patch.object(postmerge.producer,'selection_profile',create=True,return_value={
+                'profile':'ubuntu24-host-qt5-qt6-v1','suites':list(self.registry['suites']),
+                'selection':{'suites':list(self.registry['suites']),'full_host':True,
+                    'include_platform':True,'reason':'fixture-full-owner'}}),
             patch.object(postmerge,'original_controller',return_value=self.case.pp.controller_digest),
             patch.object(postmerge,'_policy',return_value=(self.case.plan,self.case.policy)),
             patch.object(postmerge.attested,'validate_environment',return_value={'environment_digest':'sha256:'+'1'*64,'policy':{'epoch':'fixture'}}),
@@ -1200,6 +1286,202 @@ class MainConsumerTests(unittest.TestCase):
         with self.assertRaises(A.ApiError):A.GitHubReadOnly().immutable_tree('../other')
 
 
+class MainCI37ConsumerTests(unittest.TestCase):
+    """Fake native API chain and actual source/E validators; no hosted proof."""
+    def setUp(self):
+        fixture = MainConsumerTests(); fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        self.fixture, self.module = fixture, fixture.module
+        self.case, self.api = fixture.case, fixture.api
+        C, R = self.module, self.module.runtime_ci
+        self.registry, self.tree = fixture.registry, fixture.tree
+        actual_registry = json.loads((C.ROOT / '.github/test-suites.json').read_bytes(),
+                                     object_pairs_hook=C.inputs._unique_object)
+        self.registry.clear(); self.registry.update(actual_registry)
+        workflow_entries = {path:deepcopy(self.tree[path]) for path in (*A.WORKFLOWS,
+            '.github/workflows/browser-client.yml', C.TEMPLATE)}
+        # This is the complete inventory of a small fake repository, carrying
+        # every real definition's required leaf. No sparse inventory is admitted
+        # as a production tree and no real checkout is executed by these tests.
+        actual_tree=fixture.real_full_tree(C.ROOT, 'HEAD')
+        required={C.ci_profile.POLICY,'.github/test-suites.json','README.md',
+                  *self.registry['control_inputs']}
+        for suite in self.registry['suites'].values():required.update(suite['closure']['required'])
+        self.tree.clear(); self.tree.update({path:entry for path,entry in actual_tree.items() if path in required})
+        # New required fake-test leaves may precede this source packet's first
+        # commit. They are data in this complete synthetic API tree; repository
+        # registry tests separately require the real files to exist.
+        for path in required:
+            if '*' not in path:
+                self.tree.setdefault(path,{'mode':'100644','type':'blob','sha':'a'*40})
+        self.tree.update(workflow_entries)
+        # A genuine non-documentation CI data delta, independently admitted by
+        # the strict immutable-blob guard, supplies the original quick owner.
+        original_data=(C.ROOT/C.ci_profile.DATA_PATH).read_bytes()
+        current_data=json.loads(original_data)
+        current_data['holds']={'fix/main/retain-ci-fixture':'Keep the integration fixture branch'}
+        current_data=json.dumps(current_data,sort_keys=True).encode()
+        self.data_blobs={hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest():raw
+                         for raw in (original_data,current_data)}
+        old_data,new_data=self.data_blobs
+        self.tree[C.ci_profile.DATA_PATH]={'mode':'100644','type':'blob','sha':new_data}
+        fixture.previous = deepcopy(self.tree)
+        fixture.previous[C.ci_profile.DATA_PATH]['sha']=old_data
+        def blob_request(endpoint,maximum,**options):
+            self.api.calls.append(endpoint)
+            oid=endpoint.removeprefix(A.PREFIX+'/git/blobs/')
+            raw=self.data_blobs[oid]
+            return json.dumps({'sha':oid,'size':len(raw),'encoding':'base64',
+                'content':A.base64.b64encode(raw).decode()}).encode()
+        client=A.GitHubReadOnly();client._request=blob_request
+        self.api.immutable_blob=client.immutable_blob
+        self.policy = fixture.real_host_policy()
+        self.ci_policy = {'schema':1, 'enabled':True, 'profile':C.ci_profile.PROFILE,
+            'epoch':'ci37-main-consumer-fake-v1', 'suites':list(C.ci_profile.SUITES),
+            'not_before':'2026-10-15T00:00:00Z', 'max_age_seconds':259200,
+            'definition_digest':C.ci_profile.definition_digest(self.registry),
+            'generation_digest':C.ci_profile.generation(self.tree, self.registry)}
+        for owner,name,value in ((C.producer,'_host_policy',self.policy),
+                (C.ci_profile,'load_policy',self.ci_policy)):
+            item=patch.object(owner,name,return_value=value); item.start(); self.addCleanup(item.stop)
+        for owner,name,value in ((self.policy,'REVIEWED_PROGRAMS',self.policy.program_digest(self.tree,C.ROOT)),
+                (C.ci_profile,'SOURCE_READY',True)):
+            item=patch.object(owner,name,value); item.start(); self.addCleanup(item.stop)
+        item=patch.object(C.producer,'selection_profile',side_effect=fixture.real_selection_profile)
+        self.selection = item.start(); self.addCleanup(item.stop)
+        # Reuse the complete fake E shape, then restore its focused-test mocks:
+        # this consumer test exercises the actual strict admission and planner.
+        spec=importlib.util.spec_from_file_location('ci37_consumer_environment_fixture',
+            Path(__file__).with_name('runtime-ci-test.py'))
+        module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        environment_case=module.OriginalCIEnvironmentTests(); environment_case.setUp()
+        self.original_environment=deepcopy(environment_case.environment)
+        environment_case.doCleanups()
+        selected=C.producer.selection_profile(self.policy,self.registry,self.tree,
+            fixture.previous,fixture.previous,root=C.ROOT,read_blob=self.api.immutable_blob)
+        self.original_environment['selection']=C.ci_profile.validate_selection(selected['selection'],
+            self.tree,fixture.previous,self.registry,policy=self.ci_policy,root=C.ROOT,read_blob=self.api.immutable_blob)
+        _, manifests=R.runtime._requirement_inventory(C.ROOT)
+        self.original_environment['trusted_execution']={**R.runtime._controller_file_hashes(manifests,C.ROOT),
+            **{path:R.runtime._file_digest(C.ROOT/path) for path in R._FILES}}
+        self.case.plan['owners']['shared-host'].update(suites=list(C.ci_profile.SUITES),include_platform=False)
+        self.publish()
+        for owner,name in ((C.attested,'validate_environment'), (R,'capture_ci_environment'), (R,'_query')):
+            item=patch.object(owner,name,side_effect=AssertionError('no full profile or consumer runtime query'))
+            item.start(); self.addCleanup(item.stop)
+        self.selection.reset_mock()
+
+    def publish(self, *, requested=None, environment=None, include_platform=False, mutate=None):
+        """Replace fake original artifact and its matching native commitment."""
+        fixture, C=self.fixture,self.module
+        receipt=deepcopy(fixture.receipt)
+        receipt.update(environment=deepcopy(self.original_environment if environment is None else environment),
+            requested_suites=list(C.ci_profile.SUITES) if requested is None else requested,
+            include_platform=include_platform)
+        receipt['results']={name:{'status':'passed','fingerprint':C.inputs.suite_fingerprint(
+            self.registry,name,self.tree,receipt['environment'])} for name in receipt['requested_suites']}
+        if mutate is not None: mutate(receipt)
+        self.receipt=FIXTURES.signed(receipt,'receipt_digest')
+        self.case.aggregate['results']['shared-host']['receipt']=self.receipt
+        old=FIXTURES.ProducerProtocolTests(); old.setUp()
+        run=replace(old.run,workflow_path=self.case.pp.workflow_path,workflow_commit=self.case.binding['merge_sha'],
+            workflow_ref=self.case.pp.workflow_ref,event='pull_request',workflow_blob=self.case.pp.workflow_blob,
+            final_publisher=replace(old.run.final_publisher,receipt_sha256=hashlib.sha256(P.canonical(self.receipt)).hexdigest()))
+        self.case.add_run(run); self.case.runs[100]['pull_requests']=[]
+
+    def lookup(self):
+        return self.fixture.lookup()
+
+    def test_original_exact37_environment_and_native_commitment_reuse_without_consumer_capture(self):
+        before=deepcopy(self.original_environment)
+        with patch.object(self.module,'full_tree',wraps=self.module.full_tree) as source:
+            value=self.lookup()
+        self.assertTrue(value['reused'],value)
+        self.assertEqual([call.args[1] for call in source.call_args_list],
+            [self.case.integrated,self.case.binding['base_sha'],self.case.binding['merge_sha']])
+        proof=value['proof']
+        self.assertEqual(proof['reused_suites'],list(self.module.ci_profile.SUITES))
+        self.assertEqual(proof['executed_suites'],[])
+        self.assertEqual(proof['original_environment_digest'],self.module.runtime_ci.digest(before))
+        self.assertEqual(proof['runtime_admission']['profile'],self.module.ci_profile.PROFILE)
+        self.assertEqual(proof['original_proof']['expires_at'],self.case.aggregate['expires_at'])
+        self.assertEqual(proof['original_proof']['receipt_sha256'],hashlib.sha256(P.canonical(self.receipt)).hexdigest())
+        self.assertEqual(self.receipt['environment'],before)
+        self.assertEqual(self.selection.call_count,2)
+        for call in self.selection.call_args_list:
+            self.assertEqual(call.args[3:5],(self.fixture.previous,self.fixture.previous))
+        self.assertFalse(proof['reusable']); self.assertFalse(proof['package_work'])
+        for oid in self.data_blobs:
+            self.assertIn(A.PREFIX+'/git/blobs/'+oid,self.api.calls)
+
+    def test_cleanup_api_bytes_are_authenticated_on_both_sides_before_original_proof_reuse(self):
+        original=self.api.immutable_blob
+        for identity in self.data_blobs:
+            with self.subTest(side=identity),patch.object(self.api,'immutable_blob',
+                    side_effect=lambda oid:b'{"rebound":true}' if oid==identity else original(oid)):
+                self.assertEqual(self.lookup(),{'reused':False,'reason':'original-proof-unavailable'})
+        with patch.object(self.api,'immutable_blob',side_effect=A.ApiError('bounded immutable read unavailable')):
+            self.assertEqual(self.lookup(),{'reused':False,'reason':'original-proof-unavailable'})
+
+    def test_original_receipt_cannot_choose_extra_missing_reordered_or_full_owners(self):
+        suites=list(self.module.ci_profile.SUITES)
+        for requested,platform in ((suites[:-1],False),(list(reversed(suites)),False),
+                ([*suites,'codeql-remediation'],False),(list(self.registry['suites']),True),(suites,True)):
+            with self.subTest(count=len(requested),platform=platform):
+                self.publish(requested=requested,include_platform=platform)
+                self.assertFalse(self.lookup()['reused'])
+
+    def test_original_environment_cannot_relabel_full_profile_or_omit_native_identity(self):
+        for change in ({'schema':1},{'profile':'ubuntu24-host-qt5-qt6-v1'}, {'qt':{}}, {'native':{}},
+                {'selection':{'suites':list(self.registry['suites'])}}):
+            environment={**self.original_environment,**change}
+            with self.subTest(change=next(iter(change))):
+                self.publish(environment=environment)
+                self.assertFalse(self.lookup()['reused'])
+
+    def test_changed_original_reader_import_lookup_or_independent_selection_never_projects_quick(self):
+        original=deepcopy(self.fixture.previous)
+        for path in ('tools/test-evidence/runtime.py','tests/json.py','libraries/new/CMakeLists.txt',
+                'browser-client/package-lock.json','.github/workflows/project-tests.yml'):
+            self.fixture.previous.clear(); self.fixture.previous.update(deepcopy(original))
+            self.fixture.previous[path]={'mode':'100644','type':'blob','sha':'8'*40}
+            with self.subTest(path=path):self.assertFalse(self.lookup()['reused'])
+        self.fixture.previous.clear(); self.fixture.previous.update(original)
+        actual=self.fixture.real_selection_profile
+        def changed(*args,**kwargs):
+            value=actual(*args,**kwargs)
+            if self.selection.call_count == 2:
+                value=deepcopy(value); value['selection']['include_platform']=True
+            return value
+        self.selection.reset_mock(); self.selection.side_effect=changed
+        self.assertFalse(self.lookup()['reused'])
+
+    def test_ci37_guard_disabled_or_unknown_complete_generation_selects_actual_fallback(self):
+        for disabled in ('source','policy','generation','definitions'):
+            with self.subTest(disabled=disabled):
+                policy=deepcopy(self.ci_policy)
+                if disabled=='policy':policy['enabled']=False
+                elif disabled=='generation':policy['generation_digest']='sha256:'+'0'*64
+                elif disabled=='definitions':policy['definition_digest']='sha256:'+'0'*64
+                with patch.object(self.module.ci_profile,'SOURCE_READY',disabled!='source'), \
+                     patch.object(self.module.ci_profile,'load_policy',return_value=policy):
+                    self.assertFalse(self.lookup()['reused'])
+
+    def test_native_receipt_publisher_and_fresh_api_bookends_still_bind_quick_owner(self):
+        self.case.jobs[100][-1]['name']=self.case.policy.final_publisher_prefix+'0'*64
+        self.assertFalse(self.lookup()['reused'])
+        self.publish()
+        count=0
+        def changed(endpoint,value):
+            nonlocal count
+            if '/branches/main' in endpoint:
+                count+=1
+                if count>2:value['commit']['sha']='7'*40
+            return value
+        self.api.mutate=changed
+        self.assertFalse(self.lookup()['reused'])
+
+
 class MainConsumerSourceTests(unittest.TestCase):
     def test_original_controller_is_reconstructed_from_immutable_base_without_historical_execution(self):
         import postmerge as C
@@ -1298,13 +1580,17 @@ class MainConsumerSourceTests(unittest.TestCase):
         current={g['name']:g['workflows'] for g in manifest}
         blob=subprocess.check_output(['git','hash-object','--stdin'],input=(C.ROOT/C.TEMPLATE).read_bytes()).decode().strip()
         for before,after in (('android-owned-npm5-sync-ci-v1','postmerge-original-e-v1'),
-                              ('protected-shared-producer-v1','protected-producer-postmerge-original-e-v1')):
+                              ('protected-shared-producer-v1','protected-producer-postmerge-original-e-v1'),
+                              ('protected-shared-producer-v1','protected-producer-ci37-v1')):
             self.assertEqual(set(current[after]),set(current[before]))
             changed=['.github/workflows/parent-qualification.yml']
-            if after=='protected-producer-postmerge-original-e-v1':
+            if after in {'protected-producer-postmerge-original-e-v1','protected-producer-ci37-v1'}:
                 changed.insert(0,'.github/workflows/project-tests.yml')
-                project_blob=subprocess.check_output(['git','hash-object','--stdin'],
-                    input=(C.ROOT/C.producer.TEMPLATE).read_bytes()).decode().strip()
+                source = (C.ROOT/'tools/repository-checks/workflows/producers/legacy/protected-project-tests-postmerge-v1.yml'
+                          if after=='protected-producer-postmerge-original-e-v1' else C.ROOT/C.producer.TEMPLATE)
+                project_blob=subprocess.check_output(['git','hash-object','--stdin'],input=source.read_bytes()).decode().strip()
+                if after=='protected-producer-postmerge-original-e-v1':
+                    self.assertEqual(project_blob,'861db7b76a11b9b8772e91cb24ec7cb9d918e339')
                 self.assertEqual(current[after]['.github/workflows/project-tests.yml']['sha'],project_blob)
             self.assertEqual([p for p in current[after] if current[after][p]!=current[before][p]],changed)
             self.assertEqual(current[after]['.github/workflows/parent-qualification.yml']['sha'],blob)

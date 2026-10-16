@@ -17,11 +17,13 @@ import re
 import subprocess
 
 import attested
+import ci_profile
 import execution
 import inputs
 import producer as P
 import producer_api as A
 import producer_workflow as producer
+import runtime_ci
 import sandbox
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -94,7 +96,7 @@ def original_controller(policy, previous, current, root=ROOT):
     return P.digest(identity)
 
 
-def _policy(policy, registry, binding, controller, adapter, root):
+def _policy(policy, registry, binding, controller, adapter, root, selected):
     tree = inputs.full_tree(root, 'HEAD')
     entry = tree.get(producer.TEMPLATE)
     A.require(type(entry) is dict and entry['mode'] == '100644' and entry['type'] == 'blob',
@@ -112,14 +114,14 @@ def _policy(policy, registry, binding, controller, adapter, root):
     A.require(caller.get('path') == '.github/workflows/repository-checks.yml', 'original producer caller unavailable')
     result = A.AdapterPolicy(original, A.positive(caller.get('id')), '.github/workflows/repository-checks.yml',
         generations, producer.DESCRIPTOR_JOB, {'shared-host': producer.SHARED_JOB}, producer.PUBLISH_PREFIX)
-    plan = {'owners': {'shared-host': {'kind': 'shared', 'suites': list(registry['suites']),
-                                     'include_platform': True, 'platform': {}}}}
+    plan = {'owners': {'shared-host': {'kind': 'shared', 'suites': selected['suites'],
+                                     'include_platform': selected['include_platform'], 'platform': {}}}}
     A._policy(result, plan, binding['pull_request'])
     return plan, result
 
 
 def verify_main(event, environment, adapter, *, root=ROOT, clock=lambda: datetime.now(timezone.utc)):
-    """Verify one original full-host owner; return provenance, never rebound PASS."""
+    """Verify one independently selected original owner, never rebound PASS."""
     A.require(SOURCE_READY and producer.PRODUCTION_READY and attested.ISOLATED_ADMISSION_READY,
               'postmerge protected reuse is not qualified')
     source, run_id = _native(event, environment)
@@ -150,9 +152,21 @@ def verify_main(event, environment, adapter, *, root=ROOT, clock=lambda: datetim
             A.require(snapshot.get(relative) == local.get(relative), 'candidate command or product declarations changed')
     A.require(json.loads(package._trusted_bytes('tests/platform-profile.json')) ==
         {'schema': 1, 'platform': 'shared', 'suites': []}, 'product execution is outside this main consumer')
-    plan, api_policy = _policy(policy, registry, binding, controller, adapter, root)
+    # Receipt fields never choose the profile or selected owner. Derive the
+    # current plan before discovering its original native producer source.
+    # The controller's original B context is independently reconstructed above;
+    # using it for both plans also retains the finite full transition owner.
+    read_blob = lambda oid:adapter.api.immutable_blob(oid)
+    current_profile = producer.selection_profile(policy, registry, current, previous, previous, root=root,read_blob=read_blob)
+    selected = current_profile['selection']
+    plan, api_policy = _policy(policy, registry, binding, controller, adapter, root, selected)
     snapshot = adapter.capture_integrated(run_id, plan, api_policy, now=clock())
     A.require(snapshot.references == references, 'integration changed before original proof selection')
+    original_tree_sha, original_tree = full_tree(adapter, snapshot.binding['merge_sha'])
+    A.require(original_tree_sha == snapshot.binding['merge_tree'] == current_tree_sha and original_tree == current,
+              'integrated file tree differs from the complete actually tested source')
+    original_profile = producer.selection_profile(policy, registry, original_tree, previous, previous, root=root,read_blob=read_blob)
+    A.require(original_profile == current_profile, 'original and current independently selected owners differ')
     authority = P.select_authority(snapshot.observations, snapshot.binding, plan, api_policy.producer,
                                    inventory_complete=snapshot.inventory_complete, now=clock())
     A.require(authority['state'] == 'proof-required', 'newest original producer cannot establish complete proof')
@@ -163,17 +177,27 @@ def verify_main(event, environment, adapter, *, root=ROOT, clock=lambda: datetim
     aggregate = P.read_artifact(raw, 'aggregate', facts, observation.run, now=clock())
     receipt = aggregate.get('results', {}).get('shared-host', {}).get('receipt')
     A.require(type(receipt) is dict and receipt.get('schema') == 3, 'original isolated execution receipt unavailable')
-    original_tree_sha, original_tree = full_tree(adapter, snapshot.binding['merge_sha'])
-    A.require(original_tree_sha == snapshot.binding['merge_tree'] == current_tree_sha and original_tree == current,
-              'integrated file tree differs from the complete actually tested source')
     original_git = producer.expected_git_context(adapter, snapshot.binding)
-    execution.validate_receipt(receipt, registry, original_tree, require_all=True, expected_git_context=original_git)
+    execution.validate_receipt(receipt, registry, original_tree,
+        require_all=original_profile['profile'] != ci_profile.PROFILE, expected_git_context=original_git)
+    A.require(receipt['requested_suites'] == selected['suites']
+        and receipt['include_platform'] == selected['include_platform'],
+        'original receipt differs from independently selected shared owners')
     original_environment = receipt['environment']
-    admission = attested.validate_environment(original_environment, aggregate.get('qualified_at'), aggregate.get('expires_at'),
-                                               clock(), root=root, isolated=True)
-    reuse = inputs.plan_reuse(registry, original_tree, current, receipt['results'], original_environment, original_environment)
-    A.require(not reuse['required'] and set(reuse['reused']) == set(registry['suites']),
-              'complete current shared input closure requires actual verification')
+    if original_profile['profile'] == ci_profile.PROFILE:
+        reuse = runtime_ci.plan_original_reuse(original_environment, aggregate.get('qualified_at'),
+            aggregate.get('expires_at'), clock(), selected, current_profile['selection'],
+            original_tree, current, local, registry, receipt['results'], root=root,read_blob=read_blob)
+        admission = reuse['admission']
+        reused_suites = reuse['reused_suites']
+        runtime_admission = {'profile': admission['profile'], 'policy_digest': admission['policy_digest']}
+    else:
+        admission = attested.validate_environment(original_environment, aggregate.get('qualified_at'), aggregate.get('expires_at'),
+                                                   clock(), root=root, isolated=True)
+        reuse = inputs.plan_reuse(registry, original_tree, current, receipt['results'], original_environment, original_environment)
+        A.require(not reuse['required'] and set(reuse['reused']) == set(registry['suites']),
+                  'complete current shared input closure requires actual verification')
+        reused_suites, runtime_admission = reuse['reused'], admission['policy']
     context = P.SharedContext(registry, original_tree, original_environment,
                              snapshot.binding['merge_sha'], original_tree_sha, original_git)
     # The original data above supplies no authority. Only these fresh complete
@@ -194,7 +218,7 @@ def verify_main(event, environment, adapter, *, root=ROOT, clock=lambda: datetim
         'current_commit': source, 'current_tree': current_tree_sha, 'current_push_run_id': run_id,
         'original_commit': snapshot.binding['merge_sha'], 'original_git_context': original_git,
         'original_proof': verified, 'original_environment_digest': admission['environment_digest'],
-        'runtime_admission': admission['policy'], 'reused_suites': reuse['reused'], 'executed_suites': [],
+        'runtime_admission': runtime_admission, 'reused_suites': reused_suites, 'executed_suites': [],
         'package_work': package_work}
 
 
@@ -206,7 +230,8 @@ def lookup(event, environment, adapter=None, *, root=ROOT, clock=lambda: datetim
         proof = verify_main(event, environment, adapter or A.Adapter(), root=root, clock=clock)
         return {'reused': True, 'proof': proof}
     except (P.ProtocolError, attested.AttestedReuseUnavailable, inputs.InputError, execution.ExecutionError,
-            sandbox.SandboxUnavailable, OSError, subprocess.SubprocessError, KeyError, TypeError, ValueError,
+            sandbox.SandboxUnavailable, ci_profile.CIProfileError, runtime_ci.CIEnvironmentError,
+            producer.PreExecutionUnavailable, OSError, subprocess.SubprocessError, KeyError, TypeError, ValueError,
             AttributeError, StopIteration):
         # API bodies, candidate strings, signed URLs and credentials never enter
         # output. This means no reuse, not success of any unexecuted test.

@@ -58,30 +58,30 @@ class HostSelectionTests(unittest.TestCase):
             'reason': 'reviewed-protected-producer-transition', 'full_host': True, 'include_platform': True})
         self.assertEqual(len(result['suites']), len(set(result['suites'])))
 
-    def test_consumer_parent_is_preserved_by_the_second_exact_producer_installation_pair(self):
+    def test_consumer_parent_is_preserved_by_each_exact_later_producer_pair(self):
         policy=HOST.package_policy()
         generations={g['name']:g['workflows'] for g in policy.workflow_generations()}
-        previous,candidate=deepcopy(self.tree),deepcopy(self.tree)
-        previous.update(deepcopy(generations['postmerge-original-e-v1']))
-        candidate.update(deepcopy(generations['protected-producer-postmerge-original-e-v1']))
-        paths=sorted(path for path in previous.keys() | candidate.keys() if previous.get(path)!=candidate.get(path))
-        selected=self.selected(paths,tree=candidate,trusted_tree=previous,base_tree=previous)
-        self.assertEqual(set(selected['suites']),self.all_names)
-        self.assertEqual(selected['reason'],'reviewed-protected-producer-transition')
-        self.assertTrue(selected['include_platform'])
-        # Neither individually approved endpoint nor the old parent tuple can
-        # be mixed into this complete second installation generation.
-        for side in ('base','candidate'):
-            for path in generations['postmerge-original-e-v1']:
-                snapshots={'base':deepcopy(previous),'candidate':deepcopy(candidate)}
-                snapshots[side][path]={'mode':'100755','type':'blob','sha':'a'*40}
-                with self.subTest(side=side,path=path):
-                    self.assertFalse(HOST._protected_producer_transition(snapshots['candidate'],paths,
-                        snapshots['base'],snapshots['base'],'main'))
-        candidate['.github/workflows/parent-qualification.yml']=deepcopy(generations['protected-shared-producer-v1'][
-            '.github/workflows/parent-qualification.yml'])
-        self.assertFalse(HOST._protected_producer_transition(candidate,paths,previous,previous,'main'))
-
+        for producer_name in ('protected-producer-postmerge-original-e-v1', 'protected-producer-ci37-v1'):
+            previous,candidate=deepcopy(self.tree),deepcopy(self.tree)
+            previous.update(deepcopy(generations['postmerge-original-e-v1']))
+            candidate.update(deepcopy(generations[producer_name]))
+            paths=sorted(path for path in previous.keys() | candidate.keys() if previous.get(path)!=candidate.get(path))
+            selected=self.selected(paths,tree=candidate,trusted_tree=previous,base_tree=previous)
+            self.assertEqual(set(selected['suites']),self.all_names)
+            self.assertEqual(selected['reason'],'reviewed-protected-producer-transition')
+            self.assertTrue(selected['include_platform'])
+            # Neither individually approved endpoint nor the old parent tuple can
+            # be mixed into either complete later installation generation.
+            for side in ('base','candidate'):
+                for path in generations['postmerge-original-e-v1']:
+                    snapshots={'base':deepcopy(previous),'candidate':deepcopy(candidate)}
+                    snapshots[side][path]={'mode':'100755','type':'blob','sha':'a'*40}
+                    with self.subTest(side=side,path=path):
+                        self.assertFalse(HOST._protected_producer_transition(snapshots['candidate'],paths,
+                            snapshots['base'],snapshots['base'],'main'))
+            candidate['.github/workflows/parent-qualification.yml']=deepcopy(generations['protected-shared-producer-v1'][
+                '.github/workflows/parent-qualification.yml'])
+            self.assertFalse(HOST._protected_producer_transition(candidate,paths,previous,previous,'main'))
     def test_producer_transition_requires_main_complete_inventory_and_current_trusted_base(self):
         previous, candidate, paths = self.producer_transition()
         for mutation in ('child', 'unknown', 'nonregular', 'missing-base', 'missing-trusted',
@@ -171,7 +171,7 @@ class HostSelectionTests(unittest.TestCase):
         generations={g['name']:g['workflows'] for g in packages.workflow_generations()}
         previous,candidate_tree=deepcopy(self.tree),deepcopy(self.tree)
         previous.update(deepcopy(generations['postmerge-original-e-v1']))
-        candidate_tree.update(deepcopy(generations['protected-producer-postmerge-original-e-v1']))
+        candidate_tree.update(deepcopy(generations['protected-producer-ci37-v1']))
         paths=sorted(path for path in previous.keys() | candidate_tree.keys()
                      if previous.get(path)!=candidate_tree.get(path))
         plan = {'candidate': 'a'*40, 'base': 'd'*40, 'plan': 'c'*64, 'host_mode': 'full',
@@ -621,8 +621,9 @@ class HostSelectionTests(unittest.TestCase):
         self.assertTrue(selected['full_host'])
 
     def test_exact_ci_admissions_do_not_waive_neighboring_tests_or_runtime_readers(self):
-        self.assertEqual(len(HOST.CI_ROLLOUT_PATHS),44)
+        self.assertEqual(len(HOST.CI_ROLLOUT_PATHS),50)
         for path in ('tools/test-evidence/new-reader.py','tools/test-evidence/postmerge_extra.py',
+                     'tools/test-evidence/runtime_ci_extra.py', '.github/ci37-runtime-extra.json',
                      'tests/project-suite-self-test-extra.py',
                      '.github/workflows/repository-checks-extra.yml'):
             self.assertTrue(self.selected([path])['include_platform'],path)
@@ -639,6 +640,9 @@ class HostSelectionTests(unittest.TestCase):
                  'tools/test-evidence/sandbox_host_fixture.py', 'tools/test-evidence/sandbox_probe.py',
                  'tools/test-evidence/sandbox_shared.py',
                  'tools/test-evidence/producer_workflow.py', 'tools/test-evidence/postmerge.py',
+                 '.github/ci37-runtime.json', 'tools/test-evidence/ci_profile.py',
+                 'tools/test-evidence/ci-profile-test.py', 'tools/test-evidence/runtime_ci.py',
+                 'tools/test-evidence/runtime-ci-test.py', 'tools/test-evidence/ci-integration-test.py',
                  'tools/repository-checks/workflows/producers/protected-project-tests.yml',
                  'tools/repository-checks/workflows/producers/repository-checks.yml',
                  'tools/repository-checks/workflows/producers/parent-qualification.yml')
@@ -650,6 +654,8 @@ class HostSelectionTests(unittest.TestCase):
                      'tools/test-evidence/sandbox_host.py', 'tools/test-evidence/sandbox_host_fixture.py',
                      'tools/test-evidence/sandbox_probe.py', 'tools/test-evidence/sandbox_shared.py',
                      'tools/test-evidence/producer_workflow.py', 'tools/test-evidence/postmerge.py',
+                     'tools/test-evidence/ci_profile.py',
+                     'tools/test-evidence/runtime_ci.py',
                      'tools/repository-checks/workflows/producers/protected-project-tests.yml',
                      'tools/repository-checks/workflows/producers/repository-checks.yml',
                      'tools/repository-checks/workflows/producers/parent-qualification.yml'):

@@ -923,16 +923,16 @@ def run_host():
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bootstrap", nargs=3, metavar=("GATE_FD", "FIXED_PLAN", "FIXTURE_CASE"))
-    parser.add_argument("--profile", choices=("boundary", "shared-host"), default="boundary")
+    parser.add_argument("--profile", choices=("boundary", "shared-host", "ci37"), default="boundary")
     arguments = parser.parse_args(argv)
     if arguments.bootstrap is not None:
         bootstrap(int(arguments.bootstrap[0]), arguments.bootstrap[1], arguments.bootstrap[2])
         return 1
     try:
-        if arguments.profile == "shared-host":
+        if arguments.profile in {"shared-host", "ci37"}:
             sys.path.insert(0, str(Path(__file__).resolve().parent))
             import sandbox_shared
-            result = sandbox_shared.run_host()
+            result = sandbox_shared.run_host_ci37() if arguments.profile == "ci37" else sandbox_shared.run_host()
         else:
             result = run_host()
         code = 0

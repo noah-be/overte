@@ -605,16 +605,111 @@ This is a new controller epoch. Earlier producer generations cannot supply its
 proof. The isolated `/work` safe-directory runtime variant has a separate false
 source capability, preserving legacy runtime admission unchanged.
 
-The two additive complete five-workflow generations permit installing this
-parent while either the legacy or protected project owner is present. All 16
-previous generations remain valid. The later protected-owner installation
+The additive complete five-workflow generations permit installing this parent
+while either the legacy or protected project owner is present. All 18 protected
+previous generations remain valid, alongside the new CI37 producer tuple. The later protected-owner installation
 still changes exactly its caller and callee and retains the approved parent.
-No active workflow or production policy is changed here. Hosted boundary,
+The active manual diagnostic matches its canonical source; production reuse
+remains disabled. Hosted boundary,
 full-profile and final-publisher qualification, the protected runtime epoch and
 reviewed source activation are required before either producer or consumer can
-authorize reuse. Qt-free reusable profiles and child consumers remain separate
-work. A successful lookup with no affected package inputs skips candidate
+authorize reuse. Child consumers remain separate work. A successful lookup
+with no affected package inputs skips candidate
 checkout and Node/Qt setup; affected independent package owners still execute.
+
+The separate source-only CI37 profile is prepared in
+[`ci_profile.py`](../tools/test-evidence/ci_profile.py),
+[`runtime_ci.py`](../tools/test-evidence/runtime_ci.py) and the disabled
+[CI37 policy](../.github/ci37-runtime.json). Its environment has schema 2 and
+profile `ubuntu24-ci37-v1`; existing full Qt environment schema 1 and execution
+receipt schema 3 remain unchanged. The exact ordered 37 CI owners, command
+definitions and a conservative immutable executable/import/discovery/lookup
+generation are mandatory. Three fixed Markdown leaves (`README.md`,
+`tests/PROJECT_TESTING.md`, `docs/BRANCH_WORKFLOW.md`) may change bytes; their
+membership and ordinary modes remain bound. The one additional data class is
+the exact `.github/branch-cleanup.json` leaf under independent closed-schema
+admission. Every workflow byte remains bound
+because reviewed tests execute some YAML snippets. Changed
+readers, unknown paths, extra commands, control-plane full owners and platform
+suites require the existing full/nonreusable execution route.
+
+The prospective capture records actual OS/image/namespace identity, the entire
+installed Debian/Python package inventories, complete protected venv/Python/Node
+file trees, Python startup and process flags, and actual Bash/Git/Node/CMake/
+CTest/Ninja/Make/GCC/binutils identities. All system headers, GCC internals,
+CMake modules, CRT and standard libraries remain conservative content inputs;
+PIE startup objects, GNU linker-script referents and resolved ELF runtime
+libraries are explicit. Unsupported tools, sysroots, lookup overrides, aliases,
+linker scripts or incomplete inventories fail capture. There are no fabricated
+Qt/GLM/Java capability fields or optional unknown identities.
+
+Original-E admission and `plan_original_reuse()` perform no consumer tool or
+environment probes. The pure plan requires exactly the same 37 original/current
+owners and successful matching fingerprints using the unchanged original E.
+It preserves original expiry, supplies no authentication or renewed receipt,
+and cannot substitute full/quick environment projections. The existing native
+adapter must independently authenticate the original schema-3 receipt and its
+whole-receipt publisher hash before a caller may use that plan.
+
+The dormant producer independently derives the exact owner from complete source
+inventories before choosing this profile. Its protected projection includes the
+fixed policy/readers; actual selected-profile capture and admission must pass
+before any candidate suite starts. Unsupported CI37 capture selects the existing
+actual fallback once; failures after candidate execution starts remain failures.
+The native publisher still binds the whole original schema-3 receipt. The main
+consumer independently derives both original and current 37-owner plans and uses
+only authenticated original E. It creates no consumer environment or proof.
+
+Source and policy flags remain false. The finite source/definition generation
+must be refreshed after reviewed composition; changed implementation bytes
+conservatively require actual fallback. The dormant protected producer selects
+its profile before Java setup. Protected CI37 uses three prepared roots; the
+full profile retains its existing four roots and Java/Qt prerequisites. A
+successful pre-execution CI37 fallback restores Java before the existing legacy
+path; a failure after execution starts cannot reach that fallback. CI37 adds no
+prepared Java mount or Java environment/PATH entry; the system
+`/usr` tree remains read-only. The CI37 schema asserts no Java capability.
+The canonical manual diagnostic has a separate fixed `ci37` choice, using the
+same protected source and cleanup checks with exactly 37 commands and actual E
+before/after. Its dedicated diagnostic capture still requires the exact finite
+generation while allowing the source/policy production gates to stay false.
+Its result always has `authority: none`, `production_qualified: false` and
+`reusable: false`. The active manual workflow includes the reviewed canonical
+choice. No hosted CI37 capture, qualification, runtime
+cost or speedup is established.
+
+After final source composition, refresh host reader metadata/`REVIEWED_PROGRAMS`
+first, then CI37 definition/generation digests, write the disabled CI37 policy,
+and refresh Android lock-reader anchors last. The exact CI37 JSON is outside
+the product-reader digest. CI37 generation retains the exact Android
+orchestration policy's path/mode/type but omits its SHA to break the second
+cycle. Admission separately requires candidate == trusted == actual protected
+root whole-blob identity; the returned selection binding and sealed controller
+projection retain that SHA. No neighboring policy or reader is exempt.
+
+The fixed cleanup-data class permits only bounded `holds` changes. Its seven
+fields retain the exact fork identity, permanent branch topology, `keep-branch`
+label and 30-day retention contract. Both complete immutable tree entries must
+be ordinary existing blobs. Admission reads both object IDs through the
+trusted bounded reader, checks the complete Git blob SHA1, rejects duplicate,
+nonfinite or unknown JSON fields, and validates the closed schema. Producer
+and protected probes use the existing config-free immutable Git reader;
+postmerge uses a bounded fixed-fork Git blob API with no candidate checkout.
+These data bytes stay in actual suite fingerprints rather than environment E.
+
+A cleanup-hold JSON delta uses the existing full host route and independently
+selects exactly 37 CI commands when all other generation inputs remain fixed.
+The three variable Markdown leaves still use the documentation route and skip
+host execution; the producer declines an unused descriptor. Other JSON/helper
+changes retain existing actual execution. Source preparation and fake API/Git
+tests establish this admission boundary, without hosted qualification or
+activation. The canonical protected preparation implements independent profile
+selection and the three-root CI37 setup; actual manual CI37 qualification is
+still required before production enablement.
+The focused offline checks are `python3 tools/test-evidence/ci-profile-test.py`
+and `python3 tools/test-evidence/runtime-ci-test.py`, plus the focused
+`ci-integration-test.py` and fake consumer cases; they use fake identity facts
+and strict negative cases without compiling native fixtures or probing host tools.
 
 The `android-build-inputs` quick suite checks dormant Phone and Pico APK source
 planning with real immutable Git histories, including standalone npm locks,
@@ -1305,5 +1400,19 @@ configuration. The reviewed extractor has no generic JSON extraction and its
 single-file TypeScript parser cannot read imported JSON; its ancestor readers
 recognize package/tsconfig files rather than these two policy leaves. Python and
 the policy governance tests remain required. Additions, removals, aliases, mode
-changes, older or unknown workflow/configuration, all other JSON, YAML, package
+changes, older or unknown workflow/configuration, other JSON, YAML, package
 locks and mixed JavaScript inputs keep their existing conservative owners.
+
+The same dormant pinned generation admits four further existing ordinary
+`100644` metadata leaves: `.github/branch-cleanup.json`, `.github/issue-policy.json`,
+`.github/repository-health.json` and `.github/dependency-releases.json`. Only when
+both immutable trees use the exact pinned workflow and unchanged configuration
+do these leaves contribute no CodeQL language. Neither pinned extractor reads
+these generic JSON files, and no candidate generator runs during the fixed
+no-build analysis. Their governance and functional tests remain required.
+Mixed Python, JavaScript, package or analysis-control changes retain their
+existing language owners. Unknown siblings, additions, deletions, renames,
+aliases, mode changes and query-pack inputs cannot inherit this exception.
+YAML remains a JavaScript analysis input. This source preparation changes no
+active workflow; the pinned workflow still needs separate deployment and hosted
+qualification before either JSON optimization applies.

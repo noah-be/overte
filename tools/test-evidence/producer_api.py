@@ -13,6 +13,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import base64
+import binascii
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -161,6 +164,39 @@ class GitHubReadOnly:
         Truncation and entry structure must still be rejected by the consumer.
         """
         return self._json(self._request(PREFIX + '/git/trees/' + sha(tree_sha) + '?recursive=1', 20_000_000))
+
+    def immutable_blob(self, blob_sha, maximum=64_000):
+        """Read one content-addressed small policy blob, never a path or ref."""
+        require(type(maximum) is int and 0 < maximum <= 64_000, 'immutable blob limit exceeds the reviewed policy bound')
+        identity = sha(blob_sha)
+        endpoint = PREFIX + '/git/blobs/' + identity
+        raw = self._request(endpoint, 100_000)
+        require(type(raw) is bytes and len(raw) <= 100_000, 'immutable blob JSON exceeds its reviewed byte bound')
+        value = self._json(raw)
+        fields = {'sha', 'size', 'encoding', 'content'}
+        require(type(value) is dict and fields <= value.keys() <= fields | {'url', 'node_id'},
+                'immutable blob response has unsupported fields')
+        require(value['sha'] == identity and value['encoding'] == 'base64'
+            and type(value['size']) is int and 0 <= value['size'] <= maximum
+            and type(value['content']) is str and len(value['content']) <= 100_000,
+            'immutable blob identity, encoding or size differs from the request')
+        require('url' not in value or value['url'] == 'https://api.github.com/' + endpoint,
+                'immutable blob URL differs from its fixed fork identity')
+        require('node_id' not in value or type(value['node_id']) is str and 0 < len(value['node_id']) <= 512,
+                'immutable blob node metadata is unsupported')
+        # GitHub wraps base64 with LF. No other whitespace or noncanonical
+        # padding can enter the exact decoded-byte identity.
+        encoded = value['content'].replace('\n', '')
+        require(len(encoded) <= 4 * ((maximum + 2) // 3), 'immutable blob content exceeds its decoded byte bound')
+        try:
+            content = base64.b64decode(encoded.encode('ascii'), validate=True)
+        except (UnicodeError, binascii.Error, ValueError):
+            raise ApiError('immutable blob content is not strict base64') from None
+        require(len(content) == value['size'] and base64.b64encode(content).decode('ascii') == encoded,
+                'immutable blob decoded size or canonical base64 differs')
+        actual = hashlib.sha1(b'blob ' + str(len(content)).encode('ascii') + b'\0' + content).hexdigest()
+        require(actual == identity, 'immutable blob content differs from its Git object identity')
+        return content
 
 
 @dataclass(frozen=True)

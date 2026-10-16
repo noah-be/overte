@@ -41,7 +41,7 @@ VARIANTS = ["complete-reviewed-launcher", "Qt6Core/Gui/Qml/Concurrent/WebChannel
 # membership, local imports and historical child differences, remain anchored.
 # This proves only that the own host run is unaffected; it is not a passing
 # test receipt, shared-owner handoff or application-build selection authority.
-REVIEWED_CI_HOST_BOUNDARY = "eb10f2ce89017a4efc75001773c1da415994dc2f4d542fb2804183bc2f77ba15"
+REVIEWED_CI_HOST_BOUNDARY = "09469192aac99ef9e1ff991a2c6be58942ed9e76f1f35dd2d5b23d4ea1dc15bb"
 CI_HOST_INDEPENDENT_PATHS = frozenset({
     ".github/shared-sandbox.json",
     ".github/workflows/shared-sandbox-host-diagnostic.yml",
@@ -55,6 +55,16 @@ CI_HOST_INDEPENDENT_PATHS = frozenset({
     "tools/test-evidence/sandbox_shared.py",
     "tools/test-evidence/producer_workflow.py",
     "tools/test-evidence/postmerge.py",
+    "tests/run-unittest-suite.py",
+    "tests/unittest-runner-test.py",
+    ".github/ci37-runtime.json",
+    "tools/test-evidence/ci_profile.py",
+    "tools/test-evidence/runtime_ci.py",
+    "tools/test-evidence/ci-profile-test.py",
+    "tools/test-evidence/runtime-ci-test.py",
+    "tools/test-evidence/ci-integration-test.py",
+    "tools/repository-checks/workflows/producers/legacy/protected-project-tests-v1.yml",
+    "tools/repository-checks/workflows/producers/legacy/protected-project-tests-postmerge-v1.yml",
     "tools/repository-checks/workflows/producers/protected-project-tests.yml",
     "tools/repository-checks/workflows/producers/repository-checks.yml",
     "tools/repository-checks/workflows/producers/parent-qualification.yml",

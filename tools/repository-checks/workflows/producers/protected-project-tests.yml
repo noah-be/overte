@@ -112,12 +112,20 @@ jobs:
       uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
       with:
         node-version: '22'
+    - name: Independently select affected host contracts
+      id: host
+      env:
+        EXPECTED_PLAN: ${{ needs.route.outputs.package_plan }}
+      run: python3 trusted/tools/repository-checks/host_selection.py --candidate candidate --event "$GITHUB_EVENT_PATH" --sha
+        "$GITHUB_SHA" --expected-plan "$EXPECTED_PLAN" --select-only --output "$GITHUB_OUTPUT"
     - name: Set up Java
+      if: needs.route.outputs.protected_full != 'true' || steps.host.outputs.full_host != 'false'
       uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
       with:
         distribution: temurin
         java-version: '17'
     - name: Verify runner prerequisites
+      if: needs.route.outputs.protected_full != 'true' || steps.host.outputs.full_host != 'false'
       run: |
         set -euo pipefail
         command -v bash
@@ -128,12 +136,6 @@ jobs:
         python3 --version
         node --version
         java -version
-    - name: Independently select affected host contracts
-      id: host
-      env:
-        EXPECTED_PLAN: ${{ needs.route.outputs.package_plan }}
-      run: python3 trusted/tools/repository-checks/host_selection.py --candidate candidate --event "$GITHUB_EVENT_PATH" --sha
-        "$GITHUB_SHA" --expected-plan "$EXPECTED_PLAN" --select-only --output "$GITHUB_OUTPUT"
     - name: Install QML and portable C++ contract prerequisites
       if: steps.host.outputs.full_host == 'true'
       run: |
@@ -150,7 +152,7 @@ jobs:
           qml6-module-qt-labs-settings qml6-module-qtquick-dialogs qml6-module-qttest
         pkg-config --print-errors --exists Qt5Quick Qt5WebChannel Qt5Network Qt6Quick Qt6WebChannel Qt6Network
     - name: Prepare the protected trusted host environment
-      if: needs.route.outputs.protected_full == 'true'
+      if: needs.route.outputs.protected_full == 'true' && steps.host.outputs.full_host != 'false'
       run: |
         test ! -e /opt/overte-ci
         sudo -n /usr/bin/install -d -m 755 -o "$UID" /opt/overte-ci
@@ -161,6 +163,8 @@ jobs:
         PYTHON_ROOT="$(python3 -c 'import sys; print(sys.base_prefix)')"
         NODE_ROOT="$(node -p 'require("path").dirname(require("path").dirname(process.execPath))')"
         test -n "$JAVA_HOME"
+        # The hosted Java cache is an alias to its actual system JDK.
+        JAVA_HOME="$(readlink -e -- "$JAVA_HOME")"
         python3 -I - "$PYTHON_ROOT" "$NODE_ROOT" "$JAVA_HOME" <<'PYROOTS'
         from pathlib import Path
         import re
@@ -175,14 +179,65 @@ jobs:
                 assert path.parts[3] == ('Python' if index == 1 else 'node')
                 assert re.fullmatch(r'3[.]12[.][0-9]+' if index == 1 else r'22[.][0-9]+[.][0-9]+', path.parts[4])
             elif index == 3:
-                assert (path.is_relative_to('/opt/hostedtoolcache') and len(path.parts) == 6
-                        or path.is_relative_to('/usr/lib/jvm') and len(path.parts) == 5)
+                assert (path == Path('/usr/lib/jvm/temurin-17-jdk-amd64')
+                        or path.is_relative_to('/opt/hostedtoolcache') and len(path.parts) == 6
+                        and path.parts[3] == 'Java_Temurin-Hotspot_jdk'
+                        and re.fullmatch(r'17[.][0-9]+[.][0-9]+-[0-9]+', path.parts[4])
+                        and path.parts[5] == 'x64')
         assert all(not left.is_relative_to(right) and not right.is_relative_to(left)
                    for i, left in enumerate(roots) for right in roots[i + 1:])
         PYROOTS
         sudo -n /usr/bin/chown -hR root:root -- /opt/overte-ci "$PYTHON_ROOT" "$NODE_ROOT" "$JAVA_HOME"
         # Preserve executable/read bits and do not follow descendant aliases.
         sudo -n /usr/bin/chmod -R go-w -- /opt/overte-ci "$PYTHON_ROOT" "$NODE_ROOT" "$JAVA_HOME"
+    - name: Prepare the protected CI37 host environment
+      if: needs.route.outputs.protected_full == 'true' && steps.host.outputs.full_host == 'false'
+      run: |
+        set -euo pipefail
+        missing=()
+        if ! command -v cmake >/dev/null || ! command -v ctest >/dev/null; then missing+=(cmake); fi
+        if ! command -v ninja >/dev/null; then missing+=(ninja-build); fi
+        if ! command -v make >/dev/null || ! command -v gmake >/dev/null; then missing+=(make); fi
+        if ! command -v g++ >/dev/null || ! command -v gcc >/dev/null; then missing+=(g++); fi
+        if ((${#missing[@]})); then
+          sudo -n /usr/bin/apt-get update
+          sudo -n /usr/bin/apt-get install --no-install-recommends -y "${missing[@]}"
+        fi
+        test ! -e /opt/overte-ci
+        sudo -n /usr/bin/install -d -m 755 -o "$UID" /opt/overte-ci
+        python3 -m venv /opt/overte-ci/venv
+        /opt/overte-ci/venv/bin/python -m pip install --disable-pip-version-check -r trusted/tests/requirements-host.txt
+        PYTHON_ROOT="$(python3 -c 'import sys; print(sys.base_prefix)')"
+        NODE_ROOT="$(node -p 'require("path").dirname(require("path").dirname(process.execPath))')"
+        python3 -I - "$PYTHON_ROOT" "$NODE_ROOT" <<'PYROOTS'
+        from pathlib import Path
+        import re
+        import sys
+        roots = [Path('/opt/overte-ci'), *(Path(value) for value in sys.argv[1:])]
+        assert len(roots) == 3 and len(set(roots)) == 3, 'ambiguous CI37 prepared tool roots'
+        for index, path in enumerate(roots):
+            assert path.is_absolute() and path.is_dir() and not path.is_symlink()
+            assert path == path.resolve(strict=True), 'CI37 prepared tool root contains an alias'
+            if index:
+                assert path.is_relative_to('/opt/hostedtoolcache') and len(path.parts) == 6
+                assert path.parts[3] == ('Python' if index == 1 else 'node')
+                assert re.fullmatch(r'3[.]12[.][0-9]+' if index == 1 else r'22[.][0-9]+[.][0-9]+', path.parts[4])
+        assert all(not left.is_relative_to(right) and not right.is_relative_to(left)
+                   for i, left in enumerate(roots) for right in roots[i + 1:])
+        PYROOTS
+        sudo -n /usr/bin/chown -hR root:root -- /opt/overte-ci "$PYTHON_ROOT" "$NODE_ROOT"
+        sudo -n /usr/bin/chmod -R go-w -- /opt/overte-ci "$PYTHON_ROOT" "$NODE_ROOT"
+    - name: Verify protected CI37 runner prerequisites
+      if: needs.route.outputs.protected_full == 'true' && steps.host.outputs.full_host == 'false'
+      run: |
+        set -euo pipefail
+        command -v bash
+        command -v jq
+        command -v cmake
+        command -v ninja
+        command -v ctest
+        python3 --version
+        node --version
     - name: Ensure the required namespace tool is available
       run: |
         set -euo pipefail
@@ -231,8 +286,26 @@ jobs:
           GITHUB_BASE_REF="$GITHUB_BASE_REF" GITHUB_HEAD_REF="$GITHUB_HEAD_REF" \
           GITHUB_WORKSPACE="$GITHUB_WORKSPACE" GITHUB_EVENT_PATH="$GITHUB_EVENT_PATH" \
           RUNNER_TEMP="$RUNNER_TEMP" GITHUB_OUTPUT="$GITHUB_OUTPUT" GH_TOKEN="$GH_TOKEN" \
-          QUALIFY_NODE_ROOT="$NODE_ROOT" QUALIFY_JAVA_HOME="$JAVA_HOME" \
+          QUALIFY_NODE_ROOT="$NODE_ROOT" QUALIFY_JAVA_HOME="${JAVA_HOME:-}" \
           /usr/bin/python3 "$GITHUB_WORKSPACE/trusted/tools/test-evidence/producer_workflow.py" shared --candidate "$GITHUB_WORKSPACE/candidate"
+    - name: Set up Java for pre-execution fallback
+      if: needs.route.outputs.protected_full == 'true' && steps.host.outputs.full_host == 'false' && steps.protected.outputs.protected_executed != 'true'
+      uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+      with:
+        distribution: temurin
+        java-version: '17'
+    - name: Verify fallback runner prerequisites
+      if: needs.route.outputs.protected_full == 'true' && steps.host.outputs.full_host == 'false' && steps.protected.outputs.protected_executed != 'true'
+      run: |
+        set -euo pipefail
+        command -v bash
+        command -v jq
+        command -v cmake
+        command -v ninja
+        command -v ctest
+        python3 --version
+        node --version
+        java -version
     - name: Prepare isolated host evidence validators
       env:
         GH_TOKEN: ''

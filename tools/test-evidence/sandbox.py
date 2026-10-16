@@ -735,7 +735,7 @@ class Layout:
     toolchains: tuple[Path, ...] = ()
 
 
-def build_plan(layout, command, *, root=ROOT, environment=None):
+def build_plan(layout, command, *, root=ROOT, environment=None, runtime_profile='ubuntu24-host-qt5-qt6-v1'):
     """Render fixed bwrap arguments for review, NOT a launch authorization.
 
     The future launcher must first establish a distinct real host UID and a
@@ -766,10 +766,14 @@ def build_plan(layout, command, *, root=ROOT, environment=None):
     allowed.update(str(path / "bin/node") for path in toolchains)
     _require(command[0] in allowed, "sandbox entrypoint is outside the initial reviewed command inventory")
     effective = dict(_ENVIRONMENT)
+    _require(runtime_profile in {'ubuntu24-host-qt5-qt6-v1','ubuntu24-ci37-v1'}, 'unknown sandbox runtime profile')
+    if runtime_profile == 'ubuntu24-ci37-v1':
+        for name in ('QT_QPA_PLATFORM','QT_QUICK_BACKEND','OVERTE_QML_TEST_RUNNER'):
+            effective.pop(name)
     effective["PATH"] = ":".join(["/opt/overte-ci/venv/bin", *(str(path / "bin") for path in toolchains), "/usr/bin", "/bin"])
     _require(environment is None or isinstance(environment, dict), "sandbox environment is unsupported")
     for name, value in (environment or {}).items():
-        if name in runtime._CHOICES:
+        if name in runtime._CHOICES and runtime_profile == 'ubuntu24-host-qt5-qt6-v1':
             choices, _ = runtime._CHOICES[name]
             _require(type(value) is str and value in choices, "sandbox variant is unsupported")
             effective[name] = next(choice for choice in choices if choice == value)

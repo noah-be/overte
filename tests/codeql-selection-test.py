@@ -33,8 +33,94 @@ class LanguageSelectionTests(unittest.TestCase):
     def pinned_trees(self):
         before = reviewed_tree()
         before['.github/workflows/codeql.yml']['sha'] = CODEQL._PINNED_RESULTS_WORKFLOW
-        before.update({path: entry() for path in CODEQL._PYTHON_POLICY_JSONS})
+        before.update({path: entry() for path in CODEQL._PYTHON_POLICY_JSONS | CODEQL._INERT_CI_JSONS})
         return before, deepcopy(before)
+
+    def test_only_four_existing_ci_metadata_leaves_need_no_language_in_the_pinned_generation(self):
+        self.assertEqual(CODEQL._INERT_CI_JSONS, {
+            '.github/branch-cleanup.json', '.github/issue-policy.json',
+            '.github/repository-health.json', '.github/dependency-releases.json'})
+        for path in CODEQL._INERT_CI_JSONS:
+            for event in ('pull_request', 'push'):
+                before, after = self.pinned_trees()
+                after[path] = entry('b')
+                with self.subTest(path=path, event=event):
+                    plan = CODEQL.select_languages(before, after, event=event)
+                    self.assertEqual(plan['languages'], [])
+                    self.assertFalse(plan['full_scan'])
+                    self.assertEqual(plan['reasons'], [{'code': 'reviewed-pinned-ci-metadata', 'path': path}])
+                    self.assertEqual([change['path'] for change in plan['changes']], [path])
+
+    def test_ci_metadata_mixed_changes_retain_every_existing_language_owner(self):
+        for changed, expected in (
+                ({'tools/helper.py'}, ['python']),
+                ({'browser-client/main.ts'}, ['javascript-typescript']),
+                ({'tools/helper.py', 'browser-client/main.ts'}, list(CODEQL.LANGUAGES)),
+                ({'.github/android-orchestration.json'}, ['python']),
+                ({'.github/test-suites.json'}, ['python']),
+                ({'.github/workflows/branch-cleanup.yml'}, ['javascript-typescript']),
+                ({'tools/repository-checks/workflows/producers/parent-qualification.yml'}, ['javascript-typescript']),
+                ({'browser-client/package-lock.json'}, ['javascript-typescript']),
+                ({'script-archive/marketplace/S3Server/package-lock.json'}, ['javascript-typescript']),
+                ({'.github/unknown-metadata.json'}, ['javascript-typescript']),
+                ({'tools/repository-checks/codeql.py'}, list(CODEQL.LANGUAGES)),
+                ({'tools/repository-checks/check.py'}, list(CODEQL.LANGUAGES)),
+                ({'bin/unknown-input'}, list(CODEQL.LANGUAGES)),
+                ({'custom/qlpack.yml'}, list(CODEQL.LANGUAGES))):
+            before, after = self.pinned_trees()
+            for path in CODEQL._INERT_CI_JSONS | changed: after[path] = entry('b')
+            with self.subTest(changed=changed):
+                self.assertEqual(CODEQL.select_languages(before, after)['languages'], expected)
+
+    def test_ci_metadata_cannot_omit_added_deleted_renamed_or_nonordinary_paths(self):
+        for path in CODEQL._INERT_CI_JSONS:
+            for mutation in ('addition', 'removal', 'renamed', 'before-executable', 'after-executable', 'symlink', 'gitlink'):
+                before, after = self.pinned_trees()
+                after[path] = entry('b')
+                if mutation == 'addition': del before[path]
+                elif mutation == 'removal': del after[path]
+                elif mutation == 'renamed': after[path + '.other.json'] = after.pop(path)
+                elif mutation == 'before-executable': before[path] = entry(mode='100755')
+                else:
+                    after[path] = entry('b', {'after-executable': '100755', 'symlink': '120000', 'gitlink': '160000'}[mutation])
+                expected = list(CODEQL.LANGUAGES) if mutation in ('symlink', 'gitlink') else ['javascript-typescript']
+                with self.subTest(path=path, mutation=mutation):
+                    self.assertEqual(CODEQL.select_languages(before, after)['languages'], expected)
+
+    def test_ci_metadata_requires_both_pinned_workflows_and_cannot_hide_pack_or_alias_inputs(self):
+        for previous in (CODEQL._REVIEWED_CONTROLS['.github/workflows/codeql.yml'], CODEQL._SELECTIVE_WORKFLOW,
+                         CODEQL._RESULTS_WORKFLOW, CODEQL._RETARGET_RESULTS_WORKFLOW):
+            before, after = self.pinned_trees()
+            for path in CODEQL._INERT_CI_JSONS: after[path] = entry('b')
+            before['.github/workflows/codeql.yml']['sha'] = previous
+            after['.github/workflows/codeql.yml']['sha'] = previous
+            self.assertEqual(CODEQL.select_languages(before, after)['languages'], ['javascript-typescript'])
+            after['.github/workflows/codeql.yml']['sha'] = CODEQL._PINNED_RESULTS_WORKFLOW
+            self.assertTrue(CODEQL.select_languages(before, after)['full_scan'])
+        for path in CODEQL._REVIEWED_CONTROLS:
+            for side in ('before', 'after'):
+                before, after = self.pinned_trees()
+                after['.github/branch-cleanup.json'] = entry('b')
+                (before if side == 'before' else after)[path] = entry('c')
+                with self.subTest(path=path, side=side):
+                    self.assertEqual(CODEQL.select_languages(before, after)['reasons'][0]['code'],
+                                     'unreviewed-analysis-configuration')
+        for unknown in ('.github/qlpack.yml', 'qlpack.yml', 'unchanged-alias.js', 'unchanged-submodule'):
+            before, after = self.pinned_trees()
+            mode = '120000' if unknown.endswith('.js') else '160000' if unknown == 'unchanged-submodule' else '100644'
+            before[unknown] = after[unknown] = entry(mode=mode)
+            after['.github/branch-cleanup.json'] = entry('b')
+            with self.subTest(unknown=unknown):
+                self.assertTrue(CODEQL.select_languages(before, after)['full_scan'])
+
+    def test_ci_metadata_keeps_schedule_unknown_events_and_inventory_failures_conservative(self):
+        before, after = self.pinned_trees()
+        after['.github/branch-cleanup.json'] = entry('b')
+        for event in ('schedule', 'workflow_dispatch', 'pull_request_target', 'unknown'):
+            with self.subTest(event=event):
+                self.assertTrue(CODEQL.select_languages(before, after, event=event)['full_scan'])
+        for left, right in ((None, after), (before, None), ({}, after)):
+            self.assertTrue(CODEQL.select_languages(left, right)['full_scan'])
 
     def test_only_existing_ordinary_policy_jsons_use_python_in_the_exact_pinned_generation(self):
         for path in CODEQL._PYTHON_POLICY_JSONS:
@@ -499,13 +585,14 @@ class SelectedResultTests(unittest.TestCase):
     def verify(self, **options):
         return RESULTS.Verifier(self.root, self.event, self.env, api=self.api, **options).verify(processing_seconds=0)
 
-    def pinned_policy_candidate(self):
+    def pinned_policy_candidate(self, changed_path='.github/test-suites.json', extra_sources=None):
         """Real immutable two-parent candidate; only fake authenticated API I/O."""
         self.write(RESULTS.WORKFLOW,
                    (ROOT / 'tools/repository-checks/workflows/metadata-edits/codeql-pinned.yml').read_text())
-        for path in CODEQL._PYTHON_POLICY_JSONS: self.write(path, '{"fixture":1}\n')
+        for path in CODEQL._PYTHON_POLICY_JSONS | CODEQL._INERT_CI_JSONS: self.write(path, '{"fixture":1}\n')
         self.base = self.commit()
-        self.write('.github/test-suites.json', '{"fixture":2}\n')
+        self.write(changed_path, '{"fixture":2}\n')
+        for path, source in (extra_sources or {}).items(): self.write(path, source)
         self.head = self.commit()
         self.candidate = self.git('commit-tree', self.git('rev-parse', self.head + '^{tree}'),
                                   '-p', self.base, '-p', self.head, '-m', 'Pinned policy merge fixture')
@@ -522,6 +609,35 @@ class SelectedResultTests(unittest.TestCase):
             'status': 'completed', 'conclusion': 'success',
             'started_at': '2026-10-15T21:00:02Z', 'completed_at': '2026-10-15T21:00:03Z'})
         self.analyses[0]['commit_sha'] = self.candidate
+
+    def test_pinned_ci_metadata_uses_real_git_and_still_requires_current_successful_selector(self):
+        self.pinned_policy_candidate('.github/branch-cleanup.json')
+        self.env['CODEQL_EXPECTED_LANGUAGES'] = '[]'
+        selector = deepcopy(self.jobs[-1])
+        self.jobs, self.analyses = [selector], []
+        self.write('browser/main.ts', '// dirty worktree never changes immutable selection\n')
+        self.assertEqual(self.verify()['languages'], [])
+        self.assertFalse(any('/code-scanning/' in call for call in self.api.calls))
+        for mutation in ('missing', 'failure', 'skipped', 'stale-head', 'wrong-attempt', 'duplicate'):
+            self.jobs = [deepcopy(selector)]
+            if mutation == 'missing': self.jobs.clear()
+            elif mutation == 'failure': self.jobs[0]['conclusion'] = 'failure'
+            elif mutation == 'skipped': self.jobs[0]['conclusion'] = 'skipped'
+            elif mutation == 'stale-head': self.jobs[0]['head_sha'] = self.base
+            elif mutation == 'wrong-attempt': self.jobs[0]['run_attempt'] = 2
+            else: self.jobs.append(deepcopy(selector))
+            with self.subTest(mutation=mutation), self.assertRaises(RESULTS.ResultError): self.verify()
+
+    def test_ci_metadata_cannot_hide_changed_python_or_an_open_current_python_finding(self):
+        self.pinned_policy_candidate('.github/issue-policy.json', {'tools/check.py': '# changed Python\n'})
+        self.env['CODEQL_EXPECTED_LANGUAGES'] = '[]'
+        with self.assertRaisesRegex(RESULTS.ResultError, 'independent immutable selection'): self.verify()
+        self.env['CODEQL_EXPECTED_LANGUAGES'] = '["python"]'
+        self.assertEqual(self.verify()['languages'], ['python'])
+        self.alerts = [{'number': 9, 'state': 'open', 'tool': {'name': 'CodeQL'}}]
+        self.instances = {9: [{'ref': self.env['GITHUB_REF'], 'commit_sha': self.candidate,
+            'category': '/language:python', 'state': 'open', 'analysis_key': RESULTS.ANALYSIS_KEY}]}
+        with self.assertRaisesRegex(RESULTS.ResultError, 'open CodeQL finding'): self.verify()
 
     def test_pinned_policy_json_uses_python_results_bound_to_actual_candidate_and_extractor(self):
         old_candidate = self.candidate
