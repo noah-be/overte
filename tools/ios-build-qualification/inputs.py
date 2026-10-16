@@ -45,6 +45,7 @@ REVIEWED_BOUNDARY = "sha256:cc243adcadf8cf8f51e1226a30f908552e5511126be995f916b2
 INDEPENDENT_HOST_PATHS = frozenset({
     ".github/test-suite-dependencies.json",
     "tools/test-evidence/affected-test.py",
+    "tools/test-evidence/AFFECTED_SELECTION.md",
     ".github/shared-sandbox.json",
     ".github/workflows/shared-sandbox-host-diagnostic.yml",
     "tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml",

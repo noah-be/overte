@@ -69,6 +69,7 @@ VARIANTS = {
 INDEPENDENT_HOST_PATHS = {
     ".github/test-suite-dependencies.json": "100644",
     "tools/test-evidence/affected-test.py": "100644",
+    "tools/test-evidence/AFFECTED_SELECTION.md": "100644",
     ".github/android-checks.json": "100644",
     ".github/codeql/codeql-config.yml": "100644",
     ".github/repository-checks.json": "100644",

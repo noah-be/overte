@@ -311,7 +311,11 @@ def select(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_
         return affected
     # Do not replace a stronger existing CI37/package proof with broad unproved
     # repository owners, or relabel that proof as an unsupported environment.
-    return affected if set(affected['suites']) < set(legacy['suites']) else legacy
+    narrower = set(affected['suites']) < set(legacy['suites'])
+    # Fewer owners cannot justify broader preparation. In particular, keep the
+    # existing Qt-free route until a subset has equivalent setup authority.
+    no_broader_setup = not affected['full_host'] or legacy['full_host']
+    return affected if narrower and no_broader_setup else legacy
 
 
 def _select_legacy(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_root=ROOT,

@@ -298,6 +298,21 @@ class ShippingPolicyTests(unittest.TestCase):
                 options={'base_tree':base,'trusted_tree':base,'unknown':unknown}
                 self.assertEqual(host.select(base,paths,regular,**options),host._select_legacy(base,paths,regular,**options))
 
+    def test_fewer_groups_cannot_replace_an_existing_narrower_preparation_route(self):
+        root=Path(__file__).resolve().parents[2]
+        spec=importlib.util.spec_from_file_location('affected_setup_dominance',root/'tools/repository-checks/host_selection.py')
+        host=importlib.util.module_from_spec(spec);spec.loader.exec_module(host)
+        for legacy_full,affected_full in ((False,True),(False,False),(True,True),(True,False)):
+            legacy={'suites':['owner-a','owner-b'],'reason':'reviewed-ci-only-inputs',
+                    'full_host':legacy_full,'include_platform':False}
+            affected={'suites':['owner-a'],'reason':'protected-affected-dependencies',
+                      'full_host':affected_full,'include_platform':False}
+            with self.subTest(legacy_full=legacy_full,affected_full=affected_full), \
+                    patch.object(host,'_select_legacy',return_value=legacy), \
+                    patch.object(host,'affected_selection',return_value=affected):
+                selected=host.select({},['reviewed-ci-leaf'],True)
+                self.assertIs(selected,legacy if affected_full and not legacy_full else affected)
+
     def test_nonempty_or_changed_platform_cannot_enter_partial_route_even_on_both_sides(self):
         _,registry,raw,base=self.shipping_context()
         changed=deepcopy(base);changed['tests/platform-profile.json']=blob(b'{"schema":1,"platform":"android","suites":[{}]}')
@@ -329,7 +344,8 @@ class DependencyPolicyRoutingTests(unittest.TestCase):
         ios=self.module('affected_ios_inputs','tools/ios-build-qualification/inputs.py')
         host=self.module('affected_ios_host','tools/ios-build-qualification/host.py')
         android=self.module('affected_android_inputs','tools/repository-checks/android-build-inputs.py')
-        paths=(inputs.AFFECTED_POLICY,'tools/test-evidence/affected-test.py')
+        paths=(inputs.AFFECTED_POLICY,'tools/test-evidence/affected-test.py',
+               'tools/test-evidence/AFFECTED_SELECTION.md')
         for path in paths:
             with self.subTest(path=path):
                 entry=ios.Entry(path,'100644','blob','a'*40)
@@ -345,7 +361,8 @@ class DependencyPolicyRoutingTests(unittest.TestCase):
                         self.assertEqual(ios._kind(altered),'application-input')
                         self.assertEqual(android._kind(altered),'application-input')
                         self.assertIsNone(host.ci_host_omission(old,SimpleNamespace(entries=(altered,))))
-        for path in ('.github/test-suite-dependencies-extra.json','tools/test-evidence/affected-extra-test.py'):
+        for path in ('.github/test-suite-dependencies-extra.json','tools/test-evidence/affected-extra-test.py',
+                     'tools/test-evidence/AFFECTED_SELECTION-extra.md'):
             entry=ios.Entry(path,'100644','blob','a'*40)
             self.assertEqual(ios._kind(entry),'application-input')
             self.assertEqual(android._kind(entry),'application-input')
@@ -355,7 +372,8 @@ class DependencyPolicyRoutingTests(unittest.TestCase):
         ios=self.module('affected_ios_reviewed','tools/ios-build-qualification/inputs.py')
         host=self.module('affected_ios_host_reviewed','tools/ios-build-qualification/host.py')
         snapshot=ios.read_snapshot(Path(__file__).resolve().parents[2],ios.REVIEWED_REVISION)
-        self.assertFalse({inputs.AFFECTED_POLICY,'tools/test-evidence/affected-test.py'} & {e.path for e in snapshot.entries})
+        self.assertFalse({inputs.AFFECTED_POLICY,'tools/test-evidence/affected-test.py',
+                          'tools/test-evidence/AFFECTED_SELECTION.md'} & {e.path for e in snapshot.entries})
         self.assertEqual(ios._boundary(snapshot),ios.REVIEWED_BOUNDARY)
         self.assertEqual(host.ci_host_boundary(snapshot),host.REVIEWED_CI_HOST_BOUNDARY)
 
@@ -363,7 +381,8 @@ class DependencyPolicyRoutingTests(unittest.TestCase):
         native=self.module('affected_native_route','tools/native-tests/check.py')
         checks=self.module('affected_repository_route','tools/repository-checks/check.py')
         packages=self.module('affected_package_route','tools/repository-checks/package_checks.py')
-        paths=[inputs.AFFECTED_POLICY,'tools/test-evidence/affected-test.py']
+        paths=[inputs.AFFECTED_POLICY,'tools/test-evidence/affected-test.py',
+               'tools/test-evidence/AFFECTED_SELECTION.md']
         self.assertEqual(native.plan(paths)['mode'],'skip')
         direct=checks.direct_browser_plan(paths)
         self.assertFalse(direct['browser']);self.assertFalse(direct['native'])
