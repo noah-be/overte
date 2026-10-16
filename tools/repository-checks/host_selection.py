@@ -74,6 +74,12 @@ CI_ROLLOUT_PATHS = frozenset({
     'tools/test-evidence/runtime-test.py', 'tools/test-evidence/runtime.py',
     'tools/test-evidence/test.py', 'tools/test-evidence/validate-sync-test.py',
     'tools/test-evidence/validate-sync.py',
+    # Fixed CI boundary diagnostics and their owning controls; these paths are
+    # not product sources. Actual controller bytes stay bound below.
+    '.github/shared-sandbox.json', '.github/workflows/shared-sandbox-host-diagnostic.yml',
+    'tools/test-evidence/sandbox-test.py', 'tools/test-evidence/sandbox-host-test.py',
+    'tools/test-evidence/sandbox.py', 'tools/test-evidence/sandbox_host.py',
+    'tools/test-evidence/sandbox_host_fixture.py', 'tools/test-evidence/sandbox_probe.py',
 })
 # These product contracts do not consume the admitted CI inputs. Their source,
 # helpers, fixtures, import/include membership AND definitions are bound below.
@@ -95,6 +101,9 @@ PROGRAM_INPUTS = (
     'tools/test-evidence/inputs.py', 'tools/test-evidence/producer.py',
     'tools/test-evidence/producer_api.py', 'tools/test-evidence/run.py',
     'tools/test-evidence/runtime.py', 'tools/test-evidence/validate-sync.py',
+    '.github/shared-sandbox.json', 'tools/test-evidence/sandbox.py',
+    'tools/test-evidence/sandbox_host.py', 'tools/test-evidence/sandbox_host_fixture.py',
+    'tools/test-evidence/sandbox_probe.py',
     # Actual assertions consume these documents; the generic Markdown rule does
     # not exempt them. Their membership, modes and bytes remain immutable inputs.
     'android/vr/common/openxr/README.md',

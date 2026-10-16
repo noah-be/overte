@@ -36,6 +36,19 @@ REVIEWED_ANDROID_CI_PATHS = (
 )
 
 
+REVIEWED_SANDBOX_CI_PATHS = (
+    ".github/shared-sandbox.json",
+    ".github/workflows/shared-sandbox-host-diagnostic.yml",
+    "tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml",
+    "tools/test-evidence/sandbox.py",
+    "tools/test-evidence/sandbox-test.py",
+    "tools/test-evidence/sandbox_host.py",
+    "tools/test-evidence/sandbox-host-test.py",
+    "tools/test-evidence/sandbox_host_fixture.py",
+    "tools/test-evidence/sandbox_probe.py",
+)
+
+
 class ImmutableInputTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
@@ -122,6 +135,7 @@ class ImmutableInputTests(unittest.TestCase):
         plan = self.assert_independent(self.commit("Propagate reviewed host CI foundation inventory"))
         self.assertTrue(plan["changes"])
         self.assertTrue(set(REVIEWED_ANDROID_CI_PATHS).issubset(INPUTS.INDEPENDENT_HOST_PATHS))
+        self.assertTrue(set(REVIEWED_SANDBOX_CI_PATHS).issubset(INPUTS.INDEPENDENT_HOST_PATHS))
         self.assertTrue(all(change["kind"] == "independent-host" for change in plan["changes"]))
         self.assertTrue({"tests/android-ci-test.py", "tests/repository-health-test.py", "tests/run-project-tests.py",
                          "tools/repository-checks/check.py", "tools/repository-checks/android.py",
@@ -183,6 +197,28 @@ class ImmutableInputTests(unittest.TestCase):
                 self.git("checkout", "-q", "--detach", self.base)
                 self.write(relative, "# Unknown sibling or real product target\n")
                 self.assertTrue(self.plan(self.commit("Reject unreviewed Android input"))["requires_application_build"])
+
+    def test_sandbox_ci_paths_require_exact_ordinary_sources(self):
+        for relative in REVIEWED_SANDBOX_CI_PATHS:
+            for mode in ("100755", "120000"):
+                with self.subTest(path=relative, mode=mode):
+                    self.git("checkout", "-q", "--detach", self.base)
+                    self.write(relative, "# Reviewed sandbox CI fixture\n")
+                    if mode == "120000":
+                        (self.root / relative).unlink()
+                        (self.root / relative).symlink_to("unreviewed-target")
+                    else:
+                        (self.root / relative).chmod(0o755)
+                    self.assertTrue(self.plan(self.commit("Reject nonordinary sandbox CI"))["requires_application_build"])
+        for relative in (".github/shared-sandbox-extra.json",
+                         ".github/workflows/shared-sandbox-host-extra.yml",
+                         "tools/repository-checks/workflows/shared-sandbox-extra.yml",
+                         "tools/test-evidence/sandbox_extra.py",
+                         "tools/test-evidence/sandbox_native.h"):
+            with self.subTest(path=relative):
+                self.git("checkout", "-q", "--detach", self.base)
+                self.write(relative, "# Unknown sandbox sibling or native scanner input\n")
+                self.assertTrue(self.plan(self.commit("Reject unknown sandbox input"))["requires_application_build"])
 
     def npm_fixture(self):
         """Review a disposable real-Git graph, retaining actual dependency entries."""

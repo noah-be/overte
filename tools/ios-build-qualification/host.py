@@ -43,6 +43,15 @@ VARIANTS = ["complete-reviewed-launcher", "Qt6Core/Gui/Qml/Concurrent/WebChannel
 # test receipt, shared-owner handoff or application-build selection authority.
 REVIEWED_CI_HOST_BOUNDARY = "eb10f2ce89017a4efc75001773c1da415994dc2f4d542fb2804183bc2f77ba15"
 CI_HOST_INDEPENDENT_PATHS = frozenset({
+    ".github/shared-sandbox.json",
+    ".github/workflows/shared-sandbox-host-diagnostic.yml",
+    "tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml",
+    "tools/test-evidence/sandbox.py",
+    "tools/test-evidence/sandbox-test.py",
+    "tools/test-evidence/sandbox_host.py",
+    "tools/test-evidence/sandbox-host-test.py",
+    "tools/test-evidence/sandbox_host_fixture.py",
+    "tools/test-evidence/sandbox_probe.py",
     ".github/workflows/android-required.yml",
     ".github/android-owner-transfer.json",
     "tests/android-owner-transfer-test.py",
