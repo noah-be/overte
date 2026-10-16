@@ -84,6 +84,25 @@ preserves child product/profile differences and all required checks. Android
 platform suites remain separate required owners; unsupported profiles select
 actual execution rather than relabeling shared results.
 
+The unenrolled Android common/platform recipe keeps the original selection of
+60 common suites and its complete 13 or 19 platform declaration. Only that complete
+future catalog generation can separate the common native owner from a fresh
+platform job. The common schema3 receipt records `include_platform: false` and
+empty `platform_results`; it retains the actual full isolated environment and
+cannot certify any Android command. Original-proof consumers also authenticate
+the original completed platform job, then require the separate current platform
+job through the final project or parent gate. The parent retains the required
+`Qualify exact parent` check downstream of both jobs.
+
+The platform job preserves the existing Java 17, Node 22, Python 3.12, Conan and
+phone Qt6 fixtures. It uses the system CMake/CTest/Ninja without changing which
+prepared Node/Python installation wins PATH lookup. A phone fixture requires
+the actual available NDK compiler before execution; a missing compiler cannot
+turn into an exit-zero skip. Only the existing authenticated Pico ownership
+plan can defer `pico4-device-free` to the required Android owner. Other apparent
+test overlaps grant no omission. These future templates remain outside the
+installed catalog; source tests do not establish native or runtime qualification.
+
 On a main PR, independently selected full-environment affected subsets retain
 that original full environment and exact selected suite results. The complete
 registry, definitions, graph, immutable delta and controller source must still

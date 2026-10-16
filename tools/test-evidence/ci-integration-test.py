@@ -1169,5 +1169,424 @@ class CleanupDataGitRouteTests(unittest.TestCase):
         self.assertEqual(P.source_blob(self.repo,oid),expected)
 
 
+class AndroidPlatformPartitionTests(unittest.TestCase):
+    """Fixed source/owner planning and fake execution only; no Android tools."""
+    @classmethod
+    def setUpClass(cls):
+        cls.registry_raw=(P.ROOT/'.github/test-suites.json').read_bytes()
+        cls.registry=inputs._validate_registry(json.loads(cls.registry_raw))
+        cls.declarations=json.loads((P.ROOT/'.github/android-owner-transfer.json').read_bytes())['profiles']
+        cls.package=P._host_policy().package_policy()
+
+    def setUp(self):
+        self.target='android-main'
+        self.profiles={target:(json.dumps({'schema':1,'platform':'android',
+            'suites':row['required_suites']},indent=2)+'\n').encode()
+            for target,row in self.declarations.items()}
+        for target,raw in self.profiles.items():
+            self.assertEqual(P.source_admission.blob_id(raw),P.source_admission.TARGET_PROFILES[target])
+        self.names=list(self.registry['suites'])
+        self.profile={'profile':P.FULL_PROFILE,'binding':None,'suites':self.names,
+            'selection':{'suites':self.names,'full_host':True,'include_platform':True,'reason':'complete-legacy-context'}}
+        registry_entry=P.source_admission.ordinary(P.source_admission.blob_id(self.registry_raw))
+        _,template=P.source_admission.actual_bytes(P.ROOT,P.PLATFORM_TEMPLATE)
+        self.trusted={'.github/test-suites.json':registry_entry,P.PLATFORM_TEMPLATE:template}
+        self.base={'.github/test-suites.json':deepcopy(registry_entry)}
+        self.tree=deepcopy(self.base)
+        self.tree['.github/workflows/project-tests.yml']=deepcopy(template)
+        self.package_boundary=SimpleNamespace(validate_tree_wiring=Mock(return_value=P.PLATFORM_GENERATION))
+        self.policy=SimpleNamespace(package_policy=lambda:self.package_boundary)
+        self.select_target(self.target)
+
+    def select_target(self,target):
+        self.target=target
+        entry=P.source_admission.ordinary(P.source_admission.TARGET_PROFILES[target])
+        self.base[P.source_admission.PROFILE]=deepcopy(entry)
+        self.tree[P.source_admission.PROFILE]=deepcopy(entry)
+        for row in self.declarations[target]['required_suites']:
+            source=P.source_admission.ordinary('f'*40,'100755' if row['interpreter']=='bash' else '100644')
+            self.base[row['entrypoint']]=deepcopy(source)
+            self.tree[row['entrypoint']]=deepcopy(source)
+
+    def partition(self):
+        return P.platform_partition(self.policy,self.profile,self.registry,self.tree,self.base,self.trusted,
+            target=self.target,read_blob=lambda oid:self.profiles[self.target])
+
+    def test_all_four_exact_profiles_preserve_original_selection_and_full_common_E(self):
+        original=deepcopy(self.profile)
+        for target in self.declarations:
+            self.select_target(target)
+            with self.subTest(target=target):
+                value=self.partition()
+                self.assertEqual(len(value['commands']),19 if target=='android-phone' else 13)
+                self.assertEqual(value['common_owner'],{'kind':'shared','suites':self.names,
+                    'include_platform':False,'platform':{}})
+                self.assertEqual([row['name'] for row in value['commands']],
+                    [row['name'] for row in self.declarations[target]['required_suites']])
+                self.assertEqual(self.profile,original)
+                P.protocol.validate_plan({'owners':{'shared-host':value['common_owner']}})
+        self.assertNotIn(P.PLATFORM_GENERATION,{row['name'] for row in self.package.workflow_generations()})
+
+    def test_old_or_unknown_generation_cannot_enable_platform_partition(self):
+        for name in ('protected-producer-seven-target-ci-v1','unknown'):
+            with self.subTest(name=name):
+                self.package_boundary.validate_tree_wiring.return_value=name
+                self.assertIsNone(self.partition())
+
+    def test_no_partial_ci37_registry_drift_or_candidate_template_can_supply_authority(self):
+        for kind in ('ci37','partial','order','setup','platform','registry','template'):
+            self.setUp()
+            if kind=='ci37':self.profile['profile']=C.PROFILE
+            elif kind=='partial':self.profile['selection']['suites']=self.names[:-1]
+            elif kind=='order':self.profile['selection']['suites']=list(reversed(self.names))
+            elif kind=='setup':self.profile['selection']['full_host']=False
+            elif kind=='platform':self.profile['selection']['include_platform']=False
+            elif kind=='registry':self.tree['.github/test-suites.json']['sha']='e'*40
+            else:self.tree['.github/workflows/project-tests.yml']['sha']='e'*40
+            with self.subTest(kind=kind),self.assertRaises(P.PreExecutionUnavailable):self.partition()
+
+    def test_profile_and_implementation_modes_aliases_missing_and_unauthenticated_blobs_reject(self):
+        for kind in ('profile','profile-mode','profile-alias','removed','mode','alias','wrong-bytes','oversize'):
+            self.setUp();path=self.declarations[self.target]['required_suites'][0]['entrypoint']
+            if kind=='profile':self.tree[P.source_admission.PROFILE]['sha']='e'*40
+            elif kind=='profile-mode':self.base[P.source_admission.PROFILE]['mode']='100755'
+            elif kind=='profile-alias':self.tree[P.source_admission.PROFILE]['mode']='120000'
+            elif kind=='removed':del self.tree[path]
+            elif kind=='mode':self.tree[path]['mode']='100755'
+            elif kind=='alias':self.tree[path]['mode']='120000'
+            elif kind=='wrong-bytes':self.profiles[self.target]=b'{}\n'
+            else:self.profiles[self.target]=b' '*64_001
+            with self.subTest(kind=kind),self.assertRaises(P.PreExecutionUnavailable):self.partition()
+
+    def execution_fixture(self,delegated=None):
+        partition=self.partition()
+        candidate=Path('/unexecuted-platform-candidate')
+        context={'candidate':candidate,'binding':{'merge_sha':'a'*40,'merge_tree':'b'*40},
+            'platform_partition':partition,'registry':self.registry}
+        patches=[patch.object(P.execution,'checkout_identity',return_value=('a'*40,'b'*40)),
+            patch.object(P,'current_platform_job'),patch.object(P,'pending_platform_owner',return_value=delegated or {}),
+            patch.object(P,'platform_prerequisites',return_value={}),patch.object(P,'_platform_bookend')]
+        return context,patches
+
+    def run_fake(self,context,patches,runner):
+        with ExitStack() as stack:
+            mocks=[stack.enter_context(patch) for patch in patches]
+            value=P.platform_execution(context,{}, {},object(),report=Path('/outside/report.xml'),runner=runner)
+        return value,mocks
+
+    def test_platform_only_executes_exact_selected_commands_without_shared_capture(self):
+        context,patches=self.execution_fixture()
+        observed=[]
+        def runner(candidate,commands,report):
+            observed.extend(commands)
+            return 0,[{'name':row['name'],'status':'passed'} for row in commands]
+        with patch.object(P.shared,'check_batch',side_effect=AssertionError('no shared workload')), \
+             patch.object(P.execution,'capture_execution_environment',side_effect=AssertionError('no reusable platform E')):
+            value,_=self.run_fake(context,patches,runner)
+        self.assertEqual(observed,context['platform_partition']['commands'])
+        self.assertFalse(value['reusable']);self.assertFalse(value['qualification'])
+        self.assertEqual(len(value['executed']),13)
+
+    def test_only_existing_pico_handoff_can_remove_one_platform_command(self):
+        proof={'pico4-device-free':{'owner':'required-android','candidate':'a'*40,
+            'plan':'sha256:'+'1'*64,'inventory':'sha256:'+'2'*64}}
+        context,patches=self.execution_fixture(proof)
+        runner=Mock(side_effect=lambda c,rows,r:(0,[{'name':row['name'],'status':'passed'} for row in rows]))
+        value,_=self.run_fake(context,patches,runner)
+        self.assertEqual(len(value['executed']),12)
+        self.assertNotIn('pico4-device-free',value['executed'])
+        self.assertEqual(value['delegated'],proof)
+        environment={'GITHUB_EVENT_NAME':'pull_request'}
+        for observed in ({'different-owner':{}},{'pico4-device-free':{**proof['pico4-device-free'],'candidate':'c'*40}}):
+            with patch.object(P,'_platform_handoff',return_value=SimpleNamespace(platform_owner=lambda *a,**k:observed)), \
+                 self.assertRaises(P.execution.ExecutionError):P.pending_platform_owner(context,{},environment)
+        with patch.object(P,'_platform_handoff',return_value=SimpleNamespace(platform_owner=Mock(side_effect=ValueError('unavailable')))):
+            self.assertEqual(P.pending_platform_owner(context,{},environment),{})
+
+    def test_started_failure_missing_owner_source_drift_and_late_admission_never_retry(self):
+        for kind in ('failure','missing','reordered','source','late-admission'):
+            context,patches=self.execution_fixture()
+            if kind=='source':patches[0]=patch.object(P.execution,'checkout_identity',side_effect=[('a'*40,'b'*40),('c'*40,'b'*40)])
+            if kind=='late-admission':patches[-1]=patch.object(P,'_platform_bookend',side_effect=H.Unavailable('changed'))
+            def run(candidate,rows,report):
+                records=[{'name':row['name'],'status':'passed'} for row in rows]
+                if kind=='missing':records=records[:-1]
+                if kind=='reordered':records.reverse()
+                return (1 if kind=='failure' else 0),records
+            runner=Mock(side_effect=run)
+            with self.subTest(kind=kind),self.assertRaises(H.Unavailable):self.run_fake(context,patches,runner)
+            self.assertEqual(runner.call_count,1)
+
+    def test_missing_phone_ndk_fails_before_candidate_execution(self):
+        self.select_target('android-phone');partition=self.partition()
+        with self.assertRaises(H.Unavailable):P.platform_prerequisites(partition,Path('/unexecuted'),{})
+
+    def test_future_template_separates_jobs_preserves_setup_and_requires_final_platform_gate(self):
+        import yaml
+        current=yaml.safe_load((P.ROOT/P.TEMPLATE).read_bytes())
+        future=yaml.safe_load((P.ROOT/P.PLATFORM_TEMPLATE).read_bytes())
+        self.assertEqual(set(future['jobs']),set(current['jobs'])|{'platform-tests'})
+        self.assertIn('platform-tests',future['jobs']['project-results']['needs'])
+        self.assertNotIn('platform-tests',future['jobs']['producer-publication']['needs'])
+        old={row['name']:row for row in current['jobs']['project-tests']['steps']}
+        new={row['name']:row for row in future['jobs']['project-tests']['steps']}
+        for name in ('Install QML and portable C++ contract prerequisites',
+                     'Prepare the protected trusted host environment','Prepare the protected CI37 host environment'):
+            self.assertEqual(new[name],old[name])
+        platform=future['jobs']['platform-tests']
+        self.assertEqual(platform['name'],'Android platform tests')
+        self.assertNotIn('ci-protected-receipt',json.dumps(platform))
+        self.assertNotIn('producer-publication',platform['needs'])
+        self.assertEqual(platform['steps'][-2]['name'],'Execute and verify the complete Android platform inventory')
+        self.assertNotIn('platform --candidate',new['Run independently selected host contracts']['run'])
+
+    def aggregate_fixture(self):
+        partition=self.partition()
+        plan={'candidate':'a'*40,'plan':'sha256:'+'b'*64,'host_mode':'full','tool_projects':[],'package_set':[]}
+        package=SimpleNamespace(validate_wiring=Mock(return_value=P.PLATFORM_GENERATION),
+            candidate_plan=Mock(return_value=plan),outputs=self.package.outputs,verify=self.package.verify)
+        policy=SimpleNamespace(package_policy=lambda:package)
+        needs={'route':{'result':'success','outputs':{**self.package.outputs(plan),
+                'protected_full':'true','platform_required':'true'}},
+            'project-tests':{'result':'success','outputs':{'protected_executed':'true'}},
+            'tool-dependencies':{'result':'skipped','outputs':{}},
+            'package-checks':{'result':'skipped','outputs':{}},
+            'platform-tests':{'result':'success','outputs':{'required':'true','verified':'true',
+                'partition':partition['digest'].removeprefix('sha256:')}}}
+        return policy,needs,{'platform_partition':partition},plan
+
+    def verify_aggregate(self,policy,needs,context):
+        with patch.object(P,'_host_policy',return_value=policy),patch.object(P,'current_platform_context',return_value=context), \
+             patch.object(P,'_platform_bookend'),patch.object(P,'completed_platform_job'):
+            return P.verify_platform_project(Path('/unexecuted'),{}, {'GITHUB_SHA':'a'*40},object(),needs)
+
+    def test_final_aggregate_requires_real_platform_job_and_keeps_generic_verifier_strict(self):
+        policy,needs,context,plan=self.aggregate_fixture()
+        self.assertEqual(self.verify_aggregate(policy,needs,context),self.package.receipt(plan))
+        with self.assertRaises(ValueError):self.package.verify(needs,plan)
+        for mutation in ('failed','cancelled','skipped','pending','missing','hash','claim','extra','route','common'):
+            changed=deepcopy(needs)
+            if mutation in {'failed','cancelled','skipped','pending'}:changed['platform-tests']['result']=mutation
+            elif mutation=='missing':del changed['platform-tests']
+            elif mutation=='hash':changed['platform-tests']['outputs']['partition']='0'*64
+            elif mutation=='claim':changed['platform-tests']['outputs']['verified']='false'
+            elif mutation=='extra':changed['platform-tests']['outputs']['unreviewed']='true'
+            elif mutation=='route':changed['route']['outputs']['package_candidate']='c'*40
+            else:changed['project-tests']['result']='failure'
+            with self.subTest(mutation=mutation),self.assertRaises((H.Unavailable,ValueError)):
+                self.verify_aggregate(policy,changed,context)
+
+    def test_legacy_fallback_preserves_platform_work_without_claiming_a_native_receipt(self):
+        policy,needs,context,plan=self.aggregate_fixture()
+        needs['route']['outputs'].update(protected_full='false',platform_required='false')
+        needs['project-tests']['outputs']={'protected_executed':'false'}
+        needs['platform-tests']={'result':'skipped','outputs':{}}
+        self.assertEqual(self.verify_aggregate(policy,needs,context),self.package.receipt(plan))
+        needs['platform-tests']['outputs']={'required':'','verified':'','partition':''}
+        self.assertEqual(self.verify_aggregate(policy,needs,context),self.package.receipt(plan))
+        needs['route']['outputs']['platform_required']='true'
+        with self.assertRaises(H.Unavailable):self.verify_aggregate(policy,needs,context)
+        needs['route']['outputs']['platform_required']='false'
+        policy.package_policy().validate_wiring.return_value='protected-producer-seven-target-ci-v1'
+        with self.assertRaises(H.Unavailable):self.verify_aggregate(policy,needs,context)
+
+
+    def test_platform_process_contract_preserves_timeouts_layers_and_private_environment(self):
+        observed=[]
+        def run(arguments,suites,cancelled,result_callback):
+            self.assertEqual((arguments.timeout,arguments.host_timeout,arguments.fail_fast),(240,900,False))
+            observed.extend(suites)
+            for suite in suites:result_callback({'name':suite.name,'status':'passed'})
+            return 0
+        controller=SimpleNamespace(ROOT=Path('/original'),run_command=Mock(side_effect=AssertionError('no process')),
+            Suite=lambda name,layer,command:SimpleNamespace(name=name,layer=layer,command=command),run_suites=run)
+        commands=self.partition()['commands']
+        with patch.object(P.execution,'_runner',return_value=controller),patch.object(P.signal,'signal'):
+            status,rows=P._run_platform_suites(Path('/unexecuted'),commands,Path('/outside/report.xml'))
+        self.assertEqual(status,0)
+        self.assertEqual(len(rows),13)
+        self.assertEqual([suite.layer for suite in observed],['quick']*13)
+        self.assertEqual([suite.command[0] for suite in observed],
+            [P.sys.executable if row['command'][0]=='python' else 'bash' for row in commands])
+        self.assertEqual(controller.ROOT,Path('/original'))
+        controller.run_command.assert_not_called()
+
+    def push_event(self,target='android-main',job='platform-tests'):
+        source='a'*40
+        event={'ref':'refs/heads/'+target,'before':'b'*40,'after':source,'deleted':False,'forced':False,
+            'repository':{'full_name':P.producer_api.REPOSITORY,'id':1319052603}}
+        workflow='parent-qualification' if target in {'android-main','android-vr'} else 'project-tests'
+        environment={'GITHUB_ACTIONS':'true','GITHUB_REPOSITORY':P.producer_api.REPOSITORY,
+            'GITHUB_REPOSITORY_ID':'1319052603','GITHUB_EVENT_NAME':'push','GITHUB_RUN_ATTEMPT':'1',
+            'RUNNER_ENVIRONMENT':'github-hosted','ImageOS':'ubuntu24','GITHUB_SHA':source,
+            'GITHUB_WORKFLOW_SHA':source,'GITHUB_RUN_ID':'13','GITHUB_JOB':job,
+            'GITHUB_REF':'refs/heads/'+target,'GITHUB_WORKFLOW_REF':P.producer_api.REPOSITORY+
+                '/.github/workflows/'+workflow+'.yml@refs/heads/'+target}
+        return event,environment
+
+    def test_push_roles_authenticate_push_without_relabelling_an_open_pr(self):
+        for target in self.declarations:
+            event,environment=self.push_event(target)
+            self.assertEqual(P._platform_push_native(event,environment),('a'*40,13))
+        for key,value in (('GITHUB_EVENT_NAME','pull_request'),('GITHUB_JOB','unrelated'),
+                ('GITHUB_RUN_ATTEMPT','2'),('GITHUB_WORKFLOW_SHA','b'*40),
+                ('GITHUB_REPOSITORY','overte-org/overte'),('GITHUB_REF','refs/heads/main'),('GITHUB_REF','android-main')):
+            event,environment=self.push_event();environment[key]=value
+            with self.subTest(key=key),self.assertRaises((H.Unavailable,P.producer_api.ApiError)):
+                P._platform_push_native(event,environment)
+        event,environment=self.push_event();event['forced']=True
+        with self.assertRaises(H.Unavailable):P._platform_push_native(event,environment)
+
+    def test_actual_push_context_uses_complete_sources_and_original_selection_without_pr_api(self):
+        import postmerge
+        event,environment=self.push_event()
+        _,parent=P.source_admission.actual_bytes(P.ROOT,P.PLATFORM_PARENT_TEMPLATE)
+        local={**deepcopy(self.trusted),P.PLATFORM_PARENT_TEMPLATE:parent}
+        current={**deepcopy(self.tree),'.github/workflows/parent-qualification.yml':parent}
+        binding={'pull_request':23,'base_ref':self.target,'base_sha':'b'*40,
+            'merge_sha':'a'*40,'merge_tree':'c'*40}
+        refs={'target':'a'*40,'default':'d'*40,'default_ref':'main',
+            'integration':{'workflow_path':'.github/workflows/parent-qualification.yml'}}
+        adapter=SimpleNamespace(_integrated_current=Mock(return_value=(binding,refs)),
+            current=Mock(side_effect=AssertionError('no invented open PR')),
+            api=SimpleNamespace(immutable_blob=lambda oid:self.profiles[self.target]))
+        self.policy.select=Mock(return_value=deepcopy(self.profile['selection']))
+        def tree(_adapter,revision):return ('c'*40,{'a'*40:current,'b'*40:self.base,'d'*40:local}[revision])
+        with patch.object(P,'_host_policy',return_value=self.policy),patch.object(postmerge,'full_tree',side_effect=tree), \
+             patch.object(postmerge,'integrated_controller',return_value='sha256:'+'e'*64) as guard, \
+             patch.object(P.execution,'checkout_identity',side_effect=lambda path:('d'*40,'f'*40) if path==P.ROOT else ('a'*40,'c'*40)), \
+             patch.object(P.inputs,'full_tree',side_effect=lambda path,revision:local if path==P.ROOT else current):
+            context=P.current_platform_context(Path('/unexecuted'),event,environment,adapter)
+        self.assertEqual(context['selected'],self.profile['selection'])
+        self.assertFalse(context['platform_partition']['common_owner']['include_platform'])
+        self.assertEqual(len(context['platform_partition']['commands']),13)
+        guard.assert_called_once();adapter.current.assert_not_called()
+
+    def test_common_fallback_runs_only_full_common_once_and_never_emits_reusable_E(self):
+        context,patches=self.execution_fixture()
+        receipt={'reusable':False,'environment':None}
+        with patch.object(P,'current_run'),patch.object(P,'_platform_bookend') as bookend, \
+             patch.object(P.execution,'execute',return_value=(0,receipt)) as execute:
+            self.assertEqual(P.legacy_common_fallback(context,{}, {},object(),report=Path('/outside/common.xml')),receipt)
+        self.assertEqual(execute.call_args.args,(context['candidate'],list(self.registry['suites'])))
+        self.assertEqual(execute.call_args.kwargs,{'include_platform':False,'junit':Path('/outside/common.xml'),'_impact_selection':True})
+        bookend.assert_called_once()
+        for result in ((1,receipt),(0,{'reusable':True,'environment':{}})):
+            with patch.object(P,'current_run'),patch.object(P.execution,'execute',return_value=result) as execute, \
+                 self.assertRaises(H.Unavailable):
+                P.legacy_common_fallback(context,{}, {},object(),report=Path('/outside/common.xml'))
+            self.assertEqual(execute.call_count,1)
+
+    def test_native_platform_job_requires_unique_real_success_and_complete_execution_step(self):
+        import postmerge
+        from datetime import datetime,timezone
+        now=datetime(2026,10,16,12,tzinfo=timezone.utc)
+        raw={'name':P.PLATFORM_JOB,'steps':[{'name':'Execute and verify the complete Android platform inventory',
+            'status':'completed','conclusion':'success','started_at':'2026-10-16T10:01:00Z',
+            'completed_at':'2026-10-16T10:02:00Z'}]}
+        job=SimpleNamespace(job_id=17,status='completed',conclusion='success',
+            started_at='2026-10-16T10:00:00Z',completed_at='2026-10-16T10:03:00Z')
+        adapter=SimpleNamespace(_job=Mock(return_value=job))
+        value=P._completed_platform_job(adapter,{},[raw],P.PLATFORM_JOB,now)
+        self.assertEqual(value['job_id'],17)
+        self.assertEqual(adapter._job.call_args.args[2],15368)
+        self.assertEqual(adapter._job.call_args.kwargs,{'final_name':P.PLATFORM_JOB})
+        for kind in ('missing','duplicate','failed','skipped','pending','absent-step','failed-step','early','late','foreign-app'):
+            rows=[deepcopy(raw)];observed=deepcopy(job);adapter._job=Mock(return_value=observed)
+            if kind=='missing':rows=[]
+            elif kind=='duplicate':rows*=2
+            elif kind in {'failed','skipped'}:observed.conclusion=kind
+            elif kind=='pending':observed.status='in_progress';observed.conclusion=None
+            elif kind=='absent-step':rows[0]['steps']=[]
+            elif kind=='failed-step':rows[0]['steps'][0]['conclusion']='failure'
+            elif kind=='early':rows[0]['steps'][0]['started_at']='2026-10-16T09:00:00Z'
+            elif kind=='late':rows[0]['steps'][0]['completed_at']='2026-10-16T13:00:00Z'
+            else:adapter._job.side_effect=P.producer_api.ApiError('fixed app mismatch')
+            with self.subTest(kind=kind),self.assertRaises((H.Unavailable,P.producer_api.ApiError)):
+                P._completed_platform_job(adapter,{},rows,P.PLATFORM_JOB,now)
+        run=SimpleNamespace(run_id=13)
+        original={'id':13,'run_attempt':1,'status':'completed','conclusion':'success'}
+        adapter=SimpleNamespace(_object=Mock(return_value=original),_pages=Mock(return_value=[raw]),_job=Mock(return_value=job))
+        value=postmerge.original_platform_owner(adapter,run,self.partition(),now=now)
+        self.assertFalse(value['reusable']);self.assertFalse(value['qualification'])
+        original['run_attempt']=2
+        with self.assertRaises(P.producer_api.ApiError):postmerge.original_platform_owner(adapter,run,self.partition(),now=now)
+
+    def test_current_platform_native_api_rejects_app_suite_attempt_and_source_drift(self):
+        from datetime import datetime,timezone
+        now=datetime(2026,10,16,12,tzinfo=timezone.utc)
+        attempt={'id':13,'workflow_id':350930890,'check_suite_id':19,
+            'path':'.github/workflows/parent-qualification.yml','event':'push','head_sha':'a'*40,
+            'head_branch':'android-main','run_attempt':1,'status':'in_progress','conclusion':None}
+        raw={'id':17,'run_id':13,'run_attempt':1,'head_sha':'a'*40,'name':'Android platform tests',
+            'check_run_url':'https://api.github.com/repos/noah-l-frank/overte/check-runs/17',
+            'status':'completed','conclusion':'success','started_at':'2026-10-16T10:00:00Z',
+            'completed_at':'2026-10-16T10:03:00Z','steps':[{
+                'name':'Execute and verify the complete Android platform inventory',
+                'status':'completed','conclusion':'success','started_at':'2026-10-16T10:01:00Z',
+                'completed_at':'2026-10-16T10:02:00Z'}]}
+        check={**{key:raw[key] for key in ('id','head_sha','name','status','conclusion','started_at','completed_at')},
+            'app':{'id':15368},'check_suite':{'id':19}}
+        records={'actions/runs/13':attempt,'actions/runs/13/attempts/1':deepcopy(attempt),
+            'actions/runs/13/attempts/1/jobs?per_page=100&page=1':{'total_count':1,'jobs':[raw]},'check-runs/17':check}
+        binding={'merge_sha':'a'*40};refs={'integration':{
+            'workflow_path':'.github/workflows/parent-qualification.yml','workflow_id':350930890}}
+        context={'run_id':13,'binding':binding,'refs':refs,'integration':refs['integration']}
+        def make(data):
+            api=SimpleNamespace(json=lambda path:deepcopy(data[path.removeprefix(P.producer_api.PREFIX+'/')]))
+            adapter=P.producer_api.Adapter(api)
+            adapter._integrated_current=Mock(return_value=(binding,refs))
+            return adapter
+        self.assertEqual(P.completed_platform_job(context,make(records),now=now)['job_id'],17)
+        for kind in ('app','suite','attempt','head','workflow','missing','step','reference'):
+            changed=deepcopy(records);adapter=make(changed)
+            if kind=='app':changed['check-runs/17']['app']['id']=99
+            elif kind=='suite':changed['check-runs/17']['check_suite']['id']=20
+            elif kind=='attempt':changed['actions/runs/13']['run_attempt']=2
+            elif kind=='head':changed['actions/runs/13/attempts/1']['head_sha']='b'*40
+            elif kind=='workflow':
+                for endpoint in ('actions/runs/13','actions/runs/13/attempts/1'):changed[endpoint]['path']='.github/workflows/project-tests.yml'
+            elif kind=='missing':changed['actions/runs/13/attempts/1/jobs?per_page=100&page=1']={'total_count':0,'jobs':[]}
+            elif kind=='step':changed['actions/runs/13/attempts/1/jobs?per_page=100&page=1']['jobs'][0]['steps'][0]['conclusion']='skipped'
+            else:adapter._integrated_current.return_value=({'merge_sha':'b'*40},refs)
+            with self.subTest(kind=kind),self.assertRaises((H.Unavailable,P.producer_api.ApiError)):
+                P.completed_platform_job(context,adapter,now=now)
+
+    def test_future_parent_keeps_required_name_after_both_independent_jobs(self):
+        import yaml
+        parent=yaml.safe_load((P.ROOT/P.PLATFORM_PARENT_TEMPLATE).read_bytes())
+        jobs=parent['jobs']
+        self.assertEqual(set(jobs),{'common-parent','platform-tests','qualify-parent'})
+        self.assertEqual(jobs['qualify-parent']['name'],'Qualify exact parent')
+        self.assertEqual(set(jobs['qualify-parent']['needs']),{'common-parent','platform-tests'})
+        self.assertEqual(jobs['qualify-parent']['if'],'always()')
+        self.assertNotIn('needs',jobs['platform-tests'])
+        common={row['name']:row for row in jobs['common-parent']['steps']}
+        for name in ('Run complete host qualification','Run independently selected parent host contracts',
+                'Create content-addressed qualification evidence','Upload immutable qualification evidence'):
+            self.assertIn("steps.platform.outputs.platform_required != 'true'",common[name]['if'])
+        self.assertIn('fallback-common',common['Execute common parent suites without claiming platform evidence']['run'])
+        self.assertNotIn('include-platform',common['Execute common parent suites without claiming platform evidence']['run'])
+
+    def test_parent_aggregate_never_waives_current_platform_from_original_common_proof(self):
+        partition=self.partition();context={'platform_partition':partition}
+        needs={'common-parent':{'result':'success'},'platform-tests':{'result':'success',
+            'outputs':{'required':'true','verified':'true','partition':partition['digest'].removeprefix('sha256:')}}}
+        self.package_boundary.validate_wiring=Mock(return_value=P.PLATFORM_GENERATION)
+        event,environment=self.push_event(job='qualify-parent')
+        with patch.object(P,'_host_policy',return_value=self.policy), \
+             patch.object(P,'current_platform_context',return_value=context), \
+             patch.object(P,'_platform_bookend') as bookend,patch.object(P,'completed_platform_job') as native:
+            P.verify_platform_parent(Path('/unexecuted'),event,environment,object(),needs)
+            native.assert_called_once();bookend.assert_called_once()
+            for key in ('common-parent','platform-tests'):
+                for status in ('failure','cancelled','skipped','pending'):
+                    changed=deepcopy(needs);changed[key]['result']=status
+                    with self.subTest(key=key,status=status),self.assertRaises(H.Unavailable):
+                        P.verify_platform_parent(Path('/unexecuted'),event,environment,object(),changed)
+            with patch.object(P,'completed_platform_job',side_effect=H.Unavailable('missing native platform step')),self.assertRaises(H.Unavailable):
+                P.verify_platform_parent(Path('/unexecuted'),event,environment,object(),needs)
+
+
 if __name__=='__main__':
     unittest.main()

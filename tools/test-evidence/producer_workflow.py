@@ -36,6 +36,16 @@ import source_admission
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE = 'tools/repository-checks/workflows/producers/protected-project-tests.yml'
+PLATFORM_TEMPLATE = 'tools/repository-checks/workflows/producers/protected-project-tests-android-platform.yml'
+PLATFORM_PARENT_TEMPLATE = 'tools/repository-checks/workflows/producers/parent-qualification-android-platform.yml'
+PLATFORM_GENERATION = 'protected-producer-original-default-v1'
+PLATFORM_JOB = 'project / Android platform tests'
+_PLATFORM_TARGETS = frozenset({'android-main', 'android-phone', 'android-vr', 'android-vr-pico'})
+_PLATFORM_SOURCES = (
+    '.github/android-checks.json', '.github/android-owner-transfer.json',
+    'tools/repository-checks/android.py', 'tools/repository-checks/android_gate.py',
+    'tools/repository-checks/android_handoff.py', PLATFORM_TEMPLATE, PLATFORM_PARENT_TEMPLATE,
+)
 PRODUCTION_READY = True
 DESCRIPTOR_JOB = 'project / Publish producer descriptor'
 SHARED_JOB = 'project / Shared tests'
@@ -147,7 +157,7 @@ def controller_sources(policy):
     # controller identity. Unknown new source dependencies must remain visible.
     import_only = set(source_admission.IMPORT_MEMBERS) - set(source_admission.CONTROLLERS)
     projected = set(shared.sources()) - import_only
-    return sorted({source_admission.SELF, inputs.AFFECTED_POLICY, *projected, *policy.package_policy()._policy_inputs(), *attested._CONSUMER_FILES, TEMPLATE,
+    return sorted({source_admission.SELF, inputs.AFFECTED_POLICY, *projected, *policy.package_policy()._policy_inputs(), *attested._CONSUMER_FILES, TEMPLATE, *_PLATFORM_SOURCES,
         'tools/repository-checks/metadata_context.py',
         'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml',
         '.github/workflows/documentation-checks.yml', '.github/workflows/workflow-security.yml',
@@ -283,6 +293,263 @@ def selection_profile(policy, registry, candidate_tree, base_tree, trusted_tree,
     return {'selection':selected,'profile':profile,'suites':names,'binding':binding}
 
 
+def project_template(policy, candidate_tree):
+    """The complete trusted catalog, never a flag, selects a native recipe."""
+    if PLATFORM_TEMPLATE not in candidate_tree:
+        return TEMPLATE
+    generation = policy.package_policy().validate_tree_wiring(candidate_tree)
+    return PLATFORM_TEMPLATE if generation == PLATFORM_GENERATION else TEMPLATE
+
+
+def platform_partition(policy, profile, registry, candidate_tree, base_tree, trusted_tree,
+                       *, target, root=ROOT, read_blob=None):
+    """Separate existing Android declarations from an unchanged full common owner.
+
+    This capability is unavailable until the exact future recipe is enrolled in
+    the protected catalog. The original selection remains intact. A common
+    receipt never claims these external platform commands or their runtime.
+    """
+    if target not in _PLATFORM_TARGETS or PLATFORM_TEMPLATE not in trusted_tree:
+        return None
+    if policy.package_policy().validate_tree_wiring(candidate_tree) != PLATFORM_GENERATION:
+        return None
+    try:
+        for tree in (base_tree, candidate_tree, trusted_tree):
+            inputs._validate_tree(tree)
+        selected = profile['selection']
+        names = execution.select_common(registry)
+        host.require(len(names) == 60 and profile['profile'] == FULL_PROFILE
+            and profile['binding'] is None and profile['suites'] == names
+            and selected['suites'] == names and selected['full_host'] is True
+            and selected['include_platform'] is True,
+            'Android partition needs the original complete full-host selection')
+        raw_registry = sandbox._source(root, '.github/test-suites.json')
+        registry_entry = source_admission.ordinary(source_admission.blob_id(raw_registry))
+        host.require(inputs._validate_registry(json.loads(raw_registry, object_pairs_hook=inputs._unique_object)) == registry
+            and all(tree.get('.github/test-suites.json') == registry_entry
+                for tree in (base_tree, candidate_tree, trusted_tree)),
+            'Android partition command definitions differ from protected source')
+        _, template_entry = source_admission.actual_bytes(root, PLATFORM_TEMPLATE)
+        host.require(template_entry['mode'] == '100644'
+            and trusted_tree.get(PLATFORM_TEMPLATE) == template_entry
+            and candidate_tree.get('.github/workflows/project-tests.yml') == template_entry,
+            'Android partition native recipe differs from actual protected source')
+        expected = source_admission.ordinary(source_admission.TARGET_PROFILES[target])
+        host.require(callable(read_blob) and base_tree.get(source_admission.PROFILE) == expected
+            and candidate_tree.get(source_admission.PROFILE) == expected,
+            'Android partition requires the unchanged exact declared platform')
+        declarations = []
+        for tree in (base_tree, candidate_tree):
+            raw = read_blob(tree[source_admission.PROFILE]['sha'])
+            host.require(type(raw) is bytes and len(raw) <= 64_000
+                and source_admission.blob_id(raw) == expected['sha'],
+                'Android platform declaration bytes are unauthenticated')
+            document = json.loads(raw, object_pairs_hook=inputs._unique_object)
+            host.require(type(document) is dict and set(document) == {'schema', 'platform', 'suites'}
+                and type(document['schema']) is int and document['schema'] == 1
+                and document['platform'] == 'android' and type(document['suites']) is list
+                and len(document['suites']) == (19 if target == 'android-phone' else 13),
+                'Android partition platform inventory is incomplete')
+            declarations.append(document['suites'])
+        host.require(declarations[0] == declarations[1], 'Android declarations changed')
+        commands, entries, seen = [], {}, set(names)
+        for item in declarations[0]:
+            host.require(type(item) is dict and set(item) == {'name', 'entrypoint', 'interpreter'}
+                and type(item['name']) is str and re.fullmatch(r'[a-z0-9][a-z0-9-]*', item['name'])
+                and item['name'] not in seen and item['interpreter'] in {'python', 'bash'},
+                'Android partition has an unknown or duplicate owner')
+            path = inputs._path(item['entrypoint'], 'Android platform entrypoint')
+            host.require(path.startswith('android/') or path.startswith('tests/device/'),
+                'Android platform entrypoint is outside its fixed declaration')
+            mode = '100755' if item['interpreter'] == 'bash' else '100644'
+            for tree in (base_tree, candidate_tree):
+                entry = tree.get(path)
+                host.require(type(entry) is dict and entry['type'] == 'blob' and entry['mode'] == mode,
+                    'Android platform implementation is missing or nonordinary')
+            seen.add(item['name'])
+            entries[path] = dict(candidate_tree[path])
+            commands.append({'name': item['name'], 'command': [item['interpreter'], path]})
+        value = {'schema': 1, 'kind': 'android-common-platform-partition-v1',
+            'generation': PLATFORM_GENERATION, 'target': target, 'profile': expected,
+            'commands': commands, 'entrypoints': entries,
+            'common_owner': {'kind': 'shared', 'suites': names, 'include_platform': False, 'platform': {}}}
+        value['digest'] = protocol.digest(value)
+        return value
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
+        raise PreExecutionUnavailable('Android common/platform partition is not admitted') from error
+
+
+def common_owner(profile, partition=None):
+    """Return a truthful owner after its independently derived partition."""
+    return (partition['common_owner'] if partition is not None else
+        {'kind': 'shared', 'suites': profile['suites'],
+         'include_platform': profile['selection']['include_platform'], 'platform': {}})
+
+
+def current_platform_context(candidate, event, environment, adapter, *, root=ROOT, clock=None):
+    """Authenticate a push as a push; never manufacture an open PR context."""
+    if environment.get('GITHUB_EVENT_NAME') == 'pull_request':
+        return prepare(candidate, event, environment, adapter)
+    import postmerge
+    now = (clock or (lambda: datetime.now(timezone.utc)))()
+    source, run_id = _platform_push_native(event, environment)
+    binding, refs = adapter._integrated_current(run_id, 15368, now)
+    target = binding['base_ref']
+    host.require(target in _PLATFORM_TARGETS and refs['target'] == source
+        and event.get('before') == binding['base_sha'] and refs['default_ref'] == 'main'
+        and execution.checkout_identity(root)[0] == refs['default'], 'platform push native source differs')
+    _, current = postmerge.full_tree(adapter, source)
+    _, previous = postmerge.full_tree(adapter, binding['base_sha'])
+    _, local = postmerge.full_tree(adapter, refs['default'])
+    host.require(inputs.full_tree(root, refs['default']) == local
+        and execution.checkout_identity(candidate) == (source, binding['merge_tree'])
+        and inputs.full_tree(candidate, source) == current,
+        'platform push checkout differs from complete immutable API source')
+    policy = _host_policy()
+    package = policy.package_policy()
+    host.require(package.validate_tree_wiring(current) == PLATFORM_GENERATION,
+        'platform push needs the complete enrolled future generation')
+    workflow = refs['integration']['workflow_path']
+    template = PLATFORM_PARENT_TEMPLATE if workflow == '.github/workflows/parent-qualification.yml' else PLATFORM_TEMPLATE
+    host.require(workflow in {'.github/workflows/parent-qualification.yml', '.github/workflows/project-tests.yml'}
+        and current.get(workflow) == local.get(template), 'platform push workflow is not its fixed recipe')
+    controller = postmerge.integrated_controller(policy, previous, current, local, target, root)
+    registry = inputs.load_registry(root / '.github/test-suites.json')
+    paths = sorted(path for path in previous.keys() | current.keys() if previous.get(path) != current.get(path))
+    regular = bool(paths) and all(entry is None or entry['mode'] == '100644' and entry['type'] == 'blob'
+        for path in paths for entry in (previous.get(path), current.get(path)))
+    selected = policy.select(current, paths, regular, base_tree=previous, trusted_tree=local,
+        candidate_root=root, trusted_root=root, target=target)
+    host.require(source_admission.shared_platform_supported({'include_platform': False}, target,
+        current.get(source_admission.PROFILE)), 'platform push declaration is unknown')
+    partition = None
+    if selected['include_platform'] is True:
+        profile = selection_profile(policy, registry, current, previous, local, root=root, target=target,
+            read_blob=adapter.api.immutable_blob)
+        host.require(profile['selection'] == selected, 'platform push selections differ')
+        partition = platform_partition(policy, profile, registry, current, previous, local,
+            target=target, root=root, read_blob=adapter.api.immutable_blob)
+        host.require(partition is not None, 'required Android platform push is unsupported')
+    return {'number': binding['pull_request'], 'run_id': run_id, 'binding': binding, 'refs': refs,
+        'candidate': candidate, 'registry': registry, 'selected': selected, 'platform_partition': partition,
+        'integration': refs['integration'], 'controller': controller}
+
+
+def _platform_push_native(event, environment):
+    """A closed future push role; the ordinary consumer entrypoint is unchanged."""
+    target = environment.get('GITHUB_REF', '').removeprefix('refs/heads/')
+    host.require(target in _PLATFORM_TARGETS, 'unknown platform push target')
+    parent = target in {'android-main', 'android-vr'}
+    workflow = 'parent-qualification' if parent else 'project-tests'
+    jobs = {'common-parent', 'platform-tests', 'qualify-parent'} if parent else {
+        'project-tests', 'platform-tests', 'project-results', 'route'}
+    expected = {'GITHUB_ACTIONS': 'true', 'GITHUB_REPOSITORY': producer_api.REPOSITORY,
+        'GITHUB_REPOSITORY_ID': '1319052603', 'GITHUB_EVENT_NAME': 'push',
+        'GITHUB_RUN_ATTEMPT': '1', 'RUNNER_ENVIRONMENT': 'github-hosted', 'ImageOS': 'ubuntu24'}
+    source = producer_api.sha(environment.get('GITHUB_SHA'))
+    host.require(all(environment.get(key) == value for key, value in expected.items())
+        and environment.get('GITHUB_JOB') in jobs
+        and environment.get('GITHUB_REF') == 'refs/heads/' + target
+        and environment.get('GITHUB_WORKFLOW_SHA') == source
+        and environment.get('GITHUB_WORKFLOW_REF') == producer_api.REPOSITORY
+            + '/.github/workflows/' + workflow + '.yml@refs/heads/' + target
+        and re.fullmatch(r'[1-9][0-9]*', environment.get('GITHUB_RUN_ID', '')),
+        'platform requires its original current native push job')
+    host.require(type(event) is dict and event.get('ref') == 'refs/heads/' + target
+        and event.get('after') == source and event.get('deleted') is False
+        and event.get('forced') is False
+        and event.get('repository', {}).get('full_name') == producer_api.REPOSITORY
+        and event.get('repository', {}).get('id') == 1319052603,
+        'platform push event differs from current native source')
+    return source, int(environment['GITHUB_RUN_ID'])
+
+
+def current_platform_job(context, adapter):
+    if 'integration' not in context:
+        return current_run(context, adapter, 'platform')
+    return _push_platform_job(context, adapter, 'Android platform tests')
+
+
+def _push_platform_job(context, adapter, name):
+    host.require(name in {'Android platform tests', 'Common parent tests', 'Shared tests'}, 'unknown native push role')
+    binding, refs = adapter._integrated_current(context['run_id'], 15368, datetime.now(timezone.utc))
+    host.require(binding == context['binding'] and refs == context['refs'], 'platform push source changed')
+    attempt = adapter._object(f"actions/runs/{context['run_id']}/attempts/1")
+    host.require(attempt.get('id') == context['run_id'] and attempt.get('run_attempt') == 1
+        and attempt.get('head_sha') == context['binding']['merge_sha']
+        and attempt.get('path') == context['integration']['workflow_path']
+        and attempt.get('workflow_id') == context['integration']['workflow_id']
+        and (attempt.get('status'), attempt.get('conclusion')) == ('in_progress', None),
+        'platform push is not its original active attempt')
+    jobs = adapter._pages(f"actions/runs/{context['run_id']}/attempts/1/jobs", 'jobs')
+    matches = [row for row in jobs if row.get('name') == name]
+    host.require(len(matches) == 1, 'native platform push role is missing or ambiguous')
+    job = adapter._job(matches[0], attempt, 15368, final_name=name)
+    host.require((job.status, job.conclusion) == ('in_progress', None), 'native platform push role is not running')
+    return job
+
+
+def _platform_bookend(context, event, environment, adapter):
+    try:
+        after = current_platform_context(context['candidate'], event, environment, adapter)
+    except (PreExecutionUnavailable, ValueError, OSError) as error:
+        raise host.Unavailable('platform source admission changed after execution') from error
+    host.require(after['binding'] == context['binding'] and after['refs'] == context['refs']
+        and after['platform_partition'] == context['platform_partition'],
+        'Android platform selection changed after execution')
+
+
+def completed_platform_job(context, adapter, *, now=None):
+    """Authenticate the current separate job, never its self-reported JSON."""
+    now = now or datetime.now(timezone.utc)
+    if 'integration' in context:
+        binding, refs = adapter._integrated_current(context['run_id'], 15368, now)
+        host.require(binding == context['binding'] and refs == context['refs'],
+            'current platform integration changed')
+        name = 'Android platform tests'
+    else:
+        binding, refs = adapter.current(context['number'])
+        host.require(binding == context['binding'] and refs == context['refs'],
+            'current platform PR changed')
+        name = PLATFORM_JOB
+    latest = adapter._object('actions/runs/' + str(context['run_id']))
+    attempt = adapter._object(f"actions/runs/{context['run_id']}/attempts/1")
+    keys = ('id', 'workflow_id', 'check_suite_id', 'path', 'event', 'head_sha',
+        'head_branch', 'run_attempt', 'status', 'conclusion')
+    host.require(all(latest.get(key) == attempt.get(key) for key in keys)
+        and attempt.get('id') == context['run_id'] and attempt.get('run_attempt') == 1
+        and (attempt.get('status'), attempt.get('conclusion')) == ('in_progress', None),
+        'current platform aggregate is not the original active attempt')
+    if 'integration' not in context:
+        chain = adapter._chain(attempt, context['policy'], context['binding'])
+        host.require(chain['producer_commit'] == binding['merge_sha'], 'platform source chain changed')
+    else:
+        host.require(attempt.get('head_sha') == binding['merge_sha']
+            and attempt.get('path') == refs['integration']['workflow_path']
+            and attempt.get('workflow_id') == refs['integration']['workflow_id'],
+            'completed platform job differs from current integration source')
+    jobs = adapter._pages(f"actions/runs/{context['run_id']}/attempts/1/jobs", 'jobs')
+    return _completed_platform_job(adapter, attempt, jobs, name, now)
+
+
+def _completed_platform_job(adapter, attempt, jobs, name, now):
+    """Fixed native step and app checks shared with completed-original lookup."""
+    host.require(name in {PLATFORM_JOB, 'Android platform tests'}, 'unknown platform native job')
+    matches = [row for row in jobs if row.get('name') == name]
+    host.require(len(matches) == 1, 'required native platform job is missing or ambiguous')
+    raw = matches[0]
+    job = adapter._job(raw, attempt, 15368, final_name=name)
+    host.require((job.status, job.conclusion) == ('completed', 'success'),
+        'required native Android platform job did not succeed')
+    steps = [step for step in raw.get('steps', []) if step.get('name') ==
+        'Execute and verify the complete Android platform inventory']
+    host.require(len(steps) == 1 and (steps[0].get('status'), steps[0].get('conclusion')) == ('completed', 'success')
+        and protocol._time(job.started_at) <= protocol._time(steps[0].get('started_at'))
+        <= protocol._time(steps[0].get('completed_at')) <= protocol._time(job.completed_at) <= now,
+        'required native platform execution step is unavailable')
+    return {'job_id': job.job_id, 'job': raw}
+
+
 def protected_source_context(adapter, binding, references, policy):
     """Exact B commitment to current defaultD; no historical D commit assertion."""
     target=binding['base_ref']
@@ -330,22 +597,27 @@ def prepare(candidate, event, environment, adapter):
         raise PreExecutionUnavailable('the actual required route has no shared host owner')
     selected = policy.candidate_selection(candidate, event, binding['merge_sha'],package_plan['plan'])
     candidate_tree=inputs.full_tree(candidate,binding['merge_sha'])
-    if not source_admission.shared_platform_supported(selected,binding['base_ref'],candidate_tree.get(source_admission.PROFILE)):
-        raise PreExecutionUnavailable('candidate platform declaration needs existing actual execution')
-    if selected['include_platform'] is True and execution.platform_suites(candidate, registry['suites']):
-        raise PreExecutionUnavailable('selected profile needs existing nonreusable execution')
-    prepared_selection = selection_profile(policy,registry,inputs.full_tree(candidate,binding['merge_sha']),
-        inputs.full_tree(candidate,binding['base_sha']),inputs.full_tree(ROOT,refs['default']),root=ROOT,target=binding['base_ref'],
+    base_tree=inputs.full_tree(candidate,binding['base_sha'])
+    trusted_tree=inputs.full_tree(ROOT,refs['default'])
+    prepared_selection = selection_profile(policy,registry,candidate_tree,
+        base_tree,trusted_tree,root=ROOT,target=binding['base_ref'],
         read_blob=lambda oid:source_blob(candidate,oid))
     if prepared_selection['selection'] != selected:
         raise PreExecutionUnavailable('independent package/host owner needs existing actual execution')
     names = prepared_selection['suites']
+    partition = platform_partition(policy,prepared_selection,registry,candidate_tree,base_tree,trusted_tree,
+        target=binding['base_ref'],root=ROOT,read_blob=lambda oid:source_blob(candidate,oid))
+    if partition is None:
+        if not source_admission.shared_platform_supported(selected,binding['base_ref'],candidate_tree.get(source_admission.PROFILE)):
+            raise PreExecutionUnavailable('candidate platform declaration needs existing actual execution')
+        if selected['include_platform'] is True and execution.platform_suites(candidate, registry['suites']):
+            raise PreExecutionUnavailable('selected profile needs existing nonreusable execution')
     if binding['base_ref']!='main' and (prepared_selection['profile']!=FULL_PROFILE
             or selected['full_host'] is not True or set(names)!=set(registry['suites'])):
         raise PreExecutionUnavailable('child protected owner needs existing nonreusable execution')
-    plan = {'owners': {'shared-host': {'kind': 'shared', 'suites': names,
-              'include_platform': selected['include_platform'], 'platform': {}}}}
-    blob = sandbox._git(ROOT, 'ls-tree', '-z', refs['default'], '--', TEMPLATE).split(b'\t')[0].split()[-1].decode()
+    plan = {'owners': {'shared-host': common_owner(prepared_selection,partition)}}
+    template=project_template(policy,candidate_tree)
+    blob = sandbox._git(ROOT, 'ls-tree', '-z', refs['default'], '--', template).split(b'\t')[0].split()[-1].decode()
     controller = source_context['controller_digest']
     producer = protocol.Policy('noah-l-frank/overte', 1319052603, 15368, '.github/workflows/project-tests.yml',
         blob, environment['GITHUB_REF'], ('pull_request',), controller, sandbox.contract(ROOT)['digest'],
@@ -369,6 +641,7 @@ def prepare(candidate, event, environment, adapter):
     result = {'number': number, 'run_id': identifier, 'binding': binding, 'refs': refs, 'selected': selected,
               'profile':prepared_selection['profile'],
               'profile_binding':prepared_selection['binding'],
+              'platform_partition':partition,
               'registry': registry, 'plan': plan, 'policy': api_policy, 'source_context':source_context,
               'git_context': expected_git_context(adapter, binding)}
     _bookend(result, adapter, preexecution=True)
@@ -392,6 +665,8 @@ def current_run(context, adapter, role):
                  'native producer check suite identity differs')
     jobs = adapter._pages(f"actions/runs/{context['run_id']}/attempts/1/jobs", 'jobs')
     expected = {'descriptor': DESCRIPTOR_JOB, 'shared': SHARED_JOB}
+    if context.get('platform_partition') is not None:
+        expected['platform'] = PLATFORM_JOB
     selected = {}
     final = None
     for name in expected.values():
@@ -413,6 +688,202 @@ def current_run(context, adapter, role):
     host.require(job is not None and job.status == 'in_progress' and job.conclusion is None and job.started_at is not None,
                  'current native producer role is not executing')
     return run
+
+
+def _platform_handoff():
+    spec = importlib.util.spec_from_file_location('protected_platform_android_handoff',
+        ROOT / 'tools/repository-checks/android_handoff.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def pending_platform_owner(context, event, environment):
+    """Only the existing Android owner may defer Pico; this is not a PASS."""
+    try:
+        value = _platform_handoff().platform_owner(context['candidate'], event,
+            context['binding']['merge_sha'], environment['GITHUB_EVENT_NAME'], policy_root=ROOT)
+    except ValueError:
+        # An unavailable transfer executes Pico here. No platform command has
+        # started and no existing owner has been claimed successful.
+        return {}
+    if value:
+        execution._validate_platform_owner(value, context['binding']['merge_sha'])
+        host.require(set(value) == {'pico4-device-free'}, 'unknown Android platform transfer')
+    return value
+
+
+def platform_prerequisites(partition, candidate, environment):
+    """Prevent the existing phone fixture's missing-NDK exit0 from passing."""
+    if not any(row['name'] == 'phone-package-binding' for row in partition['commands']):
+        return {}
+    sdk = environment.get('ANDROID_SDK_ROOT') or environment.get('ANDROID_HOME')
+    host.require(type(sdk) is str and bool(sdk), 'required phone NDK is unavailable')
+    sdk = Path(sdk).resolve(strict=True)
+    host.require(not sdk.is_relative_to(candidate) and (sdk / 'ndk').is_dir(),
+        'required phone NDK is outside its prepared system layout')
+    compilers = []
+    versions = list((sdk / 'ndk').iterdir())
+    host.require(0 < len(versions) <= 32, 'phone NDK inventory is unbounded')
+    for version in versions:
+        host.require(not version.is_symlink() and version.is_dir()
+            and re.fullmatch(r'[0-9]+(?:\.[0-9]+){2}', version.name), 'unknown phone NDK layout')
+        compiler = version / 'toolchains/llvm/prebuilt/linux-x86_64/bin/clang'
+        if compiler.is_file() and os.access(compiler, os.X_OK):
+            compilers.append((tuple(int(part) for part in version.name.split('.')), compiler))
+    host.require(bool(compilers), 'required phone NDK clang is unavailable')
+    # The existing fixture chooses the highest installed numeric version using
+    # sort -V. Preserve that variant, but require and bind the actual compiler.
+    compiler = max(compilers, key=lambda row: row[0])[1].resolve(strict=True)
+    host.require(not compiler.is_relative_to(candidate), 'phone NDK compiler is candidate controlled')
+    return {'ndk_clang': {'path': str(compiler), 'sha256': hashlib.sha256(compiler.read_bytes()).hexdigest()}}
+
+
+def _run_platform_suites(candidate, commands, report):
+    """Legacy process boundary in its OWN job; never capture a reusable E."""
+    controller = execution._runner()
+    suites = [controller.Suite(row['name'], 'quick', tuple(
+        sys.executable if index == 0 and item == 'python' else item
+        for index, item in enumerate(row['command']))) for row in commands]
+    observations, cancelled, handlers = [], [], {}
+    def interrupt(signum, _frame):
+        if not cancelled:
+            cancelled.append(signum)
+    old_root, old_command = controller.ROOT, controller.run_command
+    def run(command, timeout, cancellations):
+        with execution.candidate_process_environment():
+            return old_command(command, timeout, cancellations)
+    controller.ROOT, controller.run_command = candidate, run
+    try:
+        for signum in (signal.SIGINT, signal.SIGTERM):
+            handlers[signum] = signal.signal(signum, interrupt)
+        from types import SimpleNamespace
+        arguments = SimpleNamespace(timeout=240, host_timeout=900, native_build_dir=None,
+            junit=report, fail_fast=False)
+        status = controller.run_suites(arguments, suites, cancelled, result_callback=observations.append)
+    finally:
+        controller.ROOT, controller.run_command = old_root, old_command
+        for signum, handler in handlers.items():
+            signal.signal(signum, handler)
+    return status or bool(cancelled), observations
+
+
+def platform_execution(context, event, environment, adapter, *, report, runner=None):
+    """Current mandatory platform execution, isolated from shared artifacts."""
+    partition = context.get('platform_partition')
+    host.require(partition is not None and partition['generation'] == PLATFORM_GENERATION,
+        'platform execution requires its independently derived future partition')
+    candidate = context['candidate']
+    host.require(not Path(report).resolve().is_relative_to(candidate), 'platform report is candidate writable')
+    identity = execution.checkout_identity(candidate)
+    host.require(identity == (context['binding']['merge_sha'], context['binding']['merge_tree']),
+        'platform checkout differs from exact current source')
+    current_platform_job(context, adapter)
+    delegated = pending_platform_owner(context, event, environment)
+    commands = [row for row in partition['commands'] if row['name'] not in delegated]
+    prerequisites = platform_prerequisites(partition, candidate, environment)
+    status, observations = (runner or _run_platform_suites)(candidate, commands, report)
+    # Once execution starts every error is hard. There is no retry or fallback.
+    host.require(status == 0 and [row.get('name') for row in observations] == [row['name'] for row in commands]
+        and all(row.get('status') == 'passed' for row in observations), 'required Android platform execution failed')
+    host.require(execution.checkout_identity(candidate) == identity
+        and platform_prerequisites(partition, candidate, environment) == prerequisites,
+        'Android platform source or NDK changed during execution')
+    _platform_bookend(context, event, environment, adapter)
+    host.require(pending_platform_owner(context, event, environment) == delegated,
+        'Android platform transfer changed after execution')
+    current_platform_job(context, adapter)
+    return {'schema': 1, 'kind': 'current-android-platform-job-v1', 'reusable': False,
+        'qualification': False, 'candidate': context['binding']['merge_sha'], 'partition': partition['digest'],
+        'executed': [row['name'] for row in commands], 'delegated': delegated, 'prerequisites': prerequisites}
+
+
+def legacy_common_fallback(context, event, environment, adapter, *, report):
+    """Pre-suite native unavailability may run common once; platform has its job."""
+    host.require(context.get('platform_partition') is not None,
+        'common-only fallback requires the independent platform owner')
+    native = (lambda: _push_platform_job(context, adapter, 'Common parent tests'
+        if context['binding']['base_ref'] in {'android-main', 'android-vr'} else 'Shared tests')) \
+        if 'integration' in context else (lambda: current_run(context, adapter, 'shared'))
+    native()
+    status, receipt = execution.execute(context['candidate'], list(context['registry']['suites']), include_platform=False,
+        junit=report, _impact_selection=True)
+    host.require(status == 0 and receipt['reusable'] is False and receipt['environment'] is None,
+        'required common fallback failed')
+    _platform_bookend(context, event, environment, adapter)
+    native()
+    return receipt
+
+
+def verify_platform_project(candidate, event, environment, adapter, needs):
+    """A separate mandatory job cannot disappear behind the common receipt."""
+    policy = _host_policy()
+    package = policy.package_policy()
+    host.require(package.validate_wiring(candidate) == PLATFORM_GENERATION,
+        'platform project aggregate requires the complete future generation')
+    plan = package.candidate_plan(candidate, event, environment['GITHUB_SHA'])
+    host.require(type(needs) is dict and set(needs) == {
+        'route', 'project-tests', 'platform-tests', 'tool-dependencies', 'package-checks'},
+        'platform project aggregate has an incomplete owner inventory')
+    host.require(all(type(job) is dict for job in needs.values()), 'platform project job record is invalid')
+    route = needs['route']
+    published = route.get('outputs')
+    host.require(type(published) is dict and set(published) == set(package.outputs(plan)) | {
+        'protected_full', 'platform_required'}
+        and published['protected_full'] in {'true', 'false'}
+        and published['platform_required'] in {'true', 'false'}
+        and (published['protected_full'] == 'false' or plan['host_mode'] == 'full'),
+        'platform dispatch differs from its exact native route')
+    context = (current_platform_context(candidate, event, environment, adapter)
+        if published['protected_full'] == 'true' or environment.get('GITHUB_EVENT_NAME') == 'push'
+            and environment.get('GITHUB_REF', '').removeprefix('refs/heads/') in _PLATFORM_TARGETS else None)
+    if context is not None:
+        context['candidate'] = candidate
+    partition = context.get('platform_partition') if context else None
+    host.require(published['platform_required'] == str(partition is not None).lower(),
+        'platform dispatch differs from independently derived required ownership')
+    job = needs['platform-tests']
+    if partition is not None:
+        host.require(job.get('result') == 'success' and job.get('outputs') == {
+            'required': 'true', 'verified': 'true', 'partition': partition['digest'].removeprefix('sha256:')},
+            'required independent Android platform job did not succeed')
+        completed_platform_job(context, adapter)
+        _platform_bookend(context, event, environment, adapter)
+    else:
+        host.require(job.get('result') == 'skipped' and job.get('outputs') in (
+            {}, {'verified': '', 'partition': ''}, {'required': '', 'verified': '', 'partition': ''}),
+            'unselected platform job has an unexpected claim')
+    ordinary = {key: value for key, value in published.items()
+        if key not in {'protected_full', 'platform_required'}}
+    normalized = {key: value for key, value in needs.items() if key != 'platform-tests'}
+    normalized['route'] = {**route, 'outputs': ordinary}
+    return package.verify(normalized, plan)
+
+
+def verify_platform_parent(candidate, event, environment, adapter, needs):
+    """The old required parent check stays downstream of BOTH actual owners."""
+    package = _host_policy().package_policy()
+    host.require(package.validate_wiring(candidate) == PLATFORM_GENERATION
+        and type(needs) is dict and set(needs) == {'common-parent', 'platform-tests'}
+        and all(type(row) is dict for row in needs.values())
+        and needs['common-parent'].get('result') == 'success',
+        'future parent aggregate requires its complete successful common job')
+    target = environment.get('GITHUB_REF', '').removeprefix('refs/heads/')
+    platform = needs['platform-tests']
+    if target not in _PLATFORM_TARGETS:
+        import postmerge
+        postmerge._native(event, environment)
+        host.require(platform.get('result') == 'skipped', 'unselected parent platform job made a claim')
+        return
+    context = current_platform_context(candidate, event, environment, adapter)
+    partition = context['platform_partition']
+    expected = {'required': str(partition is not None).lower(), 'verified': str(partition is not None).lower(),
+        'partition': partition['digest'].removeprefix('sha256:') if partition else ''}
+    host.require(platform.get('result') == 'success' and platform.get('outputs') == expected,
+        'current parent platform owner is missing or failed')
+    if partition is not None:
+        completed_platform_job(context, adapter)
+    _platform_bookend(context, event, environment, adapter)
 
 
 def _bookend(context, adapter, *, preexecution=False):
@@ -755,9 +1226,23 @@ def shared_execution(candidate, event, environment, adapter):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('role', choices=('descriptor', 'shared', 'publish'))
+    parser.add_argument('role', choices=('descriptor', 'shared', 'publish', 'platform', 'platform-plan',
+        'fallback-common', 'project-verify', 'parent-verify'))
     parser.add_argument('--candidate', type=Path, required=True)
     args = parser.parse_args(argv)
+    if args.role in {'project-verify', 'parent-verify'}:
+        event_path = Path(os.environ['GITHUB_EVENT_PATH'])
+        host.require(event_path.is_file() and not event_path.is_symlink() and event_path.stat().st_size <= 1_000_000,
+            'native project event is unavailable')
+        event = json.loads(event_path.read_bytes(), object_pairs_hook=inputs._unique_object)
+        needs = json.loads(os.environ['CHECK_RESULTS'], object_pairs_hook=inputs._unique_object)
+        if args.role == 'parent-verify':
+            verify_platform_parent(args.candidate, event, os.environ, producer_api.Adapter(), needs)
+            return 0
+        value = verify_platform_project(args.candidate, event, os.environ, producer_api.Adapter(), needs)
+        with Path(os.environ['GITHUB_OUTPUT']).open('a') as output:
+            output.write(''.join(f'{key}={item}\n' for key, item in value.items()))
+        return 0
     # A controlled first native attempt may establish the first qualified E and
     # completed publisher. Source capability alone supplies neither proof.
     try:
@@ -799,19 +1284,35 @@ def main(argv=None):
         _output({'protected_executed': 'true', 'receipt_sha256': hashlib.sha256(protocol.canonical(receipt)).hexdigest()}, protected=True)
         return 0
     try:
-        context = prepare(candidate, event, os.environ, adapter)
+        context = (current_platform_context(candidate, event, os.environ, adapter)
+            if args.role in {'platform', 'platform-plan', 'fallback-common'} else
+            prepare(candidate, event, os.environ, adapter))
     except PreExecutionUnavailable:
         if args.role == 'descriptor':
             _output({'protected_full': 'false'})
             return 0
         raise
     context['candidate'] = candidate
+    if args.role == 'platform-plan':
+        partition = context.get('platform_partition')
+        _output({'platform_required': str(partition is not None).lower(),
+            'platform_plan': partition['digest'].removeprefix('sha256:') if partition else ''})
+        return 0
+    if args.role == 'platform':
+        report = _directory('ci-platform-report') / 'platform.xml'
+        result = platform_execution(context, event, os.environ, adapter, report=report)
+        _output({'platform_verified': 'true', 'platform_plan': result['partition'].removeprefix('sha256:')})
+        return 0
+    if args.role == 'fallback-common':
+        legacy_common_fallback(context, event, os.environ, adapter,
+            report=_directory('ci-common-fallback-report') / 'common.xml')
+        return 0
     run = current_run(context, adapter, args.role)
     if args.role == 'descriptor':
         value = protocol.descriptor(context['binding'], context['plan'], context['policy'].producer, run)
         _bookend(context, adapter)
         execution._write_receipt(_directory('ci-producer-descriptor') / 'descriptor.json', value)
-        _output({'protected_full': 'true'})
+        _output({'protected_full': 'true', 'platform_required': str(context.get('platform_partition') is not None).lower()})
         return 0
     descriptor, facts = _descriptor(context, adapter, run)
     receipt = _receipt_artifact(context, run, adapter)

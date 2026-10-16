@@ -90,8 +90,8 @@ class SourceAdmissionTests(SourceFixture,unittest.TestCase):
         projected = set(P.shared.sources())
         import_only = set(S.IMPORT_MEMBERS) - reviewed
         policy = P._host_policy()
-        self.assertEqual(len(reviewed), 64)
-        self.assertEqual(len(projected), 81)
+        self.assertEqual(len(reviewed), 71)
+        self.assertEqual(len(projected), 88)
         self.assertEqual(len(import_only), 17)
         self.assertEqual(projected - reviewed, import_only)
         self.assertEqual(set(P.controller_sources(policy)), reviewed)

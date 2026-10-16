@@ -36,7 +36,9 @@ TARGET_PROFILES = {
 }
 # No caller may supply a shorter graph. Changes require independent source review.
 CONTROLLERS = (
+    '.github/android-checks.json',
     '.github/android-orchestration.json',
+    '.github/android-owner-transfer.json',
     '.github/attested-runtime.json',
     '.github/branch-policy.json',
     '.github/ci37-runtime.json',
@@ -56,6 +58,9 @@ CONTROLLERS = (
     'tests/run-project-tests.py',
     'tools/branch-policy/check.py',
     'tools/native-tests/check.py',
+    'tools/repository-checks/android.py',
+    'tools/repository-checks/android_gate.py',
+    'tools/repository-checks/android_handoff.py',
     'tools/repository-checks/check.py',
     'tools/repository-checks/host_selection.py',
     'tools/repository-checks/metadata_context.py',
@@ -75,8 +80,10 @@ CONTROLLERS = (
     'tools/repository-checks/workflows/packages/repository-checks.yml',
     'tools/repository-checks/workflows/packages/sync-validation.yml',
     'tools/repository-checks/workflows/producers/parent-qualification.yml',
+    'tools/repository-checks/workflows/producers/parent-qualification-android-platform.yml',
     'tools/repository-checks/workflows/producers/project-tests.yml',
     'tools/repository-checks/workflows/producers/protected-project-tests.yml',
+    'tools/repository-checks/workflows/producers/protected-project-tests-android-platform.yml',
     'tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml',
     'tools/sbom/requirements-validation.txt',
     'tools/sync-test-reuse/differential.py',
