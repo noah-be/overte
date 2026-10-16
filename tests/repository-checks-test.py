@@ -1348,6 +1348,110 @@ class PackageChecksTests(unittest.TestCase):
             modified = deepcopy(needs); modified['route']['outputs']['package_set'] = '[]'
             with self.assertRaises(ValueError): PACKAGES.verify(modified, plan)
 
+    def protected_workflow_fixture(self, name='protected-producer-metadata-ci-v1'):
+        root,git,_=self.fixture()
+        generation=next(row for row in PACKAGES.workflow_generations() if row['name']==name)
+        contents={hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest():raw
+                  for path in (ROOT/'tools/repository-checks/workflows').rglob('*.yml')
+                  for raw in (path.read_bytes(),)}
+        for relative,entry in generation['workflows'].items():
+            path=root/relative;path.parent.mkdir(parents=True,exist_ok=True)
+            path.write_bytes(contents[entry['sha']])
+        git('add','--all');git('commit','-qm','Install complete protected workflow fixture')
+        self.assertEqual(PACKAGES.validate_wiring(root),name)
+        return root,git,git('rev-parse','HEAD')
+
+    def test_protected_route_accepts_only_actual_complete_flag_bearing_generations(self):
+        names={'protected-shared-producer-v1','protected-producer-postmerge-original-e-v1',
+               'protected-producer-ci37-v1','protected-producer-metadata-ci-v1'}
+        self.assertEqual(PACKAGES._PROTECTED_ROUTE_GENERATIONS,names)
+        for name in (*sorted(names),'postmerge-original-e-v1','npm-consumers-v1'):
+            root,_,_=self.protected_workflow_fixture(name)
+            plan=self.plan('full');needs=self.needs(plan)
+            needs['route']['outputs']['protected_full']='false'
+            with self.subTest(generation=name):
+                with self.assertRaises(ValueError):PACKAGES.verify(needs,plan)
+                if name in names:
+                    original=deepcopy(needs)
+                    self.assertEqual(PACKAGES.verify_protected_route(needs,plan,root),PACKAGES.receipt(plan))
+                    self.assertEqual(needs,original)
+                else:
+                    with self.assertRaises(ValueError):PACKAGES.verify_protected_route(needs,plan,root)
+                    del needs['route']['outputs']['protected_full']
+                    self.assertEqual(PACKAGES.verify(needs,plan),PACKAGES.receipt(plan))
+
+    def test_protected_route_rejects_bad_flags_plan_drift_skips_and_receipt_changes(self):
+        root,_,_=self.protected_workflow_fixture()
+        for host in ('full','tool-dependencies','package-dependencies','documentation','delegated-sync'):
+            plan=self.plan(host);needs=self.needs(plan)
+            needs['route']['outputs']['protected_full']='false'
+            self.assertEqual(PACKAGES.verify_protected_route(needs,plan,root),PACKAGES.receipt(plan))
+            for flag in ('true',True,False,'','TRUE','1',None):
+                changed=deepcopy(needs);changed['route']['outputs']['protected_full']=flag
+                with self.subTest(host=host,flag=flag):
+                    if flag=='true' and type(flag) is str and host=='full':
+                        self.assertEqual(PACKAGES.verify_protected_route(changed,plan,root),PACKAGES.receipt(plan))
+                    else:
+                        with self.assertRaises(ValueError):PACKAGES.verify_protected_route(changed,plan,root)
+            for key in (*PACKAGES.outputs(plan),'unknown-extra','protected_full'):
+                changed=deepcopy(needs)
+                if key=='protected_full':del changed['route']['outputs'][key]
+                else:changed['route']['outputs'][key]='forged'
+                with self.subTest(host=host,key=key),self.assertRaises(ValueError):
+                    PACKAGES.verify_protected_route(changed,plan,root)
+            for job in needs:
+                for result in ('failure','cancelled','skipped','neutral'):
+                    if result==needs[job]['result']:continue
+                    changed=deepcopy(needs);changed[job]['result']=result
+                    with self.subTest(host=host,job=job,result=result),self.assertRaises(ValueError):
+                        PACKAGES.verify_protected_route(changed,plan,root)
+            changed=deepcopy(needs);changed['package-checks']['outputs']['package_plan']='forged'
+            with self.assertRaises(ValueError):PACKAGES.verify_protected_route(changed,plan,root)
+        target=root/'.github/workflows/pr-metadata-context.yml'
+        target.write_bytes(target.read_bytes()+b'\n')
+        with self.assertRaises(ValueError):PACKAGES.verify_protected_route(needs,plan,root)
+
+    def test_protected_route_cli_recomputes_current_six_workflow_plan_and_verifies_raw_needs(self):
+        import yaml
+        root,git,base=self.protected_workflow_fixture()
+        recipe=yaml.safe_load((root/'.github/workflows/project-tests.yml').read_bytes())
+        declared=set(recipe['jobs']['route']['outputs'])
+        # Native event/output files are runner-owned and outside the candidate.
+        directory=Path(self.enterContext(tempfile.TemporaryDirectory(prefix='protected-route-cli-')))
+        for path in ('native.cpp','README.md'):
+            target=root/path;target.write_text('Updated fixture source.\n')
+            git('add','--all');git('commit','-qm','Update selected fixture input')
+            head=git('rev-parse','HEAD');payload=self.push(base,head)
+            plan=PACKAGES.candidate_plan(root,payload,head)
+            self.assertEqual(plan['host_mode'],'full' if path=='native.cpp' else 'documentation')
+            needs=self.needs(plan);needs['route']['outputs']['protected_full']='false'
+            self.assertEqual(set(needs['route']['outputs']),declared)
+            event_file=directory/'event.json';event_file.write_text(json.dumps(payload))
+            output=directory/'verified-output'
+            command=[sys.executable,str(ROOT/'tools/repository-checks/package_checks.py'),'verify',
+                '--candidate',str(root),'--event',str(event_file),'--sha',head,'--output',str(output)]
+            variants=[(deepcopy(needs),True)]
+            if plan['host_mode']=='full':
+                protected=deepcopy(needs);protected['route']['outputs']['protected_full']='true'
+                variants.append((protected,True))
+            for mutate in (lambda n:n['route']['outputs'].update(protected_full='true' if path=='README.md' else 'TRUE'),
+                           lambda n:n['route']['outputs'].update(unknown='forged'),
+                           lambda n:n['route']['outputs'].update(package_plan='forged'),
+                           lambda n:n['project-tests'].update(result='skipped' if path=='native.cpp' else 'success')):
+                changed=deepcopy(needs);mutate(changed);variants.append((changed,False))
+            for document,success in variants:
+                output.unlink(missing_ok=True)
+                run=subprocess.run([*command,'--needs-json',json.dumps(document)],capture_output=True,text=True)
+                with self.subTest(path=path,success=success,outputs=document['route']['outputs']):
+                    self.assertEqual(run.returncode==0,success,run.stderr)
+                    if success:
+                        self.assertEqual(json.loads(run.stdout),PACKAGES.receipt(plan))
+                        self.assertEqual(dict(line.split('=',1) for line in output.read_text().splitlines()),PACKAGES.receipt(plan))
+                    else:self.assertFalse(output.exists())
+            # The documentation case must be a separate complete B→M delta;
+            # an earlier native edit must never disappear from the whole union.
+            base=head
+
     def test_outer_verifier_recomputes_proof_and_preserves_legacy_shape(self):
         plan = self.plan()
         needs = results(); needs['route']['outputs'].update(PACKAGES.outputs(plan))

@@ -35,6 +35,14 @@ WORKFLOW_PATHS = tuple(".github/workflows/" + name for name in (
 CONSUMER_WORKFLOW_PATHS = (*WORKFLOW_PATHS, '.github/workflows/browser-client.yml')
 METADATA_WORKFLOW_PATHS = (*CONSUMER_WORKFLOW_PATHS, '.github/workflows/pr-metadata-context.yml')
 CONSUMER_TEMPLATES = 'tools/repository-checks/workflows/npm-consumers/'
+# Only these complete protected recipes publish the sixth route output. The
+# postmerge-original-e-v1 predecessor retains the strict legacy five-field form.
+_PROTECTED_ROUTE_GENERATIONS = frozenset({
+    'protected-shared-producer-v1',
+    'protected-producer-postmerge-original-e-v1',
+    'protected-producer-ci37-v1',
+    'protected-producer-metadata-ci-v1',
+})
 
 
 def _trusted_sparse_blob(relative, limit):
@@ -365,6 +373,26 @@ def verify(needs, plan):
     return receipt(plan)
 
 
+def verify_protected_route(needs, plan, candidate):
+    """Admit one fixed routing field from an actual complete protected recipe.
+
+    The literal flag describes dispatch only. It grants no execution, receipt
+    or native publisher authority; the existing verifier checks every lane.
+    """
+    if validate_wiring(candidate) not in _PROTECTED_ROUTE_GENERATIONS:
+        raise ValueError("protected route requires a complete reviewed producer generation")
+    route = needs.get('route') if isinstance(needs,dict) else None
+    published = route.get('outputs') if isinstance(route,dict) else None
+    if not isinstance(published,dict) or set(published) != set(outputs(plan)) | {'protected_full'} \
+            or type(published.get('protected_full')) is not str \
+            or published['protected_full'] not in {'true','false'} \
+            or (published['protected_full']=='true' and plan['host_mode']!='full'):
+        raise ValueError("protected route output differs from the reviewed producer contract")
+    ordinary = {key:value for key,value in published.items() if key!='protected_full'}
+    normalized = {**needs,'route':{**route,'outputs':ordinary}}
+    return verify(normalized,plan)
+
+
 def validate_wiring(candidate):
     """Accept one complete reviewed generation; never combine allowed files."""
     candidate = Path(candidate)
@@ -516,7 +544,7 @@ def main():
     args = parser.parse_args()
     try:
         event = json.loads(args.event.read_text())
-        validate_wiring(args.candidate)
+        generation = validate_wiring(args.candidate)
         plan = candidate_plan(args.candidate, event, args.sha)
         if args.expected_candidate and args.expected_candidate != plan["candidate"]:
             raise ValueError("package caller candidate mismatch")
@@ -531,7 +559,9 @@ def main():
         elif args.command == "run":
             result = execute(args.candidate, plan, args.lane)
         else:
-            result = verify(json.loads(args.needs_json), plan)
+            needs = json.loads(args.needs_json)
+            result = (verify_protected_route(needs,plan,args.candidate)
+                      if generation in _PROTECTED_ROUTE_GENERATIONS else verify(needs,plan))
         with args.output.open("a") as output:
             output.write("".join(f"{key}={value}\n" for key, value in result.items()))
         print(json.dumps(result, sort_keys=True))

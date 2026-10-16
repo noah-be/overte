@@ -248,6 +248,35 @@ class ShippingPolicyTests(unittest.TestCase):
                 'fixed-subject-or-reader-not-reviewed' if name in inputs._AFFECTED_SUBJECTS
                 else 'product-component-or-reader-not-reviewed')
 
+    def test_exact_seven_metadata_bytes_are_independent_but_membership_and_modes_are_bound(self):
+        _,registry,raw,base=self.bounded_context()
+        paths={
+            'tools/repository-checks/metadata_context.py',
+            'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml',
+            'tools/repository-checks/workflows/metadata-edits/codeql-metadata.yml',
+            '.github/workflows/pr-metadata-context.yml',
+            'tools/repository-checks/workflows/producers/legacy/repository-checks-protected-ci-v1.yml',
+            'tools/repository-checks/workflows/producers/legacy/parent-qualification-postmerge-v1.yml',
+            'tools/repository-checks/workflows/producers/legacy/protected-project-tests-ci37-v1.yml',
+        }
+        self.assertTrue(paths <= set(json.loads(raw)['suites']['device-control-plane-full']['native_independent_paths']))
+        candidate=deepcopy(base)
+        for path in paths:
+            self.assertEqual(base[path]['mode'],'100644')
+            candidate[path]=blob(('changed reviewed bytes '+path).encode())
+        plan=inputs.plan_affected(registry,raw,base,candidate,base)
+        owners={'device-control-plane-full',*inputs._AFFECTED_PRODUCT_SUITES,*inputs._AFFECTED_SUBJECTS}
+        self.assertTrue(owners <= set(plan['omitted']))
+        for path in paths:
+            for mode,kind in (('100755','blob'),('120000','blob'),('160000','commit')):
+                changed=deepcopy(candidate);changed[path]={'mode':mode,'type':kind,'sha':'f'*40}
+                with self.subTest(path=path,mode=mode):
+                    try: result=inputs.plan_affected(registry,raw,base,changed,base)
+                    except inputs.InputError: continue
+                    self.assertTrue(owners <= set(result['required']))
+        candidate['.github/workflows/pr-metadata-context-extra.yml']=blob(b'unreviewed neighbor')
+        self.assertTrue(owners <= set(inputs.plan_affected(registry,raw,base,candidate,base)['required']))
+
     def test_unavailable_graph_retains_the_independently_selected_legacy_gate(self):
         root,registry,raw,base=self.shipping_context()
         spec=importlib.util.spec_from_file_location('affected_host_rollout',root/'tools/repository-checks/host_selection.py')
@@ -516,6 +545,33 @@ class DependencyPolicyRoutingTests(unittest.TestCase):
             self.assertEqual(android._kind(entry),'application-input')
             self.assertNotIn(path,host.CI_HOST_INDEPENDENT_PATHS)
 
+    def test_exact_metadata_and_security_guide_ios_exclusions_keep_neighbors_and_modes_conservative(self):
+        ios=self.module('metadata_ios_inputs','tools/ios-build-qualification/inputs.py')
+        host=self.module('metadata_ios_host','tools/ios-build-qualification/host.py')
+        paths={'.github/dependency-security.md', '.github/workflows/pr-metadata-context.yml',
+            'tools/repository-checks/metadata_context.py',
+            'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml',
+            'tools/repository-checks/workflows/metadata-edits/codeql-metadata.yml',
+            'tools/repository-checks/workflows/producers/legacy/repository-checks-protected-ci-v1.yml',
+            'tools/repository-checks/workflows/producers/legacy/parent-qualification-postmerge-v1.yml',
+            'tools/repository-checks/workflows/producers/legacy/protected-project-tests-ci37-v1.yml'}
+        for path in paths:
+            with self.subTest(path=path):
+                entry=ios.Entry(path,'100644','blob','a'*40)
+                self.assertEqual(ios._kind(entry),'independent-host')
+                self.assertIn(path,host.CI_HOST_INDEPENDENT_PATHS)
+                old=SimpleNamespace(entries=(entry,),revision='a'*40,tree='b'*40)
+                with patch.object(host,'REVIEWED_CI_HOST_BOUNDARY',host.ci_host_boundary(old)):
+                    self.assertIsNotNone(host.ci_host_omission(old,SimpleNamespace(
+                        entries=(ios.Entry(path,'100644','blob','b'*40),),revision='c'*40,tree='d'*40)))
+                    for mode,kind in (('100755','blob'),('120000','blob'),('160000','commit')):
+                        altered=ios.Entry(path,mode,kind,'b'*40)
+                        self.assertEqual(ios._kind(altered),'application-input')
+                        self.assertIsNone(host.ci_host_omission(old,SimpleNamespace(entries=(altered,))))
+                neighbor=path+'.extra'
+                self.assertEqual(ios._kind(ios.Entry(neighbor,'100644','blob','a'*40)),'application-input')
+                self.assertNotIn(neighbor,host.CI_HOST_INDEPENDENT_PATHS)
+
     def test_complete_source_reader_complements_exclude_only_exact_new_leaves(self):
         ios=self.module('affected_ios_reviewed','tools/ios-build-qualification/inputs.py')
         host=self.module('affected_ios_host_reviewed','tools/ios-build-qualification/host.py')
@@ -544,9 +600,9 @@ class DependencyPolicyRoutingTests(unittest.TestCase):
         # immutable reader audit; a shallow candidate need not fetch its commit.
         self.assertEqual(ios.REVIEWED_REVISION,'2fc894a0605103843b36653f250f854714a963ee')
         self.assertEqual(ios.REVIEWED_BOUNDARY,
-            'sha256:cc243adcadf8cf8f51e1226a30f908552e5511126be995f916b2b82084cda027')
+            'sha256:48d5394647900717f6d69de0c0059b935e6e2c6a2efc085c76da04c568d78d90')
         self.assertEqual(host.REVIEWED_CI_HOST_BOUNDARY,
-            '09469192aac99ef9e1ff991a2c6be58942ed9e76f1f35dd2d5b23d4ea1dc15bb')
+            'c949ee97705a6b0fcb66a1b809b23cabe84dc738ab68df38886dfe6907908234')
 
     def test_new_policy_uses_existing_native_browser_and_package_host_routes(self):
         native=self.module('affected_native_route','tools/native-tests/check.py')

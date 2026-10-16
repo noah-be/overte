@@ -41,8 +41,9 @@ VARIANTS = ["complete-reviewed-launcher", "Qt6Core/Gui/Qml/Concurrent/WebChannel
 # membership, local imports and historical child differences, remain anchored.
 # This proves only that the own host run is unaffected; it is not a passing
 # test receipt, shared-owner handoff or application-build selection authority.
-REVIEWED_CI_HOST_BOUNDARY = "09469192aac99ef9e1ff991a2c6be58942ed9e76f1f35dd2d5b23d4ea1dc15bb"
+REVIEWED_CI_HOST_BOUNDARY = "c949ee97705a6b0fcb66a1b809b23cabe84dc738ab68df38886dfe6907908234"
 CI_HOST_INDEPENDENT_PATHS = frozenset({
+    ".github/dependency-security.md",
     ".github/test-suite-dependencies.json",
     "tools/test-evidence/affected-test.py",
     "tools/test-evidence/AFFECTED_SELECTION.md",

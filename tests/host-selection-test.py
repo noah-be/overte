@@ -292,7 +292,10 @@ class HostSelectionTests(unittest.TestCase):
         generations={g['name']:g['workflows'] for g in packages.workflow_generations()}
         previous,candidate_tree=copy_git_tree(self.tree),copy_git_tree(self.tree)
         previous.update(deepcopy(generations['postmerge-original-e-v1']))
-        candidate_tree.update(deepcopy(generations['protected-producer-ci37-v1']))
+        previous.pop('.github/workflows/pr-metadata-context.yml',None)
+        candidate_tree.update(deepcopy(generations['protected-producer-metadata-ci-v1']))
+        self.assertEqual(set(generations['protected-producer-metadata-ci-v1']),
+                         set(packages.METADATA_WORKFLOW_PATHS))
         paths=sorted(path for path in previous.keys() | candidate_tree.keys()
                      if previous.get(path)!=candidate_tree.get(path))
         plan = {'candidate': 'a'*40, 'base': 'd'*40, 'plan': 'c'*64, 'host_mode': 'full',
@@ -321,12 +324,13 @@ class HostSelectionTests(unittest.TestCase):
                     for path in (ROOT/'tools/repository-checks/workflows').rglob('*.yml')
                     for raw in (path.read_bytes(),)}
         policy = SimpleNamespace(validate_wiring=packages.validate_wiring, candidate_plan=Mock(return_value=plan),
-            workflow_generations=packages.workflow_generations, CONSUMER_WORKFLOW_PATHS=packages.CONSUMER_WORKFLOW_PATHS)
+            workflow_generations=packages.workflow_generations, CONSUMER_WORKFLOW_PATHS=packages.CONSUMER_WORKFLOW_PATHS,
+            METADATA_WORKFLOW_PATHS=packages.METADATA_WORKFLOW_PATHS)
         with tempfile.TemporaryDirectory(prefix='overte-producer-selection-') as folder:
             candidate, trusted = Path(folder)/'candidate', Path(folder)/'trusted'
             candidate.mkdir()
             trusted.mkdir()
-            for path in packages.CONSUMER_WORKFLOW_PATHS:
+            for path in packages.METADATA_WORKFLOW_PATHS:
                 endpoint = candidate/path
                 endpoint.parent.mkdir(parents=True, exist_ok=True)
                 endpoint.write_bytes(contents[candidate_tree[path]['sha']])
