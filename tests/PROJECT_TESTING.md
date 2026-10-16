@@ -616,6 +616,46 @@ authorize reuse. Qt-free reusable profiles and child consumers remain separate
 work. A successful lookup with no affected package inputs skips candidate
 checkout and Node/Qt setup; affected independent package owners still execute.
 
+The separate source-only CI37 profile is prepared in
+[`ci_profile.py`](../tools/test-evidence/ci_profile.py),
+[`runtime_ci.py`](../tools/test-evidence/runtime_ci.py) and the disabled
+[CI37 policy](../.github/ci37-runtime.json). Its environment has schema 2 and
+profile `ubuntu24-ci37-v1`; existing full Qt environment schema 1 and execution
+receipt schema 3 remain unchanged. The exact ordered 37 CI owners, command
+definitions and a conservative immutable executable/import/discovery/lookup
+generation are mandatory. Only eight fixed reviewed workflow/document leaves
+may change bytes; their membership and ordinary modes remain bound. Changed
+readers, unknown paths, extra commands, control-plane full owners and platform
+suites require the existing full/nonreusable execution route.
+
+The prospective capture records actual OS/image/namespace identity, the entire
+installed Debian/Python package inventories, complete protected venv/Python/Node
+file trees, Python startup and process flags, and actual Bash/Git/Node/CMake/
+CTest/Ninja/Make/GCC/binutils identities. All system headers, GCC internals,
+CMake modules, CRT and standard libraries remain conservative content inputs;
+PIE startup objects, GNU linker-script referents and resolved ELF runtime
+libraries are explicit. Unsupported tools, sysroots, lookup overrides, aliases,
+linker scripts or incomplete inventories fail capture. There are no fabricated
+Qt/GLM/Java capability fields or optional unknown identities.
+
+Original-E admission and `plan_original_reuse()` perform no consumer tool or
+environment probes. The pure plan requires exactly the same 37 original/current
+owners and successful matching fingerprints using the unchanged original E.
+It preserves original expiry, supplies no authentication or renewed receipt,
+and cannot substitute full/quick environment projections. The existing native
+adapter must independently authenticate the original schema-3 receipt and its
+whole-receipt publisher hash before a caller may use that plan.
+
+This packet does not wire the profile into producer, probe, workflow or consumer
+execution. Before integration, the protected context/projection and controller
+inventories must include these exact new policy/readers, actual selected-profile
+before/after probes must pass, and every admission failure must retain the
+existing pre-execution fallback. Source and policy flags remain false. No hosted
+capture, complete-profile qualification, runtime cost or speedup is established.
+The focused offline checks are `python3 tools/test-evidence/ci-profile-test.py`
+and `python3 tools/test-evidence/runtime-ci-test.py`; they use fake identity facts
+and strict negative cases without compiling native fixtures or probing host tools.
+
 The `android-build-inputs` quick suite checks dormant Phone and Pico APK source
 planning with real immutable Git histories, including standalone npm locks,
 native/Java/Gradle/Conan inputs, packaged resources, mode changes and stale reader
