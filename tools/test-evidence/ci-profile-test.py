@@ -572,9 +572,16 @@ class ControllerGenerationTests(unittest.TestCase):
         required=set(C.controller_paths())|{C.DATA_PATH}
         for name in C.SUITES:required.update(self.registry['suites'][name]['closure']['required'])
         self.blobs={}
+        # This repository models protected main D, independently of the
+        # platform branch executing the test. Child B/M profiles are applied
+        # separately by SevenTargetProfileTests.trees below.
+        shared_profile=(json.dumps({'schema':1,'platform':'shared','suites':[]},indent=2)+'\n').encode()
+        self.assertEqual(self.blob(shared_profile)['sha'],'d63537504c20204de9d35d9be61da72a56df59c3')
         for name in sorted(required):
             source=C.ROOT/name
-            raw=json.dumps(self.policy,sort_keys=True).encode() if name==C.POLICY else source.read_bytes()
+            if name==C.POLICY:raw=json.dumps(self.policy,sort_keys=True).encode()
+            elif name=='tests/platform-profile.json':raw=shared_profile
+            else:raw=source.read_bytes()
             path=self.root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(raw)
             path.chmod(0o755 if source.stat().st_mode&0o111 else 0o644)
             self.blobs[self.blob(raw)['sha']]=raw
@@ -584,6 +591,7 @@ class ControllerGenerationTests(unittest.TestCase):
         self.source=self.git('rev-parse','HEAD').decode().strip()
         self.manifest=C.capture_controller_manifest(self.root,self.source)
         self.trusted=deepcopy(self.manifest['entries']);self.candidate=deepcopy(self.trusted)
+        self.assertEqual(self.trusted['tests/platform-profile.json'],self.blob(shared_profile))
         self.selection={'suites':list(C.SUITES),'reason':'reviewed-ci-only-inputs','full_host':False,'include_platform':False}
 
     @staticmethod
@@ -919,6 +927,7 @@ class SevenTargetProfileTests(unittest.TestCase):
                 path.chmod(0o755 if name=='tests/run-project-tests.py' else 0o644)
         (self.root/C.POLICY).write_bytes(json.dumps(self.policy,sort_keys=True).encode())
         tree=inputs.full_tree(self.root,'HEAD')
+        self.assertEqual(tree[self.S.PROFILE],self.S.ordinary(self.S.TARGET_PROFILES['main']))
         for name in inputs.AFFECTED_AUTHORITY|{C.POLICY}:
             tree[name]=fixture.blob((self.root/name).read_bytes())
             if name=='tests/run-project-tests.py':tree[name]['mode']='100755'

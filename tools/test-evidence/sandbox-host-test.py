@@ -1456,6 +1456,12 @@ class SharedHostSourceTests(unittest.TestCase):
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(H.ROOT / name, path)
+        # This immutable fixture is the shared-main manual source. Never inherit
+        # Android/child setup merely from the branch running these unit tests.
+        profile = (json.dumps({'schema': 1, 'platform': 'shared', 'suites': []}, indent=2) + "\n").encode()
+        self.assertEqual(hashlib.sha1(b'blob ' + str(len(profile)).encode() + b'\0' + profile).hexdigest(),
+                         'd63537504c20204de9d35d9be61da72a56df59c3')
+        (self.root / 'tests/platform-profile.json').write_bytes(profile)
         self.git("init", "-q", "--initial-branch=main")
         self.git("add", ".")
         self.git("commit", "-qm", "Record protected shared-host controls")
