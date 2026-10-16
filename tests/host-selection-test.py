@@ -3,6 +3,8 @@
 from copy import deepcopy
 import importlib.util
 import json
+import base64
+import zlib
 import contextlib
 import io
 import signal
@@ -17,6 +19,18 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location('host_impact_tests', ROOT / 'tools/repository-checks/host_selection.py')
 HOST = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(HOST)
+
+
+def historical_workflows():
+    # Exact reviewed source20/21 bytes; independent of active22 and shallow Git.
+    result = {}
+    for oid, encoded in (('d9fefd275d9e3c6977cf9350a1945a6bbe5051b4', 'c-q}s>u=jO5dWUPg6WDn0Ve0Yb{;Y;ON=J#>I8|?p(qMLmd-XCSyD;LiP!dj-|?k~CClz3S<!xq$-Cq6cW<gck&~EByhsqiQZ67MiRa&VBOoJ)fO&$((Qm}_1)ZwD34`}3Wx(-|DTP~P5FQ(WAW0ljf7V`$ya{y3B_uJYB4#t<kHNp;YjM<BBP2<~(3LWP3;CN6F-w5!KOGV$cxqsNFev@xv&bK_IHLc8S%H9xY&-M@5N5y9DF1yMvzuWU-?{<ii6{KAK8;36D$L1*urxxwMtCz$wW|7G0NiIZk$1;ir4bQhAbvbaLJ)wvQ|f~=WB?@RCV~RXB*+VP$RLhG@S=j;p_hiDBXNgp)u0=6$j}QptR=uERLN9|`f(&6LZy+=3)b+bpE3rKKa;y77N?2avd}vkdgt+n4`f8eI32WMiu~=O71~ic82}?6KUx|FL-OfUl}ma7UheRav^4T9^5h9wFVXm8FB$=F4?GTXccXS!P!U4m#5vwLm~BdCs}Gun29mt>KJ`L6q`vaS7HTO$@gg5Whel4qVr2pY>brQLP@9180#A4jk5lG@wyk#4qZG{<2`LcB#U&ANCzM-h4;gk!8oH86-M<K6tDvg9wkz?IL=%rj#m)Z#MRkpoV}OzNR$J3;*?8bv33D=VlyBXM_G}WaAshOVuuuU6C}0l83?VPP^=5oSS!_emw&zIEqd5Ayx-(CGA5GMfdM_uwp-F-W>3hrtgZwua5PDG~Twap~bBw`?JK7DdFjM#<i@rh#+3aOf1b1W_NC#;oQfGI+y}hq<7@Yv(<xFUVsG<A=wTw%}6k{*y#!)!y5E);XaT9I~XQ<mHGVS7uI}V`8l!RWC^WbJq$^p{?6|;rpmLO+|Frua<`Fdr+2?Dd3i{bVTVdD#rDN*Ijroy-wxB<nRF1}WUvMNN<FXfkuRn~FLh1&>gg|aGSH6&`OtHL;lr6Q0fXGC0BOanKs8w<GS39BNOTcbi*71C&pB2kr<MluR8<d*VhlvaqMwJn5>=wlhSG61u_MkX{GjZB|n4%eyCB#bQ;>qz#;Ua;ry@4|uS`3D2<+4jM+-Gjh;`pf>#w!iaiXZPve!25N3uw$g$VqWbOYWPrJp_G>Ml+re(-yJZlT;m)G=?5stYMieE<CF`>N4v>lg`I)z4=f4xHH?E}FVG<$vn@hQ-Y=|3H{@HDMxjE1xlB0N;^479RCaZSa3oQcmB!o|q%;hiQq3+I=@R^SB>Op{QeD<n>B1H>B5Rl`$3%f>Poe1NYQg-5Xqv<S{M7BAzv%W#HW2X*L`9@~NBy%`UH4_Te{^!xKXT7{{cf+XdFsnjB|TGBdUByy9y;WACpX(njN@p}nsaLb=-TVr$t*9h#k(O|`Zsy>`1x7?^!iV?`wCTcFOK@BkL;$SI+Hny-qFjhq|ln@yXV*ai|hWQIa7FnZf&#R7P6_8t}UYo?yzL2_@P!aS^JmQuXQZrvKwpNW5nsO$u!T_hk(t#6F?%jcfTs0iZSGry9RAWGGy^YAqaPPJ2WOvMHQXC3^VEPG7}aZ?X$g0W!)vdlpDVarsMFjmor|S9<AzI1}B{^9tbXd*mA&%Iqa*k(imlkt%w!wNV74EkfVy;JFb$Y>B|beYM!A~i(cDXV<%oDsfX>*!Y0XE#yT681}A7eNd%j!S2qMLo9|X_#!cH&>bdnip>)fph~@gO7xk?pH&<9UgF|b{@KZFsntJ9FOWqnboTlI~9bM<%#uQ@0rZTzQlQ)<PHMoPJ$o%137<HqLzS@IJRfh;vVTN3VMFzYq1`x@1h5}#8FI#P?;G4It<&(66qrsc9lV@||LY)Q+<^;G)Z~-dKdebFpy7f#<b%<(`l=tnX6MulTWKL>uL__gS9kGtQGC>`d%FbffFpQ36to4riL2e~ImQ8X^LRK2(ngpyg%QXp@8|H%8PbavbhJ^?4uhMx9URI);_q8|byq|3ucw754wu15|{~0mOuV!^b_O)y^AZk3`3bhQSTf0+WILD#Kt*_|$C3e%08t=D6PWD!H|F*82*<kMq?Y-xhOsQ4#N=3y5WoHP?%|3z1PK0@?_LvV3nV5X*hxF}bXfKX}DtL=R;j>?en_sT7=_pUrb{;Rxt`GQ>B`3hbBg&V}*Y={XB!)9QLw+ZbFAElDlHpvO-!5MFPtSWN=e_<vmuLO%pRfDf<MWg5;Z8o;sUfc7&#EWGsZM^>m>-XSoQ}P6wT9$Yq0N%pg6}ycP1kE<cBN?CEMyk@kvGeuj?FRVSE+iKwMx#LUoX3kQ+x+-Y<qGap=uwQHAE&ou<!JhdA0cbo)Xc$zwk-N0Y^{#U-z`Gk`T7VVu=5-LVl7S(h%%(PVvE2weJ{hA%3q5)jVe3#zah1fMwqRN)Oz}r`_Wh?q&Dt`tSag_5l(9b#>m;!Ma&A^(v3y<=3%g&xli<wU<1ODNP)CX{0DA`~^>EYySb4lWnp'), ('d04a6dc70213d8b549bac30c11cc15eaf0182dea', 'c-oazO>f&U488kT5J7>Q<b1E0feuTDVC`XD&?UPDvdlDEZON0Uq-oLrKFN-gG>5J8!GKBnk?-+IiWiu`#L*fRNx=zWb`OM41ei&RBCV1LV5`mJD%abk;CUVb0NPRM$krbK1rpCV@ugJcp_(wjhUd<=xOjPiUplq1L7^X%e8zZ>5TE@Dudh*5qA8@cQmd+i&{fJNV321~6p%vv09N-?6`T7e2(l;~@ifOHqZ;aos(Ry;Wu76p)G2bTKa9J>DnqhBKOZZka)iF`=slz>mX@%z@xIO9NCt$exPfDP0$<iB9z(Aa0;SP}f-r-EOVto3FA!MmjKG87&W3rp2szsk0n0;u9%KVC?Bj@YF-rNkI~w;#8Nd86>~%$N-0NQsQvR`<_6|5(N$cYpgVw8>;Db-NG{%kR5tlB{mj-`3v=pb@Vr<vEVOKvT_dr0#d9vAQ9F3Khm@t?H_wn4%z4C87DY7Lu7Fk1sd0mkeI>UdK`j%Sfwqvl=R+2WmI%PYDT{KH7cV`<oT1cyW2mW+;-xOtz{(LA-a&zLS!vr!*-neV;umnD_Q`S3LYc&9N3+xB5>qeN)|4&;@%&I*=>*DL}{AO{zoc^5N&6l&u{HE0;Ss-;@aX0xk4HdOPkJ;~w`D`(7oe6S!Lu3$ku;sgh|3PWRyhAf5&>Z#fetF+vxVnP2mjT;vb!#W>=nof(d71'), ('55d08b65a987224ce576459cede693cfd49375f6', 'c-rk5YjfMU@w<Kns`Ffun}T{+q#lhs&gIm^J;!!rJ8dU*H6RE|uql!TKsmZ3{q0=<ltk)bD{01;59coyfZfGn-@E()ohve80g_23C__mc&HjP{mPX0UED#A56No00G-8S&B{Hc1{w@(WVU*nA5sR51iYGB5!Guc*znn@;Caj0fXE8-n67j$QR74izjVEaD<445fG*i-{i4ZKZ+n+yIDoNa{pv8T|fXkF9I@X&g$FaW=DxmhzN5O70E?CghOtU{DHA~@UsRWNlpL2{!60ohHbewPst0dJFWe>d<ER(Pik|^>Cy}6o`NktO!i0yc3nnlr212U<0L}4FNMnUdFpGY>8WAdeVV@86n!J9BK+U>$h%0#YzqYy%KsR_8cqLmXX7OUlk76Z=3FyE~J6wN@3F`a25Bavh&+yUl-m*#>C=28@<wimdF#FRyt#~9Qy5==_VaHVpc_=dHd60>$=E%IHy2Tupi&5dJ`#QZmFx*8D7S7L2inV-cf!_AgcZ<!OtCoIVnp71zR4DM^XW}n5=xow`l>klsa!?$mahZp_xi{aq%<fK37p;{(IE#iLdR(Um_$F<u@1SEjr7#zzWgTti@8^<}nFUO4DAh>kllKHC=kwYQ`#tOXTil|YI0SJft!9Hy@nM(+DebTABou(U*w%2OZX`|C<w)cI~t@{o11Ddv-y3<$?yyI%zTdY7LEbO5P;c;OPymQ=}GgaJYLUO4v1q%W@;3NXxz>_3fdD(y&PEo|C44n-SH{fcvpjD8n{`>jGd4G8R`bDo8Mb;d~+Q$6v)$8HK>9740i!*{}Wxk`58y1)0UiV-8vYqzasmeHS`h!>ZFtqTfGS=DU@$qobe|rhWQ9@id@Lcv8SmLJw1<4e`EK5+zQx*~)70%wjN7cQ#psMKLzvw^j>$ppBc=fSW|GbB;u2!MvPu~rC@#x*ai?7Ww8n}C<(XM`4K>+*BNOZ9GbTmdJ<)|uHn#kJTtD}q8mp=oQv(xjVi_^isYFboqP$K?p_3EeBw+IX5Xv1){8lFFY4%_yY>NDWxpd_nx=I0c&`nOY9%5OUbYYUKECtMA;QYy%HL25%77&F8tlS~mmVmb&0HlCR~jOS{og7-agnD_!;upwmegu+S4AoXLYPc%UDYog0h4A?BzKv3OC76B(v<b;Ny)vynVotdmBImG0}bsSQl#oQK?c8xD@PJii_M57CmmB27K{oB!T87i+g%79-J2fz3D_E%ig@eFJ@-k;}|no1IIcbzOTo9Zk<S#6%$vDT!M&I;%lTb*H3*J2Dd4h(>Q<$>h%^5X3BqFTaOy3z6%#wGx9$h5O1_A(4r0isyjtcJVN1xDZC;$Q~`FIOy}Shed-tvaj)S`14VYwhIQ%UA;xwfyt_W#lMbdY#2wAwT0$V8sVTQWhy$Gj*1g5(}IUlgK=lGM;V+UzTOgwM^m_cRPoql%)mfof#!AT`BC@`o^)>I#w&viAc=QpAOKIh>ZxHVL!>hX@e)|)2CH0&`?1_vkCaLVdTk{&;}VYOR+VhLwHu3`gM;INS1CGhV53P+X*^etJ{Iyme=l3uR%<B^PGLBzBRmAf_SP!kS-6a`%a@-eMk@|pm~tk?<t8GSU7C9y4`lY-Ry!eSh(+Yx?Zcrn()tSxy%i8@bA+7j+KLZj~q0)f)tt$%i!;1N*)$Ks3XKU0Z)Q-_(YfT_dn|zs2=(r3q!x|vX<NOn{K`CdZ68I!}IE%A5bq0sULPdqh8l(-}5Z!IHASyGuu`wHpxV(;MLa^p516y*HVsD&@mR?Z632Fw|tEh)@#8mNT66!(4Iq4n4lNbv~IoLfWcdsJZOO;R&whOI6Qv|2Gha$LI(&aU?8PRglFjA1&RnkGowRX7BPIQbnHO4Dqu7sdSozVE~N4)HgOydJR9j?tF*|^)0+{7?l9yd=nVW(G%<iH*R2sRa{v#bH_Z)unz9mb&Bnus%s>lr)6pG|gXFHc#)pRsoGhNSvR8Qd9rNj!K+6{yV0huJa+jO#rpFe!0Umvc!z2orh`?ZVUWqh__Ylk)(E<jn)^|+KisXg^J){9YphD-1d+BP~ZQ5JtVdLRk4-b;Y;H4=Hg4kv{R%!Q=v9f}AqF}hOnMwdfX0mpsjl7r}mR75?JCC7O5h4-bE0}!%B}nvExo?d;;Kx6h|I%t)uTGfKB88vc9KtI>csayMz&V2gg$QT|WTJ%tW$hT20fP9WM^!-vC9loH%b~&lk%%5Hf~&>)BQKcNkJh4?velCvl??kQ?~VqiCvW;Ex@F9ZYOEt-Y0hB6n4C$fAWq#OFi4P<LsF2)BoR<)>S#{YFpEJQQ^=Yy{v1LY5wSd|7wEvSM@tR#qz`prMN%x1M9tSRQ+BSjUZLU%nu0L$nn|;W^;;x{%>wwQV>1J?bTk?0<qJ_4QjzZNFzn7V4z|M*=q49su_jf^hjqFVkVZ(3`k+?q<Q)?{oS|HgYt7HRXPldi$*wz^$-(Ys(*NgK|K&v=3fTTJ{5U$zyQYoA?J}PYe|f+4M>F-!nyJTWjm*UT(Hf(<-0{-Ps(b79`MY&fxx?BK^-}CI(<P({?~4yLpm9BwUZ0+Rv+(|ye*4Fq<O^K;p|tXyyZmEML%w&Xzl4vmBq)9@HFc2|yHMq_jYM~3CZ9e-KmLfGe*0m<vn_3RW;nz|C?3Mzq2H#i=aF{1$voflL*MPNpdL_Y!`=NRX|=mSyWQ!AcBD|hZ=_%(u=@Ege>yJ24Df;>55O;0H;K}{fZ8-*{#2^}Hz=oczA*XP2FRbZrgsO2W)8kAYcmP0ix%~6m8m;ytp?q&fr@(Qj)=H4Q`cWpwKM`yc@MQK{{ur>)>r')):
+        raw = zlib.decompress(base64.b85decode(encoded))
+        actual = HOST.hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
+        if actual != oid:
+            raise ValueError('historical controller workflow hash differs')
+        result[oid] = raw
+    return result
 
 
 def copy_git_tree(tree):
@@ -110,7 +124,8 @@ class HostSelectionTests(unittest.TestCase):
         self.assertEqual(len(result['suites']),len(set(result['suites'])))
         changed=copy_git_tree(candidate)
         changed['tests/repository-checks-test.py']={'mode':'100644','type':'blob','sha':'a'*40}
-        normal=self.selected(['tests/repository-checks-test.py'],tree=changed,trusted_tree=candidate,base_tree=candidate)
+        with patch.object(HOST,'_qt_free_dependency_namespace',return_value=False):
+            normal=self.selected(['tests/repository-checks-test.py'],tree=changed,trusted_tree=candidate,base_tree=candidate)
         self.assertEqual(normal['reason'],'reviewed-ci-only-inputs')
         self.assertEqual(set(normal['suites']),self.ci_quick)
 
@@ -172,6 +187,59 @@ class HostSelectionTests(unittest.TestCase):
                 result=self.selected(paths,tree=candidate,trusted_tree=previous,base_tree=previous)
                 self.assertEqual(result,{'suites':list(self.registry['suites']),
                     'reason':'reviewed-protected-producer-transition','full_host':True,'include_platform':True})
+
+    def retained_default_transition(self, source):
+        rows={row['name']:row['workflows'] for row in HOST.package_policy().workflow_generations()}
+        previous,candidate=copy_git_tree(self.tree),copy_git_tree(self.tree)
+        previous.pop('.github/workflows/pr-metadata-context.yml',None)
+        previous.update(deepcopy(rows[source]))
+        candidate.update(deepcopy(rows['protected-producer-original-default-v1']))
+        previous['.github/workflows/codeql.yml']={'mode':'100644','type':'blob',
+            'sha':'6d55d0fe4e9edc86204c66e1fa3967681793a2cd'}
+        candidate['.github/workflows/codeql.yml']={'mode':'100644','type':'blob',
+            'sha':'e9aaaed9693efc5ffb4701697ac2a4d51f5f5ba1'}
+        paths=sorted(path for path in previous.keys() | candidate.keys() if previous.get(path)!=candidate.get(path))
+        return previous,candidate,paths
+
+    def test_retained_original_default_installation_requires_one_full_owner_from_each_finite_source(self):
+        for source in ('npm-consumers-sync-ci-v1','android-owned-npm5-sync-ci-v1'):
+            old,new,paths=self.retained_default_transition(source)
+            with self.subTest(source=source):
+                self.assertEqual(set(paths),{'.github/workflows/'+name+'.yml' for name in (
+                    'repository-checks','project-tests','parent-qualification','sync-validation',
+                    'pr-metadata-context','codeql')})
+                self.assertTrue(HOST._protected_producer_transition(new,paths,old,old,'main'))
+                self.assertEqual(self.selected(paths,tree=new,trusted_tree=old,base_tree=old),{
+                    'suites':list(self.registry['suites']),'reason':'reviewed-protected-producer-transition',
+                    'full_host':True,'include_platform':True})
+
+    def test_retained_original_default_installation_rejects_mixed_or_unbound_sources(self):
+        for source in ('npm-consumers-sync-ci-v1','android-owned-npm5-sync-ci-v1'):
+            old,new,paths=self.retained_default_transition(source)
+            for side in ('base','candidate'):
+                for path in paths:
+                    for mutation in ('missing','mode','alias','gitlink','unknown'):
+                        previous,current=copy_git_tree(old),copy_git_tree(new)
+                        tree=previous if side=='base' else current
+                        if mutation=='missing':tree.pop(path,None)
+                        elif path not in tree:continue
+                        elif mutation=='mode':tree[path]['mode']='100755'
+                        elif mutation=='alias':tree[path]['mode']='120000'
+                        elif mutation=='gitlink':tree[path].update(mode='160000',type='commit')
+                        else:tree[path]['sha']='a'*40
+                        with self.subTest(source=source,side=side,path=path,mutation=mutation):
+                            # Missing helper is the expected legacy state.
+                            if side=='base' and path.endswith('/pr-metadata-context.yml') and mutation=='missing':
+                                continue
+                            self.assertFalse(HOST._protected_producer_transition(current,paths,previous,previous,'main'))
+            for target in ('apple-ios','android-main','unknown'):
+                self.assertFalse(HOST._protected_producer_transition(new,paths,old,old,target))
+            self.assertFalse(HOST._protected_producer_transition(new,paths+paths[:1],old,old,'main'))
+            drift=copy_git_tree(new);drift['native.cpp']={'mode':'100644','type':'blob','sha':'a'*40}
+            self.assertFalse(HOST._protected_producer_transition(drift,paths,old,old,'main'))
+            self.assertFalse(HOST._protected_producer_transition(new,paths,old,new,'main'))
+        old,new,paths=self.retained_default_transition('npm-consumers-v1')
+        self.assertFalse(HOST._protected_producer_transition(new,paths,old,old,'main'))
 
     def test_joint_installation_rejects_every_endpoint_mutation_and_unreviewed_combination(self):
         for producer_name in ("protected-producer-metadata-ci-v1", "protected-producer-seven-target-ci-v1"):
@@ -283,7 +351,8 @@ class HostSelectionTests(unittest.TestCase):
         candidate = copy_git_tree(previous)
         path = 'tools/branch-cleanup/cleanup.py'
         candidate[path]['sha'] = 'a'*40
-        result = self.selected([path], tree=candidate, trusted_tree=previous, base_tree=previous)
+        with patch.object(HOST,'_qt_free_dependency_namespace',return_value=False):
+            result = self.selected([path], tree=candidate, trusted_tree=previous, base_tree=previous)
         self.assertEqual(set(result['suites']), self.ci_quick)
         self.assertEqual(result['reason'], 'reviewed-ci-only-inputs')
         self.assertFalse(result['full_host'])
@@ -323,7 +392,9 @@ class HostSelectionTests(unittest.TestCase):
         contents = {HOST.hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest(): raw
                     for path in (ROOT/'tools/repository-checks/workflows').rglob('*.yml')
                     for raw in (path.read_bytes(),)}
+        contents.update(historical_workflows())
         policy = SimpleNamespace(validate_wiring=packages.validate_wiring, candidate_plan=Mock(return_value=plan),
+            validate_tree_wiring=packages.validate_tree_wiring,
             workflow_generations=packages.workflow_generations, CONSUMER_WORKFLOW_PATHS=packages.CONSUMER_WORKFLOW_PATHS,
             METADATA_WORKFLOW_PATHS=packages.METADATA_WORKFLOW_PATHS)
         with tempfile.TemporaryDirectory(prefix='overte-producer-selection-') as folder:
@@ -417,12 +488,24 @@ class HostSelectionTests(unittest.TestCase):
                     if mutation == 'generation': changed['consumer_generation'] = False
                     elif mutation in {'candidate', 'tree', 'base'}: changed[mutation] = 'd'*40
                     elif mutation == 'unknown': changed['dependency_profiles']['unknown'] = True
-                    elif mutation == 'profile': profile['profile'] = 'full'
+                    elif mutation == 'profile': profile['profile'] = 'unknown-profile'
                     elif mutation == 'paths': profile['changed_paths'].append(project + '/consumer.js')
                     elif formatting: profile['reason'] = 'unchanged-package-inputs'
                     else: changed['package_set'] = []
                     with self.subTest(path=path, formatting=formatting, mutation=mutation):
                         self.assertEqual(HOST.package_owned_paths(changed), ())
+
+    def test_full_required_javascript_owner_covers_only_its_exact_foreign_lock(self):
+        for path,(project,_) in HOST.PACKAGE_LOCKS.items():
+            plan=self.package_plan(path)
+            profile=plan['dependency_profiles']['projects'][project]
+            profile.update(profile='full',reason='unsupported-lockfile-node-change')
+            with self.subTest(path=path):
+                self.assertEqual(HOST.package_owned_paths(plan),(path,))
+                profile['required']=False
+                self.assertEqual(HOST.package_owned_paths(plan),())
+                profile['required']=True;plan['package_set']=[]
+                self.assertEqual(HOST.package_owned_paths(plan),())
 
     def test_mixed_ci_and_owned_locks_keep_reviewed_production_graph_without_full_host(self):
         paths = tuple(HOST.PACKAGE_LOCKS)
@@ -770,11 +853,12 @@ class HostSelectionTests(unittest.TestCase):
             changed=copy_git_tree(self.tree);changed[path]['sha']='b'*40
             self.assertTrue(self.selected(['tools/branch-cleanup/cleanup.py'],tree=changed)['include_platform'],path)
 
-    def test_reviewed_ci37_route_never_loads_the_ineligible_full_setup_graph(self):
+    def test_legacy_reviewed_ci37_route_never_loads_the_ineligible_full_setup_graph(self):
         path='tools/branch-cleanup/cleanup.py'
         candidate=copy_git_tree(self.tree);candidate[path]['sha']='b'*40
         options={'tree':candidate,'base_tree':self.tree,'trusted_tree':self.tree}
-        with patch.object(HOST.inputs,'load_dependencies',side_effect=AssertionError('no graph read')), \
+        with patch.object(HOST,'_qt_free_dependency_namespace',return_value=False), \
+                patch.object(HOST.inputs,'load_dependencies',side_effect=AssertionError('no graph read')), \
                 patch.object(HOST.inputs,'plan_affected',side_effect=AssertionError('no graph/tree hashing')), \
                 patch.object(HOST,'affected_selection',wraps=HOST.affected_selection) as graph:
             selected=self.selected([path],**options)
@@ -796,7 +880,9 @@ class HostSelectionTests(unittest.TestCase):
                  'tools/test-evidence/runtime-ci-test.py', 'tools/test-evidence/ci-integration-test.py',
                  'tools/repository-checks/workflows/producers/protected-project-tests.yml',
                  'tools/repository-checks/workflows/producers/repository-checks.yml',
-                 'tools/repository-checks/workflows/producers/parent-qualification.yml')
+                 'tools/repository-checks/workflows/producers/parent-qualification.yml',
+                 'tools/repository-checks/workflows/producers/protected-project-tests-android-platform.yml',
+                 'tools/repository-checks/workflows/producers/parent-qualification-android-platform.yml')
         selected = self.selected(paths)
         self.assertEqual(set(selected['suites']), self.ci_quick)
         self.assertFalse(selected['include_platform'])
@@ -809,7 +895,9 @@ class HostSelectionTests(unittest.TestCase):
                      'tools/test-evidence/runtime_ci.py',
                      'tools/repository-checks/workflows/producers/protected-project-tests.yml',
                      'tools/repository-checks/workflows/producers/repository-checks.yml',
-                     'tools/repository-checks/workflows/producers/parent-qualification.yml'):
+                     'tools/repository-checks/workflows/producers/parent-qualification.yml',
+                     'tools/repository-checks/workflows/producers/protected-project-tests-android-platform.yml',
+                     'tools/repository-checks/workflows/producers/parent-qualification-android-platform.yml'):
             candidate = copy_git_tree(self.tree)
             candidate[path] = {'mode': '100644', 'type': 'blob', 'sha': 'b' * 40}
             with self.subTest(controller=path):

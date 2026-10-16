@@ -44,7 +44,7 @@ def sources():
                    ci_profile.PINNED_SOURCE,
                    'tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml',
                    '.github/workflows/shared-sandbox-host-diagnostic.yml'}
-    if ci_profile.load_policy(ROOT).get('generation_kind')==ci_profile.CONTROLLER_KIND:
+    if ci_profile.controller_policy(ci_profile.load_policy(ROOT)):
         names.update(ci_profile.controller_paths())
     return sorted(names)
 
@@ -85,7 +85,7 @@ def materialize_source(revision, destination, *, repository=None):
 def project_policy(destination, names, *, trusted_source=None):
     """Project protected controller sources, never copies chosen by candidate."""
     host.require(not any(destination.iterdir()), 'shared-host policy destination is not empty')
-    controller=ci_profile.load_policy(ROOT).get('generation_kind')==ci_profile.CONTROLLER_KIND
+    controller=ci_profile.controller_policy(ci_profile.load_policy(ROOT))
     if controller:
         host.require(type(trusted_source) is str and re.fullmatch('[0-9a-f]{40}',trusted_source)
             and trusted_source!='0'*40 and set(ci_profile.controller_paths())<=set(names),

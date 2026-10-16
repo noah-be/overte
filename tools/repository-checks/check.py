@@ -69,6 +69,12 @@ def metadata_edit(event: dict, event_name: str) -> bool:
     title/body shapes; a future edit field or incomplete event keeps the normal
     required jobs. No PR text, label or attestation grants execution evidence.
     """
+    if isinstance(event, dict) and event.get('action') in {'labeled', 'unlabeled'}:
+        spec = importlib.util.spec_from_file_location('trusted_metadata_event_shape',
+            ROOT / 'tools/repository-checks/metadata_context.py')
+        helper = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(helper)
+        return helper.event_only(event, event_name)
     if event_name not in {"pull_request", "pull_request_target"} or not isinstance(event, dict) \
             or event.get("action") != "edited":
         return False
@@ -124,15 +130,18 @@ def classify_metadata_event(path: Path, event_name: str) -> dict:
     except (ValueError, OSError, TypeError, AttributeError):
         metadata = False
     intent = os.environ.get('NATIVE_METADATA_INTENT', '')
+    scheduling = os.environ.get('NATIVE_METADATA_SCHEDULING', '')
     if intent not in {'', 'false', 'true'}:
         raise ValueError('invalid native metadata lane state')
+    if scheduling not in {'', 'false', 'true'} or scheduling == 'true' and intent != 'true':
+        raise ValueError('invalid native metadata scheduling state')
     if intent == 'true':
         if not metadata:
             raise ValueError('marked metadata lane no longer has a complete known event')
         # This reviewed reusable-job output selects a one-way branch, not proof.
         # The owner independently authenticates its native marker/source before
         # retaining anything. No failure can fall through to a producer.
-        result = _retained_metadata(event)
+        result = _scheduled_metadata(event) if scheduling == 'true' else _retained_metadata(event)
         if not isinstance(result, dict) or result.get('metadata_only') != 'true' \
                 or result.get('qualification') is not False:
             raise ValueError('current retained metadata qualification unavailable')
@@ -158,6 +167,15 @@ def _retained_metadata(event):
         spec.loader.exec_module(module)
         return module.MetadataVerifier(ROOT, event, os.environ).verify()
     raise ValueError('metadata caller is not a reviewed native workflow')
+
+
+def _scheduled_metadata(event):
+    """Scheduling observation only; no E/result/receipt is consumed or produced."""
+    spec = importlib.util.spec_from_file_location('trusted_metadata_scheduling',
+        ROOT / 'tools/repository-checks/metadata_context.py')
+    helper = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(helper)
+    return helper.schedule(event, os.environ, root=ROOT)
 
 
 def configuration(root: Path = ROOT) -> tuple[dict, dict]:
@@ -477,7 +495,7 @@ def native_owner_policy():
 
 
 def bound_project_owners(needs, candidate, event, sha):
-    """Map only exact21 native owners into the unchanged legacy aggregate.
+    """Map only exact21/22 native owners into the unchanged legacy aggregate.
 
     A skipped standalone documentation job is represented by the actual passed
     shared owner only after its completed native publication, original schema3
@@ -492,11 +510,11 @@ def bound_project_owners(needs, candidate, event, sha):
         raise ValueError('native owner output inventory is malformed')
     present = _NATIVE_OWNER_OUTPUTS & outputs.keys()
     generation = package_policy().validate_wiring(candidate) if candidate is not None else None
-    if generation != _NATIVE_OWNER_GENERATION:
+    if generation not in {_NATIVE_OWNER_GENERATION, 'protected-producer-original-default-v1'}:
         if 'workflow-contracts' in needs:
-            raise ValueError('contract fallback requires the exact complete generation21')
+            raise ValueError('contract fallback requires an exact complete native-owner generation')
         if present:
-            raise ValueError('native owner outputs require the exact complete generation21')
+            raise ValueError('native owner outputs require an exact complete native-owner generation')
         return needs, None
     def contract_fallback(represented, claims):
         # Static analyzers start independently of the shared host. This one
@@ -504,7 +522,7 @@ def bound_project_owners(needs, candidate, event, sha):
         # claims it. The claim is still authenticated below before acceptance.
         fallback = needs.get('workflow-contracts')
         if not isinstance(fallback, dict):
-            raise ValueError('generation21 requires its real contract fallback job')
+            raise ValueError('native-owner generation requires its real contract fallback job')
         route = needs.get('route', {})
         required = (route.get('result') == 'success' and route.get('outputs', {}).get('security') == 'true'
             and project.get('result') in {'success', 'skipped'}
@@ -517,7 +535,7 @@ def bound_project_owners(needs, candidate, event, sha):
         return contract_fallback(needs, {}), None
     expected = {'package_verified', 'package_candidate', 'package_plan', 'package_lane', *_NATIVE_OWNER_OUTPUTS}
     if set(outputs) != expected:
-        raise ValueError('generation21 requires its complete bounded project output inventory')
+        raise ValueError('native-owner generation requires its complete bounded project output inventory')
     claims = {key: outputs[key] for key in _NATIVE_OWNER_OUTPUTS}
     if project.get('result') == 'skipped' and all(value == '' for value in claims.values()):
         claims = {key: 'false' for key in claims}
@@ -740,6 +758,14 @@ def main() -> int:
             # imports. Authenticate its current owner before loading browser
             # or Android routing modules in this fresh trusted process.
             needs, native_owners = bound_project_owners(needs, args.candidate, event, args.sha)
+            native_android = None
+            if (args.candidate is not None and event is not None and args.sha
+                    and (event.get('pull_request', {}).get('base', {}).get('ref')
+                         in {'android-main','android-vr','android-vr-pico','android-phone'})):
+                # This current-owner bootstrap must precede API/execution and
+                # browser/Android imports. Legacy recipes retain admit below.
+                native_android = android_policy().current_source_owner(
+                    args.candidate,event,args.sha,needs,os.environ)
             direct_plan = None
             packages = package_policy()
             package_plan = None
@@ -771,7 +797,8 @@ def main() -> int:
             if android_required or "android" in needs or any(key.startswith("android_") for key in route_outputs):
                 if args.candidate is None or event is None or not args.sha:
                     raise ValueError("Android verification requires exact candidate and event")
-                android.admit(args.candidate, event)
+                if native_android is None:
+                    android.admit(args.candidate,event)
                 android_plan = android.candidate_plan(args.candidate, event, args.sha,
                     event_name=os.environ.get("GITHUB_EVENT_NAME", "pull_request"))
             result = verify(needs, native_required(config, event),

@@ -310,7 +310,7 @@ def verify_zero_shared_sync(args, *, api=None, root=ROOT, clock=lambda: datetime
         "base_commit": request.base_sha, "head_commit": request.head_sha, "mode": "attested-reuse",
         "reused_suites": plan["reused"], "executed_suites": [], "platform_results": {},
         "execution": None, "consumer_environment": None, "original_environment_digest": admission["environment_digest"],
-        "runtime_admission": admission["policy"], "parent_evidence": validation._parent_provenance(evidence, plan["reused"]),
+        "runtime_admission": admission["policy"], "parent_evidence": validation._parent_provenance(evidence, plan["reused"], gate),
         "conclusion": "success", "started_at": started, "completed_at": completed.isoformat().replace("+00:00", "Z"),
     }
     value["receipt_digest"] = execution.digest(value)

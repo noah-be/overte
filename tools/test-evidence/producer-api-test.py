@@ -11,6 +11,7 @@ from pathlib import Path
 import subprocess
 import sys
 import unittest
+import zlib
 from unittest.mock import patch
 from urllib.parse import parse_qs, unquote, urlsplit
 
@@ -22,6 +23,23 @@ SPEC = importlib.util.spec_from_file_location("protocol_api_fixtures", Path(__fi
 FIXTURES = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(FIXTURES)
 NOW = FIXTURES.NOW
+
+
+# Authentic protected generation21 caller and generation20/21 relative helper.
+# Inline compressed bytes avoid a hosted Git-history dependency or new lookup
+# member. Their whole ordinary Git blob identities are independently literal.
+_HISTORICAL_METADATA_WORKFLOWS = {'tools/repository-checks/workflows/producers/repository-checks.yml': ('d9fefd275d9e3c6977cf9350a1945a6bbe5051b4', 'c-q}s>u=jO5dWUPg6WDn0Ve0Yb{;Y;ON=J#>I8|?p(qMLmd-XCSyD;LiP!dj-|?k~CClz3S<!xq$-Cq6cW<gck&~EByhsqiQZ67MiRa&VBOoJ)fO&$((Qm}_1)ZwD34`}3Wx(-|DTP~P5FQ(WAW0ljf7V`$ya{y3B_uJYB4#t<kHNp;YjM<BBP2<~(3LWP3;CN6F-w5!KOGV$cxqsNFev@xv&bK_IHLc8S%H9xY&-M@5N5y9DF1yMvzuWU-?{<ii6{KAK8;36D$L1*urxxwMtCz$wW|7G0NiIZk$1;ir4bQhAbvbaLJ)wvQ|f~=WB?@RCV~RXB*+VP$RLhG@S=j;p_hiDBXNgp)u0=6$j}QptR=uERLN9|`f(&6LZy+=3)b+bpE3rKKa;y77N?2avd}vkdgt+n4`f8eI32WMiu~=O71~ic82}?6KUx|FL-OfUl}ma7UheRav^4T9^5h9wFVXm8FB$=F4?GTXccXS!P!U4m#5vwLm~BdCs}Gun29mt>KJ`L6q`vaS7HTO$@gg5Whel4qVr2pY>brQLP@9180#A4jk5lG@wyk#4qZG{<2`LcB#U&ANCzM-h4;gk!8oH86-M<K6tDvg9wkz?IL=%rj#m)Z#MRkpoV}OzNR$J3;*?8bv33D=VlyBXM_G}WaAshOVuuuU6C}0l83?VPP^=5oSS!_emw&zIEqd5Ayx-(CGA5GMfdM_uwp-F-W>3hrtgZwua5PDG~Twap~bBw`?JK7DdFjM#<i@rh#+3aOf1b1W_NC#;oQfGI+y}hq<7@Yv(<xFUVsG<A=wTw%}6k{*y#!)!y5E);XaT9I~XQ<mHGVS7uI}V`8l!RWC^WbJq$^p{?6|;rpmLO+|Frua<`Fdr+2?Dd3i{bVTVdD#rDN*Ijroy-wxB<nRF1}WUvMNN<FXfkuRn~FLh1&>gg|aGSH6&`OtHL;lr6Q0fXGC0BOanKs8w<GS39BNOTcbi*71C&pB2kr<MluR8<d*VhlvaqMwJn5>=wlhSG61u_MkX{GjZB|n4%eyCB#bQ;>qz#;Ua;ry@4|uS`3D2<+4jM+-Gjh;`pf>#w!iaiXZPve!25N3uw$g$VqWbOYWPrJp_G>Ml+re(-yJZlT;m)G=?5stYMieE<CF`>N4v>lg`I)z4=f4xHH?E}FVG<$vn@hQ-Y=|3H{@HDMxjE1xlB0N;^479RCaZSa3oQcmB!o|q%;hiQq3+I=@R^SB>Op{QeD<n>B1H>B5Rl`$3%f>Poe1NYQg-5Xqv<S{M7BAzv%W#HW2X*L`9@~NBy%`UH4_Te{^!xKXT7{{cf+XdFsnjB|TGBdUByy9y;WACpX(njN@p}nsaLb=-TVr$t*9h#k(O|`Zsy>`1x7?^!iV?`wCTcFOK@BkL;$SI+Hny-qFjhq|ln@yXV*ai|hWQIa7FnZf&#R7P6_8t}UYo?yzL2_@P!aS^JmQuXQZrvKwpNW5nsO$u!T_hk(t#6F?%jcfTs0iZSGry9RAWGGy^YAqaPPJ2WOvMHQXC3^VEPG7}aZ?X$g0W!)vdlpDVarsMFjmor|S9<AzI1}B{^9tbXd*mA&%Iqa*k(imlkt%w!wNV74EkfVy;JFb$Y>B|beYM!A~i(cDXV<%oDsfX>*!Y0XE#yT681}A7eNd%j!S2qMLo9|X_#!cH&>bdnip>)fph~@gO7xk?pH&<9UgF|b{@KZFsntJ9FOWqnboTlI~9bM<%#uQ@0rZTzQlQ)<PHMoPJ$o%137<HqLzS@IJRfh;vVTN3VMFzYq1`x@1h5}#8FI#P?;G4It<&(66qrsc9lV@||LY)Q+<^;G)Z~-dKdebFpy7f#<b%<(`l=tnX6MulTWKL>uL__gS9kGtQGC>`d%FbffFpQ36to4riL2e~ImQ8X^LRK2(ngpyg%QXp@8|H%8PbavbhJ^?4uhMx9URI);_q8|byq|3ucw754wu15|{~0mOuV!^b_O)y^AZk3`3bhQSTf0+WILD#Kt*_|$C3e%08t=D6PWD!H|F*82*<kMq?Y-xhOsQ4#N=3y5WoHP?%|3z1PK0@?_LvV3nV5X*hxF}bXfKX}DtL=R;j>?en_sT7=_pUrb{;Rxt`GQ>B`3hbBg&V}*Y={XB!)9QLw+ZbFAElDlHpvO-!5MFPtSWN=e_<vmuLO%pRfDf<MWg5;Z8o;sUfc7&#EWGsZM^>m>-XSoQ}P6wT9$Yq0N%pg6}ycP1kE<cBN?CEMyk@kvGeuj?FRVSE+iKwMx#LUoX3kQ+x+-Y<qGap=uwQHAE&ou<!JhdA0cbo)Xc$zwk-N0Y^{#U-z`Gk`T7VVu=5-LVl7S(h%%(PVvE2weJ{hA%3q5)jVe3#zah1fMwqRN)Oz}r`_Wh?q&Dt`tSag_5l(9b#>m;!Ma&A^(v3y<=3%g&xli<wU<1ODNP)CX{0DA`~^>EYySb4lWnp'), 'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml': ('d04a6dc70213d8b549bac30c11cc15eaf0182dea', 'c-oazO>f&U488kT5J7>Q<b1E0feuTDVC`XD&?UPDvdlDEZON0Uq-oLrKFN-gG>5J8!GKBnk?-+IiWiu`#L*fRNx=zWb`OM41ei&RBCV1LV5`mJD%abk;CUVb0NPRM$krbK1rpCV@ugJcp_(wjhUd<=xOjPiUplq1L7^X%e8zZ>5TE@Dudh*5qA8@cQmd+i&{fJNV321~6p%vv09N-?6`T7e2(l;~@ifOHqZ;aos(Ry;Wu76p)G2bTKa9J>DnqhBKOZZka)iF`=slz>mX@%z@xIO9NCt$exPfDP0$<iB9z(Aa0;SP}f-r-EOVto3FA!MmjKG87&W3rp2szsk0n0;u9%KVC?Bj@YF-rNkI~w;#8Nd86>~%$N-0NQsQvR`<_6|5(N$cYpgVw8>;Db-NG{%kR5tlB{mj-`3v=pb@Vr<vEVOKvT_dr0#d9vAQ9F3Khm@t?H_wn4%z4C87DY7Lu7Fk1sd0mkeI>UdK`j%Sfwqvl=R+2WmI%PYDT{KH7cV`<oT1cyW2mW+;-xOtz{(LA-a&zLS!vr!*-neV;umnD_Q`S3LYc&9N3+xB5>qeN)|4&;@%&I*=>*DL}{AO{zoc^5N&6l&u{HE0;Ss-;@aX0xk4HdOPkJ;~w`D`(7oe6S!Lu3$ku;sgh|3PWRyhAf5&>Z#fetF+vxVnP2mjT;vb!#W>=nof(d71')}
+
+def historical_metadata_workflow(relative,generation,root):
+    historical = generation in {'protected-producer-metadata-ci-v1','protected-producer-seven-target-ci-v1'} \
+        and (relative.endswith('/metadata-edits/pr-metadata-context.yml')
+             or generation=='protected-producer-seven-target-ci-v1' and relative.endswith('/producers/repository-checks.yml'))
+    if historical:
+        oid,encoded=_HISTORICAL_METADATA_WORKFLOWS[relative]
+        raw=zlib.decompress(base64.b85decode(encoded))
+        assert hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()==oid
+        return raw
+    return (root/relative).read_bytes()
 
 
 class FakeApi:
@@ -608,7 +626,7 @@ class MetadataNonproducerTests(unittest.TestCase):
 
     def test_missing_or_forged_source_marker_cannot_hide_an_unknown_run(self):
         for shape in ("missing-edge", "wrong-edge", "duplicate-edge", "mixed-edge", "wrong-helper", "alias-parent",
-                      "wrong-caller", "foreign-head", "wrong-parents", "unknown-generation", "child-target"):
+                      "wrong-caller", "foreign-head", "wrong-parents", "unknown-generation", "unknown-target"):
             self.setUp(); c = self.case
             if shape == "missing-edge": c.runs[101]["referenced_workflows"] = []
             elif shape == "wrong-edge": c.runs[101]["referenced_workflows"][0]["sha"] = "8" * 40
@@ -623,7 +641,7 @@ class MetadataNonproducerTests(unittest.TestCase):
             elif shape == "wrong-parents":
                 c.api.mutate = lambda e,v: ({**v, "parents": list(reversed(v["parents"]))} if e.endswith("/git/commits/" + c.binding["merge_sha"]) else v)
             elif shape == "unknown-generation": c.generation[A.METADATA_WORKFLOW]["sha"] = "9" * 40
-            else: c.binding["base_ref"] = "apple-ios"
+            else: c.binding["base_ref"] = "unknown-target"
             with self.subTest(shape=shape):
                 # Direct classification avoids current() rejecting an intentionally
                 # malformed live fixture before the source-classification boundary.
@@ -729,6 +747,262 @@ class MetadataNonproducerTests(unittest.TestCase):
         self.assertEqual(marker["generation"], "metadata-v1")
         c.jobs[101].append({**deepcopy(c.jobs[101][0]), "id": 141, "name": "CodeQL (python)", "status": "queued", "conclusion": None})
         self.assertIsNone(c.adapter.metadata_observation(c.runs[101], c.binding, policy, now=NOW))
+
+
+class SchedulingFakeApi(MetadataFakeApi):
+    def json(self, endpoint):
+        path = endpoint[len(A.PREFIX):].lstrip('/').split('?', 1)[0]
+        c = self.case
+        if path == 'actions/workflows/repository-checks.yml':
+            self.calls.append(endpoint)
+            return self.mutate(endpoint, {'id': 99, 'path': c.policy.caller_path, 'state': 'active'})
+        if path.startswith('git/ref/heads/') and path.removeprefix('git/ref/heads/') == c.binding['base_ref']:
+            self.calls.append(endpoint)
+            return self.mutate(endpoint, {'ref': 'refs/heads/' + c.binding['base_ref'],
+                'object': {'type': 'commit', 'sha': c.binding['base_sha']}})
+        value = super().json(endpoint)
+        if path == 'pulls/17':
+            value['labels'] = deepcopy(c.labels)
+        return value
+
+
+class MetadataSchedulingTests(unittest.TestCase):
+    """Actual native adapter, without a descriptor or consumer environment."""
+    def setUp(self):
+        fixture = MetadataNonproducerTests()
+        fixture.setUp()
+        self.case = c = fixture.case
+        c.labels = []
+        c.generation[c.policy.caller_path]['sha'] = 'bc9c4284286b5c3d2de07a3ecf3b98393e2f2a2c'
+        c.generation[A.METADATA_WORKFLOW]['sha'] = 'b76ade9fd7a76da21bf2cb2161deae7a262163e8'
+        c.policy = replace(c.policy, metadata_generations={'metadata-v2':deepcopy(c.generation)},
+            metadata_sources={'metadata-v2': c.policy.metadata_sources['metadata-v1']})
+        c.runs[101]['display_title'] = A.NONPRODUCER_RUN_NAME
+        c.runs[100]['display_title'] = A.ORDINARY_RUN_NAME
+        c.runs[100]['referenced_workflows'].extend(deepcopy(c.runs[101]['referenced_workflows']))
+        ordinary = deepcopy(c.jobs[101][0])
+        ordinary.update(id=150, run_id=100, started_at='2026-10-15T10:00:01Z',
+            completed_at='2026-10-15T10:00:20Z',
+            check_run_url=f'https://api.github.com/{A.PREFIX}/check-runs/150',
+            steps=[{'number': 1, 'name': A.ORDINARY_SOURCE_STEP + ' (diagnostics absent)',
+                'status': 'completed', 'conclusion': 'success',
+                'started_at': '2026-10-15T10:00:02Z', 'completed_at': '2026-10-15T10:00:19Z'}])
+        # The actual ordinary source can be pending/failed before any descriptor.
+        c.jobs[100] = [ordinary]
+        c.artifacts[100] = []
+        c.api = SchedulingFakeApi(c); c.adapter = A.Adapter(c.api)
+        self.policy = A.MetadataPolicy(99, c.policy.caller_path,
+            c.policy.metadata_generations, c.policy.metadata_sources)
+
+    def schedule(self, *, diagnostics=False):
+        c = self.case
+        return c.adapter.metadata_schedule(17, 101, self.policy, diagnostics=diagnostics, now=NOW)
+
+    def test_all_seven_pending_failed_and_successful_sources_preserve_status_without_results(self):
+        c = self.case
+        for target in sorted(A.METADATA_TARGETS):
+            for status, conclusion in [('in_progress', None), ('completed', 'failure'), ('completed', 'success')]:
+                c.binding['base_ref'] = target
+                c.runs[100].update(status=status, conclusion=conclusion)
+                with self.subTest(target=target, status=status, conclusion=conclusion):
+                    value = self.schedule()
+                    self.assertEqual((value['original_status'], value['original_conclusion']), (status, conclusion))
+                    self.assertEqual(value['original_run_id'], 100)
+                    self.assertEqual(value['metadata_only'], 'true')
+                    self.assertFalse(value['qualification'])
+                    for field in ('environment', 'results', 'receipt', 'reused', 'passed_suites'):
+                        self.assertNotIn(field, value)
+        self.assertFalse(any('/actions/artifacts/' in endpoint for endpoint in c.api.calls))
+
+    def test_unproved_queued_or_failed_source_cannot_be_promoted_by_same_head_or_marker(self):
+        c = self.case
+        for shape in ('no-edge', 'missing-source-job', 'pending-source-job', 'failed-source-step',
+                      'only-metadata-step', 'no-original', 'ambiguous-original'):
+            self.setUp(); c = self.case
+            if shape == 'no-edge': c.runs[100]['referenced_workflows'] = []
+            elif shape == 'missing-source-job': c.jobs[100] = []
+            elif shape == 'pending-source-job': c.jobs[100][0].update(status='queued', conclusion=None)
+            elif shape == 'failed-source-step': c.jobs[100][0]['steps'][0]['conclusion'] = 'failure'
+            elif shape == 'only-metadata-step': c.jobs[100][0]['steps'][0]['name'] = A.METADATA_STEP
+            elif shape == 'no-original': del c.runs[100]
+            else:
+                c.runs[102] = {**deepcopy(c.runs[100]), 'id': 102, 'check_suite_id': 1102}
+                c.jobs[102] = [{**deepcopy(c.jobs[100][0]), 'id': 152, 'run_id': 102,
+                    'check_run_url': f'https://api.github.com/{A.PREFIX}/check-runs/152'}]
+                c.artifacts[102] = []
+            with self.subTest(shape=shape), self.assertRaises(P.ProtocolError): self.schedule()
+
+    def test_current_native_source_cannot_be_excluded_by_supplied_run_id_or_wrong_context(self):
+        for shape in ('wrong-current-id', 'current-completed', 'mixed-current', 'wrong-app', 'foreign',
+                      'old-attempt', 'wrong-parents', 'wrong-helper', 'unknown-workflow'):
+            self.setUp(); c = self.case
+            if shape == 'wrong-current-id': current = 999
+            else: current = 101
+            if shape == 'current-completed': c.runs[101].update(status='completed', conclusion='success')
+            elif shape == 'mixed-current': c.runs[101]['referenced_workflows'][0]['sha'] = '8' * 40
+            elif shape == 'wrong-app':
+                c.api.mutate = lambda e,v: {**v,'app':{'id':42}} if '/check-suites/' in e else v
+            elif shape == 'foreign': c.runs[100]['head_repository']['id'] = 12
+            elif shape == 'old-attempt': c.runs[100]['run_attempt'] = 2
+            elif shape == 'wrong-parents':
+                c.api.mutate = lambda e,v: {**v, 'parents': list(reversed(v['parents']))} if e.endswith('/git/commits/' + c.binding['merge_sha']) else v
+            elif shape == 'wrong-helper':
+                c.api.mutate = lambda e,v: {**v, 'tree':[{**v['tree'][0], 'sha':'9'*40}]} if e.endswith('/git/trees/'+'5'*40) else v
+            elif shape == 'unknown-workflow': c.generation[A.METADATA_WORKFLOW]['sha'] = '9'*40
+            with self.subTest(shape=shape), self.assertRaises(P.ProtocolError):
+                c.adapter.metadata_schedule(17, current, self.policy, now=NOW)
+
+    def test_native_diagnostic_state_is_bound_and_other_label_changes_are_inert(self):
+        c = self.case
+        c.labels = [{'id': 7, 'name': 'bug'}]
+        self.assertEqual(self.schedule()['original_run_id'], 100)
+        c.labels.append({'id': 8, 'name': 'android-long-diagnostics'})
+        with self.assertRaises(P.ProtocolError): self.schedule()
+        with self.assertRaises(P.ProtocolError): self.schedule(diagnostics=True)
+        c.jobs[100][0]['steps'][0]['name'] = A.ORDINARY_SOURCE_STEP + ' (diagnostics requested)'
+        self.assertEqual(self.schedule(diagnostics=True)['original_run_id'], 100)
+
+    def test_native_job_label_run_and_ref_bookends_are_fresh(self):
+        for shape in ('job', 'check', 'run', 'ref', 'labels'):
+            self.setUp(); c = self.case
+            reads = 0
+            def mutate(endpoint, value):
+                nonlocal reads
+                suffix = {'job':'/actions/runs/100/attempts/1/jobs?', 'check':'/check-runs/150',
+                    'run':'/actions/runs/100/attempts/1', 'ref':'/git/ref/heads/' + c.binding['head_ref'],
+                    'labels':'/actions/workflows/99/runs?'}[shape]
+                if suffix in endpoint:
+                    reads += 1
+                    threshold = 2 if shape != 'labels' else 1
+                    if reads >= threshold:
+                        if shape == 'job': value['jobs'][0]['steps'][0]['conclusion'] = 'failure'
+                        elif shape == 'check': value['conclusion'] = 'failure'
+                        elif shape == 'run': value['updated_at'] = '2026-10-15T10:04:31Z'
+                        elif shape == 'ref': value['object']['sha'] = '9'*40
+                        else: c.labels = [{'id':8,'name':'android-long-diagnostics'}]
+                return value
+            c.api.mutate = mutate
+            with self.subTest(shape=shape), self.assertRaises(P.ProtocolError): self.schedule()
+
+
+class NativeMetadataIntentTests(unittest.TestCase):
+    """The new exact never-producer recipe can be known before its marker."""
+    def setUp(self):
+        fixture = MetadataNonproducerTests(); fixture.setUp()
+        self.case = c = fixture.case
+        c.generation[c.policy.caller_path]['sha'] = 'bc9c4284286b5c3d2de07a3ecf3b98393e2f2a2c'
+        c.generation[A.METADATA_WORKFLOW]['sha'] = 'b76ade9fd7a76da21bf2cb2161deae7a262163e8'
+        c.policy = replace(c.policy,
+            generations={'native22': {path:deepcopy(c.generation[path]) for path in A.WORKFLOWS}},
+            metadata_generations={'metadata-v2':deepcopy(c.generation)},
+            metadata_sources={'metadata-v2':c.policy.metadata_sources['metadata-v1']})
+        c.runs[100]['referenced_workflows'].extend(deepcopy(c.runs[101]['referenced_workflows']))
+        c.runs[100]['display_title']=A.ORDINARY_RUN_NAME
+        c.runs[101].update(display_title=A.NONPRODUCER_RUN_NAME,status='queued',conclusion=None,run_started_at=None)
+        c.jobs[101] = []
+        self.policy = A.MetadataPolicy(99,c.policy.caller_path,c.policy.metadata_generations,c.policy.metadata_sources)
+
+    def observe(self):
+        c=self.case
+        return c.adapter.metadata_observation(c.runs[101],c.binding,self.policy,now=NOW)
+
+    def test_queued_native_intent_is_stable_through_real_api_progress_without_results(self):
+        c=self.case
+        queued=self.observe()
+        self.assertEqual(queued['kind'],A.METADATA_INTENT_KIND)
+        self.assertEqual(c.verify()['run_id'],100)
+        for status,conclusion in [('in_progress',None),('completed','failure'),('completed','success')]:
+            c.runs[101].update(status=status,conclusion=conclusion,run_started_at='2026-10-15T10:04:00Z')
+            with self.subTest(status=status,conclusion=conclusion): self.assertEqual(self.observe(),queued)
+        for field in ('results','environment','receipt','qualified_at','expires_at','verified','jobs','status'):
+            self.assertNotIn(field,queued)
+
+    def test_progress_during_original_verification_does_not_replace_or_fail_original(self):
+        c=self.case; reads=0
+        def mutate(endpoint,value):
+            nonlocal reads
+            if '/actions/workflows/99/runs?' in endpoint:
+                reads+=1
+                if reads==2:
+                    c.runs[101].update(status='in_progress',run_started_at='2026-10-15T10:04:00Z')
+                    c.jobs[101]=[{'id':146,'run_id':101,'run_attempt':1,'head_sha':c.binding['head_sha'],
+                        'name':A.METADATA_JOB,'status':'in_progress','conclusion':None,
+                        'started_at':'2026-10-15T10:04:01Z','completed_at':None,
+                        'check_run_url':f'https://api.github.com/{A.PREFIX}/check-runs/146'}]
+                elif reads>=3:
+                    c.runs[101].update(status='completed',conclusion='success')
+                    c.jobs[101][0].update(status='completed',conclusion='success',completed_at='2026-10-15T10:04:20Z')
+            return value
+        c.api.mutate=mutate
+        self.assertEqual(c.verify()['run_id'],100)
+        self.assertGreaterEqual(reads,4)
+
+    def test_name_alone_old_recipe_missing_source_or_late_work_cannot_exclude(self):
+        for shape in ('forged-name-old-recipe','unknown-helper','missing-source','mixed-source','wrong-app',
+                      'rerun','heavy','artifact','parents','foreign'):
+            self.setUp();c=self.case
+            if shape=='forged-name-old-recipe':
+                c.generation[c.policy.caller_path]['sha']='7'*40
+                c.policy.metadata_generations['metadata-v2'][c.policy.caller_path]['sha']='7'*40
+            elif shape=='unknown-helper': c.generation[A.METADATA_WORKFLOW]['sha']='9'*40
+            elif shape=='missing-source': c.runs[101]['referenced_workflows']=[]
+            elif shape=='mixed-source': c.runs[101]['referenced_workflows'][0]['sha']='9'*40
+            elif shape=='wrong-app': c.api.mutate=lambda e,v:{**v,'app':{'id':42}} if '/check-suites/' in e else v
+            elif shape=='rerun': c.runs[101]['run_attempt']=2
+            elif shape=='heavy':
+                c.jobs[101]=[{'id':145,'run_id':101,'run_attempt':1,'head_sha':c.binding['head_sha'],
+                    'name':'project / Shared tests','status':'queued','conclusion':None,'started_at':None,'completed_at':None,
+                    'check_run_url':f'https://api.github.com/{A.PREFIX}/check-runs/145'}]
+            elif shape=='artifact': c.artifacts[101]=[{'id':1011,'name':'not-a-result'}]
+            elif shape=='parents':
+                c.api.mutate=lambda e,v:{**v,'parents':list(reversed(v['parents']))} if e.endswith('/git/commits/'+c.binding['merge_sha']) else v
+            else:c.runs[101]['head_repository']['id']=12
+            with self.subTest(shape=shape):
+                if shape=='parents':
+                    with self.assertRaises(P.ProtocolError): self.observe()
+                    continue
+                if shape=='forged-name-old-recipe': self.assertIsNone(self.observe())
+                value=c.capture()
+                self.assertFalse(value.inventory_complete)
+                self.assertNotIn(101,value.metadata_nonproducers)
+
+    def test_native_intent_identity_rejects_immutable_drift_and_unknown_job_even_late(self):
+        c=self.case; initial=self.observe()
+        for field,value in [('id',102),('run_attempt',2),('head_sha','9'*40),('display_title','user-controlled text')]:
+            row={**c.runs[101],field:value}
+            with self.subTest(field=field),self.assertRaises(P.ProtocolError): A.metadata_inventory_record(row,initial)
+        for kind in ('late-artifact','late-heavy'):
+            self.setUp();c=self.case;reads=0
+            def mutate(endpoint,value):
+                nonlocal reads
+                target='/actions/runs/101/artifacts?' if kind=='late-artifact' else '/actions/runs/101/attempts/1/jobs?'
+                if target in endpoint:
+                    reads+=1
+                    if reads>=2:
+                        if kind=='late-artifact':
+                            value['artifacts']=[{'id':1012,'name':'late-artifact'}]
+                        else:
+                            value['jobs']=[{'id':145,'run_id':101,'run_attempt':1,'head_sha':c.binding['head_sha'],
+                                'name':'project / Shared tests','status':'queued','conclusion':None,
+                                'started_at':None,'completed_at':None,
+                                'check_run_url':f'https://api.github.com/{A.PREFIX}/check-runs/145'}]
+                            c.jobs[101]=deepcopy(value['jobs'])
+                        value['total_count']=1
+                return value
+            c.api.mutate=mutate
+            with self.subTest(kind=kind):self.assertFalse(c.capture().inventory_complete)
+
+    def test_unproven_queued_source_only_gets_a_bounded_read_only_wait(self):
+        c=self.case
+        with patch.object(c.adapter,'_capture_inventory_once',side_effect=A.SchedulingPending('source unavailable')) as read, \
+                patch.object(A.time,'sleep') as sleep:
+            result=c.adapter._capture_inventory(c.binding,c.policy,NOW)
+        self.assertEqual(read.call_count,3)
+        self.assertEqual(sleep.call_args_list,[unittest.mock.call(2),unittest.mock.call(2)])
+        self.assertEqual(result[0],[])
+        self.assertEqual(result[3],['native-scheduling-source-pending'])
+        self.assertEqual(result[-1],{})
+
 
 
 class IntegratedFakeApi(FakeApi):
@@ -1336,9 +1610,9 @@ class MainConsumerTests(unittest.TestCase):
         generation = next(item for item in generations if item['name'] == self.generation_name)
         self.generations = {item['name']:deepcopy(item['workflows']) for item in generations}
         if self.generation_name in {'protected-producer-metadata-ci-v1','protected-producer-seven-target-ci-v1'}:
-            # Derive the actual prospective native tuple from its reviewed
-            # sources. A stale hard-coded historical tuple must not hide a
-            # missing admission of the installed producer generation.
+            # Reconstruct authentic historical20/21 sources independently of
+            # today's dormant22 templates. Future installed22 has separate
+            # complete materialized-tuple fixtures; old rows never float.
             sources={'.github/workflows/project-tests.yml':postmerge.producer.TEMPLATE,
                 '.github/workflows/repository-checks.yml':'tools/repository-checks/workflows/producers/repository-checks.yml',
                 '.github/workflows/parent-qualification.yml':postmerge.TEMPLATE,
@@ -1357,7 +1631,7 @@ class MainConsumerTests(unittest.TestCase):
                 path=postmerge.ROOT/relative
                 self.assertTrue(path.is_file() and not path.is_symlink())
                 self.assertEqual(path.stat().st_mode & 0o777,0o644)
-                raw=path.read_bytes()
+                raw=historical_metadata_workflow(relative,self.generation_name,postmerge.ROOT)
                 workflows[target]={'mode':'100644','type':'blob',
                     'sha':hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()}
             self.assertEqual(workflows,generation['workflows'])
@@ -1906,7 +2180,11 @@ class MainConsumerSourceTests(unittest.TestCase):
                 ('.github/workflows/pr-metadata-context.yml',
                  'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml')):
             actual=subprocess.check_output(['git','hash-object','--stdin'],input=(C.ROOT/template).read_bytes()).decode().strip()
-            self.assertEqual(latest[active]['sha'],actual)
+            if active=='.github/workflows/pr-metadata-context.yml':
+                self.assertEqual(latest[active]['sha'],'d04a6dc70213d8b549bac30c11cc15eaf0182dea')
+                self.assertEqual(current[C.producer.PLATFORM_GENERATION][active]['sha'],actual)
+            else:
+                self.assertEqual(latest[active]['sha'],actual)
 
     def test_disabled_cli_has_zero_api_and_writes_no_shared_pass_or_legacy_receipt(self):
         import postmerge as C
@@ -1986,7 +2264,7 @@ class MetadataRetentionConsumerTests(unittest.TestCase):
         real_host = C.producer._host_policy()
         real_package = real_host.package_policy()
         generations = real_package.workflow_generations()
-        self.assertEqual(len(generations), 21)
+        self.assertEqual(len(generations), 22)
         self.generation_name = getattr(self, 'generation_name', 'protected-producer-metadata-ci-v1')
         generation = next(row for row in generations if row["name"] == self.generation_name)
         sources = {".github/workflows/project-tests.yml": C.producer.TEMPLATE,
@@ -2008,7 +2286,7 @@ class MetadataRetentionConsumerTests(unittest.TestCase):
             path = C.ROOT / relative
             self.assertFalse(path.is_symlink())
             self.assertEqual(path.stat().st_mode & 0o777, 0o644)
-            raw = path.read_bytes()
+            raw = historical_metadata_workflow(relative,self.generation_name,C.ROOT)
             return {"mode": "100644", "type": "blob",
                     "sha": hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()}
         workflows = {path: blob(relative) for path, relative in sources.items()}
@@ -2016,7 +2294,8 @@ class MetadataRetentionConsumerTests(unittest.TestCase):
         c.tree = {**deepcopy(c.context.tree), **workflows,
             C.producer.TEMPLATE: workflows[".github/workflows/project-tests.yml"],
             sources[A.METADATA_WORKFLOW]: workflows[A.METADATA_WORKFLOW],
-            A.METADATA_SOURCE: blob(A.METADATA_SOURCE),
+            A.METADATA_SOURCE: {"mode":"100644","type":"blob",
+                "sha":"9c531c34ba559d17255768d8cae3129496fac55d"},
             ".github/test-suites.json": {"mode": "100644", "type": "blob", "sha": "1" * 40},
             "tests/platform-profile.json": {"mode": "100644", "type": "blob", "sha": "2" * 40},
             ".github/branch-cleanup.json": {"mode": "100644", "type": "blob", "sha": "3" * 40}}
@@ -2588,6 +2867,312 @@ class AffectedPostmergeConsumerTests(unittest.TestCase):
         self.assertTrue(result['reused'],result)
         self.assertEqual(result['proof']['reused_suites'],full['suites'])
         self.assertTrue(any(call.kwargs.get('require_all') is True for call in validate.call_args_list))
+
+
+class RetainedDefaultMetadataTests(unittest.TestCase):
+    """Actual schema4/native Adapter with explicit local source-admission seams.
+
+    Complete immutable originalD/projection validation is exercised by source4
+    and sync fixtures; this class tests the additive metadata owner connection,
+    independent D/B contexts and native whole-hash retention, without querying E.
+    """
+    def setUp(self):
+        fixture=MetadataRetentionConsumerTests('runTest')
+        fixture.extra_registry_names=('documentation-contracts','documentation','policy-consistency','workflow-contracts')
+        fixture.setUp();self.addCleanup(fixture.doCleanups)
+        self.fixture=f=fixture;self.module=C=f.module;self.case=c=f.case;self.adapter=f.adapter
+        self.sources={'.github/workflows/project-tests.yml':C.producer.PLATFORM_TEMPLATE,
+            '.github/workflows/parent-qualification.yml':C.producer.PLATFORM_PARENT_TEMPLATE,
+            '.github/workflows/repository-checks.yml':'tools/repository-checks/workflows/producers/repository-checks.yml',
+            '.github/workflows/sync-validation.yml':'tools/repository-checks/workflows/sync-ci-selection.yml',
+            '.github/workflows/browser-client.yml':'.github/workflows/browser-client.yml',
+            A.METADATA_WORKFLOW:'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml'}
+        self.generation={path:{'mode':'100644','type':'blob','sha':C.source_admission.blob_id(
+            (C.ROOT/source).read_bytes())} for path,source in self.sources.items()}
+        for tree in (c.previous,c.tree):
+            tree.update(deepcopy(self.generation))
+            tree[C.producer.PLATFORM_TEMPLATE]=deepcopy(self.generation['.github/workflows/project-tests.yml'])
+            tree[self.sources[A.METADATA_WORKFLOW]]=deepcopy(self.generation[A.METADATA_WORKFLOW])
+            tree[A.METADATA_SOURCE]={'mode':'100644','type':'blob','sha':C.source_admission.blob_id(
+                (C.ROOT/A.METADATA_SOURCE).read_bytes())}
+        package=C.producer._host_policy().package_policy()
+        old_generations=package.workflow_generations()
+        package.validate_tree_wiring=lambda tree:C.ci_profile.RETAINED_SOURCE_GENERATION \
+            if all(tree.get(path)==entry for path,entry in self.generation.items()) else 'unknown'
+        package.workflow_generations=lambda:[*old_generations,
+            {'name':C.ci_profile.RETAINED_SOURCE_GENERATION,'workflows':self.generation}]
+        self.policy=C.producer._host_policy()
+        example=FIXTURES.RetainedSourceProtocolTests().fixture()
+        self.retained=deepcopy(example.context.protected_source)
+        c.binding['base_ref']='apple-ios';f.event['pull_request']['base']['ref']='apple-ios'
+        self.default=self.retained['default_commit'];self.default_tree=self.retained['default_tree']
+        self.local=deepcopy(c.previous);self.local['default-only.txt']={'mode':'100644','type':'blob','sha':'e'*40}
+        self.source={'schema':1,'kind':'protected-default-controller-source-v1','target':'apple-ios',
+            'target_profile':deepcopy(c.previous['tests/platform-profile.json']),
+            'controller_digest':f.controller,'lookup_digest':'sha256:'+'3'*64,
+            'base':c.binding['base_sha'],'default':self.default}
+        original_json=f.api.json;original_tree=f.api.immutable_tree
+        def json_api(endpoint):
+            path=endpoint[len(A.PREFIX):].lstrip('/').split('?',1)[0]
+            if path=='git/ref/heads/main':
+                value={'ref':'refs/heads/main','object':{'type':'commit','sha':self.default}}
+            elif path=='git/ref/heads/'+c.binding['base_ref']:
+                value={'ref':'refs/heads/'+c.binding['base_ref'],'object':{'type':'commit','sha':c.binding['base_sha']}}
+            elif path=='git/commits/'+self.default:
+                value={'sha':self.default,'tree':{'sha':self.default_tree},'parents':[]}
+            else:return original_json(endpoint)
+            f.api.calls.append(endpoint);return f.api.mutate(endpoint,value)
+        f.api.json=json_api
+        f.api.immutable_tree=lambda oid:({'sha':oid,'truncated':False,
+            'tree':[{'path':path,**entry} for path,entry in self.local.items()]} if oid==self.default_tree else original_tree(oid))
+        C.execution.checkout_identity.return_value=(self.default,self.default_tree)
+        C.inputs.full_tree.side_effect=lambda *args:deepcopy(self.local)
+        self.source_guard=self.enterContext(patch.object(C.producer,'reuse_source_context',return_value=self.source))
+        self.controller_guard=self.enterContext(patch.object(C,'integrated_controller_for_reuse',return_value=f.controller))
+        # These fixtures isolate complete source reconstruction. Native receipt
+        # authentication still executes the real class verifier at both ends.
+        self.enterContext(patch.object(C.producer,'reuse_source_profile',
+            side_effect=lambda *args,**kwargs:(deepcopy(f.selected),deepcopy(self.local))))
+        self.enterContext(patch.object(C.producer,'selection_profile_for_reuse',return_value=f.selected))
+        def original_source(adapter,invocation,plan,policy,context,receipt,binding,*,integrated,root,clock):
+            A.require(not integrated and receipt.get('schema')==4
+                and context.protected_source==self.retained and binding==c.binding,
+                'explicit source reconstruction seam differs')
+            verified=A.Adapter.verify(adapter,invocation,plan,policy,{'shared-host':context},clock=clock)
+            return verified,object()
+        self.enterContext(patch.object(C.producer,'verify_original_source',side_effect=original_source))
+        c.plan,c.policy=C._policy(self.policy,f.registry,c.binding,f.controller,f.adapter,C.ROOT,
+            f.selected['selection'],template=C.producer.PLATFORM_TEMPLATE)
+        c.pp=c.policy.producer;c.generation={path:c.tree[path] for path in A.WORKFLOWS}
+        self.assertEqual(c.pp.required_execution_schema,4)
+        self.retained['binding'].update(source=c.binding['merge_sha'],git_context=f.git,
+            selection=deepcopy(f.selected['selection']),registry=P.digest(f.registry))
+        self.retained['admission']=deepcopy(self.source)
+        def retained(receipt,binding,adapter,registry,selected,run_id,**kwargs):
+            A.require(receipt.get('schema')==4 and receipt.get('protected_source')==self.retained
+                and binding==c.binding and registry==f.registry and selected==f.selected['selection']
+                and run_id==100,'explicit retained source fixture differs')
+            return deepcopy(self.retained)
+        self.retained_guard=self.enterContext(patch.object(C.producer,'retained_receipt_source',side_effect=retained))
+        self.receipt=deepcopy(f.receipt);self.receipt.update(schema=4,protected_source=deepcopy(self.retained))
+        self.receipt['results']={name:{'status':'passed','fingerprint':P.inputs.suite_fingerprint(
+            f.registry,name,c.tree,self.receipt['environment'])} for name in f.registry['suites']}
+        self.receipt=FIXTURES.signed(self.receipt,'receipt_digest')
+        c.aggregate['results']['shared-host']['receipt']=self.receipt
+        f.run=replace(f.run,workflow_blob=c.pp.workflow_blob,
+            final_publisher=replace(f.run.final_publisher,receipt_sha256=hashlib.sha256(P.canonical(self.receipt)).hexdigest()))
+        c.aggregate['descriptor_digest']=P.descriptor(c.binding,c.plan,c.pp,f.run)['descriptor_digest']
+        c.aggregate=FIXTURES.signed(c.aggregate,'aggregate_digest');c.add_run(f.run)
+        c.runs[100]['display_title']=A.ORDINARY_RUN_NAME
+        c.runs[101]['display_title']=A.NONPRODUCER_RUN_NAME
+        for index,name in enumerate(('native','android','project / tool-dependencies','project / package-checks',
+                                     C.producer.PLATFORM_JOB,'documentation','workflow-contracts'),150):
+            c.jobs[100].append(f.job(index,100,name,skipped=True))
+        path='.github/workflows/workflow-security.yml';name,steps=C._METADATA_OUTER_RECIPES[path]
+        security=f.job(170,100,name,steps=steps)
+        next(step for step in security['steps'] if step['name']=='Verify fail-closed workflow contracts').update(
+            conclusion='skipped',started_at=None,completed_at=None)
+        c.jobs[100].append(security);c.runs[100]['referenced_workflows'].append(f.reference(path))
+
+    def verify(self,**kwargs):return self.fixture.verify(**kwargs)
+
+    def test_schema4_child_B_and_current_D_are_distinct_and_original_native_E_is_retained(self):
+        value=self.verify()
+        self.assertTrue(value['original_proof']['verified'])
+        self.assertEqual(value['metadata_only'],'true');self.assertFalse(value['qualification'])
+        self.assertNotEqual(self.case.binding['base_sha'],self.default)
+        self.assertEqual(value['original_protected_source'],self.retained)
+        self.assertEqual(value['original_proof']['receipt_sha256'],hashlib.sha256(P.canonical(self.receipt)).hexdigest())
+        self.assertEqual(value['original_proof']['expires_at'],self.case.aggregate['expires_at'])
+        self.assertEqual(value['executed_suites'],[])
+        self.assertEqual(self.source_guard.call_count,2);self.assertEqual(self.controller_guard.call_count,2)
+        self.assertEqual(self.retained_guard.call_count,2)
+        self.assertEqual(self.controller_guard.call_args.args[4],'apple-ios')
+        self.module.execution.capture_execution_environment.assert_not_called();self.module.execution.execute.assert_not_called()
+
+    def test_unknown_generation_target_or_actual_default_source_cannot_retain(self):
+        C=self.module;package=self.policy.package_policy();validate=package.validate_tree_wiring
+        package.validate_tree_wiring=lambda tree:'protected-producer-original-default-v1-neighbor'
+        with self.assertRaises(P.ProtocolError):self.verify()
+        package.validate_tree_wiring=validate
+        self.case.binding['base_ref']='unknown';self.fixture.event['pull_request']['base']['ref']='unknown'
+        with self.assertRaises(P.ProtocolError):self.verify()
+        self.case.binding['base_ref']='apple-ios';self.fixture.event['pull_request']['base']['ref']='apple-ios'
+        C.execution.checkout_identity.return_value=('f'*40,self.default_tree)
+        with self.assertRaises(P.ProtocolError):self.verify()
+
+    def test_external_platform_or_false_original_source_cannot_be_retained(self):
+        job=next(job for job in self.case.jobs[100] if job['name']==self.module.producer.PLATFORM_JOB)
+        original=deepcopy(job)
+        for state in ('success','failure',None):
+            job.update(conclusion=state)
+            with self.subTest(state=state),self.assertRaises(P.ProtocolError):self.verify()
+        job.clear();job.update(original)
+        self.retained_guard.side_effect=ValueError('immutable original source mismatch')
+        with self.assertRaises(ValueError):self.verify()
+
+    def test_original_native_hash_and_final_source_bookends_remain_mandatory(self):
+        publisher=next(job for job in self.case.jobs[100] if job['name'].startswith(self.module.producer.PUBLISH_PREFIX))
+        original=publisher['name'];publisher['name']=self.module.producer.PUBLISH_PREFIX+'0'*64
+        with self.assertRaises(P.ProtocolError):self.verify()
+        publisher['name']=original
+        self.source_guard.side_effect=[self.source,{**self.source,'default':'f'*40}]
+        with self.assertRaisesRegex(P.ProtocolError,'actual trusted controller'):self.verify()
+
+    def test_new_ci_namespace_receives_actual_target_and_independent_original_base(self):
+        # This is a forwarding negative, not fake CI37 runtime admission. The
+        # real runtime validator must reject or admit the supplied actual E.
+        self.fixture.selected['profile']=self.module.ci_profile.PROFILE
+        with patch.object(self.module.runtime_ci,'plan_original_reuse',
+                side_effect=ValueError('actual CI runtime admission required')) as runtime, \
+             patch.object(self.adapter,'verify',side_effect=AssertionError('unadmitted CI proof reached verification')):
+            with self.assertRaisesRegex(ValueError,'actual CI runtime admission'):self.verify()
+        self.assertEqual(runtime.call_args.kwargs['target'],'apple-ios')
+        self.assertEqual(runtime.call_args.kwargs['base_tree'],self.case.previous)
+        self.assertEqual(runtime.call_args.args[8],self.local)
+
+    def test_future_receipt_cannot_downgrade_even_with_new_local_and_native_hashes(self):
+        receipt=deepcopy(self.receipt);receipt['schema']=3;del receipt['protected_source']
+        receipt=FIXTURES.signed(receipt,'receipt_digest')
+        self.case.aggregate['results']['shared-host']['receipt']=receipt
+        aggregate=FIXTURES.signed(self.case.aggregate,'aggregate_digest')
+        self.case.artifacts[100]=self.case.artifacts[100][:1]
+        self.case.artifact(self.fixture.run,'aggregate',aggregate)
+        publisher=next(job for job in self.case.jobs[100] if job['name'].startswith(self.module.producer.PUBLISH_PREFIX))
+        publisher['name']=self.module.producer.PUBLISH_PREFIX+hashlib.sha256(P.canonical(receipt)).hexdigest()
+        with self.assertRaisesRegex(P.ProtocolError,'versioned protected receipt'):self.verify()
+
+
+class RetainedSourceNativeAPITests(unittest.TestCase):
+    """Actual API/descriptor/aggregate/native hash; source closure fixture seam.
+
+    Immutable B/D source closure is exercised separately by the real Git/API
+    RetainedOriginalDefaultTests. This class supplies that expected result and
+    verifies the whole native protocol, without any E query or execution.
+    """
+    def setUp(self):
+        self.fixture=MainConsumerTests()
+        self.fixture.generation_name='protected-producer-postmerge-original-e-v1'
+        self.fixture.setUp();self.addCleanup(self.fixture.doCleanups)
+        self.case,self.adapter=self.fixture.case,self.fixture.adapter
+        run=self.adapter.capture_integrated(500,self.case.plan,self.case.policy,now=NOW).observations[0].run
+        example=FIXTURES.RetainedSourceProtocolTests().fixture()
+        self.source=deepcopy(example.context.protected_source)
+        self.source['binding']['git_context']=deepcopy(self.fixture.git)
+        self.source['binding']['selection']=deepcopy(self.fixture.module.producer.selection_profile.return_value['selection'])
+        self.receipt=deepcopy(self.fixture.receipt)
+        self.receipt.update(schema=4,protected_source=deepcopy(self.source))
+        self.receipt=FIXTURES.signed(self.receipt,'receipt_digest')
+        self.case.pp=replace(self.case.pp,required_execution_schema=4)
+        self.case.policy=replace(self.case.policy,producer=self.case.pp)
+        self.case.aggregate['results']['shared-host']['receipt']=self.receipt
+        self.case.add_run(replace(run,final_publisher=replace(run.final_publisher,
+            receipt_sha256=hashlib.sha256(P.canonical(self.receipt)).hexdigest())))
+        self.case.runs[100]['pull_requests']=[]
+        self.context=P.SharedContext(self.fixture.registry,self.fixture.tree,self.receipt['environment'],
+            self.case.binding['merge_sha'],self.case.binding['merge_tree'],self.fixture.git,self.source)
+
+    def verify(self,context=None):
+        return self.adapter.verify_integrated(500,self.case.plan,self.case.policy,
+            {'shared-host':context or self.context},clock=lambda:NOW)
+
+    def test_actual_original_native_schema4_and_E_are_retained_without_consumer_measurement(self):
+        value=self.verify()
+        self.assertTrue(value['verified'])
+        self.assertEqual(value['receipt_sha256'],hashlib.sha256(P.canonical(self.receipt)).hexdigest())
+        self.assertEqual(value['expires_at'],self.case.aggregate['expires_at'])
+        self.assertEqual(value['source_chain']['producer_commit'],self.receipt['candidate_commit'])
+        self.assertNotEqual(value['source_chain']['producer_commit'],self.case.integrated)
+        self.fixture.module.execution.capture_execution_environment.assert_not_called()
+        self.fixture.module.execution.execute.assert_not_called()
+
+    def test_native_api_cannot_accept_schema4_without_independent_original_source(self):
+        with self.assertRaises(P.ProtocolError):self.verify(replace(self.context,protected_source=None))
+        changed=deepcopy(self.source);changed['projection_digest']='sha256:'+'0'*64
+        with self.assertRaises(P.ProtocolError):self.verify(replace(self.context,protected_source=changed))
+
+    def test_renewed_artifact_and_receipt_digests_cannot_change_native_source_commitment(self):
+        changed=deepcopy(self.receipt);changed['protected_source']['projection_digest']='sha256:'+'0'*64
+        changed=FIXTURES.signed(changed,'receipt_digest')
+        self.case.aggregate['results']['shared-host']['receipt']=changed
+        self.case.aggregate=FIXTURES.signed(self.case.aggregate,'aggregate_digest')
+        run=self.adapter.capture_integrated(500,self.case.plan,self.case.policy,now=NOW).observations[0].run
+        self.case.artifacts[100]=self.case.artifacts[100][:1]
+        self.case.artifact(run,'aggregate',self.case.aggregate)
+        with self.assertRaises(P.ProtocolError):self.verify(replace(self.context,protected_source=changed['protected_source']))
+
+
+class ImmutableOriginalSourceTransportTests(unittest.TestCase):
+    """Bounded fake source blobs; no API request or source execution."""
+    def fixture(self,raw=b'# immutable original source\n'):
+        oid=hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
+        value={'sha':oid,'size':len(raw),'encoding':'base64','content':base64.b64encode(raw).decode('ascii')}
+        return oid,value
+
+    def read(self,oid,value):
+        raw=value if type(value) is bytes else json.dumps(value).encode()
+        with patch.object(A.GitHubReadOnly,'_request',return_value=raw) as request:
+            result=A.GitHubReadOnly().immutable_source_blob(oid)
+        request.assert_called_once_with(A.PREFIX+'/git/blobs/'+oid,1_500_000)
+        return result
+
+    def test_source_transport_accepts_realistic_large_source_without_widening_policy_reader(self):
+        raw=b'# original test source\n'*4000
+        oid,value=self.fixture(raw)
+        self.assertEqual(self.read(oid,value),raw)
+        with patch.object(A.GitHubReadOnly,'_request',return_value=json.dumps(value).encode()):
+            with self.assertRaises(A.ApiError):A.GitHubReadOnly().immutable_blob(oid)
+        with self.assertRaises(TypeError):A.GitHubReadOnly().immutable_source_blob(oid,maximum=2_000_000)
+        with patch.object(A.GitHubReadOnly,'_request',side_effect=AssertionError('invalid source identity reached API')):
+            for supplied in ('main','../HEAD','0'*40,'A'*40):
+                with self.subTest(supplied=supplied),self.assertRaises(A.ApiError):A.GitHubReadOnly().immutable_source_blob(supplied)
+
+    def test_immutable_bytes_avoid_repeat_GET_but_corruption_and_unverified_data_cannot_be_cached(self):
+        raw=b'original immutable source\n';oid,value=self.fixture(raw);reader=A.GitHubReadOnly()
+        with patch.object(reader,'_request',return_value=json.dumps(value).encode()) as request:
+            self.assertEqual(reader.immutable_source_blob(oid),raw)
+            self.assertEqual(reader.immutable_source_blob(oid),raw)
+            request.assert_called_once()
+            reader._immutable_source_cache[oid]=b'corrupt memory'
+            with self.assertRaises(A.ApiError):reader.immutable_source_blob(oid)
+            request.assert_called_once()
+        reader=A.GitHubReadOnly();corrupt={**value,'size':len(raw)+1}
+        with patch.object(reader,'_request',side_effect=[json.dumps(corrupt).encode(),json.dumps(value).encode()]) as request:
+            with self.assertRaises(A.ApiError):reader.immutable_source_blob(oid)
+            self.assertEqual(reader.immutable_source_blob(oid),raw)
+            self.assertEqual(request.call_count,2)
+
+    def test_source_content_cache_is_bounded_by_member_count_and_bytes(self):
+        reader=A.GitHubReadOnly()
+        for index in range(19):
+            raw=('source '+str(index)).encode();oid,value=self.fixture(raw)
+            with patch.object(reader,'_request',return_value=json.dumps(value).encode()):
+                self.assertEqual(reader.immutable_source_blob(oid),raw)
+            self.assertLessEqual(len(reader._immutable_source_cache),17)
+        for index in range(9):
+            raw=bytes([index])*1_000_000;oid,value=self.fixture(raw)
+            with patch.object(reader,'_request',return_value=json.dumps(value).encode()):
+                self.assertEqual(reader.immutable_source_blob(oid),raw)
+            self.assertLessEqual(sum(map(len,reader._immutable_source_cache.values())),8_000_000)
+
+    def test_source_transport_rejects_rebound_corrupt_noncanonical_oversize_or_duplicate_data(self):
+        oid,original=self.fixture()
+        for change in ('sha','size','negative','oversize','base64','padding','content','url','node','extra'):
+            value=deepcopy(original)
+            if change=='sha':value['sha']='f'*40
+            elif change=='size':value['size']+=1
+            elif change=='negative':value['size']=-1
+            elif change=='oversize':value['size']=1_000_001
+            elif change=='base64':value['content']='!!!'
+            elif change=='padding':value['content']+='='
+            elif change=='content':value['content']=base64.b64encode(b'X'*value['size']).decode()
+            elif change=='url':value['url']='https://api.github.com/repos/other/fork/git/blobs/'+oid
+            elif change=='node':value['node_id']='x'*513
+            else:value['extra']=True
+            with self.subTest(change=change),self.assertRaises(A.ApiError):self.read(oid,value)
+        raw=json.dumps(original).encode()
+        with self.assertRaises(A.ApiError):self.read(oid,raw[:-1]+b',"size":1}')
+        with self.assertRaises(A.ApiError):self.read(oid,b' ' *1_500_001)
 
 
 if __name__ == "__main__":

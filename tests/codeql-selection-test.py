@@ -178,7 +178,8 @@ class LanguageSelectionTests(unittest.TestCase):
     def test_result_generations_advance_without_allowing_deployed_rollbacks(self):
         generations = CODEQL.result_workflow_blobs()
         self.assertEqual(generations, (CODEQL._RESULTS_WORKFLOW, CODEQL._RETARGET_RESULTS_WORKFLOW,
-                                      CODEQL._PINNED_RESULTS_WORKFLOW, CODEQL._METADATA_RESULTS_WORKFLOW))
+                                      CODEQL._PINNED_RESULTS_WORKFLOW, CODEQL._METADATA_RESULTS_WORKFLOW,
+                                      CODEQL._SCHEDULING_RESULTS_WORKFLOW))
         for old_index, old in enumerate(generations):
             for new_index, new in enumerate(generations):
                 before, after = self.pinned_trees()
@@ -1387,6 +1388,37 @@ class SelectedResultTests(unittest.TestCase):
             self.assertEqual(RESULTS.main(), 1)
         self.assertEqual(output.getvalue(), '')
         self.assertNotIn('fake private', errors.getvalue())
+        self.assertIn('phase=current-context code=runtime-error;', errors.getvalue())
+
+    def test_cli_failure_stage_identifies_actual_failed_gate_without_disclosing_details(self):
+        from contextlib import redirect_stdout, redirect_stderr
+        import io, os, sys
+        event_file = self.root / 'server-event.json'
+        event_file.write_text(json.dumps(self.event))
+        env = {**self.env, 'GITHUB_EVENT_PATH': str(event_file)}
+        arguments = ['codeql_results.py', '--root', str(self.root), '--event-file', str(event_file)]
+        original_jobs = deepcopy(self.jobs)
+        for failure, phase in [('failed-job','selected-jobs'), ('open-finding','selected-findings'),
+                               ('invalid-event','server-event'), ('invalid-invocation','invocation')]:
+            self.jobs=deepcopy(original_jobs);self.alerts=[];self.instances={}
+            event_file.write_text(json.dumps(self.event))
+            current_env=dict(env)
+            if failure=='failed-job':self.jobs[0]['conclusion']='failure'
+            elif failure=='open-finding':
+                self.alerts=[{'number':1,'state':'open','tool':{'name':'CodeQL'},'private':'private fixture'}]
+                self.instances[1]=[{'ref':self.env['GITHUB_REF'],'category':'/language:python',
+                                   'state':'open','commit_sha':self.candidate}]
+            elif failure=='invalid-event':event_file.write_text('{"private fixture":')
+            else:current_env['GITHUB_REPOSITORY']='private fixture'
+            output,errors=io.StringIO(),io.StringIO()
+            with self.subTest(failure=failure), patch.dict(os.environ,current_env), patch.object(sys,'argv',arguments), \
+                    patch.object(RESULTS,'default_api',return_value=self.api), redirect_stdout(output),redirect_stderr(errors):
+                self.assertEqual(RESULTS.main(),1)
+            self.assertEqual(output.getvalue(),'')
+            self.assertIn('phase='+phase+' code=',errors.getvalue())
+            self.assertNotIn('private fixture',errors.getvalue())
+            self.assertNotIn(str(event_file),errors.getvalue())
+            self.assertFalse(any('sarif' in endpoint.lower() for endpoint in self.api.calls))
 
     def test_push_and_schedule_bind_exact_branch_run_source_and_selection(self):
         for event_name in ('push', 'schedule'):
@@ -1409,6 +1441,26 @@ class SelectedResultTests(unittest.TestCase):
                 self.refs['heads/main'] = self.base
                 with self.assertRaisesRegex(RESULTS.ResultError, 'advanced'): self.verify()
 
+
+
+class ResultFailureDiagnosticsTests(unittest.TestCase):
+    def test_only_fixed_public_categories_and_phases_escape(self):
+        class PrivateError(RESULTS.ResultError):
+            def __str__(self):raise AssertionError('exception text must never be read')
+        cases=[(PrivateError('private'), 'verification-rejected'),
+            (subprocess.CalledProcessError(1,['private-command'],output='private-output'), 'process-error'),
+            (OSError(13,'private-message','/private/path'), 'os-error'),
+            (KeyError('private-key'),'key-error'), (IndexError('private'),'index-error'),
+            (AttributeError('private'),'attribute-error'), (TypeError('private'),'type-error'),
+            (ValueError('private'),'value-error'), (RuntimeError('private'),'runtime-error')]
+        for error,code in cases:
+            with self.subTest(code=code):
+                value=RESULTS.failure_diagnostic(error,'selected-jobs')
+                self.assertIn('phase=selected-jobs code='+code+';',value)
+                self.assertNotIn('private',value)
+        for phase in ('/private/path',None,[],{'private':'value'}):
+            self.assertIn('phase=unavailable code=verification-rejected;',
+                          RESULTS.failure_diagnostic(PrivateError('private'),phase))
 
 
 class FakeMetadataCodeQLApi:
@@ -1580,8 +1632,8 @@ class MetadataResultTests(unittest.TestCase):
             return RESULTS.MetadataVerifier(ROOT, {}, self.env, api=self.api).verify(processing_seconds=0)
 
     def test_future_recipe_is_exact_and_keeps_existing_pinned_language_selection(self):
-        for name, oid in [('codeql-metadata.yml', CODEQL._METADATA_RESULTS_WORKFLOW),
-                          ('pr-metadata-context.yml', CODEQL._METADATA_SOURCE_WORKFLOW)]:
+        for name, oid in [('codeql-metadata.yml', CODEQL._SCHEDULING_RESULTS_WORKFLOW),
+                          ('pr-metadata-context.yml', CODEQL._SCHEDULING_SOURCE_WORKFLOW)]:
             raw = (ROOT / 'tools/repository-checks/workflows/metadata-edits' / name).read_bytes()
             self.assertEqual(hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest(), oid)
         for path, expected in [('.github/branch-cleanup.json', []),
@@ -1596,6 +1648,23 @@ class MetadataResultTests(unittest.TestCase):
         previous = deepcopy(self.base_tree)
         previous[RESULTS.WORKFLOW]['sha'] = CODEQL._PINNED_RESULTS_WORKFLOW
         self.assertTrue(CODEQL.select_languages(previous, self.base_tree)['full_scan'])
+
+    def test_fifth_pair_retains_actual_analysis_verification_without_floating_old_helper(self):
+        self.runs[12]['display_title'] = self.A.ORDINARY_RUN_NAME
+        self.runs[13]['display_title'] = self.A.NONPRODUCER_RUN_NAME
+        self.workflows[RESULTS.WORKFLOW]['sha'] = CODEQL._SCHEDULING_RESULTS_WORKFLOW
+        self.workflows[self.A.METADATA_WORKFLOW]['sha'] = CODEQL._SCHEDULING_SOURCE_WORKFLOW
+        for tree in (self.base_tree, self.candidate_tree):
+            tree.update(deepcopy(self.workflows))
+            tree['tools/repository-checks/workflows/metadata-edits/codeql-metadata.yml'] = deepcopy(self.workflows[RESULTS.WORKFLOW])
+            tree['tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml'] = deepcopy(self.workflows[self.A.METADATA_WORKFLOW])
+        result = self.verify()
+        self.assertFalse(result['qualification']); self.assertEqual(result['analyses'][0]['id'], 91)
+        self.base_tree['tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml']['sha'] = CODEQL._METADATA_SOURCE_WORKFLOW
+        with self.assertRaises(RESULTS.ResultError): self.verify()
+        self.assertEqual(CODEQL.result_workflow_sources()[3],
+            ('3a273057a38255ca368d3028594fb94227ba7c3b', 'd04a6dc70213d8b549bac30c11cc15eaf0182dea'))
+        self.assertEqual(len(CODEQL.result_workflow_sources()), 5)
 
     def test_same_merge_original_native_analysis_is_freshly_revalidated_without_qualification(self):
         result = self.verify()

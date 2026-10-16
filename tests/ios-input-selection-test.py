@@ -50,6 +50,8 @@ REVIEWED_SANDBOX_CI_PATHS = (
     "tools/test-evidence/postmerge.py",
     "tools/repository-checks/workflows/producers/repository-checks.yml",
     "tools/repository-checks/workflows/producers/parent-qualification.yml",
+    "tools/repository-checks/workflows/producers/protected-project-tests-android-platform.yml",
+    "tools/repository-checks/workflows/producers/parent-qualification-android-platform.yml",
 )
 
 
@@ -248,6 +250,8 @@ class ImmutableInputTests(unittest.TestCase):
         for relative in (".github/shared-sandbox-extra.json",
                          ".github/workflows/shared-sandbox-host-extra.yml",
                          "tools/repository-checks/workflows/shared-sandbox-extra.yml",
+                         "tools/repository-checks/workflows/producers/protected-project-tests-android-platform-extra.yml",
+                         "tools/repository-checks/workflows/producers/parent-qualification-android-platform-extra.yml",
                          "tools/test-evidence/sandbox_extra.py",
                          "tools/test-evidence/sandbox_native.h"):
             with self.subTest(path=relative):
@@ -331,17 +335,35 @@ class ImmutableInputTests(unittest.TestCase):
         self.assertFalse(plan["requires_application_build"])
         self.assertEqual(plan["package_ownership"]["projects"]["browser-client"]["execution"], "not-performed")
 
-    def test_npm_owner_cannot_hide_config_consumers_unknown_graph_or_native_changes(self):
+    def test_full_npm_lock_graph_owner_preserves_independent_ios_inputs(self):
         self.npm_fixture()
-        for change in ("graph", "consumer", "config", "native", "unknown", "symlink", "mode", "deleted"):
+        for project in self.npm_policies:
+            with self.subTest(project=project):
+                self.git("checkout","-q","--detach",self.base)
+                lock=self.root/project/"package-lock.json"
+                value=json.loads(lock.read_text())
+                value["packages"]["node_modules/unchanged"]["version"]="9.0.0"
+                lock.write_text(json.dumps(value))
+                candidate=self.commit("Update an independently owned lock dependency graph")
+                owner=self.npm_owner(candidate)
+                self.assertEqual(owner["dependency_profiles"]["projects"][project]["profile"],"full")
+                self.assertIn(project,owner["package_set"])
+                plan=INPUTS.candidate_plan(self.root,self.base,candidate,package_owner=owner)
+                self.assertFalse(plan["requires_application_build"],plan)
+                self.assertEqual(plan["package_ownership"]["projects"][project]["profile"],"full")
+                missing=deepcopy(owner);missing["package_set"]=[];missing.pop("plan")
+                missing["plan"]=INPUTS._digest(missing).removeprefix("sha256:")
+                self.assertTrue(INPUTS.candidate_plan(self.root,self.base,candidate,
+                    package_owner=missing)["requires_application_build"])
+
+    def test_npm_owner_cannot_hide_config_consumers_or_native_changes(self):
+        self.npm_fixture()
+        for change in ("consumer", "config", "native", "unknown", "symlink", "mode", "deleted"):
             with self.subTest(change=change):
                 self.git("checkout", "-q", "--detach", self.base)
                 self.update_npm_locks()
                 lock = self.root / "browser-client/package-lock.json"
-                if change == "graph":
-                    value = json.loads(lock.read_text()); value["packages"]["node_modules/unchanged"]["version"] = "9.0.0"
-                    lock.write_text(json.dumps(value))
-                elif change == "consumer": self.write("browser-client/consumer.js", "module.exports = 2;\n")
+                if change == "consumer": self.write("browser-client/consumer.js", "module.exports = 2;\n")
                 elif change == "config": self.write("postcss.config.cjs", "throw Error('never execute');\n")
                 elif change == "native": self.write("interface/src/main.cpp", "int main() { return 2; }\n")
                 elif change == "unknown": self.write("tools/unreviewed-input.py", "# Unknown reader\n")

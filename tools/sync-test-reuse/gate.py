@@ -20,6 +20,9 @@ import sys
 import time
 import zipfile
 
+# Native source admission includes every import lookup member. Do not create
+# bytecode in that protected lookup before it is independently authenticated.
+sys.dont_write_bytecode = True
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG = ROOT / ".github/sync-test-reuse.json"
@@ -118,6 +121,10 @@ class GitHubApi:
             ).stdout
         except (OSError, subprocess.CalledProcessError) as error:
             raise EvidenceError(f"qualification artifact download failed ({safe_api_error(error)})") from error
+
+    def native_producer_api(self, controller):
+        """Use the existing fixed-fork, versioned, bounded GET transport."""
+        return controller.A.GitHubReadOnly()
 
 
 @dataclass(frozen=True)
@@ -536,10 +543,23 @@ def validate_required_codeql_workflow(event: dict, api: GitHubApi, policy_root: 
         raise GateError('trusted CodeQL workflow policy unavailable')
     trusted = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(trusted)
-    generations = tuple(validate_sha(getattr(trusted, key, None), 'approved CodeQL result workflow')
-                        for key in ('_RESULTS_WORKFLOW', '_RETARGET_RESULTS_WORKFLOW', '_PINNED_RESULTS_WORKFLOW'))
+    generations = tuple(validate_sha(value, 'approved CodeQL result workflow')
+                        for value in trusted.result_workflow_blobs())
+    pairs = trusted.result_workflow_sources()
+    if (type(pairs) is not tuple or len(pairs) != 5
+            or any(type(row) is not tuple or len(row) != 2 for row in pairs)):
+        raise GateError('approved CodeQL workflow/helper pairs unavailable')
+    sources = {validate_sha(row[0], 'approved CodeQL result workflow'):
+               None if row[1] is None else validate_sha(row[1], 'approved CodeQL metadata source')
+               for row in pairs}
     approved = set(generations)
-    if len(approved) != 3 or '0' * 40 in approved:
+    metadata_workflow = validate_sha(trusted._METADATA_RESULTS_WORKFLOW, 'approved CodeQL metadata workflow')
+    metadata_source = validate_sha(trusted._METADATA_SOURCE_WORKFLOW, 'approved CodeQL metadata source')
+    if len(generations) != 5 or len(approved) != 5 or tuple(sources) != generations \
+            or '0' * 40 in approved or any(sources[oid] is not None for oid in generations[:3]) \
+            or pairs[3] != (metadata_workflow, metadata_source) \
+            or pairs[4] != (trusted._SCHEDULING_RESULTS_WORKFLOW, trusted._SCHEDULING_SOURCE_WORKFLOW) \
+            or any(value == '0' * 40 for value in sources.values()):
         raise GateError('approved CodeQL workflow identity is unavailable')
     refs = {f'repos/{repository}/git/ref/heads/{quote(ref, safe="")}': 'refs/heads/' + ref
             for ref in (target, head_ref)}
@@ -602,6 +622,12 @@ def validate_required_codeql_workflow(event: dict, api: GitHubApi, policy_root: 
     actual = tree.get('.github/workflows/codeql.yml', {})
     if actual.get('mode') != '100644' or actual.get('type') != 'blob' or actual.get('sha') not in approved:
         raise GateError('candidate must retain the exact approved CodeQL security-result workflow')
+    # The metadata successor invokes this relative reusable workflow. Its
+    # exact caller blob cannot authorize candidate-controlled helper contents.
+    if sources[actual['sha']] is not None and tree.get('.github/workflows/pr-metadata-context.yml') != {
+            'path': '.github/workflows/pr-metadata-context.yml',
+            'mode': '100644', 'type': 'blob', 'sha': sources[actual['sha']]}:
+        raise GateError('candidate must retain the exact approved CodeQL metadata source workflow')
     _, base_tree = recursive_tree(readonly, repository, base_sha, error_type=GateError)
     previous = base_tree.get('.github/workflows/codeql.yml', {})
     if previous.get('mode') != '100644' or previous.get('type') != 'blob':
@@ -680,7 +706,7 @@ def artifact_evidence(api: GitHubApi, config: dict, request: SyncRequest) -> tup
     return run, evidence
 
 
-def verify_evidence(api: GitHubApi, config: dict, request: SyncRequest, now: datetime | None = None) -> dict:
+def _verify_legacy_evidence(api: GitHubApi, config: dict, request: SyncRequest, now: datetime | None = None) -> dict:
     run, evidence = artifact_evidence(api, config, request)
     expected = {
         "schema": 2,
@@ -766,6 +792,274 @@ def verify_evidence(api: GitHubApi, config: dict, request: SyncRequest, now: dat
             "parent_inputs": parent_inputs, "candidate_inputs": candidate_inputs}
 
 
+NATIVE_PARENT_KIND = 'original-native-parent-v1'
+
+
+class NativeParentEvidence(dict):
+    """Internal native API result; an artifact JSON field cannot create this."""
+
+
+def _native_parent_controller():
+    """Close the real protected import lookup before importing proof modules.
+
+    ROOT is the trusted checkout, never the synchronization candidate. The
+    immutable local source is subsequently bound to the live protected default
+    by _native_sync_context; local Git metadata alone supplies no authority.
+    """
+    tree = suite_inputs.full_tree(ROOT, 'HEAD')
+    name = 'tools/test-evidence/source_admission.py'
+    path = ROOT / name
+    current = Path(path.anchor)
+    for part in path.parts[1:]:
+        current /= part
+        if current.is_symlink():
+            raise EvidenceError('native parent source contains an alias')
+    info = path.stat()
+    if not path.is_file() or info.st_mode & 0o111 or info.st_size > 1_000_000:
+        raise EvidenceError('native parent source helper is unavailable')
+    raw = path.read_bytes()
+    expected = {'mode': '100644', 'type': 'blob',
+        'sha': hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()}
+    if len(raw) > 1_000_000 or tree.get(name) != expected:
+        raise EvidenceError('native parent source helper differs from immutable ROOT')
+    guard = type(sys)('sync_native_parent_source_guard')
+    guard.__file__ = str(path)
+    exec(compile(raw, str(path), 'exec'), guard.__dict__)
+    imports = {name: entry for name, entry in tree.items()
+        if any(name == prefix or name.startswith(prefix+'/') for prefix in guard.IMPORT_ROOTS)}
+    directories = sorted({str(parent) for name in imports for parent in Path(name).parents
+        if any(str(parent) == prefix or str(parent).startswith(prefix+'/') for prefix in guard.IMPORT_ROOTS)})
+    if set(imports) != set(guard.IMPORT_MEMBERS) or guard.actual_import_inventory(ROOT) != {
+            'files': imports, 'directories': directories}:
+        raise EvidenceError('native parent protected import lookup is not immutable')
+    directory = str(ROOT / 'tools/test-evidence')
+    sys.path.insert(0, directory)
+    try:
+        spec = importlib.util.spec_from_file_location('sync_native_parent_consumer', ROOT / 'tools/test-evidence/postmerge.py')
+        controller = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(controller)
+    finally:
+        sys.path.remove(directory)
+    for name in ('attested', 'ci_profile', 'execution', 'inputs', 'producer', 'producer_api',
+                 'producer_workflow', 'runtime_ci', 'sandbox', 'source_admission'):
+        module = sys.modules.get(name)
+        if module is None or Path(module.__file__).resolve() != ROOT / ('tools/test-evidence/'+name+'.py'):
+            raise EvidenceError('native parent proof module is outside actual protected ROOT')
+    return controller
+
+
+def _native_sync_context(controller, adapter, request):
+    binding, references = adapter.current(request.number)
+    expected = {'repository': request.repository, 'repository_id': request.repository_id,
+        'pull_request': request.number, 'head_repository_id': request.head_repository_id,
+        'base_ref': request.base, 'base_sha': request.base_sha, 'head_ref': request.head,
+        'head_sha': request.head_sha, 'merge_sha': request.merge_sha,
+        'merge_parents': [request.base_sha, request.head_sha]}
+    controller.A.require(all(binding.get(key) == value for key, value in expected.items())
+        and references['default_ref'] == 'main', 'native parent consumer source PR changed')
+    branch = adapter._object('branches/'+quote(request.base, safe=''))
+    controller.A.require(branch.get('name') == request.base and branch.get('protected') is True
+        and branch.get('commit', {}).get('sha') == request.base_sha,
+        'native parent consumer protected target changed')
+    controller.default_authority(adapter, references)
+    default_tree, local = controller.full_tree(adapter, references['default'])
+    controller.A.require(controller.execution.checkout_identity(ROOT) == (references['default'], default_tree)
+        and controller.inputs.full_tree(ROOT, references['default']) == local,
+        'native parent actual ROOT differs from current default authority')
+    return binding, references, local
+
+
+def _native_parent_run(controller, adapter, request, now):
+    endpoint = ('actions/workflows/350930890/runs?branch='+quote(request.parent, safe='')
+        +'&event=push&head_sha='+request.parent_sha)
+    rows = adapter._pages(endpoint, 'workflow_runs', search=True)
+    controller.A.require(bool(rows) and all(row.get('head_sha') == request.parent_sha
+        and row.get('head_branch') == request.parent and row.get('event') == 'push'
+        and row.get('workflow_id') == 350930890
+        and row.get('path') == '.github/workflows/parent-qualification.yml' for row in rows),
+        'native parent run inventory is incomplete or foreign')
+    times = [controller.P._time(row.get('run_started_at')) for row in rows]
+    newest = max(times)
+    controller.A.require(newest <= now and times.count(newest) == 1,
+        'native parent newest run ordering is ambiguous')
+    run = rows[times.index(newest)]
+    controller.A.require(run.get('run_attempt') == 1 and run.get('status') == 'completed'
+        and run.get('conclusion') == 'success', 'native parent newest push is not successful attempt one')
+    return controller.A.positive(run.get('id')), rows
+
+
+def native_parent_evidence(api, config, request, now=None):
+    """Authenticate original native M, actual parent P and current child M.
+
+    This is not a newly executed or renewed parent qualification artifact.
+    The original receipt/E/lifetime stay attached to their real original M.
+    """
+    try:
+        controller = _native_parent_controller()
+        A, P = controller.A, controller.P
+        A.require(controller._source_qualified() and request.repository == A.REPOSITORY
+            and request.repository_id == 1319052603 and config['trusted_actions_app_id'] == 15368
+            and config['qualification_workflow'] == '.github/workflows/parent-qualification.yml'
+            and request.parent in {'main', 'android-main', 'android-vr', 'apple-main'}
+            and config['edges'][request.base]['parent'] == request.parent and not request.repair_paths,
+            'native parent source capability or exact direct edge is unavailable')
+        clock = (lambda: now) if now is not None else lambda: datetime.now(timezone.utc)
+        now = clock()
+        P._now(now)
+        adapter = A.Adapter(api.native_producer_api(controller))
+        child_binding, child_refs, local = _native_sync_context(controller, adapter, request)
+        push_id, push_inventory = _native_parent_run(controller, adapter, request, now)
+        binding, references = adapter._integrated_current(push_id, 15368, now)
+        A.require(binding['base_ref'] == request.parent and references['target'] == request.parent_sha
+            and references['default'] == child_refs['default']
+            and references['integration']['push_status'] == 'completed'
+            and references['integration']['push_conclusion'] == 'success',
+            'native parent/default completed context changed')
+        tree_sha, parent = controller.full_tree(adapter, request.parent_sha)
+        _, previous = controller.full_tree(adapter, binding['base_sha'])
+        policy = controller.producer._host_policy()
+        generation=policy.package_policy().validate_tree_wiring(parent)
+        future=generation==controller.producer.PLATFORM_GENERATION
+        parent_template=controller.producer.PLATFORM_PARENT_TEMPLATE if future else controller.TEMPLATE
+        project_template=controller.producer.project_template(policy,parent)
+        A.require(generation in controller.GENERATIONS
+            and parent.get('.github/workflows/parent-qualification.yml') == local.get(parent_template),
+            'native parent workflow is not a complete trusted consumer recipe')
+        controller_check=controller.integrated_controller_for_reuse if future else controller.integrated_controller
+        source = controller_check(policy, previous, parent, local, request.parent, ROOT)
+        registry = controller.inputs.load_registry(ROOT / '.github/test-suites.json')
+        A.require(all(suite['scope'] == 'content' for suite in registry['suites'].values())
+            and all(tree.get('.github/test-suites.json') == local.get('.github/test-suites.json')
+                    for tree in (previous, parent)), 'native parent command registry differs from protected source')
+        context = previous if request.parent == 'main' else local
+        read_blob = adapter.api.immutable_blob
+        selector=controller.producer.selection_profile_for_reuse if future else controller.producer.selection_profile
+        profile = selector(policy, registry, parent, previous, context,
+            root=ROOT, target=request.parent, read_blob=read_blob)
+        selected = profile['selection']
+        affected = controller._affected_receipt_selection(profile, registry, request.parent)
+        partition=controller.producer.platform_partition(policy,profile,registry,parent,previous,local,
+            target=request.parent,root=ROOT,read_blob=read_blob)
+        if partition is None:
+            A.require(controller.source_admission.shared_platform_supported(selected, request.parent,
+                parent.get(controller.source_admission.PROFILE)), 'native parent product ownership is unavailable')
+        owner=controller.producer.common_owner(profile,partition)
+        plan, api_policy = controller._policy(policy, registry, binding, source, adapter, ROOT, selected,
+            common_owner=owner,template=project_template)
+        snapshot = adapter.capture_integrated(push_id, plan, api_policy, now=now)
+        A.require(snapshot.references == references, 'native parent integration changed before proof selection')
+        if future:
+            profile,context=controller.producer.reuse_source_profile(snapshot,adapter,api_policy,policy,registry,
+                parent,previous,root=ROOT,target=request.parent,read_blob=read_blob,now=clock())
+            selected=profile['selection'];affected=controller._affected_receipt_selection(profile,registry,request.parent)
+            partition=controller.producer.platform_partition(policy,profile,registry,parent,previous,local,
+                target=request.parent,root=ROOT,read_blob=read_blob)
+            owner=controller.producer.common_owner(profile,partition)
+            plan,api_policy=controller._policy(policy,registry,binding,source,adapter,ROOT,selected,
+                common_owner=owner,template=project_template)
+        original_tree, original = controller.full_tree(adapter, snapshot.binding['merge_sha'])
+        A.require(original_tree == tree_sha == snapshot.binding['merge_tree'] and original == parent
+            and selector(policy, registry, original, previous, context,
+                root=ROOT, target=request.parent, read_blob=read_blob) == profile,
+            'native original source differs from exact parent inputs')
+        A.require(controller.producer.platform_partition(policy,profile,registry,original,previous,local,
+            target=request.parent,root=ROOT,read_blob=read_blob)==partition,
+            'native original and current parent platform ownership differs')
+        authority = P.select_authority(snapshot.observations, snapshot.binding, plan, api_policy.producer,
+            inventory_complete=snapshot.inventory_complete, now=now)
+        A.require(authority['state'] == 'proof-required', 'native parent original producer is unresolved')
+        observation = next(item for item in snapshot.observations if item.run.run_id == authority['run_id'])
+        platform_observation=(controller.original_platform_owner(adapter,observation.run,partition,now=clock())
+            if partition is not None else None)
+        raw, facts = adapter._artifact(observation.run, 'aggregate',
+            snapshot.artifact_inventories[authority['run_id']], now, snapshot.binding['head_sha'])
+        aggregate = P.read_artifact(raw, 'aggregate', facts, observation.run, now=now)
+        receipt = aggregate.get('results', {}).get('shared-host', {}).get('receipt')
+        A.require(type(receipt) is dict and receipt.get('schema') == api_policy.producer.required_execution_schema,
+            'native parent versioned original receipt unavailable')
+        git_context = controller.producer.expected_git_context(adapter, snapshot.binding)
+        controller.execution.validate_receipt(receipt, registry, original,
+            require_all=profile['profile'] != controller.ci_profile.PROFILE and not affected,
+            expected_git_context=git_context)
+        A.require(receipt['requested_suites'] == selected['suites']
+            and receipt['include_platform'] == owner['include_platform']
+            and (partition is None or receipt['platform_results']=={}), 'native parent selected owner differs')
+        environment = receipt['environment']
+        retained=controller.producer.retained_receipt_source(receipt,snapshot.binding,adapter,registry,selected,
+            authority['run_id'],root=ROOT)
+        shared = P.SharedContext(registry, original, environment, snapshot.binding['merge_sha'], tree_sha, git_context,retained)
+        original_source=None
+        if receipt['schema']==4:
+            verified,original_source=controller.producer.verify_original_source(adapter,push_id,plan,api_policy,
+                shared,receipt,snapshot.binding,integrated=True,root=ROOT,clock=clock)
+        if profile['profile'] == controller.ci_profile.PROFILE:
+            ci_context = ({'base_tree': previous}
+                if profile['binding'].get('generation_kind') == controller.ci_profile.SEVEN_CONTROLLER_KIND else {})
+            validator=(controller.runtime_ci.validate_environment if original_source is None else
+                lambda *args,**kwargs:controller.runtime_ci.validate_original_environment(original_source,*args,**kwargs))
+            admission = validator(environment, aggregate.get('qualified_at'),
+                aggregate.get('expires_at'), now, selected, original, context, registry,
+                root=ROOT, target=request.parent, read_blob=read_blob, **ci_context)
+        else:
+            admission = controller.attested.validate_environment(environment, aggregate.get('qualified_at'),
+                aggregate.get('expires_at'), now, root=ROOT, isolated=True)
+        if original_source is None:
+            verified=adapter.verify_integrated(push_id,plan,api_policy,{'shared-host':shared},clock=clock)
+        else:
+            A.require(A.Adapter.verify_integrated(adapter,push_id,plan,api_policy,{'shared-host':shared},clock=clock)==verified,
+                'native parent original proof changed during runtime/source admission')
+        if partition is not None:
+            A.require(controller.original_platform_owner(adapter,observation.run,partition,now=clock())==platform_observation,
+                'native original Android platform job changed during common proof verification')
+        A.require(verified['integration'] == references['integration']
+            and verified['receipt_sha256'] == hashlib.sha256(P.canonical(receipt)).hexdigest()
+            and verified['aggregate_digest'] == aggregate['aggregate_digest']
+            and 0 <= (clock() - P._time(verified['qualified_at'])).total_seconds()
+                <= int(config['evidence_max_age_hours']) * 3600,
+            'native parent whole proof or allowed lifetime changed')
+        _, candidate = controller.full_tree(adapter, request.merge_sha)
+        A.require(candidate.get(controller.source_admission.PROFILE)==controller.source_admission.ordinary(
+            controller.source_admission.TARGET_PROFILES[request.base]),
+            'current child platform declaration needs its actual known owner')
+        A.require(all(entry['mode'] in {'100644', '100755'} and entry['type'] == 'blob'
+            for tree in (parent, candidate) for entry in tree.values()), 'native parent reuse requires ordinary complete inputs')
+        candidate_plan = controller.inputs.plan_reuse(registry, parent, candidate, receipt['results'], environment, environment)
+        final = _native_sync_context(controller, adapter, request)
+        A.require(final == (child_binding, child_refs, local)
+            and _native_parent_run(controller, adapter, request, clock()) == (push_id, push_inventory)
+            and controller_check(policy, previous, parent, local, request.parent, ROOT) == source
+            and controller.producer.retained_receipt_source(receipt,snapshot.binding,adapter,registry,selected,authority['run_id'],root=ROOT)==retained
+            and controller.producer.platform_partition(policy,profile,registry,parent,previous,local,
+                target=request.parent,root=ROOT,read_blob=read_blob)==partition
+            and (partition is None or controller.original_platform_owner(adapter,observation.run,partition,now=clock())==platform_observation)
+            and clock() < P._time(verified['expires_at']),
+            'native parent/default/source context changed before completion')
+        A.require(bool(candidate_plan['reused']), 'native parent has no matching child suite source')
+        return NativeParentEvidence({'kind': NATIVE_PARENT_KIND, 'parent_branch': request.parent, 'parent_commit': request.parent_sha,
+            'parent_tree': tree_sha, 'original_commit': snapshot.binding['merge_sha'], 'original_git_context': git_context,
+            'qualified_at': verified['qualified_at'], 'expires_at': verified['expires_at'],
+            'environment': environment, 'results': {'conclusion': 'success', 'suites': receipt['results']},
+            'child_platform_profile':candidate[controller.source_admission.PROFILE], 'platform_reused':False,
+            'original_platform_observation':platform_observation,
+            'original_proof': verified, 'original_protected_source':retained, 'runtime_admission': admission, 'candidate_plan': candidate_plan,
+            'parent_inputs': parent, 'candidate_inputs': candidate})
+    except EvidenceError:
+        raise
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, ImportError, subprocess.SubprocessError) as error:
+        raise EvidenceError('original native parent proof unavailable; actual synchronization execution is required') from error
+
+
+def verify_evidence(api: GitHubApi, config: dict, request: SyncRequest, now: datetime | None = None) -> dict:
+    try:
+        return _verify_legacy_evidence(api, config, request, now)
+    except EvidenceError:
+        # Preserve legacy2 routes exactly. The native path requires the fixed
+        # bounded transport explicitly, never an arbitrary JSON/proof fallback.
+        if not callable(getattr(api, 'native_producer_api', None)):
+            raise
+        return native_parent_evidence(api, config, request, now)
+
+
 def write_outputs(path: Path | None, values: dict[str, object]) -> None:
     lines = [f"{key}={str(value).lower() if isinstance(value, bool) else value}" for key, value in values.items()]
     if path:
@@ -794,10 +1088,15 @@ def inspect(args: argparse.Namespace) -> int:
     else:
         try:
             evidence = verify_evidence(api, config, request)
-            evidence_run = str(evidence["workflow"]["run_id"])
             plan = evidence["candidate_plan"]
-            reason = (f"exact parent suite proofs accepted; {len(plan['reused'])} source matches, "
-                      f"{len(plan['required'])} suites require candidate execution; runtime rechecked in validation")
+            if isinstance(evidence, NativeParentEvidence):
+                evidence_run = str(evidence['original_proof']['run_id'])
+                reason = (f"original native parent proofs accepted; {len(plan['reused'])} source matches, "
+                          f"{len(plan['required'])} suites require candidate execution; original proof rechecked in validation")
+            else:
+                evidence_run = str(evidence["workflow"]["run_id"])
+                reason = (f"exact parent suite proofs accepted; {len(plan['reused'])} source matches, "
+                          f"{len(plan['required'])} suites require candidate execution; runtime rechecked in validation")
         except EvidenceError as error:
             mode, reason = "fallback", str(error).replace("\n", " ")
     values = {

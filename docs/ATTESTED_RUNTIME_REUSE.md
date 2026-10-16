@@ -77,12 +77,50 @@ cannot replace the first native publisher proof. The legacy whole-tree CI37
 policy shape remains separately validated; it is not silently interpreted as
 the controller-source policy.
 
+An inert title/body or unrelated-label event has a separate scheduling-only
+lane on the seven reviewed PR targets. Its native source check binds the exact
+current B/H/M, protected B/D controller and complete import inventory, reviewed
+caller/helper pair, Actions app and original attempt. The ordinary invocation
+must have completed its fixed native source step; it may still be pending or
+failed overall. The metadata invocation then uses different, nonrequired check
+names and leaves the ordinary required results unchanged. Only the exact new
+never-producer recipe may be excluded while queued: its server-rendered native
+run name, immutable source/attempt/M identity, empty artifact inventory and
+absence of heavy jobs are checked afresh. Its normal queued-to-completed
+progress does not change that scheduling identity; historical recipes still
+require their completed recognition marker. The lane does not assert
+PASS, reuse an execution receipt, capture consumer E or start replacement tests
+or analyses. The Android diagnostic-label state is independently bound; changing
+`android-long-diagnostics` retains normal qualification. Missing or changing
+native provenance stops before expensive jobs, after only a short bounded wait
+for the tiny source step. Completed result reuse remains subject to the separate
+original receipt/E, native publisher and actual selected-analysis verifiers.
+
 The seven-target workflow generation requires the reviewed helper/controller
 source on each protected target before native installation there. A candidate
 cannot enroll its own missing trusted-base helpers. Source-only propagation
 preserves child product/profile differences and all required checks. Android
 platform suites remain separate required owners; unsupported profiles select
 actual execution rather than relabeling shared results.
+
+The unenrolled Android common/platform recipe keeps the original selection of
+60 common suites and its complete 13 or 19 platform declaration. Only that complete
+future catalog generation can separate the common native owner from a fresh
+platform job. The common schema3 receipt records `include_platform: false` and
+empty `platform_results`; it retains the actual full isolated environment and
+cannot certify any Android command. Original-proof consumers also authenticate
+the original completed platform job, then require the separate current platform
+job through the final project or parent gate. The parent retains the required
+`Qualify exact parent` check downstream of both jobs.
+
+The platform job preserves the existing Java 17, Node 22, Python 3.12, Conan and
+phone Qt6 fixtures. It uses the system CMake/CTest/Ninja without changing which
+prepared Node/Python installation wins PATH lookup. A phone fixture requires
+the actual available NDK compiler before execution; a missing compiler cannot
+turn into an exit-zero skip. Only the existing authenticated Pico ownership
+plan can defer `pico4-device-free` to the required Android owner. Other apparent
+test overlaps grant no omission. These future templates remain outside the
+installed catalog; source tests do not establish native or runtime qualification.
 
 On a main PR, independently selected full-environment affected subsets retain
 that original full environment and exact selected suite results. The complete
@@ -194,3 +232,36 @@ final authority/ref changes and policy mutation during the real differential.
 It executes no product build, installation, dispatch or network request. Its
 initial repository closure is conservative because fixtures read the complete
 trusted controller, registry, sync policy and recursive requirement graph.
+
+The Android40 current-source owner is separate from common-host reuse. Its
+`SOURCE_CAPABILITY` permits the first current attempt only on the four fixed Android
+targets under the complete `protected-producer-original-default-v1` generation.
+It describes reviewed current execution code, not a previous hosted PASS. The
+legacy Android activation flag and required-branch policy retain their existing
+meaning. Protected D supplies every controller; an authenticated pre-owner13 or
+old14 B may precede the first exact22 installation, subject to the existing
+immutable handoff checks. Candidate controller code is never imported.
+Before importing the repository execution/API graph, a pinned standard-library
+guard authenticates the actual protected D checkout, its complete controller
+bytes and import lookup inventory. The current PR's relevant diagnostic label
+is independently checked at both source bookends; unrelated label changes do
+not alter the plan.
+
+For selected work, the final outer job independently authenticates its current
+attempt-1 Android route, execute and verify jobs and their fixed successful
+steps through native GitHub job/check facts. It rederives the complete ordinary
+40-command union, including real runtime and subcase verification in the execute
+step, and repeats source, plan, ref and native-job observations. Its outer run
+remains in progress; this entrypoint creates no reusable E, receipt or historical
+qualification. Failed, missing or skipped owners remain merge failures. An
+independently proved unselected plan requires exact skipped/no-output behavior.
+Even an unselected plan requires the current outer job's native Actions app,
+attempt and source checks. Newer ordinary pending or failed runs still block.
+Only the shared API's authenticated metadata non-producer may be excluded;
+its exact reviewed native-intent type has a stable inventory projection while
+its complete live source and job restrictions are rechecked at both bookends.
+No actual Android workload or hosted qualification is asserted by this source
+implementation; complete workflow installation and hosted acceptance remain
+separate. The source phase uses the complete pre-owner13 recipe across all
+seven branches, preserving the six original Android ownership files until
+their verified direct-parent installation transfers ownership to exact22.

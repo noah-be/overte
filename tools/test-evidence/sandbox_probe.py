@@ -129,7 +129,7 @@ def shared_environment(binding):
         # This root-owned expected namespace selects the input transport only.
         # capture independently reloads real policy and rejects a missing/wrong
         # manifest before any identity query; it cannot grant source authority.
-        if isinstance(expected,dict) and expected.get('generation_kind')==ci_profile.CONTROLLER_KIND:
+        if isinstance(expected,dict) and ci_profile.controller_policy(expected):
             manifest=ci_profile.load_controller_projection(Path('/overte-policy'))
             trusted_tree=manifest['entries']
         else:
@@ -137,6 +137,11 @@ def shared_environment(binding):
         capture = runtime_ci.capture_ci_environment_diagnostic if diagnostic else runtime_ci.capture_ci_environment
         options = {'source':source,'source_root':Path('/work')} if diagnostic else {}
         if manifest is not None:options['controller_manifest']=manifest
+        if isinstance(expected,dict) and expected.get('generation_kind')==ci_profile.SEVEN_CONTROLLER_KIND and not diagnostic:
+            parents = sandbox._raw_commit_identity(Path('/work'),source)['parents']
+            if len(parents) != 2 or parents[0] != binding.get('selection_base'):
+                raise ValueError('CI subset base differs from actual immutable merge parents')
+            options.update(target=binding.get('selection_target'),base_tree=inputs.full_tree('/work',parents[0]))
         environment = capture(binding['selection'],tree,trusted_tree,registry,root=Path('/overte-policy'),
             read_blob=lambda oid:sandbox._git(Path('/work'),'cat-file','blob',oid,limit=64_000),**options)
         if environment['selection'] != binding.get('profile_binding'):

@@ -2,7 +2,10 @@
 """Negative routing, merge identity and aggregate-result regressions."""
 
 from copy import deepcopy
+import ast
 import hashlib
+import base64
+import zlib
 import importlib.util
 import json
 import os
@@ -14,6 +17,20 @@ import tempfile
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
+
+
+# Immutable historical20/21 workflow bytes, independent of shallow Git history.
+_HISTORICAL_WORKFLOW_BYTES = (('d9fefd275d9e3c6977cf9350a1945a6bbe5051b4', 'c-q}s>u=jO5dWUPg6WDn0Ve0Yb{;Y;ON=J#>I8|?p(qMLmd-XCSyD;LiP!dj-|?k~CClz3S<!xq$-Cq6cW<gck&~EByhsqiQZ67MiRa&VBOoJ)fO&$((Qm}_1)ZwD34`}3Wx(-|DTP~P5FQ(WAW0ljf7V`$ya{y3B_uJYB4#t<kHNp;YjM<BBP2<~(3LWP3;CN6F-w5!KOGV$cxqsNFev@xv&bK_IHLc8S%H9xY&-M@5N5y9DF1yMvzuWU-?{<ii6{KAK8;36D$L1*urxxwMtCz$wW|7G0NiIZk$1;ir4bQhAbvbaLJ)wvQ|f~=WB?@RCV~RXB*+VP$RLhG@S=j;p_hiDBXNgp)u0=6$j}QptR=uERLN9|`f(&6LZy+=3)b+bpE3rKKa;y77N?2avd}vkdgt+n4`f8eI32WMiu~=O71~ic82}?6KUx|FL-OfUl}ma7UheRav^4T9^5h9wFVXm8FB$=F4?GTXccXS!P!U4m#5vwLm~BdCs}Gun29mt>KJ`L6q`vaS7HTO$@gg5Whel4qVr2pY>brQLP@9180#A4jk5lG@wyk#4qZG{<2`LcB#U&ANCzM-h4;gk!8oH86-M<K6tDvg9wkz?IL=%rj#m)Z#MRkpoV}OzNR$J3;*?8bv33D=VlyBXM_G}WaAshOVuuuU6C}0l83?VPP^=5oSS!_emw&zIEqd5Ayx-(CGA5GMfdM_uwp-F-W>3hrtgZwua5PDG~Twap~bBw`?JK7DdFjM#<i@rh#+3aOf1b1W_NC#;oQfGI+y}hq<7@Yv(<xFUVsG<A=wTw%}6k{*y#!)!y5E);XaT9I~XQ<mHGVS7uI}V`8l!RWC^WbJq$^p{?6|;rpmLO+|Frua<`Fdr+2?Dd3i{bVTVdD#rDN*Ijroy-wxB<nRF1}WUvMNN<FXfkuRn~FLh1&>gg|aGSH6&`OtHL;lr6Q0fXGC0BOanKs8w<GS39BNOTcbi*71C&pB2kr<MluR8<d*VhlvaqMwJn5>=wlhSG61u_MkX{GjZB|n4%eyCB#bQ;>qz#;Ua;ry@4|uS`3D2<+4jM+-Gjh;`pf>#w!iaiXZPve!25N3uw$g$VqWbOYWPrJp_G>Ml+re(-yJZlT;m)G=?5stYMieE<CF`>N4v>lg`I)z4=f4xHH?E}FVG<$vn@hQ-Y=|3H{@HDMxjE1xlB0N;^479RCaZSa3oQcmB!o|q%;hiQq3+I=@R^SB>Op{QeD<n>B1H>B5Rl`$3%f>Poe1NYQg-5Xqv<S{M7BAzv%W#HW2X*L`9@~NBy%`UH4_Te{^!xKXT7{{cf+XdFsnjB|TGBdUByy9y;WACpX(njN@p}nsaLb=-TVr$t*9h#k(O|`Zsy>`1x7?^!iV?`wCTcFOK@BkL;$SI+Hny-qFjhq|ln@yXV*ai|hWQIa7FnZf&#R7P6_8t}UYo?yzL2_@P!aS^JmQuXQZrvKwpNW5nsO$u!T_hk(t#6F?%jcfTs0iZSGry9RAWGGy^YAqaPPJ2WOvMHQXC3^VEPG7}aZ?X$g0W!)vdlpDVarsMFjmor|S9<AzI1}B{^9tbXd*mA&%Iqa*k(imlkt%w!wNV74EkfVy;JFb$Y>B|beYM!A~i(cDXV<%oDsfX>*!Y0XE#yT681}A7eNd%j!S2qMLo9|X_#!cH&>bdnip>)fph~@gO7xk?pH&<9UgF|b{@KZFsntJ9FOWqnboTlI~9bM<%#uQ@0rZTzQlQ)<PHMoPJ$o%137<HqLzS@IJRfh;vVTN3VMFzYq1`x@1h5}#8FI#P?;G4It<&(66qrsc9lV@||LY)Q+<^;G)Z~-dKdebFpy7f#<b%<(`l=tnX6MulTWKL>uL__gS9kGtQGC>`d%FbffFpQ36to4riL2e~ImQ8X^LRK2(ngpyg%QXp@8|H%8PbavbhJ^?4uhMx9URI);_q8|byq|3ucw754wu15|{~0mOuV!^b_O)y^AZk3`3bhQSTf0+WILD#Kt*_|$C3e%08t=D6PWD!H|F*82*<kMq?Y-xhOsQ4#N=3y5WoHP?%|3z1PK0@?_LvV3nV5X*hxF}bXfKX}DtL=R;j>?en_sT7=_pUrb{;Rxt`GQ>B`3hbBg&V}*Y={XB!)9QLw+ZbFAElDlHpvO-!5MFPtSWN=e_<vmuLO%pRfDf<MWg5;Z8o;sUfc7&#EWGsZM^>m>-XSoQ}P6wT9$Yq0N%pg6}ycP1kE<cBN?CEMyk@kvGeuj?FRVSE+iKwMx#LUoX3kQ+x+-Y<qGap=uwQHAE&ou<!JhdA0cbo)Xc$zwk-N0Y^{#U-z`Gk`T7VVu=5-LVl7S(h%%(PVvE2weJ{hA%3q5)jVe3#zah1fMwqRN)Oz}r`_Wh?q&Dt`tSag_5l(9b#>m;!Ma&A^(v3y<=3%g&xli<wU<1ODNP)CX{0DA`~^>EYySb4lWnp'), ('d04a6dc70213d8b549bac30c11cc15eaf0182dea', 'c-oazO>f&U488kT5J7>Q<b1E0feuTDVC`XD&?UPDvdlDEZON0Uq-oLrKFN-gG>5J8!GKBnk?-+IiWiu`#L*fRNx=zWb`OM41ei&RBCV1LV5`mJD%abk;CUVb0NPRM$krbK1rpCV@ugJcp_(wjhUd<=xOjPiUplq1L7^X%e8zZ>5TE@Dudh*5qA8@cQmd+i&{fJNV321~6p%vv09N-?6`T7e2(l;~@ifOHqZ;aos(Ry;Wu76p)G2bTKa9J>DnqhBKOZZka)iF`=slz>mX@%z@xIO9NCt$exPfDP0$<iB9z(Aa0;SP}f-r-EOVto3FA!MmjKG87&W3rp2szsk0n0;u9%KVC?Bj@YF-rNkI~w;#8Nd86>~%$N-0NQsQvR`<_6|5(N$cYpgVw8>;Db-NG{%kR5tlB{mj-`3v=pb@Vr<vEVOKvT_dr0#d9vAQ9F3Khm@t?H_wn4%z4C87DY7Lu7Fk1sd0mkeI>UdK`j%Sfwqvl=R+2WmI%PYDT{KH7cV`<oT1cyW2mW+;-xOtz{(LA-a&zLS!vr!*-neV;umnD_Q`S3LYc&9N3+xB5>qeN)|4&;@%&I*=>*DL}{AO{zoc^5N&6l&u{HE0;Ss-;@aX0xk4HdOPkJ;~w`D`(7oe6S!Lu3$ku;sgh|3PWRyhAf5&>Z#fetF+vxVnP2mjT;vb!#W>=nof(d71'), ('55d08b65a987224ce576459cede693cfd49375f6', 'c-rk5YjfMU@w<Kns`Ffun}T{+q#lhs&gIm^J;!!rJ8dU*H6RE|uql!TKsmZ3{q0=<ltk)bD{01;59coyfZfGn-@E()ohve80g_23C__mc&HjP{mPX0UED#A56No00G-8S&B{Hc1{w@(WVU*nA5sR51iYGB5!Guc*znn@;Caj0fXE8-n67j$QR74izjVEaD<445fG*i-{i4ZKZ+n+yIDoNa{pv8T|fXkF9I@X&g$FaW=DxmhzN5O70E?CghOtU{DHA~@UsRWNlpL2{!60ohHbewPst0dJFWe>d<ER(Pik|^>Cy}6o`NktO!i0yc3nnlr212U<0L}4FNMnUdFpGY>8WAdeVV@86n!J9BK+U>$h%0#YzqYy%KsR_8cqLmXX7OUlk76Z=3FyE~J6wN@3F`a25Bavh&+yUl-m*#>C=28@<wimdF#FRyt#~9Qy5==_VaHVpc_=dHd60>$=E%IHy2Tupi&5dJ`#QZmFx*8D7S7L2inV-cf!_AgcZ<!OtCoIVnp71zR4DM^XW}n5=xow`l>klsa!?$mahZp_xi{aq%<fK37p;{(IE#iLdR(Um_$F<u@1SEjr7#zzWgTti@8^<}nFUO4DAh>kllKHC=kwYQ`#tOXTil|YI0SJft!9Hy@nM(+DebTABou(U*w%2OZX`|C<w)cI~t@{o11Ddv-y3<$?yyI%zTdY7LEbO5P;c;OPymQ=}GgaJYLUO4v1q%W@;3NXxz>_3fdD(y&PEo|C44n-SH{fcvpjD8n{`>jGd4G8R`bDo8Mb;d~+Q$6v)$8HK>9740i!*{}Wxk`58y1)0UiV-8vYqzasmeHS`h!>ZFtqTfGS=DU@$qobe|rhWQ9@id@Lcv8SmLJw1<4e`EK5+zQx*~)70%wjN7cQ#psMKLzvw^j>$ppBc=fSW|GbB;u2!MvPu~rC@#x*ai?7Ww8n}C<(XM`4K>+*BNOZ9GbTmdJ<)|uHn#kJTtD}q8mp=oQv(xjVi_^isYFboqP$K?p_3EeBw+IX5Xv1){8lFFY4%_yY>NDWxpd_nx=I0c&`nOY9%5OUbYYUKECtMA;QYy%HL25%77&F8tlS~mmVmb&0HlCR~jOS{og7-agnD_!;upwmegu+S4AoXLYPc%UDYog0h4A?BzKv3OC76B(v<b;Ny)vynVotdmBImG0}bsSQl#oQK?c8xD@PJii_M57CmmB27K{oB!T87i+g%79-J2fz3D_E%ig@eFJ@-k;}|no1IIcbzOTo9Zk<S#6%$vDT!M&I;%lTb*H3*J2Dd4h(>Q<$>h%^5X3BqFTaOy3z6%#wGx9$h5O1_A(4r0isyjtcJVN1xDZC;$Q~`FIOy}Shed-tvaj)S`14VYwhIQ%UA;xwfyt_W#lMbdY#2wAwT0$V8sVTQWhy$Gj*1g5(}IUlgK=lGM;V+UzTOgwM^m_cRPoql%)mfof#!AT`BC@`o^)>I#w&viAc=QpAOKIh>ZxHVL!>hX@e)|)2CH0&`?1_vkCaLVdTk{&;}VYOR+VhLwHu3`gM;INS1CGhV53P+X*^etJ{Iyme=l3uR%<B^PGLBzBRmAf_SP!kS-6a`%a@-eMk@|pm~tk?<t8GSU7C9y4`lY-Ry!eSh(+Yx?Zcrn()tSxy%i8@bA+7j+KLZj~q0)f)tt$%i!;1N*)$Ks3XKU0Z)Q-_(YfT_dn|zs2=(r3q!x|vX<NOn{K`CdZ68I!}IE%A5bq0sULPdqh8l(-}5Z!IHASyGuu`wHpxV(;MLa^p516y*HVsD&@mR?Z632Fw|tEh)@#8mNT66!(4Iq4n4lNbv~IoLfWcdsJZOO;R&whOI6Qv|2Gha$LI(&aU?8PRglFjA1&RnkGowRX7BPIQbnHO4Dqu7sdSozVE~N4)HgOydJR9j?tF*|^)0+{7?l9yd=nVW(G%<iH*R2sRa{v#bH_Z)unz9mb&Bnus%s>lr)6pG|gXFHc#)pRsoGhNSvR8Qd9rNj!K+6{yV0huJa+jO#rpFe!0Umvc!z2orh`?ZVUWqh__Ylk)(E<jn)^|+KisXg^J){9YphD-1d+BP~ZQ5JtVdLRk4-b;Y;H4=Hg4kv{R%!Q=v9f}AqF}hOnMwdfX0mpsjl7r}mR75?JCC7O5h4-bE0}!%B}nvExo?d;;Kx6h|I%t)uTGfKB88vc9KtI>csayMz&V2gg$QT|WTJ%tW$hT20fP9WM^!-vC9loH%b~&lk%%5Hf~&>)BQKcNkJh4?velCvl??kQ?~VqiCvW;Ex@F9ZYOEt-Y0hB6n4C$fAWq#OFi4P<LsF2)BoR<)>S#{YFpEJQQ^=Yy{v1LY5wSd|7wEvSM@tR#qz`prMN%x1M9tSRQ+BSjUZLU%nu0L$nn|;W^;;x{%>wwQV>1J?bTk?0<qJ_4QjzZNFzn7V4z|M*=q49su_jf^hjqFVkVZ(3`k+?q<Q)?{oS|HgYt7HRXPldi$*wz^$-(Ys(*NgK|K&v=3fTTJ{5U$zyQYoA?J}PYe|f+4M>F-!nyJTWjm*UT(Hf(<-0{-Ps(b79`MY&fxx?BK^-}CI(<P({?~4yLpm9BwUZ0+Rv+(|ye*4Fq<O^K;p|tXyyZmEML%w&Xzl4vmBq)9@HFc2|yHMq_jYM~3CZ9e-KmLfGe*0m<vn_3RW;nz|C?3Mzq2H#i=aF{1$voflL*MPNpdL_Y!`=NRX|=mSyWQ!AcBD|hZ=_%(u=@Ege>yJ24Df;>55O;0H;K}{fZ8-*{#2^}Hz=oczA*XP2FRbZrgsO2W)8kAYcmP0ix%~6m8m;ytp?q&fr@(Qj)=H4Q`cWpwKM`yc@MQK{{ur>)>r'))
+
+def historical_workflow_bytes():
+    result = {}
+    for oid, encoded in _HISTORICAL_WORKFLOW_BYTES:
+        raw = zlib.decompress(base64.b85decode(encoded))
+        actual = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+        if actual != oid:
+            raise ValueError("historical workflow fixture whole hash differs")
+        result[oid] = raw
+    return result
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -293,7 +310,8 @@ class MetadataEditTests(unittest.TestCase):
                 "'sync-test-reuse (metadata unchanged)' || 'sync-test-reuse' }}")
         else:
             identity = hashlib.sha1(b'blob ' + str(len(active)).encode() + b'\0' + active).hexdigest()
-            self.assertEqual(identity, '59a19621ac160fc5c48d5323e4e61490e83f708a')
+            self.assertIn(identity, {'59a19621ac160fc5c48d5323e4e61490e83f708a',
+                                     '6229491872ac60ce2149b68eb53b3e67055c354c'})
             self.assertEqual(yaml.safe_load(active)['jobs']['sync-test-reuse']['name'], 'sync-test-reuse')
         classify = jobs['classify']
         self.assertEqual(classify['outputs'], {'metadata_only': '${{ steps.event.outputs.metadata_only }}'})
@@ -327,6 +345,285 @@ class MetadataEditTests(unittest.TestCase):
 
 
 
+class NativeCallerSchedulingTests(unittest.TestCase):
+    """Evaluate actual caller guards with GitHub's transitive default status.
+
+    GitHub workflow-syntax documents skipped ancestors throughout the needs
+    chain; expressions documents implicit success() unless a status function
+    occurs. This bounded fixture models those rules, not a hosted execution.
+    """
+
+    def setUp(self):
+        import yaml
+        self.jobs = yaml.safe_load((ROOT / 'tools/repository-checks/workflows/producers/repository-checks.yml').read_text())['jobs']
+        self.outputs = {'metadata_only': 'false', 'native': 'skip', 'package_host_mode': 'full',
+                        'package_set': '[]', 'android_required': 'false', 'security': 'true'}
+        self.states = {'metadata-source': 'skipped', 'route': 'success'}
+        self.github = {'event_name':'pull_request','event':{'action':'opened',
+            'changes':{'base':False,'title':False,'body':False},'label':{'name':'bug'}}}
+
+    def scheduled(self, name, *, expression=None, cancelled=False):
+        def ancestors(job):
+            needs = self.jobs[job].get('needs', [])
+            if isinstance(needs, str): needs = [needs]
+            return set(needs) | {item for parent in needs for item in ancestors(parent)}
+        expression = self.jobs[name]['if'] if expression is None else expression
+        successful = all(self.states[item] == 'success' for item in ancestors(name))
+        if not re.search(r'\b(?:always|cancelled|failure|success)\s*\(', expression) and not successful:
+            return False
+        expression = re.sub(r'!(?!=)', 'not ', expression.replace('&&', ' and ').replace('||', ' or '))
+        context = {'github':self.github,'needs': {
+            'route': {'result': self.states['route'], 'outputs': self.outputs},
+            'project': {'result': self.states.get('project','success'),
+                'outputs':{'documentation_verified':'false','workflow_contracts_verified':'false'}}}}
+        functions = {'always': True, 'cancelled': cancelled, 'success': successful,
+                     'failure': any(self.states[item] == 'failure' for item in ancestors(name))}
+        def evaluate(node):
+            if isinstance(node, ast.Constant): return node.value
+            if isinstance(node, ast.Name): return context[node.id]
+            if isinstance(node, ast.Attribute): return evaluate(node.value)[node.attr]
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and not node.args and not node.keywords:
+                return functions[node.func.id]
+            if isinstance(node, ast.BoolOp):
+                values = (evaluate(value) for value in node.values)
+                if isinstance(node.op, ast.And): return all(values)
+                if isinstance(node.op, ast.Or): return any(values)
+            if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not): return not evaluate(node.operand)
+            if isinstance(node, ast.Compare) and len(node.ops) == len(node.comparators) == 1:
+                left, right = evaluate(node.left), evaluate(node.comparators[0])
+                if isinstance(node.ops[0], ast.Eq): return left == right
+                if isinstance(node.ops[0], ast.NotEq): return left != right
+            raise AssertionError('unreviewed scheduling expression')
+        return bool(evaluate(ast.parse(expression, mode='eval').body))
+
+    def test_normal_pr_selected_jobs_survive_skipped_metadata_ancestor(self):
+        self.assertEqual(self.jobs['route']['needs'], 'metadata-source')
+        self.assertIn('always()', self.jobs['route']['if'])
+        self.assertEqual({name for name in ('native', 'project', 'android', 'workflow-security') if self.scheduled(name)},
+                         {'project', 'workflow-security'})
+        for name in ('project', 'workflow-security'):
+            # Removing the explicit status function reproduces the incident,
+            # even though direct route succeeded and its selector is true.
+            old = self.jobs[name]['if'].split("needs.route.result == 'success' && ", 1)[1]
+            self.assertFalse(self.scheduled(name, expression=old))
+
+    def test_each_existing_route_selector_remains_necessary(self):
+        for changes, expected in (({'native': 'configure'}, {'native', 'project', 'workflow-security'}),
+                ({'android_required': 'true'}, {'android', 'project', 'workflow-security'}),
+                ({'package_host_mode': 'skip', 'security': 'false'}, set()),
+                ({'package_host_mode': 'tool-dependencies'}, {'project', 'workflow-security'}),
+                ({'package_host_mode': 'skip', 'package_set': '["browser"]'}, {'project', 'workflow-security'})):
+            with self.subTest(changes=changes), patch.dict(self.outputs, changes):
+                self.assertEqual({name for name in ('native', 'project', 'android', 'workflow-security') if self.scheduled(name)}, expected)
+
+    def test_bad_route_metadata_and_cancellation_never_start_workloads(self):
+        self.outputs.update(native='full', android_required='true')
+        for state in ('failure', 'cancelled', 'skipped', ''):
+            self.states['route'] = state
+            for name in ('native', 'project', 'android', 'workflow-security'):
+                with self.subTest(state=state, job=name): self.assertFalse(self.scheduled(name))
+        self.states['route'] = 'success'
+        for name in ('native', 'project', 'android', 'workflow-security'):
+            with self.subTest(cancelled=True, job=name): self.assertFalse(self.scheduled(name, cancelled=True))
+        self.outputs['metadata_only'] = 'true'
+        for name in ('native', 'project', 'android', 'workflow-security'):
+            with self.subTest(metadata=True, job=name): self.assertFalse(self.scheduled(name))
+
+    def test_required_aggregate_keeps_its_failure_path_and_real_verifier(self):
+        aggregate = self.jobs['repository-checks']
+        self.assertEqual(aggregate['if'], "always() && (needs.route.result != 'success' || needs.route.outputs.metadata_only != 'true')")
+        self.assertTrue({'route', 'native', 'project', 'android', 'documentation', 'workflow-security', 'workflow-contracts'} <= set(aggregate['needs']))
+        self.assertEqual(aggregate['steps'][0]['run'], 'exit 1')
+        self.assertEqual(aggregate['steps'][1]['with']['ref'], '${{ github.event.repository.default_branch }}')
+        self.assertIn('python3 tools/repository-checks/check.py verify', aggregate['steps'][-1]['run'])
+
+    def test_native_nonproducer_intent_cannot_start_any_heavy_job_without_recognition(self):
+        names={'native','project','android','documentation','workflow-security','workflow-contracts'}
+        self.assertEqual(set(self.jobs),names|{'metadata-source','route','repository-checks'})
+        self.states.update({'metadata-source':'success','project':'success'})
+        self.outputs.update(native='full',android_required='true')
+        self.assertEqual({name for name in names if self.scheduled(name)},names)
+        for action,changes,label in [('edited',{'title':True},'bug'),
+                ('edited',{'body':True},'bug'),('labeled',{},'bug'),('unlabeled',{},'idea')]:
+            self.github['event'].update(action=action,changes={'base':False,'title':False,'body':False,**changes},
+                label={'name':label})
+            for marker in ('false','','true'):
+                self.outputs['metadata_only']=marker
+                with self.subTest(action=action,marker=marker):
+                    self.assertFalse(any(self.scheduled(name) for name in names))
+        self.outputs['metadata_only']='false'
+        for action,changes,label in [('edited',{'base':True,'title':True},'bug'),
+                ('labeled',{},'android-long-diagnostics'),('unlabeled',{},'android-long-diagnostics')]:
+            self.github['event'].update(action=action,changes={'base':False,'title':False,'body':False,**changes},
+                label={'name':label})
+            with self.subTest(action=action,label=label): self.assertEqual({name for name in names if self.scheduled(name)},names)
+
+
+class MetadataSchedulingBoundaryTests(unittest.TestCase):
+    def marker(self):
+        spec = importlib.util.spec_from_file_location('metadata_scheduling_boundary',
+            ROOT / 'tools/repository-checks/metadata_context.py')
+        module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        return module
+
+    def test_tiny_ordinary_edge_and_nonrequired_scheduling_guards_preserve_gates(self):
+        import yaml
+        marker = self.marker()
+        tiny = yaml.safe_load((ROOT / marker.SOURCE_TEMPLATE).read_text())
+        job = tiny['jobs']['recognize']
+        self.assertEqual(tiny['permissions'], {'contents':'read','actions':'read',
+            'checks':'read','pull-requests':'read'})
+        self.assertEqual(job['steps'][0]['if'],
+            "contains(fromJSON('[\"edited\",\"labeled\",\"unlabeled\"]'), github.event.action)")
+        self.assertEqual(job['steps'][1]['if'], job['steps'][0]['if'])
+        self.assertEqual(job['steps'][-1]['if'], "steps.context.outputs.metadata_intent != 'true'")
+        self.assertIn(marker.ORDINARY_SOURCE_STEP, job['steps'][-1]['name'])
+        for filename, selector, gate in [('producers/repository-checks.yml','route','repository-checks'),
+                ('metadata-edits/codeql-metadata.yml','select','codeql-checks')]:
+            jobs = yaml.safe_load((ROOT/'tools/repository-checks/workflows'/filename).read_text())['jobs']
+            self.assertEqual(jobs['metadata-source']['if'], "github.event_name == 'pull_request'")
+            self.assertEqual(jobs['metadata-source']['permissions'],tiny['permissions'])
+            self.assertEqual(jobs[selector]['permissions']['checks'],'read')
+            classify = next(step for step in jobs[selector]['steps'] if step.get('id')=='event')
+            self.assertIn('python3 -I -S -B ', classify['run'])
+            self.assertEqual(classify['env']['NATIVE_METADATA_SCHEDULING'],
+                '${{ needs.metadata-source.outputs.metadata_scheduling }}')
+            self.assertIn('metadata unchanged',jobs[gate]['name'])
+            self.assertIn("needs."+selector+".result == 'success'",jobs[gate]['name'])
+            self.assertIn("needs."+selector+".result != 'success'",jobs[gate]['if'])
+        for name in ('native','project','android','workflow-security'):
+            caller=yaml.safe_load((ROOT/'tools/repository-checks/workflows/producers/repository-checks.yml').read_text())
+            self.assertTrue(caller['jobs'][name]['if'].startswith(
+                "always() && !cancelled() && needs.route.result == 'success' && "))
+
+    def test_closed_label_shapes_preserve_meaningful_diagnostics_and_retarget_events(self):
+        marker = self.marker()
+        event = MetadataEditTests().edited({'title': {'from': 'Old'}})
+        event.pop('changes'); event['action'] = 'labeled'
+        event['label'] = {'id':7,'name':'bug'}
+        event['pull_request']['labels'] = [deepcopy(event['label'])]
+        for target in sorted(marker.TARGETS):
+            event['pull_request']['base']['ref'] = target
+            self.assertTrue(marker.event_only(event, 'pull_request'))
+            self.assertTrue(CHECKS.metadata_edit(event, 'pull_request'))
+        event['action'] = 'unlabeled'; event['pull_request']['labels'] = []
+        self.assertTrue(marker.event_only(event, 'pull_request'))
+        for mutation in ('diagnostics','retarget','unknown-target','missing-labels','duplicate','ready'):
+            value = deepcopy(event)
+            if mutation == 'diagnostics': value['label']['name'] = 'android-long-diagnostics'
+            elif mutation == 'retarget': value['changes'] = {'base':{'from':'main'}}
+            elif mutation == 'unknown-target': value['pull_request']['base']['ref'] = 'feature'
+            elif mutation == 'missing-labels': value['pull_request'].pop('labels')
+            elif mutation == 'duplicate': value['pull_request']['labels'] = [value['label'], value['label']]
+            else: value['action'] = 'ready_for_review'
+            with self.subTest(mutation=mutation): self.assertFalse(marker.event_only(value, 'pull_request'))
+
+    def test_scheduling_classifier_cannot_fall_back_to_qualified_or_ordinary_work(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'event.json'
+            path.write_text(json.dumps(MetadataEditTests().edited({'title':{'from':'Old'}})))
+            environment = {'NATIVE_METADATA_INTENT':'true','NATIVE_METADATA_SCHEDULING':'true'}
+            with patch.dict(os.environ, environment), patch.object(CHECKS,'_scheduled_metadata',
+                    return_value={'kind':'native-nonproducer-scheduling','metadata_only':'true','qualification':False}) as scheduled, \
+                    patch.object(CHECKS,'_retained_metadata') as retained:
+                self.assertEqual(CHECKS.classify_metadata_event(path,'pull_request')['kind'], 'native-nonproducer-scheduling')
+                scheduled.assert_called_once(); retained.assert_not_called()
+            with patch.dict(os.environ, environment), patch.object(CHECKS,'_scheduled_metadata',side_effect=ValueError), \
+                    patch.object(CHECKS,'_retained_metadata') as retained, patch.object(CHECKS,'plan') as ordinary, \
+                    self.assertRaises(ValueError): CHECKS.classify_metadata_event(path,'pull_request')
+            retained.assert_not_called(); ordinary.assert_not_called()
+
+    def test_actual_isolated_bootstrap_closes_android_profile_and_import_lookup_before_api_import(self):
+        import ast, shutil
+        marker = self.marker()
+        constants = {}
+        tree = ast.parse((ROOT / 'tools/test-evidence/source_admission.py').read_text())
+        for node in tree.body:
+            if isinstance(node, ast.Assign) and len(node.targets)==1 and isinstance(node.targets[0],ast.Name) \
+                    and node.targets[0].id in {'CONTROLLERS','IMPORT_MEMBERS'}:
+                constants[node.targets[0].id] = ast.literal_eval(node.value)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for relative in set(constants['CONTROLLERS']) | set(constants['IMPORT_MEMBERS']) | {
+                'tools/repository-checks/codeql.py','tools/repository-checks/codeql_results.py',
+                'tools/repository-checks/workflows/metadata-edits/codeql-metadata.yml',
+                'tools/repository-checks/workflows/sync-ci-selection.yml',
+                'tools/repository-checks/workflows/producers/repository-checks.yml','.github/codeql/codeql-config.yml'}:
+                path = root / relative; path.parent.mkdir(parents=True,exist_ok=True)
+                shutil.copy2(ROOT/relative,path)
+            def git(*args):
+                return subprocess.check_output(['git',*args],cwd=root,stderr=subprocess.PIPE).decode().strip()
+            git('init','--quiet'); git('config','user.name','Scheduling fixture')
+            git('config','user.email','scheduling@example.invalid')
+            git('add','.'); git('commit','--quiet','-m','Immutable protected default source')
+            default = git('rev-parse','HEAD'); default_tree = git('rev-parse','HEAD^{tree}')
+            entries = []
+            for row in git('ls-tree','-r','HEAD').splitlines():
+                fields,path = row.split('\t'); mode,kind,oid = fields.split()
+                entries.append({'path':path,'mode':mode,'type':kind,'sha':oid})
+            base = 'b'*40; base_tree = 'e'*40
+            before = deepcopy(entries)
+            next(row for row in before if row['path']=='tests/platform-profile.json')['sha'] = '1314006455751831be60b143e46ce9c6f5398e26'
+            responses = {'':{'id':1319052603,'full_name':'noah-l-frank/overte','default_branch':'main'},
+                'branches/android-main':{'name':'android-main','protected':True,'commit':{'sha':base}},
+                'branches/main':{'name':'main','protected':True,'commit':{'sha':default}},
+                'git/ref/heads/main':{'ref':'refs/heads/main','object':{'type':'commit','sha':default}},
+                'git/commits/'+base:{'sha':base,'tree':{'sha':base_tree}},
+                'git/commits/'+default:{'sha':default,'tree':{'sha':default_tree}},
+                'git/trees/'+base_tree+'?recursive=1':{'sha':base_tree,'truncated':False,'tree':before},
+                'git/trees/'+default_tree+'?recursive=1':{'sha':default_tree,'truncated':False,'tree':entries}}
+            data = root/'responses.json'; data.write_text(json.dumps(responses))
+            script = r"""
+import importlib.util,json,os,pathlib,sys,urllib.request
+root=pathlib.Path(sys.argv[1]); responses=json.loads((root/'responses.json').read_text())
+class Response:
+ def __init__(self,request):
+  self.url=request.full_url; self.status=200
+  self.raw=json.dumps(responses[self.url.removeprefix('https://api.github.com/repos/noah-l-frank/overte/')]).encode()
+ def __enter__(self): return self
+ def __exit__(self,*args): pass
+ def geturl(self): return self.url
+ def read(self,bound): return self.raw[:bound]
+class Opener:
+ def open(self,request,timeout): return Response(request)
+urllib.request.build_opener=lambda *args:Opener()
+spec=importlib.util.spec_from_file_location('actual_metadata_bootstrap',root/'tools/repository-checks/metadata_context.py')
+m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+os.environ['GH_TOKEN']='fixed-fake-fixture-token'
+event={'action':'edited','number':23,'repository':{'full_name':m.REPOSITORY,'id':m.REPOSITORY_ID},
+ 'changes':{'title':{'from':'Old'}},'pull_request':{'number':23,'state':'open','title':'Current',
+ 'base':{'ref':'android-main','sha':'b'*40,'repo':{'full_name':m.REPOSITORY,'id':m.REPOSITORY_ID}},
+ 'head':{'ref':'fix/android/source-fixture','sha':'c'*40}}}
+native={'base':'b'*40,'checkout':sys.argv[2]}
+try:
+ value=m._protected_readers(event,{'GITHUB_EVENT_NAME':'pull_request','GITHUB_JOB':'recognize'},native,root)
+ class Registration:
+  def _object(self,endpoint): return {'id':99,'path':'.github/workflows/repository-checks.yml','state':'active'}
+ native['helper_blob']=value[2][m.SOURCE]['sha']
+ policy,context=m._source_policy(root,Registration(),{'base_sha':'b'*40},
+  {'default':sys.argv[2]},native,value,caller='.github/workflows/repository-checks.yml')
+ value[0]._metadata_policy(policy)
+ print(json.dumps({'success':True,'target':value[-1]['target'],'api_source':value[0].__file__}))
+except (ValueError,OSError):
+ print(json.dumps({'success':False,'api_loaded':'producer_api' in sys.modules}))
+"""
+            def run():
+                result=subprocess.run([sys.executable,'-I','-S','-B','-c',script,str(root),default],
+                    check=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,timeout=20)
+                return json.loads(result.stdout)
+            self.assertEqual(run(),{'success':True,'target':'android-main',
+                'api_source':str(root/'tools/test-evidence/producer_api.py')})
+            shadow=root/'tools/test-evidence/json.py'; shadow.write_text('raise RuntimeError("unreviewed import")\n')
+            self.assertEqual(run(),{'success':False,'api_loaded':False}); shadow.unlink()
+            guard=root/'tools/test-evidence/source_admission.py'
+            guard.write_text('raise RuntimeError("unreviewed immutable guard")\n')
+            git('add','.');git('commit','--quiet','-m','Unknown guard is still ordinary immutable Git data')
+            # Even an internally consistent new Git checkout cannot choose a new
+            # executable guard that authenticates itself.
+            default=git('rev-parse','HEAD')
+            self.assertEqual(run(),{'success':False,'api_loaded':False})
+
+
 class NativeMetadataContextTests(unittest.TestCase):
     def setUp(self):
         spec = importlib.util.spec_from_file_location('native_metadata_marker_tests',
@@ -350,18 +647,19 @@ class NativeMetadataContextTests(unittest.TestCase):
             'GITHUB_HEAD_REF': self.event['pull_request']['head']['ref'], 'GITHUB_RUN_ATTEMPT': '1',
             'GITHUB_RUN_ID': '123', 'RUNNER_ENVIRONMENT': 'github-hosted', 'ImageOS': 'ubuntu24',
             'GITHUB_SHA': '3' * 40, 'GITHUB_WORKFLOW_SHA': '3' * 40, 'GITHUB_JOB': 'recognize',
+            'NATIVE_NONPRODUCER_INTENT': 'true',
             'GITHUB_WORKFLOW_REF': 'noah-l-frank/overte/.github/workflows/repository-checks.yml@refs/pull/17/merge'}
 
     def test_disabled_marker_never_claims_a_nonproducer_or_qualification(self):
         with patch.object(self.marker,'SOURCE_READY',False):
-            result = self.marker.recognize(self.event, self.environment, root=self.root)
+            result = self.marker.recognize(self.event, {**self.environment,'NATIVE_NONPRODUCER_INTENT':'false'}, root=self.root)
         self.assertEqual(result['metadata_intent'], 'false'); self.assertFalse(result['qualification'])
         self.assertTrue(result['metadata_edit']); self.assertNotIn('run_id', result)
 
     def test_actual_git_source_and_native_context_bind_marker_without_qualification(self):
         with patch.object(self.marker, 'SOURCE_READY', True):
-            result = self.marker.recognize(self.event, self.environment, root=self.root)
-        self.assertEqual(result['metadata_intent'], 'true'); self.assertFalse(result['qualification'])
+            result = self.marker.native(self.event, self.environment, root=self.root)
+        self.assertNotIn('qualification', result)
         self.assertEqual(result['base'], self.base)
         self.assertEqual(result['helper_blob'], self.git('rev-parse', 'HEAD:' + self.marker.SOURCE))
         for changes in ({'title': {'from': 'Old'}}, {'body': {'from': None}}, {'base': {}}):
@@ -420,8 +718,9 @@ class NativeMetadataContextTests(unittest.TestCase):
         import yaml
         template = yaml.safe_load((ROOT / self.marker.SOURCE_TEMPLATE).read_text())
         job = template['jobs']['recognize']; steps = job['steps']
-        self.assertEqual(steps[0]['with']['ref'], '${{ github.event.pull_request.base.sha }}')
-        self.assertEqual(steps[0]['with']['sparse-checkout'], self.marker.SOURCE)
+        self.assertEqual(steps[0]['with']['ref'], '${{ github.event.repository.default_branch }}')
+        self.assertIn(self.marker.SOURCE, steps[0]['with']['sparse-checkout'].splitlines())
+        self.assertIn('tools/test-evidence', steps[0]['with']['sparse-checkout'].splitlines())
         self.assertFalse(steps[0]['with']['sparse-checkout-cone-mode'])
         self.assertIn('python3 -I -S -B trusted/' + self.marker.SOURCE, steps[1]['run'])
         self.assertEqual(steps[2]['name'], self.marker.MARKER_STEP)
@@ -737,6 +1036,16 @@ class NativeOwnerAggregateTests(unittest.TestCase):
         self.assertEqual(represented['project']['outputs'], PACKAGES.receipt(self.plan))
         self.assertEqual(self.calls[0][2], CHECKS._NATIVE_DOCUMENTATION | {'workflow-contracts'})
         self.assertEqual(proof, self.proof)
+
+    def test_only_exact_future22_adds_native_owner_semantics_without_changing21(self):
+        for generation in (CHECKS._NATIVE_OWNER_GENERATION, 'protected-producer-original-default-v1'):
+            self.policy.validate_wiring=lambda _,value=generation:value
+            with self.subTest(generation=generation):
+                represented,proof=self.bound()
+                self.assertEqual(self.aggregate(represented)['status'],'PASS')
+                self.assertEqual(proof,self.proof)
+        self.policy.validate_wiring=lambda _:'protected-producer-original-default-v1-neighbor'
+        with self.assertRaises(ValueError):self.bound()
 
     def test_false_claims_keep_real_standalone_checks_and_do_not_read_native_api(self):
         for key in CHECKS._NATIVE_OWNER_OUTPUTS:
@@ -1536,6 +1845,7 @@ class PackageChecksTests(unittest.TestCase):
         contents={hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest():raw
                   for path in (ROOT/'tools/repository-checks/workflows').rglob('*.yml')
                   for raw in (path.read_bytes(),)}
+        contents.update(historical_workflow_bytes())
         for relative,entry in generation['workflows'].items():
             path=root/relative;path.parent.mkdir(parents=True,exist_ok=True)
             path.write_bytes(contents[entry['sha']])
@@ -1546,7 +1856,7 @@ class PackageChecksTests(unittest.TestCase):
     def test_protected_route_accepts_only_actual_complete_flag_bearing_generations(self):
         names={'protected-shared-producer-v1','protected-producer-postmerge-original-e-v1',
                'protected-producer-ci37-v1','protected-producer-metadata-ci-v1',
-               'protected-producer-seven-target-ci-v1'}
+               'protected-producer-seven-target-ci-v1','protected-producer-original-default-v1'}
         self.assertEqual(PACKAGES._PROTECTED_ROUTE_GENERATIONS,names)
         for name in (*sorted(names),'postmerge-original-e-v1','npm-consumers-v1'):
             root,_,_=self.protected_workflow_fixture(name)
@@ -2278,7 +2588,7 @@ class NpmConsumerSelectionTests(unittest.TestCase):
             sync.write_bytes(previous)
             self.base = self.commit()
         self.assertEqual(PACKAGES.validate_wiring(self.root), 'npm-consumers-v1')
-        sync.write_bytes((ROOT / 'tools/repository-checks/workflows/sync-ci-selection.yml').read_bytes())
+        sync.write_bytes(historical_workflow_bytes()['55d08b65a987224ce576459cede693cfd49375f6'])
         self.update()
         plan = self.automatic_plan()
         self.assertEqual(PACKAGES.validate_wiring(self.root), 'npm-consumers-sync-ci-v1')

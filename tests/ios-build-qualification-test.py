@@ -56,6 +56,8 @@ REVIEWED_SANDBOX_CI_PATHS = (
     "tools/repository-checks/workflows/producers/protected-project-tests.yml",
     "tools/repository-checks/workflows/producers/repository-checks.yml",
     "tools/repository-checks/workflows/producers/parent-qualification.yml",
+    "tools/repository-checks/workflows/producers/protected-project-tests-android-platform.yml",
+    "tools/repository-checks/workflows/producers/parent-qualification-android-platform.yml",
 )
 
 
@@ -1149,6 +1151,8 @@ class HostGenerationTests(unittest.TestCase):
                 ".github/workflows/shared-sandbox-host-extra.yml",
                 "tools/repository-checks/workflows/shared-sandbox-extra.yml",
                 "tools/repository-checks/workflows/producers/repository-checks-extra.yml",
+                "tools/repository-checks/workflows/producers/protected-project-tests-android-platform-extra.yml",
+                "tools/repository-checks/workflows/producers/parent-qualification-android-platform-extra.yml",
                 "tools/test-evidence/sandbox_extra.py",
                 "tools/test-evidence/sandbox_native.h"))
             for changes in cases:
@@ -1296,7 +1300,23 @@ class HostGenerationTests(unittest.TestCase):
             self.assertEqual((output["required"], output["host_required"]), ("false", "false"))
             self.assertEqual(self.verify(output, event, source), output)
 
-    def test_npm_owned_selection_keeps_unknown_product_config_graph_and_modes_full(self):
+    def test_full_required_package_graph_omits_unchanged_ios_app_and_host(self):
+        self.npm_fixture()
+        for project in self.npm_policies:
+            changes=json.loads(self.npm_changes()[project+"/package-lock.json"])
+            changes["packages"]["node_modules/unchanged"]["version"]="9.0.0"
+            event,source=self.candidate({project+"/package-lock.json":json.dumps(changes)})
+            owner=self.npm_owner(event,source)
+            self.assertEqual(owner["dependency_profiles"]["projects"][project]["profile"],"full")
+            self.assertIn(project,owner["package_set"])
+            with self.subTest(project=project), \
+                    patch.object(self.host,"package_controller",return_value=self.npm_controller(owner)), \
+                    patch.object(self.host,"REVIEWED_CI_HOST_BOUNDARY",self.npm_host_boundary):
+                output=self.route(event,source)
+                self.assertEqual((output["required"],output["host_required"]),("false","false"))
+                self.assertEqual(self.verify(output,event,source),output)
+
+    def test_npm_owned_selection_keeps_unknown_product_config_and_modes_full(self):
         self.npm_fixture()
         cases = ({"browser-client/consumer.js": "module.exports = 2;\n"},
                  {"postcss.config.cjs": "throw Error('never execute');\n"},
@@ -1308,9 +1328,7 @@ class HostGenerationTests(unittest.TestCase):
                  {"unknown-gitlink": ("160000", "")},
                  {"browser-client/package-lock.json": ("100755", self.npm_changes()["browser-client/package-lock.json"])},
                  {"browser-client/package-lock.json": ("120000", "package.json")},
-                 {"browser-client/package-lock.json": None},
-                 {"browser-client/package-lock.json": self.npm_changes()["browser-client/package-lock.json"].replace(
-                     '"1.0.0"', '"9.0.0"')})
+                 {"browser-client/package-lock.json": None})
         for changes in cases:
             with self.subTest(changes=changes):
                 event, source = self.candidate({**self.npm_changes(), **changes})

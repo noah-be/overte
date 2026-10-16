@@ -763,5 +763,519 @@ class ControllerGenerationTests(unittest.TestCase):
                 self.selection,self.trusted,self.trusted,self.registry,root=self.root)
 
 
+class RetainedOriginalDefaultTests(unittest.TestCase):
+    """Actual immutable B != D + complete projected source, no E/tool probe."""
+    def setUp(self):
+        import sandbox
+        import source_admission as S
+        self.sandbox,self.S=sandbox,S
+        fixture=ControllerGenerationTests();fixture.setUp();self.addCleanup(fixture.doCleanups)
+        self.fixture=fixture;self.root=fixture.root;self.registry=fixture.registry
+        self.base=fixture.source;self.before=deepcopy(fixture.trusted)
+        (self.root/'noncontroller-original-D.txt').write_bytes(b'actual full original D manifest member\n')
+        fixture.git('add','--all')
+        fixture.git('-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','--quiet','-m','Distinct original protected default D')
+        self.default=fixture.git('rev-parse','HEAD').decode().strip()
+        self.manifest=C.capture_controller_manifest(self.root,self.default)
+        self.tree=self.manifest['source_tree']
+        self.binding={'repository':'noah-l-frank/overte','repository_id':1319052603,'pull_request':17,
+            'head_repository_id':1319052603,'base_ref':'apple-ios','base_sha':self.base,
+            'head_ref':'fixture-topic','head_sha':'2'*40,'merge_sha':'3'*40,'merge_tree':self.tree,
+            'merge_parents':[self.base,'2'*40]}
+        self.git_context={'profile':'streamed-candidate-source-v1','commits':{
+            '3'*40:{'commit':'3'*40,'tree':self.tree,'parents':[self.base,'2'*40]},
+            self.base:{'commit':self.base,'tree':C._controller_tree_identity(self.before),'parents':[]},
+            '2'*40:{'commit':'2'*40,'tree':'4'*40,'parents':[]}},'shallow':[]}
+        spec=importlib.util.spec_from_file_location('retained_source_protocol_fixture',C.ROOT/'tools/test-evidence/producer-test.py')
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        self.environment=module.isolated_codec_environment()
+        self.selection={'suites':list(self.registry['suites']),'full_host':True,'include_platform':True,'reason':'fixture-full'}
+        self.admission={**S.compatibility(self.before,self.manifest['entries'],'apple-ios',
+            read_actual=lambda name:S.actual_bytes(self.root,name),actual_imports=S.actual_import_inventory(self.root)),
+            'base':self.base,'default':self.default}
+        self.context={'source':'3'*40,'run_id':100,'run_attempt':1,'profile':'manual-shared-host-compatibility-v1',
+            'snapshot':'sha256:'+'1'*64,'git_context':self.git_context,'runtime_profile':'ubuntu24-host-qt5-qt6-v1',
+            'selection':self.selection,'profile_binding':None,'registry':C._digest(self.registry),
+            'prepared':self.environment['prepared']['roots'],
+            'outside_namespaces':{name:index+100 for index,name in enumerate(('user','mnt','pid','net','ipc','uts'))}}
+        self.projection=self.root.parent/'projection';self.projection.mkdir(mode=0o755)
+        for name in C.controller_paths():
+            sandbox._write_source(self.projection,name,(self.root/name).read_bytes(),executable=name=='tests/run-project-tests.py')
+        sandbox._write_source(self.projection,C.CONTROLLER_MANIFEST,inputs._canonical(self.manifest))
+        self.context['projection']=C._digest(sandbox._files(self.projection))
+        sandbox._write_source(self.projection,'context.json',inputs._canonical({'shared_host':self.context}))
+        self.inventory=sandbox._files(self.projection)
+        self.envelope=C.capture_retained_source(self.manifest,self.inventory,self.context,self.admission,root=self.root)
+
+    def validate(self,value=None,base=None,default=None):
+        return C.validate_retained_source(self.envelope if value is None else value,
+            self.before if base is None else base,self.manifest['entries'] if default is None else default,
+            native_binding=self.binding,run_id=100,registry=self.registry,selection=self.selection,
+            environment=self.environment,root=self.root)
+
+    def test_original_distinct_D_and_complete_manifest_projection_are_retained_without_E_changes(self):
+        original=deepcopy(self.environment)
+        self.assertNotEqual(self.base,self.default)
+        self.assertEqual(self.validate(),self.envelope)
+        self.assertEqual(self.envelope['default_commit'],self.default)
+        self.assertEqual(self.envelope['default_tree'],self.tree)
+        self.assertEqual(self.envelope['manifest_digest'],C._digest(self.manifest))
+        self.assertEqual(self.envelope['projection_digest'],C._digest(self.inventory))
+        self.assertIn('context.json',self.inventory)
+        self.assertIn(C.CONTROLLER_MANIFEST,self.inventory)
+        self.assertEqual(self.environment,original)
+        self.assertLess(len(inputs._canonical(self.envelope)),200_000)
+
+    def test_whole_manifest_noncontroller_content_and_native_source_cannot_be_substituted(self):
+        changed=deepcopy(self.manifest['entries'])
+        changed['noncontroller-original-D.txt']['sha']='e'*40
+        with self.assertRaises(C.CIProfileError):self.validate(default=changed)
+        for field,value in (('default_commit',self.base),('default_tree','f'*40),
+                ('manifest_digest','sha256:'+'0'*64),('commit_object','!invalid-base64!')):
+            envelope=deepcopy(self.envelope);envelope[field]=value
+            with self.subTest(field=field),self.assertRaises(C.CIProfileError):self.validate(envelope)
+        for field,value in (('source','9'*40),('run_id',101),('run_attempt',2),('registry','sha256:'+'0'*64)):
+            envelope=deepcopy(self.envelope);envelope['binding'][field]=value
+            with self.subTest(binding=field),self.assertRaises(C.CIProfileError):self.validate(envelope)
+
+    def test_complete_context_modes_membership_and_projection_digest_are_not_excluded(self):
+        for mutation in ('projection','pre-context','outside-namespace','extra-context','source-mode','extra-projected-file'):
+            envelope=deepcopy(self.envelope)
+            if mutation=='projection':envelope['projection_digest']='sha256:'+'0'*64
+            elif mutation=='pre-context':envelope['binding']['projection']='sha256:'+'0'*64
+            elif mutation=='outside-namespace':envelope['binding']['outside_namespaces']['mnt']+=1
+            elif mutation=='extra-context':envelope['binding']['new_unbound_input']=True
+            else:
+                inventory=deepcopy(self.inventory)
+                if mutation=='source-mode':inventory['tools/test-evidence/execution.py']['mode']=0o555
+                else:inventory['unreviewed.txt']={'mode':0o444,'size':0,'sha256':hashlib.sha256(b'').hexdigest()}
+                with self.subTest(mutation=mutation),self.assertRaises(C.CIProfileError):
+                    C.capture_retained_source(self.manifest,inventory,self.context,self.admission,root=self.root)
+                continue
+            with self.subTest(mutation=mutation),self.assertRaises(C.CIProfileError):self.validate(envelope)
+
+    def test_original_base_current_controller_import_and_enrolled_profile_remain_required(self):
+        for name in ('tools/test-evidence/execution.py','tests/platform-profile.json'):
+            before=deepcopy(self.before);before[name]['sha']='e'*40
+            with self.subTest(name=name),self.assertRaises(ValueError):self.validate(base=before)
+        before=deepcopy(self.before);before['tools/test-evidence/unreviewed.py']=self.fixture.blob(b'# new import\n')
+        with self.assertRaises(ValueError):self.validate(base=before)
+        path=self.root/'tools/test-evidence/execution.py';raw=path.read_bytes()
+        path.write_bytes(raw+b'\n# changed after source capture\n')
+        try:
+            with self.assertRaises(C.CIProfileError):self.validate()
+        finally:path.write_bytes(raw)
+
+    def test_actual_immutable_API_reader_uses_original_D_not_consumer_default(self):
+        import producer_api as A
+        import producer_workflow as W
+        outer=self
+        records={self.default:(self.tree,[]),**{oid:(entry['tree'],entry['parents']) for oid,entry in self.git_context['commits'].items()}}
+        maps={self.tree:self.manifest['entries'],C._controller_tree_identity(self.before):self.before}
+        calls=[]
+        class Api:
+            def json(self,endpoint):
+                calls.append(endpoint)
+                prefix=A.PREFIX+'/git/commits/'
+                if not endpoint.startswith(prefix):raise AssertionError('no currentdefault lookup or live request')
+                oid=endpoint[len(prefix):];tree,parents=records[oid]
+                return {'sha':oid,'tree':{'sha':tree},'parents':[{'sha':item} for item in parents]}
+            def immutable_tree(self,oid):
+                calls.append('immutable:'+oid)
+                return {'sha':oid,'truncated':False,'tree':[{'path':name,**entry} for name,entry in maps[oid].items()]}
+        receipt={'schema':4,'protected_source':self.envelope,'environment':self.environment}
+        adapter=A.Adapter(Api())
+        actual=W.retained_receipt_source(receipt,self.binding,adapter,self.registry,self.selection,100,root=self.root)
+        self.assertEqual(actual,self.envelope)
+        self.assertTrue(any(self.default in name for name in calls))
+        self.assertFalse(any('heads/main' in name or 'branches/main' in name for name in calls))
+        with self.assertRaises(ValueError):W.retained_receipt_source({'schema':3},self.binding,adapter,self.registry,self.selection,100,root=self.root)
+
+    def test_only_exact_unenrolled_future_generation_can_emit_new_child_receipt(self):
+        import producer_workflow as W
+        from types import SimpleNamespace
+        for generation, target, expected in (('protected-producer-seven-target-ci-v1','main',3),
+                (C.RETAINED_SOURCE_GENERATION,'apple-ios',4),(C.RETAINED_SOURCE_GENERATION,'main',4)):
+            policy=SimpleNamespace(package_policy=lambda:SimpleNamespace(validate_tree_wiring=lambda tree:generation))
+            self.assertEqual(W.execution_schema(policy,{},target),expected)
+        for generation in ('protected-producer-seven-target-ci-v1','unknown'):
+            policy=SimpleNamespace(package_policy=lambda:SimpleNamespace(validate_tree_wiring=lambda tree:generation))
+            with self.subTest(generation=generation),self.assertRaises(W.PreExecutionUnavailable):W.execution_schema(policy,{},'apple-ios')
+
+
+
+class SevenTargetProfileTests(unittest.TestCase):
+    """Real compact immutable D; only source/data validation, no runtime query."""
+    def setUp(self):
+        import source_admission
+        self.S=source_admission
+        fixture=ControllerGenerationTests();fixture.setUp();self.addCleanup(fixture.doCleanups)
+        self.f=fixture;self.root=fixture.root;self.registry=fixture.registry;self.blobs=fixture.blobs
+        self.policy={**fixture.policy,'generation_kind':C.SEVEN_CONTROLLER_KIND,'epoch':C.SEVEN_CONTROLLER_EPOCH}
+        for name in inputs.AFFECTED_AUTHORITY:
+            path=self.root/name
+            if not path.exists():
+                path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes((C.ROOT/name).read_bytes())
+                path.chmod(0o755 if name=='tests/run-project-tests.py' else 0o644)
+        (self.root/C.POLICY).write_bytes(json.dumps(self.policy,sort_keys=True).encode())
+        tree=inputs.full_tree(self.root,'HEAD')
+        for name in inputs.AFFECTED_AUTHORITY|{C.POLICY}:
+            tree[name]=fixture.blob((self.root/name).read_bytes())
+            if name=='tests/run-project-tests.py':tree[name]['mode']='100755'
+        graph=json.loads((C.ROOT/inputs.AFFECTED_POLICY).read_bytes());graph['schema']=2
+        native=graph['suites']['device-control-plane-full']
+        native['native_independent_paths']=sorted(set(native['native_independent_paths'])&set(tree)|{inputs.AFFECTED_POLICY})
+        native['reviewed_reader_digest']=inputs.device_reader_digest(tree,native['native_independent_paths'])
+        graph['lookup_digest']=inputs.affected_lookup_digest(tree)
+        graph['targets']={}
+        for target,sha in self.S.TARGET_PROFILES.items():
+            current={**tree,self.S.PROFILE:self.S.ordinary(sha)}
+            graph['targets'][target]={'profile':self.S.ordinary(sha),
+                'lookup_digest':inputs.affected_lookup_digest(current),
+                'reader_digest':inputs.device_reader_digest(current,native['native_independent_paths'])}
+        self.raw=(json.dumps(graph,indent=2)+'\n').encode()
+        (self.root/inputs.AFFECTED_POLICY).write_bytes(self.raw)
+        fixture.git('add','--all');fixture.git('-c','user.name=Fixture','-c','user.email=fixture@example.invalid',
+            'commit','--quiet','-m','Finite seven-target protected fixture')
+        self.source=fixture.git('rev-parse','HEAD').decode().strip()
+        self.manifest=C.capture_controller_manifest(self.root,self.source)
+        self.trusted=self.manifest['entries']
+        for name in (C.POLICY,inputs.AFFECTED_POLICY):
+            raw=(self.root/name).read_bytes();self.blobs[fixture.blob(raw)['sha']]=raw
+        self.selection=deepcopy(fixture.selection)
+
+    def trees(self,target='main'):
+        base=deepcopy(self.trusted);base[self.S.PROFILE]=self.S.ordinary(self.S.TARGET_PROFILES[target])
+        candidate=deepcopy(base);candidate['tests/branch-cleanup-test.py']=self.f.blob(b'changed candidate test\n')
+        return base,candidate
+
+    def admit(self,target='main',*,base=None,candidate=None,selection=None,trusted=None,**kw):
+        before,current=self.trees(target if target in self.S.TARGET_PROFILES else 'main')
+        return C.validate_selection(self.selection if selection is None else selection,
+            current if candidate is None else candidate,self.trusted if trusted is None else trusted,self.registry,
+            root=self.root,target=target,base_tree=before if base is None else base,
+            read_blob=self.blobs.__getitem__,controller_manifest=self.manifest,**kw)
+
+    def subset(self,target='main'):
+        base,candidate=self.trees(target)
+        plan=inputs.plan_affected(self.registry,self.raw,base,candidate,self.trusted,target=target)
+        selected={'suites':[name for name in C.SUITES if name in plan['required']],
+            'reason':'protected-ci-dependencies','full_host':False,'include_platform':False,'affected':plan}
+        self.assertTrue(set(selected['suites'])<set(C.SUITES));self.assertTrue(selected['suites'])
+        return base,candidate,selected
+
+    def test_all_seven_exact_profiles_share_one_actualD_environment_class(self):
+        bindings=[]
+        for target in self.S.TARGET_PROFILES:
+            with self.subTest(target=target):bindings.append(self.admit(target))
+        self.assertTrue(all(value==bindings[0] for value in bindings))
+        self.assertEqual(bindings[0]['suites'],list(C.SUITES))
+        self.assertEqual(bindings[0]['generation_kind'],C.SEVEN_CONTROLLER_KIND)
+        self.assertNotIn('selection_target',bindings[0])
+
+    def test_all_seven_graph_proved_subsets_keep_fixed37_runtime_definition(self):
+        for target in self.S.TARGET_PROFILES:
+            base,candidate,selected=self.subset(target)
+            with self.subTest(target=target):
+                self.assertEqual(self.admit(target,base=base,candidate=candidate,selection=selected),self.admit(target))
+                self.assertNotIn('device-control-plane-full',selected['suites'])
+
+    def test_wrong_profile_unknown_target_nonordinary_and_historical_source_refuse(self):
+        for target in self.S.TARGET_PROFILES:
+            for side in ('base','candidate'):
+                for change in ('profile','mode','source','import-shadow','alias'):
+                    base,candidate=self.trees(target);tree=base if side=='base' else candidate
+                    if change=='profile':tree[self.S.PROFILE]=self.f.blob(b'unknown platform')
+                    elif change=='mode':tree[self.S.PROFILE]['mode']='100755'
+                    elif change=='source':tree['tools/test-evidence/runtime_ci.py']=self.f.blob(b'foreign controller')
+                    elif change=='import-shadow':tree['tools/test-evidence/shadow.py']=self.f.blob(b'unknown import')
+                    else:tree['unrelated-alias']={'mode':'120000','type':'blob','sha':'f'*40}
+                    # Candidate code may legitimately change; original B and
+                    # negative import membership must remain protected.
+                    if side=='candidate' and change in ('source','import-shadow'):continue
+                    with self.subTest(target=target,side=side,change=change),self.assertRaises(ValueError):
+                        self.admit(target,base=base,candidate=candidate)
+        with self.assertRaises(ValueError):self.admit('unknown')
+
+    def test_subset_names_plan_authority_membership_and_setup_cannot_be_claimed(self):
+        base,candidate,selected=self.subset()
+        for change in ('drop','extra','reverse','empty','full','platform','plan','graph','native-shadow'):
+            value=deepcopy(selected);current=deepcopy(candidate)
+            if change=='drop':value['suites']=value['suites'][1:]
+            elif change=='extra':value['suites'].append('device-control-plane-full')
+            elif change=='reverse':value['suites'].reverse()
+            elif change=='empty':value['suites']=[]
+            elif change=='full':value['full_host']=True
+            elif change=='platform':value['include_platform']=True
+            elif change=='plan':value['affected']['required']=value['suites']
+            elif change=='graph':current[inputs.AFFECTED_POLICY]=self.f.blob(b'unprotected graph')
+            else:current['cassert']=self.f.blob(b'historical native shadow')
+            with self.subTest(change=change),self.assertRaises(ValueError):
+                self.admit(base=base,candidate=current,selection=value)
+
+    def test_base_pinned_data_and_policy_cannot_be_substituted(self):
+        for name in (C.POLICY,C.PINNED_SOURCE,C.DATA_PATH,'.github/test-suites.json'):
+            base,candidate=self.trees();base[name]=self.f.blob(b'untrusted original data')
+            with self.subTest(name=name),self.assertRaises((ValueError,KeyError)):
+                self.admit(base=base,candidate=candidate)
+
+    def test_probe_derives_B_from_actual_ordered_merge_parents_before_capture(self):
+        import runtime_ci as R
+        import sandbox
+        spec=importlib.util.spec_from_file_location('seven_target_probe',C.ROOT/'tools/test-evidence/sandbox_probe.py')
+        probe=importlib.util.module_from_spec(spec);spec.loader.exec_module(probe)
+        base,candidate,selection=self.subset('android-phone');binding=self.admit('android-phone',selection=selection)
+        context={'source':'e'*40,'runtime_profile':C.PROFILE,'selection':selection,'profile_binding':binding,
+            'selection_target':'android-phone','selection_base':'a'*40}
+        real_path=Path
+        def path(name):
+            value=str(name)
+            if value=='/overte-policy':return self.root
+            if value.startswith('/overte-policy/'):return self.root/value.removeprefix('/overte-policy/')
+            return real_path(value)
+        with patch.object(probe,'Path',side_effect=path), \
+             patch.object(inputs,'full_tree',side_effect=lambda root,oid:candidate if oid=='e'*40 else base), \
+             patch.object(C,'load_controller_projection',return_value=self.manifest), \
+             patch.object(sandbox,'_raw_commit_identity',return_value={'parents':['a'*40,'b'*40]}) as identity, \
+             patch.object(sandbox,'_git',side_effect=lambda root,*args,**kw:self.blobs[args[2]]), \
+             patch.object(R,'_measure_ci_environment',side_effect=lambda value,**kw:{'selection':value}) as measure:
+            self.assertEqual(probe.shared_environment(context),{'selection':binding})
+            identity.assert_called_once_with(Path('/work'),'e'*40);measure.assert_called_once()
+            measure.reset_mock()
+            with self.assertRaises(ValueError):probe.shared_environment({**context,'selection_base':'c'*40})
+            measure.assert_not_called()
+
+    def test_graph_schema2_closed_targets_and_role_specific_readers_are_mandatory(self):
+        original=json.loads(self.raw)
+        for change in ('missing-target','unknown-target','unknown-field','profile','lookup','reader','native-row'):
+            value=deepcopy(original)
+            if change=='missing-target':del value['targets']['apple-ios']
+            elif change=='unknown-target':value['targets']['other']=value['targets']['main']
+            elif change=='unknown-field':value['targets']['main']['force']=True
+            elif change=='profile':value['targets']['android-phone']['profile']=value['targets']['main']['profile']
+            elif change=='lookup':value['targets']['main']['lookup_digest']='sha256:'+'f'*64
+            elif change=='reader':value['targets']['main']['reader_digest']='sha256:'+'f'*64
+            else:value['suites']['device-control-plane-full']=[]
+            with self.subTest(change=change),self.assertRaises(inputs.InputError):inputs._validate_dependencies(value,self.registry)
+        base,candidate=self.trees('android-phone')
+        base['cassert']=self.f.blob(b'historical native include shadow')
+        candidate['cassert']=base['cassert']
+        plan=inputs.plan_affected(self.registry,self.raw,base,candidate,self.trusted,target='android-phone')
+        self.assertIn('device-control-plane-full',plan['required'])
+        # A child tree cannot stand in for actual shared-profile D, even when
+        # the same Python object is supplied in two argument roles.
+        with self.assertRaises(inputs.InputError):
+            inputs.plan_affected(self.registry,self.raw,base,candidate,base,target='android-phone')
+
+    def test_real_router_and_producer_admit_seven_qt_free_subsets_only_under_enrollment(self):
+        from contextlib import ExitStack
+        from types import SimpleNamespace
+        import producer_workflow as W
+        router=W._host_policy()
+        default_digest=router.program_digest(self.trusted,self.root)
+        target_digests={target:router.program_digest(self.trees(target)[0],self.root) for target in self.S.TARGET_PROFILES}
+        package=SimpleNamespace(validate_tree_wiring=lambda tree:C.RETAINED_SOURCE_GENERATION)
+        with ExitStack() as stack:
+            for name,value in (('ROOT',self.root),('REVIEWED_PROGRAMS',default_digest),
+                               ('REVIEWED_CHILD_PROGRAMS',target_digests)):
+                stack.enter_context(patch.object(router,name,value))
+            stack.enter_context(patch.object(router,'package_policy',return_value=package))
+            for target in self.S.TARGET_PROFILES:
+                base,candidate=self.trees(target)
+                with self.subTest(target=target):
+                    profile=W.selection_profile(router,self.registry,candidate,base,self.trusted,
+                        root=self.root,target=target,read_blob=self.blobs.__getitem__)
+                    self.assertEqual(profile['profile'],C.PROFILE)
+                    self.assertEqual(profile['selection']['reason'],'protected-ci-dependencies')
+                    self.assertFalse(profile['selection']['full_host'])
+                    self.assertFalse(profile['selection']['include_platform'])
+                    self.assertEqual(profile['binding']['suites'],list(C.SUITES))
+            base,candidate=self.trees('apple-ios')
+            with patch.object(package,'validate_tree_wiring',return_value='protected-producer-seven-target-ci-v1'), \
+                 self.assertRaises(W.PreExecutionUnavailable):
+                W.selection_profile(router,self.registry,candidate,base,self.trusted,
+                    root=self.root,target='apple-ios',read_blob=self.blobs.__getitem__)
+            # Legacy namespace preserves the prior early return, even with a
+            # graph present: no new graph parse/hash/setup on old CI37 routes.
+            with patch.object(router,'_qt_free_dependency_namespace',return_value=False), \
+                 patch.object(inputs,'load_dependencies',side_effect=AssertionError('legacy graph must not load')):
+                value=router.select(candidate,['tests/branch-cleanup-test.py'],True,base_tree=base,
+                    trusted_tree=self.trusted,candidate_root=self.root,trusted_root=self.root,target='apple-ios')
+            self.assertEqual(value['suites'],list(C.SUITES));self.assertFalse(value['full_host'])
+
+    def test_full_child_subset_preserves_required_android_platform_owner(self):
+        from contextlib import ExitStack
+        from types import SimpleNamespace
+        import producer_workflow as W
+        router=W._host_policy()
+        package=SimpleNamespace(validate_tree_wiring=lambda tree:C.RETAINED_SOURCE_GENERATION)
+        with ExitStack() as stack:
+            stack.enter_context(patch.object(router,'ROOT',self.root))
+            stack.enter_context(patch.object(router,'package_policy',return_value=package))
+            for target in self.S.TARGET_PROFILES:
+                base,candidate=self.trees(target)
+                candidate=deepcopy(base);candidate['tools/test-evidence/sandbox_host.py']=self.f.blob(b'changed control reader')
+                with self.subTest(target=target):
+                    profile=W.selection_profile(router,self.registry,candidate,base,self.trusted,
+                        root=self.root,target=target,read_blob=self.blobs.__getitem__)
+                    self.assertEqual(profile['profile'],W.FULL_PROFILE)
+                    self.assertTrue(profile['selection']['full_host'])
+                    self.assertEqual(profile['selection']['reason'],'protected-affected-dependencies')
+                    self.assertEqual(profile['selection']['include_platform'],target.startswith('android-'))
+                    self.assertTrue(set(profile['suites'])<set(self.registry['suites']))
+                    self.assertIsNone(profile['binding'])
+
+    def test_full_runtime_projection_also_retains_manifest_with_new_policy_kind(self):
+        import sandbox
+        import sandbox_shared as shared
+        names=C.controller_paths()
+        destination=self.root.parent/'full-policy';destination.mkdir()
+        with patch.object(shared,'ROOT',self.root):
+            projected=shared.project_policy(destination,names,trusted_source=self.source)
+        self.assertIn(C.CONTROLLER_MANIFEST,projected)
+        self.assertEqual(json.loads((destination/C.CONTROLLER_MANIFEST).read_bytes()),self.manifest)
+        self.assertEqual(projected,sandbox._files(destination))
+        other=self.root.parent/'missing-source';other.mkdir()
+        with patch.object(shared,'ROOT',self.root),self.assertRaises(ValueError):
+            shared.project_policy(other,names)
+
+    def test_source4_new_binding_is_closed_and_matches_native_original_B(self):
+        import sandbox
+        base,candidate=self.trees('apple-ios')
+        binding=self.admit('apple-ios')
+        git_context={'profile':'streamed-candidate-source-v1','commits':{
+            '3'*40:{'commit':'3'*40,'tree':C._controller_tree_identity(candidate),'parents':[self.source,'2'*40]},
+            self.source:{'commit':self.source,'tree':self.manifest['source_tree'],'parents':[]},
+            '2'*40:{'commit':'2'*40,'tree':'4'*40,'parents':[]}},'shallow':[]}
+        selection=deepcopy(self.selection)
+        context={'source':'3'*40,'run_id':100,'run_attempt':1,'profile':'manual-shared-host-compatibility-v1',
+            'snapshot':'sha256:'+'1'*64,'git_context':git_context,'runtime_profile':C.PROFILE,
+            'selection':selection,'profile_binding':binding,'registry':C._digest(self.registry),
+            'prepared':{name:'sha256:'+'a'*64 for name in (inputs.ISOLATED_VENV,
+                '/opt/hostedtoolcache/Python/3.12.15/x64','/opt/hostedtoolcache/node/22.23.3/x64')},
+            'outside_namespaces':{name:index+100 for index,name in enumerate(('user','mnt','pid','net','ipc','uts'))},
+            'selection_target':'apple-ios','selection_base':self.source}
+        projection=self.root.parent/'retained-seven';projection.mkdir()
+        for name in C.controller_paths():sandbox._write_source(projection,name,(self.root/name).read_bytes(),
+            executable=name=='tests/run-project-tests.py')
+        sandbox._write_source(projection,C.CONTROLLER_MANIFEST,inputs._canonical(self.manifest))
+        context['projection']=C._digest(sandbox._files(projection))
+        sandbox._write_source(projection,'context.json',inputs._canonical({'shared_host':context}))
+        admission={**self.S.compatibility(base,self.trusted,'apple-ios',
+            read_actual=lambda name:self.S.actual_bytes(self.root,name),actual_imports=self.S.actual_import_inventory(self.root)),
+            'base':self.source,'default':self.source}
+        envelope=C.capture_retained_source(self.manifest,sandbox._files(projection),context,admission,root=self.root)
+        native={'base_ref':'apple-ios','base_sha':self.source,'merge_sha':'3'*40,
+            'merge_tree':C._controller_tree_identity(candidate)}
+        environment={'profile':C.PROFILE,'selection':binding,'python':{'version':'3.12.15'},
+            'tools':{'node':{'version':'v22.23.3'}}}
+        def validate(value=envelope,native_binding=native):
+            return C.validate_retained_source(value,base,self.trusted,native_binding=native_binding,
+                run_id=100,registry=self.registry,selection=selection,environment=environment,root=self.root)
+        self.assertEqual(validate(),envelope)
+        for field,value in (('selection_base','a'*40),('selection_target','android-phone')):
+            changed=deepcopy(envelope);changed['binding'][field]=value
+            with self.subTest(field=field),self.assertRaises(ValueError):validate(changed)
+        for change in ('missing','unknown','legacy-extra'):
+            changed=deepcopy(envelope)
+            if change=='missing':del changed['binding']['selection_base']
+            elif change=='unknown':changed['binding']['force']=True
+            else:changed['binding']['profile_binding']['generation_kind']=C.CONTROLLER_KIND
+            with self.subTest(change=change),self.assertRaises(ValueError):C.retained_source_shape(changed)
+
+    def test_child_current_owner_claims_keep_exact_prepared_selection_and_source4(self):
+        from types import SimpleNamespace
+        import producer_workflow as W
+        import postmerge
+        for target in self.S.TARGET_PROFILES:
+            base,candidate,selection=self.subset(target)
+            source={**self.S.compatibility(base,self.trusted,target,
+                read_actual=lambda name:self.S.actual_bytes(self.root,name),actual_imports=self.S.actual_import_inventory(self.root)),
+                'base':'a'*40,'default':self.source}
+            context={'binding':{'base_ref':target,'base_sha':'a'*40},'refs':{'default':self.source},
+                'source_context':source,'profile':C.PROFILE,'profile_binding':self.admit(target,selection=selection),
+                'selected':selection,'registry':self.registry,
+                'plan':{'owners':{'shared-host':{'suites':selection['suites'],'include_platform':False}}},
+                'policy':SimpleNamespace(producer=SimpleNamespace(required_execution_schema=4,
+                    controller_digest=source['controller_digest']))}
+            with self.subTest(target=target):self.assertTrue(W._owner_target_supported(context))
+            if target=='main':continue  # Existing main behavior is unchanged.
+            for change in ('schema','names','platform','kind','source'):
+                changed=deepcopy(context)
+                if change=='schema':changed['policy'].producer.required_execution_schema=3
+                elif change=='names':changed['plan']['owners']['shared-host']['suites']=selection['suites'][1:]
+                elif change=='platform':
+                    changed['plan']['owners']['shared-host']['include_platform']=True
+                    changed['source_context']['target_profile']=self.S.ordinary(self.S.TARGET_PROFILES['android-phone'])
+                elif change=='kind':changed['profile_binding']['generation_kind']=C.CONTROLLER_KIND
+                else:changed['source_context']['base']='f'*40
+                with self.subTest(target=target,change=change):self.assertFalse(W._owner_target_supported(changed))
+            full={'selection':{'suites':selection['affected']['required'],
+                'reason':'protected-affected-dependencies','full_host':True,
+                'include_platform':target.startswith('android-'),'affected':selection['affected']},
+                'profile':W.FULL_PROFILE,'binding':None}
+            self.assertTrue(postmerge._affected_receipt_selection(full,self.registry,target))
+            bad=deepcopy(full);bad['selection']['affected']['target']='unknown'
+            with self.assertRaises(ValueError):postmerge._affected_receipt_selection(bad,self.registry,target)
+
+    def test_parent_runtime_context_reads_only_newkind_original_B(self):
+        import producer_workflow as W
+        with patch.object(inputs,'full_tree',side_effect=AssertionError('no unused old-kind base read')):
+            self.assertEqual(W._ci_runtime_context({},Path('/candidate')), {})
+            self.assertEqual(W._ci_runtime_context({'profile_binding':{'generation_kind':C.CONTROLLER_KIND}},Path('/candidate')), {})
+        context={'profile_binding':{'generation_kind':C.SEVEN_CONTROLLER_KIND},
+            'binding':{'base_ref':'android-phone','base_sha':'a'*40,'merge_sha':'b'*40}}
+        base,_=self.trees('android-phone')
+        with patch.object(inputs,'full_tree',return_value=base) as reader:
+            self.assertEqual(W._ci_runtime_context(context,Path('/candidate')),
+                {'target':'android-phone','base_tree':base})
+        reader.assert_called_once_with(Path('/candidate'),'a'*40)
+
+    def test_legacy_kind_and_version_epoch_remain_separate(self):
+        for value in ({**self.policy,'epoch':C.CONTROLLER_EPOCH},{**self.policy,'generation_kind':[]},
+                      {**self.policy,'generation_kind':'unknown'}):
+            with self.assertRaises(ValueError):C._validate_policy(value)
+        self.assertFalse(C.controller_policy({'generation_kind':[]}))
+        self.assertFalse(C.controller_policy({'generation_kind':'unknown'}))
+        self.assertTrue(C.controller_policy(self.policy))
+
+
+class OriginalSourcePreselectionTests(unittest.TestCase):
+    """Original dependency derivation is data, never current runtime authority."""
+    def setUp(self):
+        self.f=SevenTargetProfileTests();self.f.setUp();self.addCleanup(self.f.doCleanups)
+
+    def test_original_fixed_subject_subset_is_rederived_even_when_current_D_subject_changes(self):
+        f=self.f
+        base,candidate,selected=f.subset('apple-ios')
+        self.assertNotIn('producer-proof',selected['suites'])
+        old=deepcopy(f.trusted)
+        path=f.root/'tools/test-evidence/producer-test.py'
+        path.write_bytes(path.read_bytes()+b'\n# current protected unit-test body only\n')
+        f.f.git('add','--all');f.f.git('-c','user.name=Fixture','-c','user.email=fixture@example.invalid',
+            'commit','--quiet','-m','Current protected fixed-subject update')
+        manifest=C.capture_controller_manifest(f.root,f.f.git('rev-parse','HEAD').decode().strip())
+        current_plan=inputs.plan_affected(f.registry,f.raw,base,candidate,manifest['entries'],target='apple-ios')
+        self.assertIn('producer-proof',current_plan['required'])
+        kwargs=dict(target='apple-ios',base_tree=base,root=f.root,read_blob=f.blobs.__getitem__,controller_manifest=manifest)
+        provisional=C.preliminary_reuse_selection(selected,candidate,old,f.registry,**kwargs)
+        self.assertEqual(provisional['generation_digest'],C.controller_generation(manifest['entries'],f.registry))
+        self.assertNotEqual(provisional['generation_digest'],C.controller_generation(old,f.registry))
+        with self.assertRaises(ValueError):C.validate_selection(selected,candidate,old,f.registry,**kwargs)
+        import runtime_ci
+        with self.assertRaises(runtime_ci.CIEnvironmentError):runtime_ci.validate_original_environment(
+            provisional,{},None,None,None,selected,candidate,old,f.registry,root=f.root)
+
+    def test_preselection_cannot_ignore_import_mode_new_members_or_executable_controller_changes(self):
+        f=self.f;base,candidate,selected=f.subset('apple-ios')
+        for change in ('mode','member','controller'):
+            tree=deepcopy(f.trusted)
+            if change=='mode':tree['tools/test-evidence/producer-test.py']['mode']='100755'
+            elif change=='member':tree['tools/test-evidence/new.py']=f.f.blob(b'new import')
+            else:tree['tools/test-evidence/producer.py']=f.f.blob(b'changed production controller')
+            with self.subTest(change=change),self.assertRaises(ValueError):C.reuse_controller_precheck(
+                base,tree,'apple-ios',root=f.root)
+
+
 if __name__ == "__main__":
     unittest.main()

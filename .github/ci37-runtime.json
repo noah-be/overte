@@ -2,7 +2,7 @@
   "schema": 1,
   "enabled": true,
   "profile": "ubuntu24-ci37-v1",
-  "epoch": "ubuntu24-ci37-controller-20261016-v1",
+  "epoch": "ubuntu24-ci37-seven-target-20261016-v1",
   "not_before": "2026-10-16T00:00:00Z",
   "max_age_seconds": 259200,
   "suites": [
@@ -45,5 +45,5 @@
     "android-owner-transfer"
   ],
   "definition_digest": "sha256:17840b8a4fd10209b6780f0d28a3cb6ed0131e59ae6f87db62df1bdb7e64b091",
-  "generation_kind": "ci37-protected-controller-v1"
+  "generation_kind": "ci37-seven-target-dependencies-v1"
 }

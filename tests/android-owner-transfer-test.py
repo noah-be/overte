@@ -12,7 +12,7 @@ import shutil
 import subprocess
 import sys
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import yaml
 
@@ -231,11 +231,12 @@ class AndroidOwnerTransferTests(unittest.TestCase):
             with self.subTest(path=path), self.assertRaises(ValueError):
                 gate.validate_tree_wiring(forged)
         generations = gate.packages().workflow_generations()
-        self.assertEqual(len(generations),21)
+        self.assertEqual(len(generations),22)
         prior = next(row for row in generations if row['name']=='protected-producer-ci37-v1')
         self.assertEqual(len(prior['workflows']),5)
         self.assertEqual(gate.packages().validate_tree_wiring(prior['workflows']),prior['name'])
-        for name in ('protected-producer-metadata-ci-v1', 'protected-producer-seven-target-ci-v1'):
+        for name in ('protected-producer-metadata-ci-v1', 'protected-producer-seven-target-ci-v1',
+                     'protected-producer-original-default-v1'):
             enrolled = next(row for row in generations if row['name'] == name)
             self.assertEqual(set(enrolled['workflows']), set(gate.packages().METADATA_WORKFLOW_PATHS))
             self.assertEqual(gate.packages().validate_tree_wiring(enrolled['workflows']), name)
@@ -425,7 +426,7 @@ class AndroidOwnerTransferTests(unittest.TestCase):
                  "android": {"result": "success", "outputs": gate.receipt(expected)}}
         event_path = self.directory / "prospective-event.json"
         event_path.write_text(json.dumps(self.fixture.event))
-        android = SimpleNamespace(activated=lambda event: False,
+        android = SimpleNamespace(activated=lambda event: False, current_source_owner=Mock(return_value=None),
             admit=lambda candidate, event: gate.admit(candidate, event, policy_root=self.policy_root))
         packages = gate.packages()
         self.assertEqual(packages.validate_wiring(self.candidate), 'android-owned-npm5-sync-ci-v1')
@@ -440,6 +441,7 @@ class AndroidOwnerTransferTests(unittest.TestCase):
                 patch.object(prior.checks, "android_policy", return_value=android):
             self.assertNotEqual(prior.checks.main(), 0)
         self.assertIn("not qualified", errors.getvalue())
+        android.current_source_owner.assert_called_once()
 
     def test_unreviewed_platform_omissions_and_reusable_claims_are_rejected(self):
         self.prepare_project()

@@ -36,6 +36,8 @@ SOURCE_READY = True
 DIAGNOSTIC_KIND = 'ci37-actual-source-diagnostic-v1'
 CONTROLLER_KIND = 'ci37-protected-controller-v1'
 CONTROLLER_EPOCH = 'ubuntu24-ci37-controller-20261016-v1'
+SEVEN_CONTROLLER_KIND = 'ci37-seven-target-dependencies-v1'
+SEVEN_CONTROLLER_EPOCH = 'ubuntu24-ci37-seven-target-20261016-v1'
 CONTROLLER_MANIFEST = 'ci37-controller-source.json'
 SUITES = (
     "producer-proof", "producer-api", "dependency-releases", "project-runner",
@@ -107,7 +109,9 @@ def _validate_policy(value):
              "unsupported CI37 policy fields")
     controller = 'generation_kind' in value
     if controller:
-        _require(value['generation_kind']==CONTROLLER_KIND and value.get('epoch')==CONTROLLER_EPOCH,
+        epochs = {CONTROLLER_KIND: CONTROLLER_EPOCH, SEVEN_CONTROLLER_KIND: SEVEN_CONTROLLER_EPOCH}
+        _require(type(value['generation_kind']) is str and value['generation_kind'] in epochs
+                 and value.get('epoch')==epochs[value['generation_kind']],
                  'unsupported protected-controller generation namespace or epoch')
     _require(type(value["schema"]) is int and value["schema"] == 1
              and type(value["enabled"]) is bool and value["profile"] == PROFILE,
@@ -135,6 +139,60 @@ def controller_paths():
     """Fixed protected loader closure; never paths supplied by a candidate."""
     import source_admission
     return sorted(set(source_admission.CONTROLLERS)|set(source_admission.IMPORT_MEMBERS))
+
+
+# These are lookup data in the protected process, never production imports.
+# Their ORIGINAL bytes remain in the complete source4 projection commitment.
+_ORIGINAL_LOOKUP_DATA = tuple('tools/test-evidence/'+name for name in (
+    'AFFECTED_SELECTION.md', 'affected-test.py', 'attested-test.py', 'ci-integration-test.py',
+    'ci-profile-test.py', 'execution-test.py', 'producer-api-test.py', 'producer-test.py',
+    'qualification-producer-test.py', 'registry-test.py', 'runtime-ci-test.py', 'runtime-test.py',
+    'sandbox-host-test.py', 'sandbox-test.py', 'source-admission-test.py', 'test.py', 'validate-sync-test.py'))
+
+
+def _lookup_inventory(entries):
+    import source_admission
+    files={name:entry for name,entry in entries.items() if any(
+        name==prefix or name.startswith(prefix+'/') for prefix in source_admission.IMPORT_ROOTS)}
+    _require(set(files)==set(source_admission.IMPORT_MEMBERS), 'protected import membership is unknown')
+    directories={str(parent) for name in files for parent in Path(name).parents if any(
+        str(parent)==prefix or str(parent).startswith(prefix+'/') for prefix in source_admission.IMPORT_ROOTS)}
+    return {'files':files,'directories':sorted(directories)}
+
+
+def reuse_controller_precheck(base, default, target, *, root=ROOT):
+    """Provisional current-controller derivation: grants no runtime/PASS authority.
+
+    Original seventeen bytes are deliberately not reconstructed by this step.
+    Only a subsequent complete native source4 verification may admit original E.
+    Capture and pre-import admission continue to use strict compatibility().
+    """
+    import source_admission
+    _require(set(source_admission.IMPORT_MEMBERS)-set(source_admission.CONTROLLERS)==set(_ORIGINAL_LOOKUP_DATA),
+        'protected nonproduction lookup set changed')
+    source_admission.validate_tree(base);source_admission.validate_tree(default)
+    _lookup_inventory(base);_lookup_inventory(default)
+    observed=source_admission.actual_import_inventory(root)
+    for name in _ORIGINAL_LOOKUP_DATA:
+        _require(base.get(name,{}).get('mode')=='100644' and base[name]['type']=='blob'
+            and default.get(name,{}).get('mode')=='100644' and default[name]['type']=='blob',
+            'nonproduction lookup membership, mode or type changed')
+    # This temporary map is solely a current executable precheck. It is never
+    # used as original D, included in an envelope, or passed to runtime admission.
+    for name in _ORIGINAL_LOOKUP_DATA:
+        _require(observed['files'].get(name,{}).get('mode')=='100644'
+            and observed['files'][name]['type']=='blob', 'current nonproduction lookup is nonordinary')
+    executable_default={**default,**{name:observed['files'][name] for name in _ORIGINAL_LOOKUP_DATA}}
+    executable_base={**base,**{name:observed['files'][name] for name in _ORIGINAL_LOOKUP_DATA}}
+    return source_admission.compatibility(executable_base,executable_default,target,
+        read_actual=lambda name:source_admission.actual_bytes(root,name),
+        actual_imports=observed)
+
+
+def controller_policy(value):
+    """Recognize only the two reviewed namespaces; manifest transport stays v1."""
+    return type(value) is dict and type(value.get('generation_kind')) is str \
+        and value['generation_kind'] in {CONTROLLER_KIND, SEVEN_CONTROLLER_KIND}
 
 
 def _controller_tree_identity(entries):
@@ -177,7 +235,7 @@ def capture_controller_manifest(root, trusted_source):
     return value
 
 
-def _validate_controller_manifest(value, root):
+def _validate_controller_manifest(value, root, *, _source_files=None):
     """Authenticate the fixed projected files and complete import lookup.
 
     Manifest ownership/native D provenance is supplied by the root supervisor;
@@ -207,7 +265,7 @@ def _validate_controller_manifest(value, root):
         mode='100755' if name=='tests/run-project-tests.py' else '100644'
         _require(type(expected) is dict and expected.get('type')=='blob' and expected.get('mode')==mode,
                  'controller source closure is missing or nonordinary')
-        raw,actual=source_admission.actual_bytes(root,name)
+        raw,actual=(source_admission.actual_bytes(root,name) if _source_files is None else _source_files[name])
         _require(actual==expected, 'actual projected controller source differs from immutable D')
         files[name]=actual
     imports={path:entry for path,entry in entries.items()
@@ -215,7 +273,8 @@ def _validate_controller_manifest(value, root):
     _require(set(imports)==set(source_admission.IMPORT_MEMBERS), 'controller import membership is not reviewed')
     directories={str(parent) for path in imports for parent in Path(path).parents
         if any(str(parent)==prefix or str(parent).startswith(prefix+'/') for prefix in source_admission.IMPORT_ROOTS)}
-    _require(source_admission.actual_import_inventory(root)=={'files':imports,'directories':sorted(directories)},
+    observed=(source_admission.actual_import_inventory(root) if _source_files is None else _lookup_inventory(entries))
+    _require(observed=={'files':imports,'directories':sorted(directories)},
              'actual projected import lookup differs from immutable D')
     return entries
 
@@ -272,6 +331,258 @@ def load_controller_projection(root):
     value=json.loads(raw,object_pairs_hook=inputs._unique_object)
     _validate_controller_manifest(value,root)
     return value
+
+
+RETAINED_SOURCE_KIND = 'original-protected-default-source-v1'
+RETAINED_SOURCE_GENERATION = 'protected-producer-original-default-v1'
+_RETAINED_FIELDS = frozenset({'schema','kind','default_commit','default_tree','commit_object',
+    'admission','manifest_digest','projection_digest','binding'})
+_PROJECTION_BINDING = frozenset({'source','run_id','run_attempt','profile','snapshot','git_context',
+    'runtime_profile','selection','profile_binding','registry','prepared','projection','outside_namespaces'})
+
+
+def retained_source_shape(value):
+    """Bounded structural check only; native hash + immutable B/D grant authority."""
+    _require(type(value) is dict and set(value)==_RETAINED_FIELDS
+        and type(value['schema']) is int and value['schema']==1 and value['kind']==RETAINED_SOURCE_KIND,
+        'retained original source format is unsupported')
+    for key in ('default_commit','default_tree'):
+        _require(type(value[key]) is str and re.fullmatch('[0-9a-f]{40}',value[key])
+            and value[key]!='0'*40, 'retained original source identity is invalid')
+    for key in ('manifest_digest','projection_digest'):
+        _require(type(value[key]) is str and _DIGEST.fullmatch(value[key]), 'retained source digest is invalid')
+    encoded=value['commit_object']
+    _require(type(encoded) is str and 0<len(encoded)<=87_384, 'retained commit object exceeds bound')
+    try:raw=base64.b64decode(encoded,validate=True)
+    except (ValueError,UnicodeError):raise CIProfileError('retained commit object is invalid') from None
+    _require(0<len(raw)<=65_536 and base64.b64encode(raw).decode('ascii')==encoded
+        and hashlib.sha1(b'commit '+str(len(raw)).encode()+b'\0'+raw).hexdigest()==value['default_commit']
+        and raw.split(b'\n',1)[0]==b'tree '+value['default_tree'].encode('ascii'),
+        'retained original commit/tree differs')
+    admission=value['admission']
+    _require(type(admission) is dict and set(admission)=={'schema','kind','target','target_profile',
+        'controller_digest','lookup_digest','base','default'} and type(admission['schema']) is int
+        and admission['schema']==1 and admission['kind']=='protected-default-controller-source-v1'
+        and admission['target'] in _PERMANENT and admission['default']==value['default_commit'],
+        'retained original admission is incomplete')
+    _require(type(admission['base']) is str and re.fullmatch('[0-9a-f]{40}',admission['base'])
+        and admission['base']!='0'*40, 'retained original base is invalid')
+    for key in ('controller_digest','lookup_digest'):
+        _require(type(admission[key]) is str and _DIGEST.fullmatch(admission[key]), 'retained admission digest is invalid')
+    binding=value['binding']
+    seven = (type(binding) is dict and type(binding.get('profile_binding')) is dict
+        and binding['profile_binding'].get('generation_kind') == SEVEN_CONTROLLER_KIND)
+    fields = _PROJECTION_BINDING | ({'selection_target','selection_base'} if seven else set())
+    _require(type(binding) is dict and set(binding)==fields
+        and binding['profile']=='manual-shared-host-compatibility-v1'
+        and type(binding['run_id']) is int and binding['run_id']>0
+        and type(binding['run_attempt']) is int and binding['run_attempt']==1
+        and type(binding['source']) is str and re.fullmatch('[0-9a-f]{40}',binding['source'])
+        and binding['source']!='0'*40, 'retained projection binding is incomplete')
+    if seven:
+        _require(binding['runtime_profile']==PROFILE and binding['selection_target'] in _PERMANENT
+            and type(binding['selection_base']) is str and re.fullmatch('[0-9a-f]{40}',binding['selection_base'])
+            and binding['selection_base']!='0'*40, 'seven-target projection source context is incomplete')
+    for key in ('snapshot','registry','projection'):
+        _require(type(binding[key]) is str and _DIGEST.fullmatch(binding[key]), 'retained projection binding digest is invalid')
+    namespaces=binding['outside_namespaces']
+    _require(type(namespaces) is dict and set(namespaces)=={'user','mnt','pid','net','ipc','uts'}
+        and all(type(item) is int and item>0 for item in namespaces.values()), 'retained outside namespace identity is invalid')
+    _require(type(binding['prepared']) is dict and 3<=len(binding['prepared'])<=5
+        and all(type(name) is str and type(item) is str and _DIGEST.fullmatch(item)
+            for name,item in binding['prepared'].items()), 'retained prepared identity is invalid')
+    _require(len(inputs._canonical(value))<=200_000,'retained source envelope exceeds bound')
+    return value
+
+
+def _retained_projection(manifest, binding, root, *, _source_files=None):
+    """Reconstruct every source/manifest/context file and directory, no exclusions."""
+    import source_admission
+    _validate_controller_manifest(manifest,root,_source_files=_source_files)
+    result={}
+    def add(name, raw, executable=False):
+        for parent in Path(name).parents:
+            if parent!=Path('.'):result[parent.as_posix()]={'directory':True}
+        result[name]={'mode':0o555 if executable else 0o444,'size':len(raw),
+            'sha256':hashlib.sha256(raw).hexdigest()}
+    for name in controller_paths():
+        raw,entry=(source_admission.actual_bytes(root,name) if _source_files is None else _source_files[name])
+        _require(entry==manifest['entries'].get(name),'retained projected source differs from immutable original D')
+        add(name,raw,name=='tests/run-project-tests.py')
+    add(CONTROLLER_MANIFEST,inputs._canonical(manifest))
+    _require(binding['projection']==_digest(result),'retained pre-context projection differs')
+    add('context.json',inputs._canonical({'shared_host':binding}))
+    return result
+
+
+def capture_retained_source(manifest, projection, binding, admission, *, root=ROOT):
+    """Internal supervisor output only; callers separately native-bookend B/D.
+
+    Complete tree entries remain in the sealed projection, not the bounded
+    receipt. Their exact full manifest digest is independently reconstructible
+    from immutable originalD and the retained raw commit object.
+    """
+    _validate_controller_manifest(manifest,root)
+    raw=base64.b64decode(manifest['commit_object'],validate=True)
+    actual_commit=hashlib.sha1(b'commit '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
+    actual_tree=_controller_tree_identity(manifest['entries'])
+    value={'schema':1,'kind':RETAINED_SOURCE_KIND,'default_commit':actual_commit,
+        'default_tree':actual_tree,'commit_object':base64.b64encode(raw).decode('ascii'),
+        'admission':admission,'manifest_digest':_digest(manifest),
+        'projection_digest':_digest(projection),'binding':binding}
+    retained_source_shape(value)
+    _require(_retained_projection(manifest,binding,root)==projection,
+        'complete actual retained source projection differs')
+    return json.loads(inputs._canonical(value))
+
+
+def validate_retained_source(value, base, default, *, native_binding, run_id, registry,
+                             selection, environment, root=ROOT, read_source_blob=None):
+    """Revalidate original immutable B/D, never substitute consumer current D.
+
+    The envelope itself is data until the ORIGINAL native whole-receipt hash is
+    verified. Current trusted controller/import policy constrains old D bytes.
+    """
+    import source_admission
+    retained_source_shape(value)
+    _require(native_binding['base_ref']!='main' or value['default_commit']==native_binding['base_sha'],
+        'original main default differs from authenticated original base')
+    registry_raw,_=_diagnostic_file(root,'.github/test-suites.json')
+    _require(inputs._validate_registry(json.loads(registry_raw,object_pairs_hook=inputs._unique_object))==registry,
+        'retained source registry differs from current protected bytes')
+    manifest={'schema':1,'kind':CONTROLLER_KIND,'source_commit':value['default_commit'],
+        'source_tree':value['default_tree'],'commit_object':value['commit_object'],'entries':default}
+    _require(_digest(manifest)==value['manifest_digest'],'retained complete manifest differs from immutable original D')
+    files=None
+    if read_source_blob is not None:
+        files=_original_source_files(manifest,root,read_source_blob)
+    _validate_controller_manifest(manifest,root,_source_files=files)
+    expected=source_admission.compatibility(base,default,native_binding['base_ref'],
+        read_actual=lambda name:source_admission.actual_bytes(root,name) if files is None else files[name],
+        actual_imports=source_admission.actual_import_inventory(root) if files is None else _lookup_inventory(default))
+    expected={**expected,'base':native_binding['base_sha'],'default':value['default_commit']}
+    _require(expected==value['admission'],'original B/D admission differs from retained source')
+    binding=value['binding']
+    _require(binding['source']==native_binding['merge_sha'] and binding['run_id']==run_id
+        and binding['selection']==selection and binding['registry']==_digest(registry),
+        'retained projection differs from native original candidate/owner')
+    # Exact schema3 materialized Git context is independently checked by the
+    # receipt/native validator; retain equality here instead of querying E.
+    import execution
+    execution.validate_git_context(binding['git_context'],native_binding['merge_sha'],native_binding['merge_tree'])
+    if environment.get('profile')==PROFILE:
+        _require(binding['runtime_profile']==PROFILE and binding['profile_binding']==environment.get('selection'),
+            'retained CI37 runtime selection differs')
+        if environment['selection'].get('generation_kind') == SEVEN_CONTROLLER_KIND:
+            _require(binding['selection_target'] == native_binding['base_ref']
+                and binding['selection_base'] == native_binding['base_sha'],
+                'retained seven-target selection differs from original native source')
+        version=environment.get('python',{}).get('version')
+        node=environment.get('tools',{}).get('node',{}).get('version')
+        _require(type(version) is str and re.fullmatch(r'3\.12\.[0-9]+',version)
+            and type(node) is str and re.fullmatch(r'v22\.[0-9]+\.[0-9]+',node), 'retained CI37 prepared versions differ')
+        roots={inputs.ISOLATED_VENV,'/opt/hostedtoolcache/Python/'+version+'/x64',
+            '/opt/hostedtoolcache/node/'+node[1:]+'/x64'}
+        _require(set(binding['prepared'])==roots,'retained CI37 prepared roots differ')
+    else:
+        _require(binding['runtime_profile']=='ubuntu24-host-qt5-qt6-v1'
+            and binding['profile_binding'] is None
+            and binding['prepared']==inputs.isolated_full_environment(environment)['roots'],
+            'retained full prepared environment differs')
+    projection=_retained_projection(manifest,binding,root,_source_files=files)
+    _require(_digest(projection)==value['projection_digest'],'retained complete projection identity differs')
+    return value
+
+
+def _original_source_files(manifest, root, read_blob):
+    """Reconstruct complete ORIGINAL projection, retaining all seventeen bytes."""
+    import source_admission
+    _require(callable(read_blob), 'original source transport is unavailable')
+    entries=manifest['entries'];inputs._validate_tree(entries)
+    _require(set(source_admission.IMPORT_MEMBERS)-set(source_admission.CONTROLLERS)==set(_ORIGINAL_LOOKUP_DATA),
+        'original lookup data set is not reviewed')
+    original=_lookup_inventory(entries)
+    current=source_admission.actual_import_inventory(root)
+    _require(set(current['files'])==set(original['files']) and current['directories']==original['directories'],
+        'current import membership or directories changed')
+    files={};total=0
+    for name in controller_paths():
+        expected=entries.get(name)
+        mode='100755' if name=='tests/run-project-tests.py' else '100644'
+        _require(type(expected) is dict and expected.get('mode')==mode and expected.get('type')=='blob',
+            'original projected source is nonordinary')
+        raw,actual=source_admission.actual_bytes(root,name)
+        if name in _ORIGINAL_LOOKUP_DATA:
+            _require(actual['mode']==mode and current['files'].get(name)==actual,
+                'current nonproduction lookup mode or bytes changed')
+            raw=read_blob(expected['sha'])
+            _require(type(raw) is bytes and len(raw)<=1_000_000,
+                'original lookup blob exceeds its bound')
+            total+=len(raw)
+            _require(total<=8_000_000 and source_admission.blob_id(raw)==expected['sha'],
+                'original lookup content differs from immutable D')
+            actual=source_admission.ordinary(source_admission.blob_id(raw),mode)
+        _require(actual==expected, 'current executable controller differs from original D')
+        files[name]=(raw,actual)
+    return files
+
+
+_ORIGINAL_AUTHORITY=object()
+
+
+class _AuthenticatedOriginalSource:
+    """Internal native-verifier output; JSON, callbacks and envelopes are not tokens."""
+    def __init__(self, authority, manifest, files, envelope, binding, base, environment, receipt_digest, expires_at):
+        _require(authority is _ORIGINAL_AUTHORITY, 'original native source authority is unavailable')
+        self.manifest=manifest;self.files=files;self.envelope=envelope;self.binding=binding
+        self.base=base;self.environment_digest=_digest(environment)
+        self.receipt_digest=receipt_digest;self.expires_at=expires_at
+
+
+def authenticate_original_source(adapter, invocation, plan, api_policy, context, receipt, binding,
+                                 *, integrated, root=ROOT, clock):
+    """Mint original-runtime authority only by executing the native API verifier.
+
+    No supplied verification result, raw reader or JSON context can select the
+    permissive original-source path. The original whole receipt is mandatory.
+    """
+    import producer_api as A
+    import producer as P
+    import source_admission
+    from types import SimpleNamespace
+    _require(type(adapter) is A.Adapter and type(integrated) is bool and receipt.get('schema')==4
+        and api_policy.producer.required_execution_schema==4
+        and context.protected_source==receipt.get('protected_source'),
+        'original runtime authority requires complete source4 native proof')
+    P.validate_binding(binding)
+    _require(api_policy.producer.workflow_ref==f"refs/pull/{binding['pull_request']}/merge",
+        'original source invocation differs from the fixed native policy')
+    value=retained_source_shape(context.protected_source)
+    api=SimpleNamespace(get=adapter._object)
+    base=source_admission.api_tree(api,binding['base_sha'],tree_reader=adapter.api.immutable_tree)
+    default=source_admission.api_tree(api,value['default_commit'],tree_reader=adapter.api.immutable_tree)
+    # Cache only content-addressed immutable raw bytes within this one admission;
+    # no policy/selection/negative validation result is cached or skipped.
+    blobs={}
+    def read(oid):
+        if oid not in blobs:blobs[oid]=adapter.api.immutable_source_blob(oid)
+        return blobs[oid]
+    validate_retained_source(value,base,default,native_binding=binding,run_id=value['binding']['run_id'],
+        registry=context.registry,selection=value['binding']['selection'],environment=receipt['environment'],
+        root=root,read_source_blob=read)
+    method=A.Adapter.verify_integrated if integrated else A.Adapter.verify
+    verified=method(adapter,invocation,plan,api_policy,{'shared-host':context},clock=clock)
+    receipt_digest=hashlib.sha256(P.canonical(receipt)).hexdigest()
+    _require(verified.get('verified') is True and verified['receipt_sha256']==receipt_digest
+        and verified['source_chain']['producer_commit']==binding['merge_sha']
+        and verified['source_chain']['candidate']=={name:binding[name] for name in ('merge_sha','merge_tree','merge_parents')}
+        and verified['run_id']==value['binding']['run_id']
+        and clock()<P._time(verified['expires_at']), 'native original source4 authority changed')
+    manifest={'schema':1,'kind':CONTROLLER_KIND,'source_commit':value['default_commit'],
+        'source_tree':value['default_tree'],'commit_object':value['commit_object'],'entries':default}
+    files=_original_source_files(manifest,root,read)
+    return verified,_AuthenticatedOriginalSource(_ORIGINAL_AUTHORITY,manifest,files,value,binding,base,
+        receipt['environment'],receipt_digest,verified['expires_at'])
 
 
 def load_policy(root=ROOT):
@@ -420,10 +731,10 @@ def generation(tree, registry):
                     "definition_digest": definition_digest(registry)})
 
 
-def validate_selection(selection, candidate_tree, trusted_tree, registry, *, target="main",
+def _validate_selection(selection, candidate_tree, trusted_tree, registry, *, target="main",
                        regular=True, unknown=False, policy=None, require_enabled=True, root=ROOT, read_blob=None,
-                       controller_manifest=None):
-    """Admit only the independently recomputed main CI37 selection and generation.
+                       controller_manifest=None, base_tree=None, _reuse_derivation=False, _original=None):
+    """Admit only a versioned independently derived CI owner and controller class.
 
     Production callers leave require_enabled at its default. False is for pure
     source preparation/tests and yields no runtime or execution qualification.
@@ -435,25 +746,33 @@ def validate_selection(selection, candidate_tree, trusted_tree, registry, *, tar
     _require(type(require_enabled) is bool, "invalid CI37 source preparation mode")
     if require_enabled:
         _require(SOURCE_READY and value["enabled"] is True, "CI37 runtime profile is not activated")
-    _require(target == "main" and regular is True and unknown is False,
+    seven = value.get('generation_kind') == SEVEN_CONTROLLER_KIND
+    if seven:
+        import source_admission
+    _require(type(target) is str and (target in source_admission.TARGET_PROFILES if seven else target == "main")
+             and regular is True and unknown is False,
              "CI37 requires a known regular main plan")
     required = {"suites", "reason", "full_host", "include_platform"}
     _require(isinstance(selection, dict) and required <= selection.keys()
-             and selection.keys() <= required | {"package_owned_paths"},
+             and selection.keys() <= required | {"package_owned_paths"} | ({'affected'} if seven else set()),
              "unsupported CI37 selection fields")
-    _require(selection["suites"] == list(SUITES) and selection["full_host"] is False
-             and selection["include_platform"] is False and isinstance(selection["reason"], str)
-             and selection["reason"] in _REASONS,
+    subset = seven and selection.get('reason') == 'protected-ci-dependencies'
+    _require(type(selection['suites']) is list and selection['suites']
+             and selection['suites'] == [name for name in SUITES if name in selection['suites']]
+             and (set(selection['suites']) < set(SUITES) if subset else selection['suites'] == list(SUITES))
+             and selection["full_host"] is False and selection["include_platform"] is False
+             and isinstance(selection["reason"], str) and (subset or selection["reason"] in _REASONS)
+             and ('affected' in selection) == subset,
              "CI37 requires the exact independently selected 37 owners")
     packages = selection.get("package_owned_paths", [])
     _require(isinstance(packages, list)
              and all(isinstance(path, str) and path in _PACKAGE_LOCKS for path in packages)
              and packages == sorted(set(packages))
-             and bool(packages) == (selection["reason"] == "reviewed-ci-and-package-owners"),
+             and (subset or bool(packages) == (selection["reason"] == "reviewed-ci-and-package-owners")),
              "CI37 package work requires its finite independent owner")
     definitions = definition_digest(registry)
     _require(definitions == value["definition_digest"], "CI37 command definitions changed")
-    controller=value.get('generation_kind')==CONTROLLER_KIND
+    controller=controller_policy(value)
     if controller:
         for tree in (candidate_tree,trusted_tree):
             inputs._validate_tree(tree)
@@ -462,21 +781,48 @@ def validate_selection(selection, candidate_tree, trusted_tree, registry, *, tar
             _require(all(tree.get(path,{}).get('mode') in {'100644','100755'}
                 and tree[path]['type']=='blob' for name in SUITES for path in registry['suites'][name]['closure']['required']),
                 'controller CI37 selected owner implementation is missing')
-        manifest=_actual_controller_manifest(root) if controller_manifest is None else controller_manifest
-        actual=_validate_controller_manifest(manifest,root)
+        manifest=(_original.manifest if _original is not None else
+            _actual_controller_manifest(root) if controller_manifest is None else controller_manifest)
+        files=None if _original is None else _original.files
+        actual=_validate_controller_manifest(manifest,root,_source_files=files)
         raw,actual_policy=_diagnostic_file(root,POLICY)
         _require(_validate_policy(json.loads(raw,object_pairs_hook=inputs._unique_object))==value,
                  'controller policy differs from actual protected bytes')
         registry_raw,registry_entry=_diagnostic_file(root,'.github/test-suites.json')
         _require(inputs._validate_registry(json.loads(registry_raw,object_pairs_hook=inputs._unique_object))==registry
             and all(tree.get('.github/test-suites.json')==registry_entry for tree in (candidate_tree,trusted_tree,actual))
-            and actual.get(POLICY)==actual_policy==trusted_tree.get(POLICY)==candidate_tree.get(POLICY)
-            and all(tree.get('tests/platform-profile.json')==actual.get('tests/platform-profile.json')
-                for tree in (candidate_tree,trusted_tree)), 'controller candidate declarations differ from actual D')
+            and actual.get(POLICY)==actual_policy==trusted_tree.get(POLICY)==candidate_tree.get(POLICY),
+            'controller candidate declarations differ from actual D')
         _require(actual.get('tests/platform-profile.json',{}).get('sha')=='d63537504c20204de9d35d9be61da72a56df59c3',
                  'controller CI37 requires the exact empty shared platform')
+        if seven:
+            inputs._validate_tree(base_tree)
+            _require(bool(base_tree) and all(entry['mode'] in {'100644','100755'} and entry['type']=='blob'
+                for entry in base_tree.values()), 'seven-target base inventory is nonordinary')
+            expected = source_admission.ordinary(source_admission.TARGET_PROFILES[target])
+            _require(base_tree.get('tests/platform-profile.json') == candidate_tree.get('tests/platform-profile.json') == expected
+                and base_tree.get(POLICY) == actual_policy
+                and base_tree.get('.github/test-suites.json') == registry_entry,
+                'seven-target CI source declarations differ from their exact target')
+            if _reuse_derivation:
+                reuse_controller_precheck(base_tree,actual,target,root=root)
+            else:
+                source_admission.compatibility(base_tree,actual,target,
+                    read_actual=lambda name:source_admission.actual_bytes(root,name) if files is None else files[name],
+                    actual_imports=source_admission.actual_import_inventory(root) if files is None else _lookup_inventory(actual))
+            if subset:
+                dependency_raw = inputs.load_dependencies(Path(root)/inputs.AFFECTED_POLICY, registry)
+                _require(json.loads(dependency_raw)['schema'] == 2, 'CI subset requires seven-target protected dependencies')
+                affected = inputs.plan_affected(registry,dependency_raw,base_tree,candidate_tree,
+                    trusted_tree if _reuse_derivation else actual,target=target)
+                _require(selection['affected'] == affected
+                    and selection['suites'] == [name for name in SUITES if name in affected['required']],
+                    'CI subset differs from independently derived protected dependencies')
+        else:
+            _require(all(tree.get('tests/platform-profile.json')==actual.get('tests/platform-profile.json')
+                for tree in (candidate_tree,trusted_tree)), 'controller candidate declarations differ from actual D')
         candidate_generation=controller_generation(actual,registry)
-        _require(controller_generation(trusted_tree,registry)==candidate_generation,
+        _require(_reuse_derivation or controller_generation(trusted_tree,registry)==candidate_generation,
                  'supplied trusted context differs from actual D controllers')
     else:
         _require(controller_manifest is None, 'legacy whole-tree profile does not accept controller manifests')
@@ -489,12 +835,13 @@ def validate_selection(selection, candidate_tree, trusted_tree, registry, *, tar
              and old_policy["mode"] == "100644" and old_policy["type"] == "blob",
              "CI37 policy requires identical ordinary trusted and candidate entries")
     pinned = _pinned_source_entry(root)
-    _require(candidate_tree.get(PINNED_SOURCE) == trusted_tree.get(PINNED_SOURCE) == pinned,
+    _require(candidate_tree.get(PINNED_SOURCE) == trusted_tree.get(PINNED_SOURCE) == pinned
+             and (not seven or base_tree.get(PINNED_SOURCE) == pinned),
              "CI37 fixed pinned source differs from the protected root or immutable trees")
     _require(callable(read_blob), "CI37 cleanup admission requires a trusted immutable blob reader")
     # Read both complete authenticated objects on every route, even when their
     # OIDs match. No checked-out candidate file or claimed data class is proof.
-    for tree in (trusted_tree,candidate_tree):
+    for tree in ((base_tree,trusted_tree,candidate_tree) if seven else (trusted_tree,candidate_tree)):
         _cleanup_data(tree.get(DATA_PATH),read_blob)
     # Data contents belong to suite fingerprints and native source binding,
     # not runtime E: original and current admitted holds may legitimately differ.
@@ -502,8 +849,41 @@ def validate_selection(selection, candidate_tree, trusted_tree, registry, *, tar
             "suites": list(SUITES), "definition_digest": definitions,
             "generation_digest": candidate_generation, "policy_digest": policy_identity(value),
             "pinned_source": {"path": PINNED_SOURCE, **pinned}}
-    if controller:binding['generation_kind']=CONTROLLER_KIND
+    if controller:binding['generation_kind']=value['generation_kind']
     return binding
+
+
+def validate_selection(selection, candidate_tree, trusted_tree, registry, *, target='main',
+        regular=True, unknown=False, policy=None, require_enabled=True, root=ROOT, read_blob=None,
+        controller_manifest=None, base_tree=None):
+    """Current capture admission remains strict over the complete actual source."""
+    return _validate_selection(selection,candidate_tree,trusted_tree,registry,target=target,
+        regular=regular,unknown=unknown,policy=policy,require_enabled=require_enabled,root=root,
+        read_blob=read_blob,controller_manifest=controller_manifest,base_tree=base_tree)
+
+
+def preliminary_reuse_selection(*args, **kwargs):
+    """Current executable precheck only; cannot admit any recorded environment."""
+    value=load_policy(kwargs.get('root',ROOT))
+    _require(value.get('generation_kind')==SEVEN_CONTROLLER_KIND,
+        'original-source derivation requires the versioned seven-target namespace')
+    return _validate_selection(*args,**kwargs,_reuse_derivation=True)
+
+
+def original_selection(original, selection, candidate_tree, trusted_tree, registry, *, environment,
+                       target, base_tree, root=ROOT, read_blob=None):
+    """Admit retained original G only after native source4 whole-hash authority."""
+    _require(type(original) is _AuthenticatedOriginalSource
+        and original.environment_digest==_digest(environment)
+        and original.envelope['binding']['selection']==selection
+        and original.binding['base_ref']==target and original.base==base_tree
+        and original.envelope['binding']['registry']==_digest(registry),
+        'original environment lacks authenticated complete source4 context')
+    # Independently recheck the current executable/lookup compatibility. The
+    # complete ORIGINAL data is retained in manifest/projection/G, never replaced.
+    _original_source_files(original.manifest,root,lambda oid:next(raw for raw,entry in original.files.values() if entry['sha']==oid))
+    return _validate_selection(selection,candidate_tree,original.manifest['entries'],registry,
+        target=target,base_tree=base_tree,root=root,read_blob=read_blob,_original=original)
 
 
 def _diagnostic_source(source_root, source):
@@ -585,9 +965,10 @@ def _diagnostic_selection(selection, candidate_tree, trusted_tree, registry, *, 
     _require(all(actual.get(path,{}).get('mode') in {'100644','100755'}
         and actual[path]['type']=='blob' for name in SUITES for path in registry['suites'][name]['closure']['required']),
         'diagnostic fixed owner implementation is missing')
-    derived = policy if policy.get('generation_kind')==CONTROLLER_KIND else {**policy,'generation_digest':generation(actual,registry)}
+    derived = policy if controller_policy(policy) else {**policy,'generation_digest':generation(actual,registry)}
     admitted = validate_selection(selection,actual,actual,registry,target=target,policy=derived,
-        require_enabled=False,root=root,read_blob=read_blob,controller_manifest=controller_manifest)
+        require_enabled=False,root=root,read_blob=read_blob,controller_manifest=controller_manifest,
+        base_tree=actual if policy.get('generation_kind')==SEVEN_CONTROLLER_KIND else None)
     return {'kind':DIAGNOSTIC_KIND,'source_commit':source,'source_tree':tree_oid,
             'production_policy_digest':policy_identity(policy),'actual_selection':admitted}
 

@@ -1,5 +1,6 @@
 # Dormant trusted package generation; activation requires reviewed target policy.
 name: Repository checks
+run-name: ${{ (github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics'))) && 'Overte native metadata nonproducer v2' || 'Overte native ordinary qualification v2' }}
 on:
   pull_request:
     types:
@@ -19,13 +20,20 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: repository-checks-${{ github.event.pull_request.number || github.ref }}-${{ github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body) && github.run_id || 'qualification' }}
+  group: repository-checks-${{ github.event.pull_request.number || github.ref }}-${{ ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics')) && github.run_id || 'qualification' }}
   cancel-in-progress: true
 jobs:
   metadata-source:
     name: Authenticate PR text edit
-    if: github.event_name == 'pull_request' && github.base_ref == 'main' && github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+      pull-requests: read
     uses: ./.github/workflows/pr-metadata-context.yml
+    with:
+      nonproducer_intent: ${{ github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics')) }}
 
   route:
     needs: metadata-source
@@ -33,6 +41,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      checks: read
       pull-requests: read
     name: Select required repository checks
     runs-on: ubuntu-24.04
@@ -70,8 +79,9 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
         NATIVE_METADATA_INTENT: ${{ needs.metadata-source.outputs.metadata_intent }}
+        NATIVE_METADATA_SCHEDULING: ${{ needs.metadata-source.outputs.metadata_scheduling }}
       run: >-
-        python3 trusted/tools/repository-checks/check.py metadata-event
+        python3 -I -S -B trusted/tools/repository-checks/check.py metadata-event
         --event "$GITHUB_EVENT_PATH" --event-name "$GITHUB_EVENT_NAME" --output "$GITHUB_OUTPUT"
     - name: Read the candidate tree without executing it
       if: steps.event.outputs.metadata_only != 'true'
@@ -97,7 +107,7 @@ jobs:
       contents: read
       packages: read
     needs: route
-    if: needs.route.outputs.metadata_only != 'true' && needs.route.outputs.native != 'skip'
+    if: always() && !cancelled() && needs.route.result == 'success' && needs.route.outputs.metadata_only != 'true' && needs.route.outputs.native != 'skip' && !(github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics')))
     uses: ./.github/workflows/native-tests.yml
     with:
       mode: ${{ needs.route.outputs.native }}
@@ -109,7 +119,7 @@ jobs:
       checks: read
     name: ${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && 'project (metadata unchanged)' || 'project' }}
     needs: route
-    if: needs.route.outputs.metadata_only != 'true' && (needs.route.outputs.package_host_mode == 'full' || needs.route.outputs.package_host_mode == 'tool-dependencies' || needs.route.outputs.package_set != '[]')
+    if: always() && !cancelled() && needs.route.result == 'success' && needs.route.outputs.metadata_only != 'true' && (needs.route.outputs.package_host_mode == 'full' || needs.route.outputs.package_host_mode == 'tool-dependencies' || needs.route.outputs.package_set != '[]') && !(github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics')))
     uses: ./.github/workflows/project-tests.yml
     with:
       dependency_projects: ${{ needs.route.outputs.tool_projects }}
@@ -118,7 +128,7 @@ jobs:
   android:
     name: ${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && 'android (metadata unchanged)' || 'android' }}
     needs: route
-    if: needs.route.outputs.metadata_only != 'true' && needs.route.outputs.android_required == 'true'
+    if: always() && !cancelled() && needs.route.result == 'success' && needs.route.outputs.metadata_only != 'true' && needs.route.outputs.android_required == 'true' && !(github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics')))
     uses: ./.github/workflows/android-required.yml
     with:
       android_required: ${{ needs.route.outputs.android_required }}
@@ -128,18 +138,18 @@ jobs:
   documentation:
     name: ${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && 'documentation (metadata unchanged)' || 'documentation' }}
     needs: [route, project]
-    if: always() && needs.route.result == 'success' && (needs.project.result == 'success' || needs.project.result == 'skipped') && needs.route.outputs.metadata_only != 'true' && needs.project.outputs.documentation_verified != 'true'
+    if: always() && needs.route.result == 'success' && (needs.project.result == 'success' || needs.project.result == 'skipped') && needs.route.outputs.metadata_only != 'true' && needs.project.outputs.documentation_verified != 'true' && !(github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics')))
     uses: ./.github/workflows/documentation-checks.yml
   workflow-security:
     name: ${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && 'workflow-security (metadata unchanged)' || 'workflow-security' }}
     needs: route
-    if: needs.route.outputs.metadata_only != 'true' && needs.route.outputs.security == 'true'
+    if: always() && !cancelled() && needs.route.result == 'success' && needs.route.outputs.metadata_only != 'true' && needs.route.outputs.security == 'true' && !(github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics')))
     uses: ./.github/workflows/workflow-security.yml
     with:
       defer_workflow_contracts: true
   workflow-contracts:
     needs: [route, project]
-    if: always() && needs.route.result == 'success' && (needs.project.result == 'success' || needs.project.result == 'skipped') && needs.route.outputs.metadata_only != 'true' && needs.route.outputs.security == 'true' && needs.project.outputs.workflow_contracts_verified != 'true'
+    if: always() && needs.route.result == 'success' && (needs.project.result == 'success' || needs.project.result == 'skipped') && needs.route.outputs.metadata_only != 'true' && needs.route.outputs.security == 'true' && needs.project.outputs.workflow_contracts_verified != 'true' && !(github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics')))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -170,6 +180,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
+    - name: Reject unavailable native metadata context before checkout
+      if: github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics'))
+      run: exit 1
     - name: Check out trusted result verifier
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:

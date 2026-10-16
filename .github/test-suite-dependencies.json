@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "suites": {
     "producer-proof": {
       "kind": "reviewed-subject-inventory",
@@ -197,7 +197,7 @@
       "setup": [
         "host-full"
       ],
-      "reviewed_reader_digest": "sha256:e7309f85f9505b8d0ee5623ca5cbd79e3fde9bff3e4328c9ed62c17a1ee198bb",
+      "reviewed_reader_digest": "sha256:16ffb7cd9122e57c0e3d05623ddbf477109a21660969f9ddef5ced0f03256841",
       "native_independent_paths": [
         ".github/android-checks.json",
         ".github/android-orchestration.json",
@@ -577,8 +577,10 @@
         "tools/repository-checks/workflows/producers/legacy/protected-project-tests-v1.yml",
         "tools/repository-checks/workflows/producers/legacy/repository-checks-metadata-v1.yml",
         "tools/repository-checks/workflows/producers/legacy/repository-checks-protected-ci-v1.yml",
+        "tools/repository-checks/workflows/producers/parent-qualification-android-platform.yml",
         "tools/repository-checks/workflows/producers/parent-qualification.yml",
         "tools/repository-checks/workflows/producers/project-tests.yml",
+        "tools/repository-checks/workflows/producers/protected-project-tests-android-platform.yml",
         "tools/repository-checks/workflows/producers/protected-project-tests.yml",
         "tools/repository-checks/workflows/producers/repository-checks.yml",
         "tools/repository-checks/workflows/repository-checks.yml",
@@ -866,5 +868,70 @@
     }
   },
   "registry_digest": "sha256:02ab9737123fbf9e319ed0c5155e0d3bfe4682cbba52e100ade069c58714e6a4",
-  "lookup_digest": "sha256:8f7c1196b5f491da11285e0973450066b0e273f2fe0ffab4f8a94becf65b2c45"
+  "lookup_digest": "sha256:8f7c1196b5f491da11285e0973450066b0e273f2fe0ffab4f8a94becf65b2c45",
+  "targets": {
+    "android-main": {
+      "profile": {
+        "mode": "100644",
+        "type": "blob",
+        "sha": "1314006455751831be60b143e46ce9c6f5398e26"
+      },
+      "lookup_digest": "sha256:132224406fc688757ea1d57f9e09e93cf88d66b034dd0ae13c7472ebb2325ce4",
+      "reader_digest": "sha256:76002c689edec00c90097086721d303a58e555079889ca585985ccad26a37286"
+    },
+    "android-phone": {
+      "profile": {
+        "mode": "100644",
+        "type": "blob",
+        "sha": "f91169af7bdfedffb0b6ab9ab0ac1da28fd1f7fe"
+      },
+      "lookup_digest": "sha256:b8cc103c65525ec9138efd4020c404fd1229656c5fe40a205d96d3cb66a0ee19",
+      "reader_digest": "sha256:9b8c5e457f1c5765cfe35033094f2fa32ac7cb9a10a17cd185695cf81b006742"
+    },
+    "android-vr": {
+      "profile": {
+        "mode": "100644",
+        "type": "blob",
+        "sha": "1314006455751831be60b143e46ce9c6f5398e26"
+      },
+      "lookup_digest": "sha256:132224406fc688757ea1d57f9e09e93cf88d66b034dd0ae13c7472ebb2325ce4",
+      "reader_digest": "sha256:76002c689edec00c90097086721d303a58e555079889ca585985ccad26a37286"
+    },
+    "android-vr-pico": {
+      "profile": {
+        "mode": "100644",
+        "type": "blob",
+        "sha": "1314006455751831be60b143e46ce9c6f5398e26"
+      },
+      "lookup_digest": "sha256:4856bd7af6f1e047ca5fa9da669115f356993673d39783b86dbdc3b04b21a67a",
+      "reader_digest": "sha256:e5efa90c0b1dea649cb85d4b25c6e5992dd23b61feb290fc2941973e8a1ae00c"
+    },
+    "apple-ios": {
+      "profile": {
+        "mode": "100644",
+        "type": "blob",
+        "sha": "d63537504c20204de9d35d9be61da72a56df59c3"
+      },
+      "lookup_digest": "sha256:58973b4ccffe33e24f0566b474d9198ffa8c4d7a87dff9d528b35d57e39d7709",
+      "reader_digest": "sha256:b9389353de2769d20b76c3d3d9c216c202351dea43f9879fe28fdda0f0dce213"
+    },
+    "apple-main": {
+      "profile": {
+        "mode": "100644",
+        "type": "blob",
+        "sha": "d63537504c20204de9d35d9be61da72a56df59c3"
+      },
+      "lookup_digest": "sha256:ff9fd88a13ea636a8c49962924f84b087ab8e75af44412674cdc8f40d247dd26",
+      "reader_digest": "sha256:22cc0b9fd18a68e533eaab74dd3f1b325f391cf907d884e7254f3c7aad604dd5"
+    },
+    "main": {
+      "profile": {
+        "mode": "100644",
+        "type": "blob",
+        "sha": "d63537504c20204de9d35d9be61da72a56df59c3"
+      },
+      "lookup_digest": "sha256:8f7c1196b5f491da11285e0973450066b0e273f2fe0ffab4f8a94becf65b2c45",
+      "reader_digest": "sha256:16ffb7cd9122e57c0e3d05623ddbf477109a21660969f9ddef5ced0f03256841"
+    }
+  }
 }

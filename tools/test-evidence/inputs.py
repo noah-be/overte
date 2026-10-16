@@ -429,6 +429,15 @@ _AFFECTED_SUBJECTS = {
 }
 _AFFECTED_SHARED_PROFILE = {'mode': '100644', 'type': 'blob',
                             'sha': 'd63537504c20204de9d35d9be61da72a56df59c3'}
+_AFFECTED_TARGET_PROFILES = {
+    'main': 'd63537504c20204de9d35d9be61da72a56df59c3',
+    'apple-main': 'd63537504c20204de9d35d9be61da72a56df59c3',
+    'apple-ios': 'd63537504c20204de9d35d9be61da72a56df59c3',
+    'android-main': '1314006455751831be60b143e46ce9c6f5398e26',
+    'android-vr': '1314006455751831be60b143e46ce9c6f5398e26',
+    'android-vr-pico': '1314006455751831be60b143e46ce9c6f5398e26',
+    'android-phone': 'f91169af7bdfedffb0b6ab9ab0ac1da28fd1f7fe',
+}
 _DEVICE_INPUTS = (
     'tests/device', 'tests/device/**', 'tests/run-unittest-suite.py',
     'tests/platform-profile.json', 'tests/requirements*.txt',
@@ -491,12 +500,27 @@ def _suite_definition_digest(suite):
 
 def _validate_dependencies(value, registry):
     _validate_registry(registry)
-    if not isinstance(value, dict) or set(value) != {'schema', 'registry_digest', 'lookup_digest', 'suites'} \
-            or type(value['schema']) is not int or value['schema'] != 1 \
+    if not isinstance(value, dict) or type(value.get('schema')) is not int \
+            or value['schema'] not in {1, 2} \
+            or set(value) != {'schema', 'registry_digest', 'lookup_digest', 'suites'} | ({'targets'} if value['schema'] == 2 else set()) \
             or value['registry_digest'] != 'sha256:' + hashlib.sha256(_canonical(registry)).hexdigest() \
             or not isinstance(value['lookup_digest'], str) or not _DIGEST.fullmatch(value['lookup_digest']) \
             or not isinstance(value['suites'], dict) or set(value['suites']) != set(registry['suites']):
         raise InputError('incomplete protected suite dependency policy')
+    if value['schema'] == 2:
+        targets = value['targets']
+        if type(targets) is not dict or set(targets) != set(_AFFECTED_TARGET_PROFILES):
+            raise InputError('seven-target dependencies require the complete finite target inventory')
+        for target, row in targets.items():
+            profile = {'mode': '100644', 'type': 'blob', 'sha': _AFFECTED_TARGET_PROFILES[target]}
+            if type(row) is not dict or set(row) != {'profile', 'lookup_digest', 'reader_digest'} \
+                    or row['profile'] != profile or any(type(row[key]) is not str or not _DIGEST.fullmatch(row[key])
+                        for key in ('lookup_digest', 'reader_digest')):
+                raise InputError('seven-target dependency identity is incomplete or has an unknown profile')
+        native = value['suites'].get('device-control-plane-full')
+        if type(native) is not dict or targets['main']['lookup_digest'] != value['lookup_digest'] \
+                or targets['main']['reader_digest'] != native.get('reviewed_reader_digest'):
+            raise InputError('seven-target default source identity differs from its main reader')
     for name, row in value['suites'].items():
         suite = registry['suites'][name]
         if not isinstance(row, dict) or set(row) not in (
@@ -556,7 +580,7 @@ def load_dependencies(path, registry):
     return raw
 
 
-def plan_affected(registry, dependency_bytes, base_tree, candidate_tree, trusted_tree):
+def plan_affected(registry, dependency_bytes, base_tree, candidate_tree, trusted_tree, *, target='main'):
     """Pure affected-suite selection from complete authenticated immutable trees.
 
     No candidate program, supplied subset, receipt or runtime query is used.
@@ -571,19 +595,31 @@ def plan_affected(registry, dependency_bytes, base_tree, candidate_tree, trusted
         dependencies = _validate_dependencies(json.loads(dependency_bytes, object_pairs_hook=_unique_object), registry)
     except (UnicodeError, ValueError) as error:
         raise InputError('protected dependency bytes are invalid') from error
-    for tree in (base_tree, candidate_tree, trusted_tree):
+    target_row = None
+    if dependencies['schema'] == 2:
+        if type(target) is not str or target not in _AFFECTED_TARGET_PROFILES:
+            raise InputError('unknown seven-target dependency context')
+        target_row = dependencies['targets'][target]
+    contexts = ((base_tree, target_row), (candidate_tree, target_row),
+        (trusted_tree, dependencies['targets']['main'] if target_row is not None else None))
+    for tree, context in contexts:
         _validate_tree(tree)
         if any(e['mode'] not in {'100644', '100755'} or e['type'] != 'blob' for e in tree.values()):
             raise InputError('affected selection requires complete ordinary inventories')
-        if affected_lookup_digest(tree) != dependencies['lookup_digest']:
+        lookup = context['lookup_digest'] if context is not None else dependencies['lookup_digest']
+        profile = context['profile'] if context is not None else _AFFECTED_SHARED_PROFILE
+        if affected_lookup_digest(tree) != lookup:
             raise InputError('affected selection lookup membership is not reviewed')
-        if tree.get('tests/platform-profile.json') != _AFFECTED_SHARED_PROFILE:
-            raise InputError('affected selection retains the exact empty shared platform profile')
+        if tree.get('tests/platform-profile.json') != profile:
+            raise InputError('affected selection requires the exact reviewed target platform profile'
+                if context is not None else 'affected selection requires the exact empty shared platform profile')
     entry = {'mode': '100644', 'type': 'blob', 'sha': hashlib.sha1(
         b'blob ' + str(len(dependency_bytes)).encode('ascii') + b'\0' + dependency_bytes).hexdigest()}
     if any(tree.get(AFFECTED_POLICY) != entry for tree in (base_tree, candidate_tree, trusted_tree)):
         raise InputError('dependency graph must already be identical protected policy')
     for path in AFFECTED_AUTHORITY:
+        if target_row is not None and path == 'tests/platform-profile.json':
+            continue  # Its three independent finite entries were checked above.
         actual = trusted_tree.get(path)
         mode = '100755' if path == 'tests/run-project-tests.py' else '100644'
         if actual is None or actual['mode'] != mode or actual['type'] != 'blob' \
@@ -599,8 +635,9 @@ def plan_affected(registry, dependency_bytes, base_tree, candidate_tree, trusted
                 if p not in _PYTHON_IMPORT_CONTROLS and p != 'tools/test-evidence/**']
     required, omitted, reasons, setup = [], [], {}, set()
     native_row = dependencies['suites'].get('device-control-plane-full', {})
+    native_digest = target_row['reader_digest'] if target_row is not None else native_row.get('reviewed_reader_digest')
     native_unchanged = native_row.get('kind') == 'device-control-plane' and all(
-        device_reader_digest(tree, native_row['native_independent_paths']) == native_row['reviewed_reader_digest']
+        device_reader_digest(tree, native_row['native_independent_paths']) == native_digest
         for tree in (base_tree, candidate_tree))
     for name, suite in registry['suites'].items():
         row = dependencies['suites'][name]
@@ -641,4 +678,5 @@ def plan_affected(registry, dependency_bytes, base_tree, candidate_tree, trusted
     return {'schema': 1, 'kind': 'affected-suite-selection', 'reusable': False,
             'required': required, 'omitted': omitted, 'reasons': reasons,
             'paths': paths, 'dependency_digest': 'sha256:' + hashlib.sha256(dependency_bytes).hexdigest(),
-            'required_setup': ['host-full'] if 'host-full' in setup else sorted(setup)}
+            'required_setup': ['host-full'] if 'host-full' in setup else sorted(setup),
+            **({'dependency_schema': 2, 'target': target} if target_row is not None else {})}

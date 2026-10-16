@@ -44,8 +44,9 @@ Android's separately reviewed lock-only route covers only the two existing
 ordinary Browser/S3 lockfiles and the ordinary 40-execution inventory. It
 requires matching complete reader complements on both trees, the hermetic Phone
 test on both trees, an unchanged regular orchestration-policy entry and an
-independently recomputed supported npm owner. Unknown package changes, mixed
-inputs, older readers and optional extended diagnostics retain the complete
+independently recomputed mandatory npm owner. A lock graph outside the focused
+security profiles requires the package's full JavaScript checks; it does not
+change native reader independence. Mixed inputs, older readers and optional extended diagnostics retain the complete
 Android selection. This finite proof does not exempt either package directory
 or the repository's CI tools as a whole.
 
@@ -776,6 +777,16 @@ owner and both reviewed application and own-host reader boundaries. Unknown neig
 files, mode changes and historical application reader drift still require the
 application build. This classification does not publish IPA or reuse evidence.
 
+For those two ordinary lockfiles, a complete required JavaScript package owner
+also permits omission when dependency changes exceed the focused security-fix
+profiles. The full package checks must still succeed in the required repository
+aggregate. Missing package ownership, mixed product/configuration changes,
+nonordinary modes and historical native/iOS reader changes retain their gates.
+The existing full S3 package job provides that required ownership. A full Browser
+profile alone does not: the historical separate Browser run is not represented
+by the package job's required receipt. That full-owner integration remains open;
+the selector must not invent a required package result to omit other work.
+
 The iOS qualification verifier has a staged `inputSelection` setting in its
 trusted policy. An absent or false setting preserves the deployed workflow's
 legacy route and final report, including its broad ordinary-Markdown exemption.
@@ -1228,6 +1239,15 @@ preserves the existing first-five-view behavior; critical mutation remains
 mandatory on every selected PR. No branch-name waiver or evidence reuse is added.
 
 ## Staged selection for CI-only changes
+
+The retained-source Android parent recipe first authenticates a small dispatch
+plan on `android-main` and `android-vr`. It starts a separate platform job only
+when that independently derived plan selects Android commands; common tests and
+selected platform tests then run in parallel. Package and documentation routes
+retain their own required owners. Main and Apple parents skip this dispatch job
+because their reviewed platform profile is empty. The final parent check
+recomputes the candidate and complete plan; dispatch outputs are never test
+evidence, and a required platform failure still blocks qualification.
 
 The staged host workflow in `tools/repository-checks/workflows/host/project-tests.yml`
 uses the default branch's trusted `host_selection.py` controller. It recomputes

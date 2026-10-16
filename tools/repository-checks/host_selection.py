@@ -131,6 +131,8 @@ PROGRAM_INPUTS = (
     'tools/repository-checks/workflows/producers/protected-project-tests.yml',
     'tools/repository-checks/workflows/producers/repository-checks.yml',
     'tools/repository-checks/workflows/producers/parent-qualification.yml',
+    'tools/repository-checks/workflows/producers/protected-project-tests-android-platform.yml',
+    'tools/repository-checks/workflows/producers/parent-qualification-android-platform.yml',
     # Actual assertions consume these documents; the generic Markdown rule does
     # not exempt them. Their membership, modes and bytes remain immutable inputs.
     'android/vr/common/openxr/README.md',
@@ -142,23 +144,23 @@ PROGRAM_INPUTS = (
 # legacy-retirement/contract handoff files. Only the two separately owned foreign
 # locks are outside this complement; changed locks need mandatory package coverage.
 # These identities are not execution receipts or application-build evidence.
-REVIEWED_PROGRAMS = 'b547c26d4c952ec34fd47688afc134bcf2c933566c3c3647ed5049e7c4226ff3'
+REVIEWED_PROGRAMS = '6c6064992d2e2e189e06af5957c147fd1ac0996b886b8d0b6f30dbf856ee9afe'
 REVIEWED_CHILD_PROGRAMS = {
-    'apple-main': 'dc2869615e57eb0f3fc24cfc78684d67238867299d75e70f42414714bb1bbc71',
-    'apple-ios': 'c4c9f5fbbf38e227e3cceac49ffea37e53fdab14a1835c2d31bf75437f65b45e',
-    'android-main': 'a1465b1a06466d785f42c105370254a257509d565879190f537b076fcd6dcb9d',
-    'android-phone': '9c6dc165db7d265f212665d857bb8c961cc24db524198723226a4a136ebeb297',
-    'android-vr': 'a1465b1a06466d785f42c105370254a257509d565879190f537b076fcd6dcb9d',
-    'android-vr-pico': '1cf99bff17e489284b312d9aaf0533f250b0d3b1607df64487473ad5c8e8a6bc',
+    'apple-main': 'ad02726fc123ea762f37e077f6ad11bf54b568542c89ebba9ae6477d9225288a',
+    'apple-ios': '5cd6ed41804507a65889ceacbf54133cbcebb4e27bb0fa2b75f482bc75580204',
+    'android-main': '9a16a98317cc83215785138376c2bbc36084959a28691d502c9925889c006501',
+    'android-phone': '1f1d0fad2dc765cfba467f2231691409ab1ed2aa4a584848925b9a8ba1fd6d76',
+    'android-vr': '9a16a98317cc83215785138376c2bbc36084959a28691d502c9925889c006501',
+    'android-vr-pico': '0b931fec15b3984639dbfec96d68279ac5ee9f774d7f3579155857415cfeb69c',
 }
 REVIEWED_PREDECESSORS = {
-    'main': '0644bec55de2d979b7a406f54e96960e44d50961b1fc43e2f73fac739658b799',
-    'apple-main': '4f317ee1df2e619b1465605751f472fa555fad68a13fd7a739139057c63c3fd0',
-    'apple-ios': 'c284b211104288ddb08ed34d63b22bf0b9e515feb301bec0573c2a150d744022',
-    'android-main': '6e2fa5e9ed95ead952fd9ae6e50b6d9ba524641b832ca847779ae4b0306b245f',
-    'android-phone': '085ad53b6f0c99c4ac6a0323d9f0b545b4f31c8244730376d9b1aa89ce1cf518',
-    'android-vr': '6e2fa5e9ed95ead952fd9ae6e50b6d9ba524641b832ca847779ae4b0306b245f',
-    'android-vr-pico': 'd664c6fcb84a98e584781be64eb7d3b7ebfe75e4ca5e44504fa25cca9afbfd97',
+    'main': 'b547c26d4c952ec34fd47688afc134bcf2c933566c3c3647ed5049e7c4226ff3',
+    'apple-main': 'dc2869615e57eb0f3fc24cfc78684d67238867299d75e70f42414714bb1bbc71',
+    'apple-ios': 'c4c9f5fbbf38e227e3cceac49ffea37e53fdab14a1835c2d31bf75437f65b45e',
+    'android-main': 'eac19083b663d91a51e3f35cab3f9a599c7bd3b4426661314989e0181530a334',
+    'android-phone': '5e6b64e4c170d8a856c9ef8c629d8a182144720a1d2af46a34669967e7a0b419',
+    'android-vr': 'eac19083b663d91a51e3f35cab3f9a599c7bd3b4426661314989e0181530a334',
+    'android-vr-pico': '69fe97d60645ed382671f489672b15db594ddd636c0bee9b9e82a832373a1c58',
 }
 CONTROL_PLANE = 'tests/device/run_control_plane_tests.py'
 PACKAGE_LOCKS = {
@@ -191,7 +193,10 @@ def package_owned_paths(plan):
         selected = consumers.get('projects', {}).get(project, {})
         if path not in plan.get('paths', ()) or selected.get('changed_paths') != [path]:
             continue
-        focused = (selected.get('profile') == profile and selected.get('required') is True
+        # Native reader independence does not depend on the particular npm
+        # security update. An unsupported focused delta retains the package's
+        # complete required JavaScript owner, without widening native work.
+        focused = (selected.get('profile') in {profile, 'full'} and selected.get('required') is True
                    and project in plan.get('package_set', ()))
         formatting = (selected.get('profile') == 'none' and selected.get('required') is False
                       and selected.get('reason') == 'reviewed-lockfile-format-only')
@@ -279,9 +284,10 @@ def _protected_producer_transition(tree, paths, base_tree, trusted_tree, target)
                           '.github/workflows/pr-metadata-context.yml'}
     codeql_path = '.github/workflows/codeql.yml'
     joint_endpoints = {*metadata_endpoints, codeql_path}
+    retained_endpoints = {*joint_endpoints, '.github/workflows/sync-validation.yml'}
     if target != 'main' or not isinstance(paths, (tuple, list)) \
             or len(paths) != len(set(paths)) \
-            or set(paths) not in (producer_endpoints, metadata_endpoints, joint_endpoints) \
+            or set(paths) not in (producer_endpoints, metadata_endpoints, joint_endpoints, retained_endpoints) \
             or not isinstance(base_tree, dict) \
             or not isinstance(trusted_tree, dict) or trusted_tree != base_tree:
         return False
@@ -292,6 +298,27 @@ def _protected_producer_transition(tree, paths, base_tree, trusted_tree, target)
     policy = package_policy()
     generations = {generation['name']: generation['workflows'] for generation in policy.workflow_generations()}
     consumers = set(policy.CONSUMER_WORKFLOW_PATHS)
+    if set(paths) == retained_endpoints:
+        producer = generations.get('protected-producer-original-default-v1', {})
+        ordinary = lambda oid: {'mode': '100644', 'type': 'blob', 'sha': oid}
+        # The pre-sole-owner source recipe keeps the original Android owners
+        # during source propagation. This exact installation still requires a
+        # new full producer run; neither recipe grants execution evidence.
+        for name in ('npm-consumers-sync-ci-v1', 'android-owned-npm5-sync-ci-v1'):
+            previous = generations.get(name, {})
+            if set(previous) != consumers or set(producer) != set(policy.METADATA_WORKFLOW_PATHS) \
+                    or {path for path in consumers | set(producer)
+                        if previous.get(path) != producer.get(path)} != retained_endpoints - {codeql_path} \
+                    or any(base_tree.get(path) is not None for path in set(producer) - consumers):
+                continue
+            if base_tree.get(codeql_path) != ordinary('6d55d0fe4e9edc86204c66e1fa3967681793a2cd') \
+                    or tree.get(codeql_path) != ordinary('e9aaaed9693efc5ffb4701697ac2a4d51f5f5ba1'):
+                continue
+            if all(snapshot.get(path) == entry
+                   for snapshot, workflows in ((trusted_tree, previous), (base_tree, previous), (tree, producer))
+                   for path, entry in workflows.items()):
+                return True
+        return False
     for old_name, new_name, endpoints, candidate_paths, joint_codeql in (
             ('android-owned-npm5-sync-ci-v1', 'protected-shared-producer-v1', producer_endpoints, consumers, False),
             ('postmerge-original-e-v1', 'protected-producer-postmerge-original-e-v1', producer_endpoints, consumers, False),
@@ -335,7 +362,7 @@ def select(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_
         return legacy
     registry = inputs.load_registry(ROOT / '.github/test-suites.json')
     affected = affected_selection(registry, tree, base_tree, trusted_tree, paths,
-                                  allow_full_host=legacy['full_host'])
+                                  allow_full_host=legacy['full_host'], legacy_selection=legacy, target=target)
     if affected is None:
         return legacy
     if affected['reason'] == 'protected-dependencies-unavailable':
@@ -402,35 +429,66 @@ def _select_legacy(tree, paths, regular, *, unknown=False, trusted_tree=None, ca
     return {'suites': names, 'reason': reason, 'full_host': True, 'include_platform': True}
 
 
-def affected_selection(registry, tree, base_tree, trusted_tree, paths, *, allow_full_host=True):
+def _qt_free_dependency_namespace():
+    """Only the new protected namespace may narrow the existing CI37 route."""
+    try:
+        import ci_profile
+        return ci_profile.load_policy(ROOT).get('generation_kind') == ci_profile.SEVEN_CONTROLLER_KIND
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
+def affected_selection(registry, tree, base_tree, trusted_tree, paths, *, allow_full_host=True,
+                       legacy_selection=None, target='main'):
     """Use only an already protected graph; missing legacy graphs retain legacy routing.
 
     A graph/source rollout cannot certify itself. Every unavailable or changed
     protected authority keeps the complete existing gate, before any execution.
     """
-    # Every currently supported graph subset needs complete host preparation.
-    # It cannot improve an independently proved Qt-free route, so do not read
-    # or hash that graph merely to reject its broader setup afterwards.
-    if allow_full_host is False:
+    # Preserve the old namespace's setup dominance and cheap early return.
+    # Only the new finite source/profile policy may narrow an independently
+    # established CI37 route without adding Qt or Java preparation.
+    qt_free = allow_full_host is False
+    if qt_free and not _qt_free_dependency_namespace():
         return None
     snapshots = (tree, base_tree, trusted_tree)
     if all(isinstance(snapshot, dict) and inputs.AFFECTED_POLICY not in snapshot for snapshot in snapshots):
         return None
     try:
         raw = inputs.load_dependencies(ROOT / inputs.AFFECTED_POLICY, registry)
-        device = json.loads(raw)['suites'].get('device-control-plane-full', {})
+        document = json.loads(raw)
+        if qt_free and document['schema'] != 2:
+            return None
+        device = document['suites'].get('device-control-plane-full', {})
         if any(not ci_owned(path) for path in device.get('native_independent_paths', ())):
             raise ValueError('device native lookup may exempt only reviewed CI-owned leaves')
-        plan = inputs.plan_affected(registry, raw, base_tree, tree, trusted_tree)
+        plan = inputs.plan_affected(registry, raw, base_tree, tree, trusted_tree, target=target)
         if plan['paths'] != sorted(paths) or len(paths) != len(set(paths)):
             raise ValueError('affected suite paths differ from complete immutable delta')
     except (inputs.InputError, ValueError, OSError, KeyError, TypeError):
         return {'suites': list(registry['suites']), 'reason': 'protected-dependencies-unavailable',
                 'full_host': True, 'include_platform': True}
+    if qt_free:
+        import ci_profile
+        if type(legacy_selection) is not dict or legacy_selection.get('suites') != list(ci_profile.SUITES) \
+                or legacy_selection.get('full_host') is not False or legacy_selection.get('include_platform') is not False \
+                or legacy_selection.get('reason') not in {'reviewed-ci-only-inputs', 'reviewed-ci-and-package-owners'}:
+            return None
+        names = [name for name in ci_profile.SUITES if name in plan['required']]
+        if not names or names == list(ci_profile.SUITES):
+            return None
+        value = {'suites': names, 'reason': 'protected-ci-dependencies',
+            'full_host': False, 'include_platform': False, 'affected': plan}
+        if legacy_selection.get('package_owned_paths'):
+            value['package_owned_paths'] = legacy_selection['package_owned_paths']
+        return value
+    include_platform = bool(document['schema'] == 2
+        and document['targets'][target]['profile'] != inputs._AFFECTED_SHARED_PROFILE
+        and (legacy_selection is None or legacy_selection.get('include_platform') is not False))
     return {'suites': plan['required'], 'reason': 'protected-affected-dependencies',
             # This legacy flag also controls prerequisite preparation. Until
             # setup ownership is qualified, retain complete host provisioning.
-            'full_host': True, 'include_platform': False, 'affected': plan}
+            'full_host': True, 'include_platform': include_platform, 'affected': plan}
 
 
 def target_branch(event):

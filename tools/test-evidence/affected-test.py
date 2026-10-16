@@ -153,14 +153,23 @@ class ShippingPolicyTests(unittest.TestCase):
         # Authenticate the actual complete deployed tuple before constructing
         # the distinct approved preinstallation B; do not bind R to B instead S.
         generations=json.loads((root/'.github/package-workflow-generations.json').read_bytes())['generations']
-        previous=next(row['workflows'] for row in generations if row['name']=='android-owned-npm5-sync-ci-v1')
-        future=next(row['workflows'] for row in generations if row['name']=='protected-producer-seven-target-ci-v1')
+        previous_rows=[row['workflows'] for row in generations if row['name'] in {
+            'npm-consumers-sync-ci-v1','android-owned-npm5-sync-ci-v1'}]
+        previous=next(row['workflows'] for row in generations if row['name']=='npm-consumers-sync-ci-v1')
+        future=next((row['workflows'] for row in generations
+            if row['name']=='protected-producer-original-default-v1'),None)
+        if future is None:
+            future=next(row['workflows'] for row in generations if row['name']=='protected-producer-seven-target-ci-v1')
         endpoint='.github/workflows/pr-metadata-context.yml'
-        approved=future if endpoint in tree else previous
-        self.assertTrue(all(tree.get(path)==entry for path,entry in approved.items()))
-        self.assertEqual(tree['.github/workflows/codeql.yml']['sha'],
-            '3a273057a38255ca368d3028594fb94227ba7c3b' if endpoint in tree
-            else '6d55d0fe4e9edc86204c66e1fa3967681793a2cd')
+        approved=[future] if endpoint in tree else previous_rows
+        matches=[row for row in approved if row is not None and all(tree.get(path)==entry for path,entry in row.items())]
+        self.assertEqual(len(matches),1,'source must match one complete reviewed current or installed tuple')
+        if endpoint not in tree:previous=matches[0]
+        enrolled22=any(row['name']=='protected-producer-original-default-v1' for row in generations)
+        codeql=blob((root/'tools/repository-checks/workflows/metadata-edits/codeql-metadata.yml').read_bytes())['sha'] \
+            if endpoint in tree and enrolled22 else '3a273057a38255ca368d3028594fb94227ba7c3b' if endpoint in tree \
+            else '6d55d0fe4e9edc86204c66e1fa3967681793a2cd'
+        self.assertEqual(tree['.github/workflows/codeql.yml']['sha'],codeql)
         tree.update(deepcopy(previous));tree.pop(endpoint,None)
         tree['.github/workflows/codeql.yml']=dict(mode='100644',type='blob',
             sha='6d55d0fe4e9edc86204c66e1fa3967681793a2cd')
@@ -175,21 +184,24 @@ class ShippingPolicyTests(unittest.TestCase):
         """
         root,registry,raw,tree=self.source_context()
         generations=json.loads((root/'.github/package-workflow-generations.json').read_bytes())['generations']
-        self.assertEqual(len(generations),21)
-        self.assertEqual(generations[-1]['name'],'protected-producer-seven-target-ci-v1')
-        workflows=generations[-1]['workflows']
+        historical=next(row['workflows'] for row in generations if row['name']=='protected-producer-seven-target-ci-v1')
+        self.assertEqual(historical['.github/workflows/repository-checks.yml']['sha'],
+            'd9fefd275d9e3c6977cf9350a1945a6bbe5051b4')
+        future=next((row['workflows'] for row in generations
+            if row['name']=='protected-producer-original-default-v1'),None)
         templates={
-            '.github/workflows/project-tests.yml':'tools/repository-checks/workflows/producers/protected-project-tests.yml',
-            '.github/workflows/parent-qualification.yml':'tools/repository-checks/workflows/producers/parent-qualification.yml',
+            '.github/workflows/project-tests.yml':'tools/repository-checks/workflows/producers/protected-project-tests-android-platform.yml',
+            '.github/workflows/parent-qualification.yml':'tools/repository-checks/workflows/producers/parent-qualification-android-platform.yml',
             '.github/workflows/repository-checks.yml':'tools/repository-checks/workflows/producers/repository-checks.yml',
             '.github/workflows/pr-metadata-context.yml':'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml',
-            '.github/workflows/sync-validation.yml':'.github/workflows/sync-validation.yml',
+            '.github/workflows/sync-validation.yml':'tools/repository-checks/workflows/sync-ci-selection.yml',
             '.github/workflows/browser-client.yml':'.github/workflows/browser-client.yml',
         }
-        self.assertEqual(set(workflows),set(templates))
+        self.assertEqual(set(historical),set(templates))
+        if future is not None:self.assertEqual(set(future),set(templates))
         for path,template in templates.items():
             expected=blob((root/template).read_bytes())
-            self.assertEqual(workflows[path],expected,path)
+            if future is not None:self.assertEqual(future[path],expected,path)
             tree[path]=dict(expected)
         tree['.github/workflows/codeql.yml']=blob(
             (root/'tools/repository-checks/workflows/metadata-edits/codeql-metadata.yml').read_bytes())
@@ -221,6 +233,11 @@ class ShippingPolicyTests(unittest.TestCase):
         policy['lookup_digest']=inputs.affected_lookup_digest(tree)
         native=policy['suites']['device-control-plane-full']
         native['reviewed_reader_digest']=inputs.device_reader_digest(tree,native['native_independent_paths'])
+        if policy['schema']==2:
+            # Keep the versioned main aliases coherent in this smaller fixture;
+            # shipping/all-seven source certificates above remain unmodified.
+            policy['targets']['main']['lookup_digest']=policy['lookup_digest']
+            policy['targets']['main']['reader_digest']=native['reviewed_reader_digest']
         sealed=(json.dumps(policy,indent=2)+'\n').encode()
         tree[inputs.AFFECTED_POLICY]=blob(sealed)
         return root,registry,sealed,tree
@@ -281,6 +298,8 @@ class ShippingPolicyTests(unittest.TestCase):
             'tools/repository-checks/workflows/producers/legacy/parent-qualification-metadata-v1.yml',
             'tools/repository-checks/workflows/producers/legacy/protected-project-tests-metadata-v1.yml',
             'tools/repository-checks/workflows/producers/legacy/repository-checks-metadata-v1.yml',
+            'tools/repository-checks/workflows/producers/protected-project-tests-android-platform.yml',
+            'tools/repository-checks/workflows/producers/parent-qualification-android-platform.yml',
         }
         self.assertTrue(paths <= set(json.loads(raw)['suites']['device-control-plane-full']['native_independent_paths']))
         candidate=deepcopy(base)
@@ -478,13 +497,20 @@ class ShippingPolicyTests(unittest.TestCase):
                 inputs.plan_affected(registry,raw,base,candidate,base)
 
     def test_existing_ci37_metadata_codeql_cleanup_and_lock_plans_never_expand(self):
+        import ci_profile
         root,registry,raw,base=self.shipping_context()
         spec=importlib.util.spec_from_file_location('affected_preserve_proofs',root/'tools/repository-checks/host_selection.py')
         host=importlib.util.module_from_spec(spec);spec.loader.exec_module(host)
         ci37=[n for n,s in registry['suites'].items() if s['layer']=='quick' and n not in host.PRODUCT_QUICK_SUITES]
         paths=('.github/workflows/codeql.yml','.github/branch-cleanup.json',
                '.github/android-orchestration.json','tests/PROJECT_TESTING.md',*host.PACKAGE_LOCKS)
-        with patch.object(host,'REVIEWED_PROGRAMS',host.program_digest(base,root)):
+        # Preserve the exact legacy37 contract under its actual old namespace.
+        # The new seven-target namespace deliberately permits smaller proved
+        # Qt-free selections; SevenTargetProfileTests covers those separately.
+        historical_policy={**ci_profile.load_policy(root),
+            'generation_kind':ci_profile.CONTROLLER_KIND,'epoch':ci_profile.CONTROLLER_EPOCH}
+        with patch.object(host,'REVIEWED_PROGRAMS',host.program_digest(base,root)), \
+             patch.object(ci_profile,'load_policy',return_value=historical_policy):
             for path in paths:
                 candidate=deepcopy(base);candidate[path]=blob(b'changed ordinary shipping leaf')
                 package_paths=(path,) if path in host.PACKAGE_LOCKS else ()

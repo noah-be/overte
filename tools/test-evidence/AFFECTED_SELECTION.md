@@ -152,3 +152,26 @@ and publish the authenticated whole receipt. Separate manual full-suite or
 CI37 runs are not prerequisites to that stronger execution proof. The broader
 per-suite and all-branch acceptance remains open until actual evidence exists;
 full prerequisite preparation remains required where its reduction is unproved.
+
+The versioned seven-target dependency policy (schema 2) retains schema 1
+unchanged. It requires the complete fixed target inventory, each target's exact
+platform declaration, reviewed Python lookup identity and complete native reader
+identity. Original B and candidate M use that target row; actual protected D
+uses the shared main row. Unknown targets, aliases, changed authority or stale
+reader identities retain the independently selected conservative route.
+
+The `ci37-seven-target-dependencies-v1` policy has a separate epoch. It can
+narrow an independently established Qt-free 37-owner route to a nonempty ordered
+subset derived from the same protected graph. The runtime identity still binds
+the complete fixed 37 definitions and actual D controller/import generation;
+the native schema 4 receipt binds the requested subset and honest omitted
+complement. The probe independently reads B from M's ordered Git parents. Its
+retained projection binds the exact native target and B, and retains original D.
+The older CI37 namespace remains main-only and exact-37.
+
+Full-host child subsets require the same versioned dependency/source proof.
+Android selection keeps its required platform flag: common-suite narrowing does
+not discharge any of the separate 13/19 platform commands or their native job.
+These source mechanisms require a separately enrolled complete workflow
+generation, sealed per-target identities and actual native qualification; this
+source change does not install a policy or assert hosted qualification.

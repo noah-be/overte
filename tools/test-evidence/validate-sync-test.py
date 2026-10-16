@@ -427,9 +427,9 @@ class IsolatedConsumerTests(unittest.TestCase):
             self.assertEqual(os.environ["GH_TOKEN"], "original")
             self.assertEqual(os.environ["GITHUB_OUTPUT"], "command-file")
 
-    def ci_fixture(self, *, npm=False):
+    def ci_fixture(self, *, npm=False, quick_beta=False):
         """Review a tiny immutable reader graph; run only real fixture commands."""
-        self.registry["suites"]["beta"]["layer"] = "host"
+        self.registry["suites"]["beta"]["layer"] = "quick" if quick_beta else "host"
         path = self.candidate / ".github/test-suites.json"
         path.parent.mkdir(); path.write_text(json.dumps(self.registry))
         path = self.candidate / "tools/branch-cleanup/cleanup.py"
@@ -656,13 +656,466 @@ class IsolatedConsumerTests(unittest.TestCase):
         for name in ("Set up candidate Java", "Install candidate host prerequisites"):
             step = next(step for step in steps if step["name"] == name)
             self.assertGreater(steps.index(step), steps.index(selection))
-            self.assertEqual(step["if"], "steps.select.outputs.full_host == 'true'")
+            self.assertEqual(step["if"], "(steps.select.outputs.consumer_setup != 'none' || steps.select.outputs.native_setup == '') && steps.select.outputs.full_host == 'true'")
         executions = [step for step in steps if "--expected-selection" in step.get("run", "")]
         self.assertEqual(len(executions), 2)
         for step in executions:
             self.assertEqual(step["env"]["EXPECTED_SELECTION"], "${{ steps.select.outputs.selection }}")
             self.assertIn('trusted/tools/test-evidence/validate-sync.py', step["run"])
-        self.assertEqual(data["permissions"], {"actions": "read", "contents": "read", "pull-requests": "read"})
+            if step['name'] == 'Verify exact candidate suites and complete runtime identity':
+                self.assertIn('"$SYNC_VALIDATOR_PYTHON" -B ', step['run'])
+                self.assertEqual(step['env']['SYNC_VALIDATOR_PYTHON'],
+                    "${{ steps.select.outputs.consumer_setup == 'none' && steps.select.outputs.native_setup != '' && 'python3' || 'build/host-tests-env/bin/python' }}")
+                self.assertEqual(step['env']['EXPECTED_NATIVE_SETUP'], '${{ steps.select.outputs.native_setup }}')
+                self.assertIn('--expected-native-setup "$EXPECTED_NATIVE_SETUP"', step['run'])
+            else:
+                self.assertIn('python3 -B ', step['run'])
+        self.assertEqual(data["permissions"], {"actions": "read", "checks": "read", "contents": "read", "pull-requests": "read"})
+        # The source-preparation PR still runs the deployed historical recipe.
+        # The distinct prospective recipe above is not deployed by changing a
+        # canonical source leaf. Authenticate the active blob against complete
+        # reviewed catalog data; never rewrite an old row to the new template.
+        import hashlib
+        catalog=json.loads((VALIDATION.ROOT/'.github/package-workflow-generations.json').read_bytes())['generations']
+        active=(VALIDATION.ROOT/'.github/workflows/sync-validation.yml').read_bytes()
+        active_entry={'mode':'100644','type':'blob','sha':hashlib.sha1(
+            b'blob '+str(len(active)).encode()+b'\0'+active).hexdigest()}
+        self.assertTrue(any(row['workflows'].get('.github/workflows/sync-validation.yml')==active_entry
+            for row in catalog))
+        # Materialize the future six-path tuple as ordinary immutable fixture
+        # data. Its enrollment belongs to source composition, not this test.
+        sources={'.github/workflows/project-tests.yml':
+                'tools/repository-checks/workflows/producers/protected-project-tests-android-platform.yml',
+            '.github/workflows/parent-qualification.yml':
+                'tools/repository-checks/workflows/producers/parent-qualification-android-platform.yml',
+            '.github/workflows/repository-checks.yml':
+                'tools/repository-checks/workflows/producers/repository-checks.yml',
+            '.github/workflows/sync-validation.yml':str(workflow.relative_to(VALIDATION.ROOT)),
+            '.github/workflows/browser-client.yml':'.github/workflows/browser-client.yml',
+            '.github/workflows/pr-metadata-context.yml':
+                'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml'}
+        with tempfile.TemporaryDirectory(prefix='sync-future-tuple-') as temporary:
+            snapshot=Path(temporary)
+            for path,relative in sources.items():
+                target=snapshot/path;target.parent.mkdir(parents=True,exist_ok=True)
+                target.write_bytes((VALIDATION.ROOT/relative).read_bytes());target.chmod(0o644)
+            self.assertEqual(yaml.safe_load((snapshot/'.github/workflows/sync-validation.yml').read_bytes()),data)
+            self.assertEqual(len(list((snapshot/'.github/workflows').iterdir())),6)
+            future=next((row for row in catalog if row['name']=='protected-producer-original-default-v1'),None)
+            if future is not None:
+                for path in sources:
+                    raw=(snapshot/path).read_bytes()
+                    self.assertEqual(future['workflows'][path],{'mode':'100644','type':'blob',
+                        'sha':hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()},path)
+        gate = yaml.safe_load((VALIDATION.ROOT / '.github/workflows/sync-test-reuse.yml').read_text())
+        self.assertEqual(gate['permissions'], {'actions':'write','checks':'read','contents':'read','pull-requests':'read'})
+        trusted = gate['jobs']['sync-test-reuse']['steps'][0]
+        self.assertEqual(trusted['with']['ref'], '${{ github.event.repository.default_branch }}')
+        self.assertIs(trusted['with']['persist-credentials'], False)
+        self.assertNotIn('secrets', gate['jobs']['sync-test-reuse'])
+        invocations=[step['run'] for step in gate['jobs']['sync-test-reuse']['steps']
+            if 'tools/sync-test-reuse/' in step.get('run','')]
+        self.assertEqual(len(invocations),3)
+        self.assertTrue(all('python3 -B ' in command for command in invocations))
+
+
+class NativeParentConsumerTests(unittest.TestCase):
+    """Actual tiny candidate commands; native API admission is a typed seam."""
+    def setUp(self):
+        self.fixture=IsolatedConsumerTests()
+        self.fixture.setUp()
+        self.addCleanup(self.fixture.doCleanups)
+        self.native_type=VALIDATION._gate().NativeParentEvidence
+        self.fixture.gate.NativeParentEvidence=self.native_type
+        self.fixture.gate.native_parent_evidence=Mock(side_effect=lambda *args:deepcopy(self.fixture.evidence))
+        self.bind_native()
+
+    def bind_native(self, parent_tree=None):
+        f=self.fixture
+        f.evidence=self.native_type(f.make_evidence(parent_tree) | {
+            'kind':'original-native-parent-v1','original_commit':'e'*40,
+            'original_git_context':{'fixture':'original immutable M'},
+            'original_proof':{'verified':True,'run_id':100,'attempt':1,
+                'receipt_sha256':'1'*64,'expires_at':'kept in outer evidence'}})
+
+    def test_complete_native_reuse_has_no_unused_consumer_e_or_execution_receipt(self):
+        f=self.fixture
+        result=f.validate(runtime_failure=AssertionError('no unused consumer E'),
+            execute_override=lambda *a,**k:(_ for _ in ()).throw(AssertionError('no unused execution')))
+        self.assertEqual(result['mode'],'reuse')
+        self.assertEqual(result['reused_suites'],['alpha','beta'])
+        self.assertEqual(result['executed_suites'],[])
+        self.assertIsNone(result['execution'])
+        self.assertEqual(f.executed(),[])
+        self.assertFalse(Path(str(f.args.receipt)+'.execution.json').exists())
+        self.assertEqual(result['parent_evidence']['original_commit'],'e'*40)
+        self.assertEqual(result['parent_evidence']['parent_commit'],f.parent)
+        self.assertFalse(result['parent_evidence']['qualification'])
+        self.assertFalse(result['parent_evidence']['reusable'])
+        self.assertEqual(result['parent_evidence']['expires_at'],f.evidence['expires_at'])
+        self.assertNotIn('workflow',result['parent_evidence'])
+        f.gate.native_parent_evidence.assert_called_once()
+        import xml.etree.ElementTree as ET
+        names=[item.attrib['name'] for item in ET.parse(f.args.junit).iter('testcase')]
+        self.assertEqual(names,['sync-differential'])
+
+    def test_historical_child_change_executes_only_affected_suite_under_its_actual_runtime(self):
+        f=self.fixture
+        parent=deepcopy(f.tree);parent['libraries/alpha.cpp']['sha']='c'*40
+        self.bind_native(parent)
+        result=f.validate(actual_environment=f.environment | {'qt':'different consumer runtime'})
+        self.assertEqual(result['reused_suites'],['beta'])
+        self.assertEqual(result['executed_suites'],['alpha'])
+        self.assertEqual(f.executed(),['alpha'])
+        self.assertEqual(result['execution']['environment']['qt'],'different consumer runtime')
+        self.assertEqual(result['parent_evidence']['reused_results'],{'beta':f.evidence['results']['suites']['beta']})
+        f.gate.native_parent_evidence.assert_called_once()
+
+    def test_native_common_reuse_never_omits_actual_platform_commands(self):
+        f=self.fixture
+        profile=f.candidate/'tests/platform-profile.json'
+        profile.write_text(json.dumps({'schema':1,'platform':'android','suites':[
+            {'name':'product-fixture','interpreter':'python','entrypoint':'tests/product.py'}]}))
+        (f.candidate/'tests/product.py').write_text('from pathlib import Path\nimport os\nPath(os.environ["FIXTURE_EXECUTION_LOG"]).write_text("product\\n")\n')
+        f.git('add','.');f.git('commit','-qm','Declare required fixture platform')
+        f.commit,f.tree_sha=execution.checkout_identity(f.candidate)
+        f.tree=inputs.full_tree(f.candidate)
+        f.request.merge_sha=f.commit;f.pr['merge_commit_sha']=f.commit;f.args.merge_sha=f.commit
+        self.bind_native()
+        result=f.validate()
+        self.assertEqual(result['reused_suites'],['alpha','beta'])
+        self.assertEqual(result['executed_suites'],[])
+        self.assertEqual(f.executed(),['product'])
+        self.assertEqual(set(result['execution']['platform_results']),{'product-fixture'})
+        self.assertTrue(result['execution']['include_platform'])
+
+    def test_after_start_missing_changed_or_expired_native_proof_is_hard_failure_without_retry(self):
+        f=self.fixture
+        parent=deepcopy(f.tree);parent['libraries/alpha.cpp']['sha']='c'*40
+        self.bind_native(parent)
+        f.gate.native_parent_evidence.side_effect=EvidenceError('native publisher unavailable')
+        with self.assertRaisesRegex(VALIDATION.ValidationError,'became unavailable'):
+            f.validate()
+        self.assertEqual(f.executed(),['alpha'])
+        self.assertFalse(f.args.receipt.exists())
+        f.gate.native_parent_evidence.assert_called_once()
+
+    def test_changed_native_bookend_is_rejected_even_without_workload(self):
+        f=self.fixture
+        changed=deepcopy(f.evidence);changed['original_proof']['receipt_sha256']='0'*64
+        f.gate.native_parent_evidence.side_effect=None
+        f.gate.native_parent_evidence.return_value=changed
+        with self.assertRaisesRegex(VALIDATION.ValidationError,'proof changed'):
+            f.validate(runtime_failure=AssertionError('no unused consumer E'))
+        self.assertEqual(f.executed(),[])
+        self.assertFalse(f.args.receipt.exists())
+
+    def test_untyped_legacy_json_kind_cannot_bypass_consumer_runtime_comparison(self):
+        f=self.fixture
+        f.evidence=dict(f.evidence)
+        result=f.validate(actual_environment=f.environment | {'qt':'different consumer runtime'})
+        self.assertEqual(result['mode'],'fallback')
+        self.assertEqual(set(f.executed()),{'alpha','beta'})
+        f.gate.native_parent_evidence.assert_not_called()
+
+    def test_expired_native_proof_during_validation_cannot_publish_success(self):
+        f=self.fixture
+        f.evidence['expires_at']='2020-01-01T00:00:00Z'
+        with self.assertRaisesRegex(VALIDATION.ValidationError,'expired'):
+            f.validate(runtime_failure=AssertionError('no unused consumer E'))
+        self.assertFalse(f.args.receipt.exists())
+
+    def test_missing_native_admission_keeps_real_full_fallback(self):
+        f=self.fixture
+        f.gate.verify_evidence=lambda *args:(_ for _ in ()).throw(EvidenceError('missing original native proof'))
+        result=f.validate()
+        self.assertEqual(result['mode'],'fallback')
+        self.assertEqual(set(f.executed()),{'alpha','beta'})
+        f.gate.native_parent_evidence.assert_not_called()
+
+
+class NativeZeroCommandSetupTests(unittest.TestCase):
+    def setUp(self):
+        self.native = NativeParentConsumerTests()
+        self.native.setUp()
+        self.addCleanup(self.native.doCleanups)
+        self.fixture = self.native.fixture
+
+    def prepare(self, *, affected=False):
+        f = self.fixture
+        if affected:
+            f.ci_fixture(); f.args.mode = 'reuse'; self.native.bind_native()
+        selected = f.ci_prepare()
+        f.args.expected_native_setup = selected.get('native_setup', '')
+        return selected
+
+    def test_early_lookup_is_stdlib_only_and_does_not_change_pure_selection(self):
+        f = self.fixture
+        with patch.object(execution,'execute',side_effect=AssertionError('no execution during setup plan')), \
+                patch.object(execution,'capture_execution_environment',side_effect=AssertionError('no unused consumer E')):
+            selected = self.prepare()
+        self.assertEqual(selected['consumer_setup'], 'none')
+        self.assertTrue(selected['native_setup'].startswith('sha256:'))
+        with patch.object(inputs,'load_registry',return_value=f.registry):
+            source = VALIDATION._ci_selection(f.args,f.request,f.candidate,(f.commit,f.tree_sha),f.registry,f.api)
+        self.assertEqual({key:value for key,value in selected.items() if key not in {'consumer_setup','native_setup'}}, source)
+        self.assertEqual(f.executed(), [])
+
+    def test_no_setup_complete_and_selected_paths_revalidate_native_proof_around_differential(self):
+        # Separate real candidates keep selection-policy and typed-proof seams
+        # explicit; neither path needs a venv, Qt installation or consumer E.
+        for affected in (False, True):
+            if affected:
+                self.native.doCleanups(); self.setUp()
+            f = self.fixture; selected = self.prepare(affected=affected)
+            self.assertEqual(selected['consumer_setup'],'none')
+            f.gate.native_parent_evidence.reset_mock()
+            f.gate.verify_evidence = lambda *a: (_ for _ in ()).throw(AssertionError('no legacy capsule'))
+            def differential(*args):
+                self.assertEqual(f.gate.native_parent_evidence.call_count, 1, 'fresh native proof precedes differential')
+            with patch.object(VALIDATION,'_differential',side_effect=differential) as check:
+                result = f.validate(runtime_failure=AssertionError('no unused consumer E'),
+                    execute_override=lambda *a,**k: (_ for _ in ()).throw(AssertionError('no unprepared fallback')),
+                    ci_execute_override=lambda *a,**k: (_ for _ in ()).throw(AssertionError('no selected command')))
+            check.assert_called_once()
+            self.assertEqual(f.gate.native_parent_evidence.call_count,2)
+            self.assertIsNone(result['execution'])
+            self.assertEqual(result['executed_suites'],[])
+            self.assertEqual(f.executed(),[])
+
+    def test_missing_initial_proof_keeps_existing_setup_and_real_execution(self):
+        f = self.fixture
+        f.gate.native_parent_evidence.side_effect = EvidenceError('no current native proof')
+        selected = self.prepare()
+        self.assertNotIn('consumer_setup',selected)
+        self.assertEqual(f.args.expected_native_setup,'')
+        f.gate.verify_evidence = lambda *a: (_ for _ in ()).throw(EvidenceError('no legacy proof'))
+        result = f.validate()
+        self.assertEqual(set(result['executed_suites']),{'alpha','beta'})
+        self.assertEqual(set(f.executed()),{'alpha','beta'})
+
+    def test_marker_without_proof_or_changed_expired_required_proof_never_runs_unprepared_commands(self):
+        f = self.fixture; self.prepare()
+        original = deepcopy(f.evidence)
+        changed = deepcopy(original); changed['original_proof']['receipt_sha256']='0'*64
+        expired = deepcopy(original); expired['expires_at']='2020-01-01T00:00:00Z'
+        required = deepcopy(original); del required['results']['suites']['alpha']
+        for value in (EvidenceError('proof unavailable'), dict(original), changed, expired, required):
+            f.gate.native_parent_evidence.side_effect = [value]
+            with self.subTest(value=type(value).__name__), patch.object(VALIDATION,'_differential') as differential, \
+                    self.assertRaises(VALIDATION.ValidationError):
+                f.validate(execute_override=lambda *a,**k: (_ for _ in ()).throw(AssertionError('no unprepared fallback')))
+            differential.assert_not_called()
+            self.assertEqual(f.executed(),[])
+            self.assertFalse(f.args.receipt.exists())
+
+    def test_original_proof_expiry_or_ref_drift_after_differential_is_hard_failure(self):
+        f = self.fixture; self.prepare()
+        original = deepcopy(f.evidence)
+        def differential(*args):
+            f.evidence['original_proof']['receipt_sha256']='0'*64
+        with patch.object(VALIDATION,'_differential',side_effect=differential), self.assertRaises(VALIDATION.ValidationError):
+            f.validate()
+        self.assertEqual(f.executed(),[])
+        self.assertFalse(f.args.receipt.exists())
+        f.evidence=deepcopy(original)
+        def expired(*args): f.evidence['expires_at']='2020-01-01T00:00:00Z'
+        with patch.object(VALIDATION,'_differential',side_effect=expired), self.assertRaises(VALIDATION.ValidationError): f.validate()
+        self.assertEqual(f.executed(),[])
+        self.assertFalse(f.args.receipt.exists())
+        f.evidence=deepcopy(original)
+        def moved(*args): f.api.pr['head']['sha']='f'*40
+        with patch.object(VALIDATION,'_differential',side_effect=moved), self.assertRaises(VALIDATION.ValidationError): f.validate()
+        self.assertEqual(f.executed(),[])
+        self.assertFalse(f.args.receipt.exists())
+
+    def test_nonempty_current_platform_cannot_schedule_no_setup(self):
+        f = self.fixture
+        profile=f.candidate/'tests/platform-profile.json'
+        profile.write_text(json.dumps({'schema':1,'platform':'android','suites':[
+            {'name':'product','entrypoint':'tests/product.py','interpreter':'python'}]}))
+        (f.candidate/'tests/product.py').write_text('raise AssertionError("unprepared product must not run")\n')
+        f.git('add','.');f.git('commit','-qm','Declare actual product requirement')
+        f.commit,f.tree_sha=execution.checkout_identity(f.candidate);f.tree=inputs.full_tree(f.candidate)
+        f.request.merge_sha=f.args.merge_sha=f.api.pr['merge_commit_sha']=f.commit
+        self.native.bind_native()
+        selected=self.prepare()
+        self.assertNotIn('consumer_setup',selected)
+        f.args.expected_native_setup='sha256:'+'0'*64
+        with self.assertRaises(VALIDATION.ValidationError): f.validate()
+        self.assertEqual(f.executed(),[])
+
+    def test_workflow_skips_all_unused_setup_and_missing_required_venv_cannot_silently_fall_back(self):
+        import yaml
+        path=VALIDATION.ROOT/'tools/repository-checks/workflows/sync-ci-selection.yml'
+        steps=yaml.safe_load(path.read_text())['jobs']['validate']['steps']
+        for name in ('Set up candidate Python','Set up candidate Node.js','Set up candidate Java',
+                'Install candidate host prerequisites','Prepare isolated shared and product Python validators'):
+            self.assertTrue(next(step for step in steps if step['name']==name)['if'].startswith("(steps.select.outputs.consumer_setup != 'none' || steps.select.outputs.native_setup == '') && "))
+        step=next(step for step in steps if step['name']=='Verify exact candidate suites and complete runtime identity')
+        self.assertEqual(step['env']['SYNC_VALIDATOR_PYTHON'],
+            "${{ steps.select.outputs.consumer_setup == 'none' && steps.select.outputs.native_setup != '' && 'python3' || 'build/host-tests-env/bin/python' }}")
+        f=self.fixture; binary=f.output/'bin';binary.mkdir()
+        fake=binary/'python3';fake.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$FIXTURE_VALIDATOR_ARGS"\n');fake.chmod(0o755)
+        environment={**os.environ,'PATH':str(binary)+os.pathsep+os.environ['PATH'],
+            'SYNC_VALIDATOR_PYTHON':'python3','EXPECTED_NATIVE_SETUP':'sha256:'+'1'*64,
+            'FIXTURE_VALIDATOR_ARGS':str(f.output/'args')}
+        # The exact workflow command can run without its missing venv. The fake
+        # interpreter observes argument transport only, never asserts authority.
+        result=subprocess.run(['bash','-e','-o','pipefail','-c',step['run']],cwd=f.output,env=environment,capture_output=True)
+        self.assertEqual(result.returncode,0,result.stderr)
+        arguments=(f.output/'args').read_text().splitlines()
+        self.assertEqual(arguments[:2],['-B','trusted/tools/test-evidence/validate-sync.py'])
+        self.assertEqual(arguments[arguments.index('--expected-native-setup')+1],environment['EXPECTED_NATIVE_SETUP'])
+        environment['SYNC_VALIDATOR_PYTHON']='build/host-tests-env/bin/python'
+        result=subprocess.run(['bash','-e','-o','pipefail','-c',step['run']],cwd=f.output,env=environment,capture_output=True)
+        self.assertNotEqual(result.returncode,0)
+
+
+class NativeSelectedParentConsumerTests(unittest.TestCase):
+    """Real selected fixture commands plus independently supplied typed proof."""
+    def setUp(self):
+        self.fixture = IsolatedConsumerTests()
+        self.fixture.setUp()
+        self.addCleanup(self.fixture.doCleanups)
+        self.native_type = VALIDATION._gate().NativeParentEvidence
+        self.fixture.gate.NativeParentEvidence = self.native_type
+        self.fixture.gate.native_parent_evidence = Mock(side_effect=lambda *args: deepcopy(self.fixture.evidence))
+
+    def prepare(self, *, two_selected=False, npm=False, parent_tree=None):
+        f = self.fixture
+        if two_selected:
+            (f.candidate / 'tests/gamma.py').write_text('raise AssertionError("unselected must never run")\n')
+            (f.candidate / 'libraries/gamma.cpp').write_text('unselected fixture input\n')
+            f.registry['suites']['gamma'] = deepcopy(f.registry['suites']['beta'])
+            f.registry['suites']['gamma'].update(command=['python','tests/gamma.py'], layer='host',
+                closure={'kind':'patterns','inputs':['tests/gamma.py','libraries/gamma.cpp'],
+                    'required':['tests/gamma.py','libraries/gamma.cpp']})
+        # Declare both suites before constructing reviewed immutable B/M;
+        # changing command definitions after review correctly selects fallback.
+        f.ci_fixture(npm=npm, quick_beta=two_selected)
+        f.args.mode = 'reuse'
+        selected = f.ci_prepare()
+        self.bind_native(parent_tree)
+        # These counters describe final validation; early no-setup scheduling
+        # has its own typed-proof tests and cannot authorize this invocation.
+        f.gate.native_parent_evidence.reset_mock()
+        return selected
+
+    def bind_native(self, parent_tree=None):
+        f = self.fixture
+        f.evidence = self.native_type(f.make_evidence(parent_tree) | {
+            'kind':'original-native-parent-v1','original_commit':'e'*40,
+            'original_git_context':{'fixture':'original immutable M'},
+            'original_proof':{'verified':True,'run_id':100,'attempt':1,'receipt_sha256':'1'*64}})
+
+    def test_exact_selected_native_reuse_does_no_unused_execution_or_consumer_capture(self):
+        f = self.fixture; selected = self.prepare(npm=True)
+        with patch.object(VALIDATION,'_differential') as differential:
+            result = f.validate(runtime_failure=AssertionError('no consumer E'),
+                ci_execute_override=lambda *a,**k: (_ for _ in ()).throw(AssertionError('no remaining command')))
+        differential.assert_called_once()
+        self.assertEqual(selected['suites'], ['alpha'])
+        self.assertEqual(result['reused_suites'], ['alpha'])
+        self.assertEqual(result['executed_suites'], [])
+        self.assertEqual(result['not_selected_suites'], ['beta'])
+        self.assertEqual(result['external_package_set'], ['browser-client'])
+        self.assertIsNone(result['execution'])
+        self.assertFalse(Path(str(f.args.receipt)+'.ci-execution.json').exists())
+        self.assertEqual(result['parent_evidence']['original_commit'], 'e'*40)
+        self.assertFalse(result['parent_evidence']['qualification'])
+        self.assertFalse(result['parent_evidence']['reusable'])
+        self.assertEqual(set(result['parent_evidence']['reused_results']), {'alpha'})
+        self.assertEqual(f.executed(), [])
+        f.ci_packages.run.assert_not_called()
+        self.assertEqual(f.gate.native_parent_evidence.call_count, 2)
+        import xml.etree.ElementTree as ET
+        self.assertEqual([x.attrib['name'] for x in ET.parse(f.args.junit).iter('testcase')], ['sync-differential'])
+
+    def test_historical_child_difference_executes_only_selected_required_intersection(self):
+        f = self.fixture; self.prepare(two_selected=True)
+        parent = deepcopy(f.tree); parent['libraries/alpha.cpp']['sha'] = 'c'*40
+        self.bind_native(parent)
+        result = f.validate(runtime_failure=AssertionError('no unused consumer E'))
+        self.assertEqual(result['reused_suites'], ['beta'])
+        self.assertEqual(result['executed_suites'], ['alpha'])
+        self.assertEqual(result['not_selected_suites'], ['gamma'])
+        self.assertEqual(f.executed(), ['alpha'])
+        self.assertEqual(result['execution']['requested_suites'], ['alpha'])
+        self.assertEqual(result['execution']['selection'], f.args.expected_selection)
+        self.assertFalse(result['execution']['reusable'])
+        self.assertEqual(set(result['parent_evidence']['reused_results']), {'beta'})
+
+    def test_missing_native_proof_executes_existing_selected_work_once(self):
+        f = self.fixture; self.prepare()
+        f.gate.native_parent_evidence.side_effect = EvidenceError('no original publisher')
+        result = f.validate(runtime_failure=AssertionError('CI fallback does not need reusable E'))
+        self.assertEqual(f.executed(), ['alpha'])
+        self.assertEqual(result['reused_suites'], [])
+        self.assertEqual(result['not_selected_suites'], ['beta'])
+        self.assertIsNone(result['parent_evidence'])
+        f.gate.native_parent_evidence.assert_called_once()
+
+    def test_untyped_or_unselected_only_proof_cannot_skip_selected_work(self):
+        f = self.fixture; self.prepare()
+        f.evidence = dict(f.evidence)
+        result = f.validate()
+        self.assertEqual(result['executed_suites'], ['alpha'])
+        self.assertEqual(result['reused_suites'], [])
+        self.assertIsNone(result['parent_evidence'])
+        f.log.unlink(); self.bind_native()
+        # beta is passed but not selected. It cannot compensate for alpha.
+        del f.evidence['results']['suites']['alpha']
+        result = f.validate()
+        self.assertEqual(f.executed(), ['alpha'])
+        self.assertEqual(result['reused_suites'], [])
+        self.assertIsNone(result['parent_evidence'])
+
+    def test_original_proof_or_expiry_change_after_execution_is_hard_failure(self):
+        f = self.fixture; self.prepare(two_selected=True)
+        parent = deepcopy(f.tree); parent['libraries/alpha.cpp']['sha'] = 'c'*40
+        self.bind_native(parent)
+        changed = deepcopy(f.evidence); changed['original_proof']['receipt_sha256'] = '0'*64
+        for final in (EvidenceError('publisher missing'), changed):
+            f.gate.native_parent_evidence.side_effect = [deepcopy(f.evidence), final]
+            with self.subTest(final=type(final).__name__), self.assertRaises(VALIDATION.ValidationError):
+                f.validate()
+            self.assertEqual(f.executed(), ['alpha'])
+            self.assertFalse(f.args.receipt.exists())
+            f.log.unlink()
+        f.gate.native_parent_evidence.side_effect = lambda *args: deepcopy(f.evidence)
+        f.evidence['expires_at'] = '2020-01-01T00:00:00Z'
+        with self.assertRaisesRegex(VALIDATION.ValidationError, 'expired'):
+            f.validate()
+        self.assertEqual(f.executed(), ['alpha'])
+        self.assertFalse(f.args.receipt.exists())
+
+    def test_source_or_expected_selection_mismatch_blocks_before_commands(self):
+        f = self.fixture; self.prepare()
+        f.evidence['candidate_inputs']['libraries/alpha.cpp']['sha'] = 'c'*40
+        with self.assertRaisesRegex(VALIDATION.ValidationError, 'verified native API inputs'): f.validate()
+        self.assertEqual(f.executed(), [])
+        self.bind_native(); f.args.expected_selection = 'sha256:'+'0'*64
+        with self.assertRaisesRegex(VALIDATION.ValidationError, 'prerequisite plan'): f.validate()
+        self.assertEqual(f.executed(), [])
+
+    def test_selected_failure_never_retries_or_borrows_unselected_pass(self):
+        f = self.fixture; self.prepare(two_selected=True)
+        parent = deepcopy(f.tree); parent['libraries/alpha.cpp']['sha'] = 'c'*40
+        self.bind_native(parent)
+        with self.assertRaises(VALIDATION.ValidationError):
+            f.validate(extra_environment={'FIXTURE_FAIL_ALPHA':'1'})
+        self.assertEqual(f.executed(), ['alpha'])
+        self.assertFalse(f.args.receipt.exists())
+        f.gate.native_parent_evidence.assert_called_once()
+
+    def test_internal_remaining_subset_cannot_expand_reorder_or_repeat_selection(self):
+        f = self.fixture; selected = self.prepare(two_selected=True)
+        for names in (['gamma'], ['beta','alpha'], ['alpha','alpha'], 'alpha'):
+            with self.subTest(names=names), self.assertRaises(VALIDATION.ValidationError):
+                VALIDATION._ci_commands(selected, f.registry, suite_names=names)
+        self.assertEqual(VALIDATION._ci_commands(selected, f.registry),
+            {name:f.registry['suites'][name]['command'] for name in ('alpha','beta')})
 
 
 if __name__ == "__main__":

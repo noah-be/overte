@@ -86,6 +86,8 @@ INDEPENDENT_HOST_PATHS = frozenset({
     "tools/repository-checks/workflows/producers/protected-project-tests.yml",
     "tools/repository-checks/workflows/producers/repository-checks.yml",
     "tools/repository-checks/workflows/producers/parent-qualification.yml",
+    "tools/repository-checks/workflows/producers/protected-project-tests-android-platform.yml",
+    "tools/repository-checks/workflows/producers/parent-qualification-android-platform.yml",
     ".github/workflows/android-required.yml",
     ".github/android-owner-transfer.json",
     "tests/android-owner-transfer-test.py",
@@ -422,7 +424,10 @@ def npm_package_admission(repository, previous, current, package_owner):
             item = selected["projects"][project]
             if item["changed_paths"] != [path]:
                 return None
-            focused = item["profile"] == profile and item["required"] is True \
+            # Complete package validation owns other lock graph changes too.
+            # Both immutable iOS reader boundaries are still required; this
+            # grants no package PASS, app artifact or native reuse authority.
+            focused = item["profile"] in {profile, "full"} and item["required"] is True \
                 and project in package_owner["package_set"]
             formatting = item["profile"] == "none" and item["required"] is False \
                 and item["reason"] == "reviewed-lockfile-format-only" \
