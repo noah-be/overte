@@ -41,6 +41,201 @@ class HostSelectionTests(unittest.TestCase):
                            unknown=unknown, trusted_tree=self.tree if trusted_tree is None else trusted_tree,
                            target=target, base_tree=base_tree, package_paths=package_paths)
 
+    def producer_transition(self):
+        policy = HOST.package_policy()
+        generations = {generation['name']: generation['workflows'] for generation in policy.workflow_generations()}
+        previous, candidate = deepcopy(self.tree), deepcopy(self.tree)
+        previous.update(deepcopy(generations['android-owned-npm5-sync-ci-v1']))
+        candidate.update(deepcopy(generations['protected-shared-producer-v1']))
+        paths = sorted(path for path in previous.keys() | candidate.keys() if previous.get(path) != candidate.get(path))
+        return previous, candidate, paths
+
+    def test_exact_protected_producer_transition_selects_every_trusted_suite_once(self):
+        previous, candidate, paths = self.producer_transition()
+        result = self.selected(paths, tree=candidate, trusted_tree=previous, base_tree=previous)
+        self.assertEqual(paths, ['.github/workflows/project-tests.yml', '.github/workflows/repository-checks.yml'])
+        self.assertEqual(result, {'suites': list(self.registry['suites']),
+            'reason': 'reviewed-protected-producer-transition', 'full_host': True, 'include_platform': True})
+        self.assertEqual(len(result['suites']), len(set(result['suites'])))
+
+    def test_producer_transition_requires_main_complete_inventory_and_current_trusted_base(self):
+        previous, candidate, paths = self.producer_transition()
+        for mutation in ('child', 'unknown', 'nonregular', 'missing-base', 'missing-trusted',
+                         'missing-path', 'extra-path', 'duplicate-path', 'trusted-drift'):
+            kwargs = {'tree': candidate, 'trusted_tree': previous, 'base_tree': previous}
+            changed_paths = paths
+            if mutation == 'child': kwargs['target'] = 'apple-ios'
+            elif mutation == 'unknown': kwargs['unknown'] = True
+            elif mutation == 'nonregular': kwargs['regular'] = False
+            elif mutation == 'missing-base': kwargs['base_tree'] = None
+            elif mutation == 'missing-trusted': kwargs['trusted_tree'] = {}
+            elif mutation == 'missing-path': changed_paths = paths[:1]
+            elif mutation == 'extra-path': changed_paths = [*paths, 'docs/producer-transition.md']
+            elif mutation == 'duplicate-path': changed_paths = [*paths, paths[0]]
+            elif mutation == 'trusted-drift':
+                kwargs['trusted_tree'] = deepcopy(previous)
+                kwargs['trusted_tree']['docs/producer-transition.md'] = {'mode': '100644', 'type': 'blob', 'sha': 'a'*40}
+            with self.subTest(mutation=mutation):
+                self.assertNotEqual(self.selected(changed_paths, **kwargs)['reason'],
+                                    'reviewed-protected-producer-transition')
+
+    def test_producer_transition_rejects_each_modified_missing_nonregular_or_mixed_endpoint(self):
+        previous, candidate, paths = self.producer_transition()
+        workflows = HOST.package_policy().CONSUMER_WORKFLOW_PATHS
+        for side in ('base', 'candidate', 'trusted'):
+            for path in workflows:
+                for mutation in ('missing', 'modified', 'executable', 'symlink', 'gitlink', 'mixed'):
+                    snapshots = {'base': deepcopy(previous), 'candidate': deepcopy(candidate), 'trusted': deepcopy(previous)}
+                    snapshot = snapshots[side]
+                    if mutation == 'missing': del snapshot[path]
+                    elif mutation == 'modified': snapshot[path]['sha'] = 'a'*40
+                    elif mutation == 'executable': snapshot[path]['mode'] = '100755'
+                    elif mutation == 'symlink': snapshot[path]['mode'] = '120000'
+                    elif mutation == 'gitlink': snapshot[path].update(mode='160000', type='commit')
+                    else:
+                        other = previous if side == 'candidate' else candidate
+                        if snapshot[path] == other[path]: continue  # Three sibling endpoints are identical.
+                        snapshot[path] = deepcopy(other[path])
+                    with self.subTest(side=side, path=path, mutation=mutation):
+                        self.assertFalse(HOST._protected_producer_transition(snapshots['candidate'], paths,
+                            snapshots['base'], snapshots['trusted'], 'main'))
+
+    def test_producer_transition_cannot_conceal_any_other_tree_change(self):
+        previous, candidate, paths = self.producer_transition()
+        for path in ('tools/test-evidence/producer_workflow.py', 'tools/repository-checks/host_selection.py',
+                     '.github/shared-sandbox.json', '.github/test-suites.json',
+                     '.github/package-workflow-generations.json', 'tests/platform-profile.json',
+                     'interface/src/Application.cpp', 'docs/producer-transition.md'):
+            changed = deepcopy(candidate)
+            changed[path] = {'mode': '100644', 'type': 'blob', 'sha': 'a'*40}
+            with self.subTest(path=path):
+                self.assertFalse(HOST._protected_producer_transition(changed, paths, previous, previous, 'main'))
+
+    def test_producer_transition_does_not_accept_another_approved_legacy_tuple(self):
+        previous, candidate, paths = self.producer_transition()
+        generation = next(g for g in HOST.package_policy().workflow_generations()
+                          if g['name'] == 'npm-consumers-metadata-edits-v1')
+        previous.update(deepcopy(generation['workflows']))
+        self.assertFalse(HOST._protected_producer_transition(candidate, paths, previous, previous, 'main'))
+
+    def test_producer_transition_preserves_the_independent_trusted_reader_review(self):
+        previous, candidate, paths = self.producer_transition()
+        for snapshot in (previous, candidate):
+            snapshot['libraries/shared/src/unreviewed-transition-reader.cpp'] = {
+                'mode': '100644', 'type': 'blob', 'sha': 'a'*40}
+        result = self.selected(paths, tree=candidate, trusted_tree=previous, base_tree=previous)
+        self.assertEqual(result['reason'], 'host-reader-generation-not-reviewed')
+        self.assertTrue(result['full_host'])
+        self.assertEqual(set(result['suites']), self.all_names)
+
+    def test_ci_changes_after_producer_installation_return_to_the_existing_quick_selection(self):
+        _, previous, _ = self.producer_transition()
+        candidate = deepcopy(previous)
+        path = 'tools/branch-cleanup/cleanup.py'
+        candidate[path]['sha'] = 'a'*40
+        result = self.selected([path], tree=candidate, trusted_tree=previous, base_tree=previous)
+        self.assertEqual(set(result['suites']), self.ci_quick)
+        self.assertEqual(result['reason'], 'reviewed-ci-only-inputs')
+        self.assertFalse(result['full_host'])
+        self.assertFalse(result['include_platform'])
+
+    def test_actual_producer_prepare_accepts_the_transition_but_rejects_later_quick_only_selection(self):
+        # Immutable Git/API facts are fixtures; this does not qualify execution,
+        # runtime admission, source flags, or the native final publisher.
+        import producer_workflow as producer
+        previous, candidate_tree, paths = self.producer_transition()
+        packages = HOST.package_policy()
+        plan = {'candidate': 'a'*40, 'base': 'd'*40, 'plan': 'c'*64, 'host_mode': 'full',
+                'paths': paths, 'regular': True, 'unknown': False}
+        repository = {'full_name': 'noah-l-frank/overte', 'id': 1319052603}
+        binding = {'pull_request': 17, 'merge_sha': 'a'*40, 'merge_tree': 'b'*40,
+                   'merge_parents': ['d'*40, 'e'*40], 'base_ref': 'main', 'base_sha': 'd'*40,
+                   'head_ref': 'fix/main/activate-protected-producer', 'head_sha': 'e'*40}
+        event = {'repository': repository, 'number': 17, 'pull_request': {'number': 17,
+            'base': {'repo': repository, 'ref': 'main', 'sha': 'd'*40},
+            'head': {'repo': repository, 'ref': binding['head_ref'], 'sha': 'e'*40}}}
+        environment = {'GITHUB_REPOSITORY': repository['full_name'], 'GITHUB_REPOSITORY_ID': '1319052603',
+            'GITHUB_ACTIONS': 'true', 'GITHUB_EVENT_NAME': 'pull_request', 'GITHUB_BASE_REF': 'main',
+            'GITHUB_HEAD_REF': binding['head_ref'], 'RUNNER_ENVIRONMENT': 'github-hosted', 'ImageOS': 'ubuntu24',
+            'GITHUB_RUN_ATTEMPT': '1', 'GITHUB_REF': 'refs/pull/17/merge', 'GITHUB_RUN_ID': '123',
+            'GITHUB_SHA': 'a'*40, 'GITHUB_WORKFLOW_SHA': 'a'*40,
+            'GITHUB_WORKFLOW_REF': repository['full_name'] + '/.github/workflows/repository-checks.yml@refs/pull/17/merge'}
+        refs = {'default': 'd'*40, 'default_ref': 'main'}
+        commits = {'a'*40: ('b'*40, ['d'*40, 'e'*40]), 'd'*40: ('f'*40, ['7'*40]),
+                   'e'*40: ('8'*40, ['d'*40])}
+        adapter = SimpleNamespace(current=Mock(return_value=(binding, refs)),
+            _object=Mock(return_value={'id': 456, 'path': '.github/workflows/repository-checks.yml'}),
+            _commit=lambda revision: commits[revision])
+        snapshots = {'base': previous, 'candidate': candidate_tree, 'trusted': previous}
+        contents = {HOST.hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest(): raw
+                    for path in (ROOT/'tools/repository-checks/workflows').rglob('*.yml')
+                    for raw in (path.read_bytes(),)}
+        policy = SimpleNamespace(validate_wiring=packages.validate_wiring, candidate_plan=Mock(return_value=plan),
+            workflow_generations=packages.workflow_generations, CONSUMER_WORKFLOW_PATHS=packages.CONSUMER_WORKFLOW_PATHS)
+        with tempfile.TemporaryDirectory(prefix='overte-producer-selection-') as folder:
+            candidate, trusted = Path(folder)/'candidate', Path(folder)/'trusted'
+            candidate.mkdir()
+            trusted.mkdir()
+            for path in packages.CONSUMER_WORKFLOW_PATHS:
+                endpoint = candidate/path
+                endpoint.parent.mkdir(parents=True, exist_ok=True)
+                endpoint.write_bytes(contents[candidate_tree[path]['sha']])
+            for path in ('.github/test-suites.json', 'tests/platform-profile.json'):
+                endpoint = candidate/path
+                endpoint.parent.mkdir(parents=True, exist_ok=True)
+                endpoint.write_bytes((ROOT/path).read_bytes())
+            # program_digest reads the registry by immutable blob identity.
+            HOST.subprocess.check_call(['git', 'init', '-q', '--initial-branch=main', str(candidate)])
+            HOST.subprocess.check_output(['git', 'hash-object', '-w', '--', '.github/test-suites.json'], cwd=candidate)
+            # Exercise the real private immutable Git reader in an ordinary
+            # repository. It has no ambient HEAD ref: only the independently
+            # validated exact default commit can identify the trusted template.
+            for path in (producer.TEMPLATE, '.github/test-suites.json'):
+                endpoint = trusted/path
+                endpoint.parent.mkdir(parents=True, exist_ok=True)
+                endpoint.write_bytes((ROOT/path).read_bytes())
+            def trusted_git(*arguments):
+                return HOST.subprocess.check_output(['git', '-c', 'commit.gpgsign=false',
+                    '-c', 'user.name=Producer selection fixture', '-c', 'user.email=fixture@example.invalid',
+                    *arguments], cwd=trusted).decode().strip()
+            trusted_git('init', '-q', '--initial-branch=main')
+            trusted_git('add', '--', producer.TEMPLATE, '.github/test-suites.json')
+            trusted_git('commit', '-qm', 'Create immutable trusted producer template fixture')
+            refs['default'] = trusted_git('rev-parse', 'HEAD')
+            trusted_git('symbolic-ref', 'HEAD', 'refs/heads/absent')
+            def full_tree(root, revision):
+                return snapshots['candidate' if revision == 'a'*40 else 'base' if revision == 'd'*40 else 'trusted']
+            with patch.object(producer, 'ROOT', trusted), \
+                 patch.object(producer, '_host_policy', return_value=HOST), \
+                 patch.object(HOST, 'package_policy', return_value=policy), \
+                 patch.object(HOST.inputs, 'full_tree', side_effect=full_tree), \
+                 patch.object(HOST.execution, 'checkout_identity', side_effect=lambda root:
+                     ('a'*40, 'b'*40) if Path(root) == candidate else (refs['default'], 'f'*40)), \
+                 patch.object(producer.sandbox, 'contract', return_value={'digest': 'sha256:'+'5'*64}), \
+                 patch.object(producer, '_controller_identity', return_value='sha256:'+'9'*64):
+                prepared = producer.prepare(candidate, event, environment, adapter)
+                self.assertEqual(prepared['selected']['reason'], 'reviewed-protected-producer-transition')
+                owner = prepared['plan']['owners']['shared-host']
+                self.assertEqual(owner['suites'], list(self.registry['suites']))
+                self.assertTrue(owner['include_platform'])
+                self.assertEqual(owner['platform'], {})
+                self.assertEqual(prepared['run_id'], 123)
+                self.assertEqual(prepared['policy'].producer.required_execution_schema, 3)
+                self.assertEqual(prepared['policy'].producer.workflow_blob,
+                                 candidate_tree['.github/workflows/project-tests.yml']['sha'])
+                adapter._object.assert_called_once_with('actions/workflows/repository-checks.yml')
+                self.assertEqual(adapter.current.call_count, 2)  # Independent source bookend.
+                # Once installed, the same controllers retain the normal CI37
+                # route and prepare cannot relabel it as full-host execution.
+                snapshots['base'] = snapshots['trusted'] = deepcopy(candidate_tree)
+                snapshots['candidate'] = deepcopy(candidate_tree)
+                path = 'tools/branch-cleanup/cleanup.py'
+                snapshots['candidate'][path]['sha'] = '9'*40
+                plan['paths'] = [path]
+                with self.assertRaises(producer.PreExecutionUnavailable):
+                    producer.prepare(candidate, event, environment, adapter)
+                adapter._object.assert_called_once()
+
     def package_plan(self, path='browser-client/package-lock.json', *, formatting=False):
         project, profile = HOST.PACKAGE_LOCKS[path]
         return {'base': 'a'*40, 'candidate': 'b'*40, 'tree': 'c'*40,
@@ -413,7 +608,8 @@ class HostSelectionTests(unittest.TestCase):
                  'tools/test-evidence/sandbox_host_fixture.py', 'tools/test-evidence/sandbox_probe.py',
                  'tools/test-evidence/sandbox_shared.py',
                  'tools/test-evidence/producer_workflow.py',
-                 'tools/repository-checks/workflows/producers/protected-project-tests.yml')
+                 'tools/repository-checks/workflows/producers/protected-project-tests.yml',
+                 'tools/repository-checks/workflows/producers/repository-checks.yml')
         selected = self.selected(paths)
         self.assertEqual(set(selected['suites']), self.ci_quick)
         self.assertFalse(selected['include_platform'])
@@ -422,9 +618,10 @@ class HostSelectionTests(unittest.TestCase):
                      'tools/test-evidence/sandbox_host.py', 'tools/test-evidence/sandbox_host_fixture.py',
                      'tools/test-evidence/sandbox_probe.py', 'tools/test-evidence/sandbox_shared.py',
                      'tools/test-evidence/producer_workflow.py',
-                     'tools/repository-checks/workflows/producers/protected-project-tests.yml'):
+                     'tools/repository-checks/workflows/producers/protected-project-tests.yml',
+                     'tools/repository-checks/workflows/producers/repository-checks.yml'):
             candidate = deepcopy(self.tree)
-            candidate[path]['sha'] = 'b' * 40
+            candidate[path] = {'mode': '100644', 'type': 'blob', 'sha': 'b' * 40}
             with self.subTest(controller=path):
                 self.assertTrue(self.selected(paths, tree=candidate)['include_platform'])
         for path in ('tools/test-evidence/sandbox_extra.py',
@@ -475,19 +672,26 @@ class HostSelectionTests(unittest.TestCase):
         self.assertTrue(self.selected(['tools/branch-cleanup/cleanup.py'],target='unknown')['include_platform'])
 
     def cli(self, runner_result=0, expected='c'*64, cancel=False, new_command=False,
-            select_only=False, full_host=False, control_changed=False, platform=False):
+            select_only=False, full_host=False, control_changed=False, platform=False, transition=False):
         plan={'candidate':'a'*40,'plan':'c'*64,'host_mode':'full',
               'paths':(['interface/src/Application.cpp'] if full_host else
                        [HOST.CONTROL_PLANE] if control_changed else ['tools/branch-cleanup/cleanup.py']),
               'regular':True,'unknown':False}
+        previous, candidate = self.tree, self.tree
+        package_policy = HOST.package_policy()
+        if transition:
+            previous, candidate, plan['paths'] = self.producer_transition()
+            plan['base'] = 'd'*40
         proposed=deepcopy(self.registry)
         if new_command:
             proposed['suites']['new-host-contract']=deepcopy(proposed['suites']['branch-cleanup'])
             proposed['suites']['new-host-contract']['layer']='host'
             proposed['suites']['new-host-contract']['command']=['python','tests/new-required-host-contract.py']
-        policy=SimpleNamespace(validate_wiring=Mock(),candidate_plan=Mock(return_value=plan))
+        policy=SimpleNamespace(validate_wiring=Mock(),candidate_plan=Mock(return_value=plan),
+            workflow_generations=package_policy.workflow_generations,
+            CONSUMER_WORKFLOW_PATHS=package_policy.CONSUMER_WORKFLOW_PATHS)
         def run(args,suites,cancelled):
-            if new_command or full_host:
+            if new_command or full_host or transition:
                 self.assertTrue(self.all_names <= {suite[0] for suite in suites})
                 if platform:
                     self.assertIn('fixture-platform',{suite[0] for suite in suites})
@@ -518,7 +722,8 @@ class HostSelectionTests(unittest.TestCase):
             with patch.object(sys,'argv',argv),patch.object(HOST,'package_policy',return_value=policy), \
                  patch.object(HOST.execution,'_runner',return_value=controller), \
                  patch.object(HOST.execution,'checkout_identity',return_value=('a'*40,'b'*40)), \
-                 patch.object(HOST.inputs,'full_tree',return_value=self.tree), \
+                 patch.object(HOST.inputs,'full_tree',side_effect=lambda root, revision:
+                     candidate if revision == 'a'*40 else previous), \
                  patch.object(HOST.execution,'platform_suites',return_value=(
                      [('fixture-platform',['python','tests/fixture-platform.py'])] if platform else [])), \
                  patch.object(HOST,'candidate_registry',return_value=proposed), \
@@ -528,6 +733,19 @@ class HostSelectionTests(unittest.TestCase):
             controller.selection_report=json.loads(report.read_text()) if report.exists() else None
             self.assertIs(signal.getsignal(signal.SIGTERM),before)
         return result,controller
+
+    def test_producer_transition_cli_requests_full_prerequisites_and_runs_one_complete_owner(self):
+        result, controller = self.cli(transition=True, select_only=True)
+        self.assertEqual(result, 0)
+        self.assertEqual(controller.selection_output, 'full_host=true\ncomplete_receipt=true\n')
+        self.assertEqual(controller.selection_report['selection']['reason'], 'reviewed-protected-producer-transition')
+        self.assertEqual(controller.selection_report['omitted_suites'], [])
+        controller.run_suites.assert_not_called()
+        result, controller = self.cli(transition=True)
+        self.assertEqual(result, 0)
+        controller.run_suites.assert_called_once()
+        suites = controller.run_suites.call_args.args[1]
+        self.assertEqual([suite[0] for suite in suites], list(self.registry['suites']))
 
     def test_new_candidate_host_command_forces_prerequisites_before_execution(self):
         result,controller=self.cli(new_command=True,select_only=True)

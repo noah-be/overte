@@ -536,10 +536,10 @@ def validate_required_codeql_workflow(event: dict, api: GitHubApi, policy_root: 
         raise GateError('trusted CodeQL workflow policy unavailable')
     trusted = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(trusted)
-    approved = {validate_sha(getattr(trusted, key, None), 'approved CodeQL result workflow')
-                for key in ('_RESULTS_WORKFLOW', '_RETARGET_RESULTS_WORKFLOW')}
-    successor = trusted._RETARGET_RESULTS_WORKFLOW
-    if len(approved) != 2 or '0' * 40 in approved:
+    generations = tuple(validate_sha(getattr(trusted, key, None), 'approved CodeQL result workflow')
+                        for key in ('_RESULTS_WORKFLOW', '_RETARGET_RESULTS_WORKFLOW', '_PINNED_RESULTS_WORKFLOW'))
+    approved = set(generations)
+    if len(approved) != 3 or '0' * 40 in approved:
         raise GateError('approved CodeQL workflow identity is unavailable')
     refs = {f'repos/{repository}/git/ref/heads/{quote(ref, safe="")}': 'refs/heads/' + ref
             for ref in (target, head_ref)}
@@ -603,13 +603,11 @@ def validate_required_codeql_workflow(event: dict, api: GitHubApi, policy_root: 
     if actual.get('mode') != '100644' or actual.get('type') != 'blob' or actual.get('sha') not in approved:
         raise GateError('candidate must retain the exact approved CodeQL security-result workflow')
     _, base_tree = recursive_tree(readonly, repository, base_sha, error_type=GateError)
-    deployed = {'mode': '100644', 'type': 'blob', 'sha': successor}
     previous = base_tree.get('.github/workflows/codeql.yml', {})
     if previous.get('mode') != '100644' or previous.get('type') != 'blob':
         raise GateError('CodeQL base workflow identity is unavailable or nonregular')
-    if all(previous.get(key) == value for key, value in deployed.items()) \
-            and any(actual.get(key) != value for key, value in deployed.items()):
-        raise GateError('deployed CodeQL retarget workflow cannot be reverted')
+    if previous.get('sha') in approved and generations.index(actual['sha']) < generations.index(previous['sha']):
+        raise GateError('deployed CodeQL result workflow cannot be reverted')
     if fresh() != candidate:
         raise GateError('CodeQL candidate changed during invocation verification')
     return True

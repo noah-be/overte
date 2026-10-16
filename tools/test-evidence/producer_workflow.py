@@ -153,7 +153,7 @@ def prepare(candidate, event, environment, adapter):
     host.require(bool(names), 'protected shared owner has no selected suites')
     plan = {'owners': {'shared-host': {'kind': 'shared', 'suites': names,
               'include_platform': selected['include_platform'], 'platform': {}}}}
-    blob = sandbox._git(ROOT, 'ls-tree', '-z', 'HEAD', '--', TEMPLATE).split(b'\t')[0].split()[-1].decode()
+    blob = sandbox._git(ROOT, 'ls-tree', '-z', refs['default'], '--', TEMPLATE).split(b'\t')[0].split()[-1].decode()
     controller = _controller_identity(policy)
     producer = protocol.Policy('noah-l-frank/overte', 1319052603, 15368, '.github/workflows/project-tests.yml',
         blob, environment['GITHUB_REF'], ('pull_request',), controller, sandbox.contract(ROOT)['digest'],

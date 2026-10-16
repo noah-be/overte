@@ -110,6 +110,7 @@ class Verifier:
         self.root, self.event, self.env = Path(root), event, environment
         self.api = api if api is not None else default_api()
         self.clock, self.sleep = clock, sleep
+        self.pinned = False
         require(type(event) is dict and environment.get('GITHUB_ACTIONS') == 'true', 'Actions server context required')
         require(environment.get('GITHUB_REPOSITORY') == REPOSITORY
                 and environment.get('GITHUB_REPOSITORY_ID') == str(REPOSITORY_ID), 'foreign Actions repository')
@@ -246,7 +247,7 @@ class Verifier:
         except (OSError, subprocess.SubprocessError, codeql.inputs.InputError):
             raise ResultError('complete immutable candidate and base unavailable') from None
         require(not codeql.result_workflow_rollback(trees[0].get(WORKFLOW), trees[1].get(WORKFLOW)),
-                'deployed CodeQL retarget workflow cannot be reverted')
+                'deployed CodeQL result workflow cannot be reverted')
         workflows = {codeql._SELECTIVE_WORKFLOW, *codeql.result_workflow_blobs()}
         for side, tree in enumerate(trees):
             for path, old in codeql._REVIEWED_CONTROLS.items():
@@ -257,6 +258,8 @@ class Verifier:
                     allowed.add(old)
                 require(tree.get(path) in [{'mode': '100644', 'type': 'blob', 'sha': value} for value in allowed],
                         'analysis workflow or configuration is not approved')
+        self.pinned = trees[-1].get(WORKFLOW) == {
+            'mode': '100644', 'type': 'blob', 'sha': codeql._PINNED_RESULTS_WORKFLOW}
         plan = codeql.select_repository(self.root, self.base, self.source, event=self.event_name)
         require(plan['languages'] == self.expected, 'caller language plan differs from independent immutable selection')
         return plan['languages']
@@ -289,6 +292,13 @@ class Verifier:
                     and analyzes[0].get('conclusion') == 'success', 'selected Analyze step missing, skipped or failed')
             step_start, step_end = timestamp(analyzes[0].get('started_at')), timestamp(analyzes[0].get('completed_at'))
             require(started <= step_start <= step_end <= completed, 'Analyze step is outside the successful job')
+            if self.pinned:
+                versions = [step for step in steps if step.get('name') == 'Require reviewed CodeQL extractor version']
+                require(len(versions) == 1 and versions[0].get('status') == 'completed'
+                        and versions[0].get('conclusion') == 'success', 'reviewed extractor version check did not succeed')
+                require(started <= timestamp(versions[0].get('started_at'))
+                        <= timestamp(versions[0].get('completed_at')) <= step_start,
+                        'reviewed extractor version check did not precede Analyze')
             windows[language] = (step_start, step_end, positive(job.get('id')))
         return windows
 
@@ -308,6 +318,8 @@ class Verifier:
                 require(record.get('analysis_key') == ANALYSIS_KEY and record.get('tool', {}).get('name') == 'CodeQL'
                         and record.get('error') == '' and type(record.get('rules_count')) is int
                         and record['rules_count'] > 0, 'selected analysis has errors or unknown analysis identity')
+                require(not self.pinned or record['tool'].get('version') == '2.27.2',
+                        'selected analysis did not use the reviewed extractor version')
                 require(document(record.get('environment', '')) == {'language': language}, 'selected analysis environment mismatch')
                 created = timestamp(record.get('created_at'))
                 if windows[language][0] <= created <= windows[language][1]:

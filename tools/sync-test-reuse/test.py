@@ -47,6 +47,7 @@ TREE = "5" * 40
 WORKFLOW_BLOB = "6" * 40
 CODEQL_BASE_TREE = "7" * 40
 RETARGET_WORKFLOW_BLOB = "8" * 40
+PINNED_WORKFLOW_BLOB = "9" * 40
 
 
 class GitHubApiDiagnosticsTests(unittest.TestCase):
@@ -1499,7 +1500,8 @@ class RequiredCodeQLInvocationTests(unittest.TestCase):
         source = self.policy_root / 'tools/repository-checks/codeql.py'
         source.parent.mkdir(parents=True)
         source.write_text(f"_RESULTS_WORKFLOW = '{WORKFLOW_BLOB}'\n_SELECTIVE_WORKFLOW = '{PARENT}'\n"
-                          f"_RETARGET_RESULTS_WORKFLOW = '{RETARGET_WORKFLOW_BLOB}'\n")
+                          f"_RETARGET_RESULTS_WORKFLOW = '{RETARGET_WORKFLOW_BLOB}'\n"
+                          f"_PINNED_RESULTS_WORKFLOW = '{PINNED_WORKFLOW_BLOB}'\n")
         self.write_policy()
         side = lambda ref, sha: {'ref': ref, 'sha': sha, 'repo': {'full_name': REPOSITORY, 'id': REPOSITORY_ID}}
         self.pr = {'number': 610, 'state': 'open', 'mergeable': True, 'merge_commit_sha': MERGE,
@@ -1604,6 +1606,23 @@ class RequiredCodeQLInvocationTests(unittest.TestCase):
         with self.assertRaises(gate.GateError): self.validate()
         for mode, kind in (('100755', 'blob'), ('120000', 'blob'), ('160000', 'commit')):
             original['tree'] = [{**entry('.github/workflows/codeql.yml'), 'mode': mode, 'type': kind}]
+            with self.subTest(mode=mode), self.assertRaises(gate.GateError): self.validate()
+
+    def test_pinned_workflow_admits_only_forward_exact_result_generations(self):
+        current = self.documents[f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1']['tree'][0]
+        previous = self.documents[f'repos/{REPOSITORY}/git/trees/{CODEQL_BASE_TREE}?recursive=1']['tree'][0]
+        generations = (WORKFLOW_BLOB, RETARGET_WORKFLOW_BLOB, PINNED_WORKFLOW_BLOB)
+        for old_index, old in enumerate(generations):
+            for new_index, new in enumerate(generations):
+                previous['sha'], current['sha'] = old, new
+                with self.subTest(old=old, new=new):
+                    if new_index < old_index:
+                        with self.assertRaisesRegex(gate.GateError, 'cannot be reverted'): self.validate()
+                    else:
+                        self.assertTrue(self.validate())
+        previous['sha'] = current['sha'] = PINNED_WORKFLOW_BLOB
+        for mode, kind in (('100755', 'blob'), ('120000', 'blob'), ('160000', 'commit')):
+            current.update(mode=mode, type=kind)
             with self.subTest(mode=mode), self.assertRaises(gate.GateError): self.validate()
 
     def test_old_workflow_fake_named_job_missing_and_nonregular_cannot_pass(self):

@@ -105,6 +105,17 @@ class PolicyTests(Fixture):
 
 
 class FixedPlanTests(Fixture):
+    def test_working_directory_is_explicit_and_bound_in_the_exact_environment(self):
+        layout = self.layout()
+        command = ["/opt/overte-ci/venv/bin/python", "tests/example.py"]
+        plan = S.build_plan(layout, command, root=self.root)
+        args = plan["argv"]
+        self.assertEqual(S._ENVIRONMENT["PWD"], "/work")
+        self.assertIn(["--setenv", "PWD", "/work"], [args[i:i+3] for i in range(len(args))])
+        self.assertEqual(args[args.index("--chdir") + 1], "/work")
+        with self.assertRaises(S.SandboxUnavailable):
+            S.build_plan(layout, command, root=self.root, environment={"PWD": "/outside"})
+
     def test_source_git_venv_and_policy_are_readonly_protected_reports_are_absent(self):
         layout = self.layout()
         plan = S.build_plan(layout, ["/opt/overte-ci/venv/bin/python", "tests/example.py"], root=self.root)

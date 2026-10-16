@@ -109,6 +109,7 @@ PROGRAM_INPUTS = (
     'tools/test-evidence/sandbox_shared.py',
     'tools/test-evidence/producer_workflow.py',
     'tools/repository-checks/workflows/producers/protected-project-tests.yml',
+    'tools/repository-checks/workflows/producers/repository-checks.yml',
     # Actual assertions consume these documents; the generic Markdown rule does
     # not exempt them. Their membership, modes and bytes remain immutable inputs.
     'android/vr/common/openxr/README.md',
@@ -120,23 +121,23 @@ PROGRAM_INPUTS = (
 # legacy-retirement/contract handoff files. Only the two separately owned foreign
 # locks are outside this complement; changed locks need mandatory package coverage.
 # These identities are not execution receipts or application-build evidence.
-REVIEWED_PROGRAMS = '55efcbbf88531b25a9216840f4cd280607a04b28ede9de17eb01fc59e89736a9'
+REVIEWED_PROGRAMS = 'd13648fabb706293b3be33984b0d6257901bc664cf4946ae9b83d4ddcdbfcc7d'
 REVIEWED_CHILD_PROGRAMS = {
-    'apple-main': '56ae92bee581c7745f9b929052af2af2b7a76b7c501de6f9305cc4e0fac96b03',
-    'apple-ios': '38f6259026d1efdfd6aa74dbf5eb7a68649bd0ec9f85fb4e5a6ea846349955cc',
-    'android-main': 'feafaa9ef3e59b4a9d4bfa879bf4913bee65b2545cea5aec6c6338490aef45ae',
-    'android-phone': '42b18a03280fb8b2acd2811afda13b438ec88c1f596b4dd10cf3727a6316b190',
-    'android-vr': 'feafaa9ef3e59b4a9d4bfa879bf4913bee65b2545cea5aec6c6338490aef45ae',
-    'android-vr-pico': '889d77568f84cc0dc77a16f25eabe43d1c8eec464f8f23453d4a37e7579534e2',
+    'apple-main': 'a97236b83c4de2a6706f9236089a8b1a4c60b41a1bce1f283ed3e69b1ecae931',
+    'apple-ios': '45f5fb8a6a678c81dae3e45d48c48af395bace2c2eeecbb063da84e8d8cb57be',
+    'android-main': 'ae7f9427d1e60cc8ccd0a88410f2c06152e29693f9a92ac1aecb5d6629196de8',
+    'android-phone': 'f799f461a7eedf4bbe64cbe97b8508a1f1504ceb8b6538bfa0857479731ea635',
+    'android-vr': 'ae7f9427d1e60cc8ccd0a88410f2c06152e29693f9a92ac1aecb5d6629196de8',
+    'android-vr-pico': 'dc594115b8953c9a35a78acde5e22e3c4c24dbfd6e59a341e658aacf9b4003ae',
 }
 REVIEWED_PREDECESSORS = {
-    'main': 'dd69b090c6f43957394cd2f314642991f96ff6c84ffc9c6ba6a3464bd7e8016b',
-    'apple-main': '2db0388c5bb364f4f438c1a4fef4de82867803bfa9a6fe6f8520174b637c67b7',
-    'apple-ios': '4cf5737f415f0017652b5a52b966c05a6b6040be4f46cf1862e24a776550579f',
-    'android-main': '9aaf8e05a8c94cae1b1ee574ce2d4dad1aa9c28feea849a907d7882ad8d5bf93',
-    'android-phone': '5bc147b43ee63edbf4aaaf9644aec9efa5aa3d9896df2874095e248bd54a0be2',
-    'android-vr': '9aaf8e05a8c94cae1b1ee574ce2d4dad1aa9c28feea849a907d7882ad8d5bf93',
-    'android-vr-pico': 'c2d28948597de698b1bae16e6a88d7172ece691850a79f77a44e7e51d46a5b15',
+    'main': '55efcbbf88531b25a9216840f4cd280607a04b28ede9de17eb01fc59e89736a9',
+    'apple-main': '56ae92bee581c7745f9b929052af2af2b7a76b7c501de6f9305cc4e0fac96b03',
+    'apple-ios': '38f6259026d1efdfd6aa74dbf5eb7a68649bd0ec9f85fb4e5a6ea846349955cc',
+    'android-main': '6d066891333a9c183d39615bab29238d4384065bc6ee1f748902ee6b8cd2fdad',
+    'android-phone': '307362ef96b7bd6db8b262ffdb6aea96901464b11132fa9af69301410e9ff5aa',
+    'android-vr': '6d066891333a9c183d39615bab29238d4384065bc6ee1f748902ee6b8cd2fdad',
+    'android-vr-pico': '7be724f04333d9510a049d38342f8e8475c54a7f909b6f0e790ef0e2ab228da3',
 }
 CONTROL_PLANE = 'tests/device/run_control_plane_tests.py'
 PACKAGE_LOCKS = {
@@ -246,6 +247,36 @@ def regular_ci_inventory(plan, base_tree, candidate_tree):
         candidate_tree, base_tree, plan.get('paths', ()), package_owned_paths(plan))
 
 
+def _protected_producer_transition(tree, paths, base_tree, trusted_tree, target):
+    """Widen only the complete reviewed legacy-to-producer installation once.
+
+    This is selection, never activation or execution evidence. The ordinary
+    complete-tuple wiring check still runs independently before selection.
+    """
+    endpoints = {'.github/workflows/repository-checks.yml', '.github/workflows/project-tests.yml'}
+    if target != 'main' or not isinstance(paths, (tuple, list)) or len(paths) != len(endpoints) \
+            or set(paths) != endpoints or not isinstance(base_tree, dict) \
+            or not isinstance(trusted_tree, dict) or trusted_tree != base_tree:
+        return False
+    # No path hint may conceal a source/controller/profile/registry change.
+    changed = {path for path in base_tree.keys() | tree.keys() if base_tree.get(path) != tree.get(path)}
+    if changed != endpoints:
+        return False
+    policy = package_policy()
+    generations = {generation['name']: generation['workflows'] for generation in policy.workflow_generations()}
+    previous = generations.get('android-owned-npm5-sync-ci-v1', {})
+    producer = generations.get('protected-shared-producer-v1', {})
+    required = set(policy.CONSUMER_WORKFLOW_PATHS)
+    if set(previous) != required or set(producer) != required \
+            or {path for path in required if previous[path] != producer[path]} != endpoints:
+        return False
+    # Trusted policy validates ordinary entries and complete tuple identities;
+    # individual known files, mixtures and candidate policy cannot qualify.
+    return all(snapshot.get(path) == entry
+               for snapshot, workflows in ((trusted_tree, previous), (base_tree, previous), (tree, producer))
+               for path, entry in workflows.items())
+
+
 def select(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_root=ROOT,
            trusted_root=ROOT, target='main', base_tree=None, package_paths=()):
     registry = inputs.load_registry(ROOT / '.github/test-suites.json')
@@ -279,6 +310,9 @@ def select(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_
         except (ValueError, OSError, subprocess.SubprocessError):
             reviewed = False
         if reviewed:
+            if _protected_producer_transition(tree, paths, base_tree, trusted_tree, target):
+                return {'suites': names, 'reason': 'reviewed-protected-producer-transition',
+                        'full_host': True, 'include_platform': True}
             affected = CONTROL_PLANE in paths or (base_tree is not None and base_tree.get(CONTROL_PLANE) != tree.get(CONTROL_PLANE))
             result = {'suites': [name for name in names if (
                         registry['suites'][name]['layer'] == 'quick' and name not in PRODUCT_QUICK_SUITES

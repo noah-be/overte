@@ -479,6 +479,9 @@ Separate protected probes run before work and after every workload is gone;
 source, run attempt, snapshot, projection and the effective diagnostic runtime
 must agree. This small stdlib profile is explicitly not the complete portable
 host environment identity. Production launch/post-capture remain denied.
+Its exact environment includes `PWD=/work`, which Bubblewrap also sets for the
+fixed working directory. Mismatches remain failures; bounded diagnostics name
+the failing fields and variable keys/counts without printing environment values.
 Live Ubuntu qualification, complete shared-host suite/toolchain compatibility,
 publisher credential isolation and authenticated reuse publication remain
 required before any successful result can authorize reuse.
@@ -533,6 +536,26 @@ hash. Other package owners and the existing Qt-free impact path remain intact.
 Only an already selected full-host profile is eligible; this source does not
 install Qt to obtain proof for a quick-only selection.
 
+The dormant `protected-shared-producer-v1` generation pairs that callee with
+[`producers/repository-checks.yml`](../tools/repository-checks/workflows/producers/repository-checks.yml).
+The calling `project` job grants only contents, Actions, pull-request and checks
+read access; the descriptor, shared executor and final publisher request that
+same ceiling. Other jobs retain their existing permissions. Exact package and
+Android generations bind the complete pair, preserving every older generation.
+Caller and callee must be installed together after hosted qualification; neither
+an individual approved file nor a matching job name authorizes publication.
+
+The exact ordinary two-file installation from `android-owned-npm5-sync-ci-v1`
+to this complete five-workflow tuple selects all 60 trusted suites once on
+`main`, with reason `reviewed-protected-producer-transition`. The current
+trusted tree must equal the PR base, and the complete candidate delta must
+contain only the approved caller and callee; source, controller, registry and
+platform profile remain unchanged. Existing candidate and trusted reader review
+remains a prerequisite. This finite widening makes the eventual
+installation PR eligible for the existing protected owner after its separate
+activation prerequisites pass. It supplies no execution or publication proof.
+Subsequent CI-only changes retain the existing 37-suite selection.
+
 New isolated publication requires execution schema 3 and an independently
 reconstructed source context: the original commit, its ordered immediate
 parents, their tree identities and the actual shallow boundary. Legacy schema
@@ -548,7 +571,7 @@ the existing mandatory nonreusable path selected; a started suite failure,
 cancellation, timeout or changed post-execution environment cannot retry through
 that path. Reports and command files stay outside candidate mounts, and only
 the finished receipt becomes upload-readable after all scopes are empty.
-Production guards remain false and the prospective generation is unapproved.
+Production guards remain false; approved dormant wiring grants no execution or reuse authority.
 Actual boundary/full-profile qualification, exact protected generation and
 runtime-epoch deployment, native publisher qualification, Qt-free reusable
 environment support and post-merge/child consumers remain incomplete. Offline
@@ -1225,3 +1248,23 @@ verifier and independent sync gate reject reverting it. The metadata classifier
 is a finite shared analysis control. Neither this staged template nor its source
 admission activates it; active workflows and existing security assertions remain
 unchanged until separately reviewed deployment and hosted qualification.
+
+The further dormant `metadata-edits/codeql-pinned.yml` successor pins the official
+CodeQL 2.27.2 Linux bundle through the pinned init action's `tools` URL. Init still
+uses its existing versioned hosted toolcache; a matching installation needs no
+new download or extraction. A required step checks init's actual
+`codeql-version` before Analyze. The independent result verifier also requires
+that successful step and current processed analyses reporting version 2.27.2.
+All earlier result generations remain admitted for source rollout, while both
+independent gates reject returning from a deployed result generation to an older
+one. Source admission does not deploy the staged workflow.
+
+Only an edit to an existing ordinary `100644` `.github/android-orchestration.json`
+or `.github/test-suites.json` may select Python without JavaScript when both
+immutable trees use that exact pinned workflow and unchanged reviewed CodeQL
+configuration. The reviewed extractor has no generic JSON extraction and its
+single-file TypeScript parser cannot read imported JSON; its ancestor readers
+recognize package/tsconfig files rather than these two policy leaves. Python and
+the policy governance tests remain required. Additions, removals, aliases, mode
+changes, older or unknown workflow/configuration, all other JSON, YAML, package
+locks and mixed JavaScript inputs keep their existing conservative owners.

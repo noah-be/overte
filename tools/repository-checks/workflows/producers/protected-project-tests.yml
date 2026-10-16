@@ -1,4 +1,4 @@
-# Prospective protected producer; production guards false and no active generation approval.
+# Prospective protected producer; dormant wiring approved, production guards false.
 name: Shared project CI
 permissions:
   contents: read
@@ -69,6 +69,7 @@ jobs:
       contents: read
       actions: read
       pull-requests: read
+      checks: read
   project-tests:
     needs: route
     if: needs.route.outputs.package_host_mode == 'full'
@@ -281,6 +282,7 @@ jobs:
       contents: read
       actions: read
       pull-requests: read
+      checks: read
   tool-dependencies:
     needs: route
     if: needs.route.outputs.package_host_mode == 'tool-dependencies'
@@ -460,6 +462,7 @@ jobs:
       contents: read
       actions: read
       pull-requests: read
+      checks: read
 'on':
   workflow_call:
     inputs:

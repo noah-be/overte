@@ -515,13 +515,17 @@ class ProtectedRuntimeTests(unittest.TestCase):
                                  ("snapshot", "sha256:" + "e" * 64), ("projection", "sha256:" + "f" * 64)):
             altered = deepcopy(value)
             altered["observation"]["identity"]["binding"][key] = replacement
-            with self.subTest(key=key), self.assertRaises(H.Unavailable):
+            with self.subTest(key=key), self.assertRaises(H.Unavailable) as caught:
                 H.validate_runtime(altered, binding, sandbox._ENVIRONMENT, 2001, 2001)
+            details = json.loads(str(caught.exception).split(": ", 1)[1])
+            self.assertEqual(details["failed"], ["binding"])
+            self.assertEqual(details["binding_fields"], [key])
         for key, replacement in (("Uid", "0 0 0 0"), ("Gid", "0 0 0 0"), ("NoNewPrivs", "0"), ("CapEff", "0000000000000001")):
             altered = deepcopy(value)
             altered["observation"]["process"]["status"][key] = replacement
-            with self.subTest(key=key), self.assertRaises(H.Unavailable):
+            with self.subTest(key=key), self.assertRaises(H.Unavailable) as caught:
                 H.validate_runtime(altered, binding, sandbox._ENVIRONMENT, 2001, 2001)
+            self.assertEqual(json.loads(str(caught.exception).split(": ", 1)[1])["failed"], [key])
         changed = deepcopy(value)
         changed["observation"]["identity"]["files"]["0"] = "f" * 64
         self.assertNotEqual(H.validate_runtime(changed, binding, sandbox._ENVIRONMENT, 2001, 2001), baseline)
@@ -572,6 +576,64 @@ class ProtectedRuntimeTests(unittest.TestCase):
         self.assertEqual(len(tail.encode()), 8192)
         self.assertNotIn("discarded-prefix", tail)
         self.assertTrue(tail.endswith("\n::error::probe\x1b[31m"))
+
+    def test_implicit_bwrap_pwd_is_explicitly_expected_and_never_ignored(self):
+        value, binding = self.result()
+        expected = dict(sandbox._ENVIRONMENT)
+        self.assertEqual(expected["PWD"], "/work")
+        previous = {key: item for key, item in expected.items() if key != "PWD"}
+        with self.assertRaises(H.Unavailable) as caught:
+            H.validate_runtime(value, binding, previous, 2001, 2001)
+        details = json.loads(str(caught.exception).split(": ", 1)[1])
+        self.assertEqual(details["failed"], ["environment"])
+        self.assertEqual(details["environment_keys"]["extra"], ["PWD"])
+        self.assertTrue(H.validate_runtime(value, binding, expected, 2001, 2001).startswith("sha256:"))
+        for mutation in (None, "/outside"):
+            altered = deepcopy(value)
+            environment = altered["observation"]["identity"]["environment"]
+            if mutation is None: environment.pop("PWD")
+            else: environment["PWD"] = mutation
+            with self.subTest(mutation=mutation), self.assertRaises(H.Unavailable) as caught:
+                H.validate_runtime(altered, binding, expected, 2001, 2001)
+            details = json.loads(str(caught.exception).split(": ", 1)[1])
+            self.assertEqual(details["failed"], ["environment"])
+            self.assertEqual(details["environment_keys"]["missing" if mutation is None else "different"], ["PWD"])
+
+    def test_identity_failure_names_prefix_file_count_or_digest_without_raw_probe_values(self):
+        original, binding = self.result()
+        cases = (("prefix", "/private-unexpected-prefix", ["prefix"], 8),
+                 ("files", {str(n): "a" * 64 for n in range(7)}, ["file_count"], 7),
+                 ("files", {**original["observation"]["identity"]["files"], "0": "private-invalid-digest"}, ["file_digests"], 8))
+        for key, replacement, failed, count in cases:
+            altered = deepcopy(original)
+            altered["observation"]["identity"][key] = replacement
+            with self.subTest(field=key, failed=failed), self.assertRaises(H.Unavailable) as caught:
+                H.validate_runtime(altered, binding, sandbox._ENVIRONMENT, 2001, 2001)
+            message = str(caught.exception)
+            details = json.loads(message.split(": ", 1)[1])
+            self.assertEqual(details["failed"], failed)
+            self.assertEqual(details["file_count"], count)
+            self.assertNotIn("private-unexpected-prefix", message)
+            self.assertNotIn("private-invalid-digest", message)
+
+    def test_environment_failure_diagnostics_are_bounded_and_never_print_values(self):
+        original, binding = self.result()
+        altered = deepcopy(original)
+        environment = altered["observation"]["identity"]["environment"]
+        environment.update({"EXTRA_" + str(i): "TEST_ONLY_SECRET_VALUE\n::error::hidden" for i in range(50)})
+        environment["::error::odd-key\n"] = "TEST_ONLY_SECRET_VALUE"
+        with self.assertRaises(H.Unavailable) as caught:
+            H.validate_runtime(altered, binding, sandbox._ENVIRONMENT, 2001, 2001)
+        message = str(caught.exception)
+        details = json.loads(message.split(": ", 1)[1])
+        self.assertEqual(details["failed"], ["environment"])
+        self.assertEqual(len(details["environment_keys"]["extra"]), 16)
+        self.assertEqual(details["environment_keys"]["actual_count"], len(environment))
+        self.assertTrue(any(name.startswith("sha256:") for name in details["environment_keys"]["extra"]))
+        self.assertNotIn("TEST_ONLY_SECRET_VALUE", message)
+        self.assertNotIn("::error::", message)
+        self.assertNotIn("\n", message)
+        self.assertLess(len(message), 4096)
 
     def test_verified_source_then_guardian_then_execution_then_cleanup_then_postverification(self):
         events = []
