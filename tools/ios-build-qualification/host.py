@@ -43,6 +43,22 @@ VARIANTS = ["complete-reviewed-launcher", "Qt6Core/Gui/Qml/Concurrent/WebChannel
 # test receipt, shared-owner handoff or application-build selection authority.
 REVIEWED_CI_HOST_BOUNDARY = "eb10f2ce89017a4efc75001773c1da415994dc2f4d542fb2804183bc2f77ba15"
 CI_HOST_INDEPENDENT_PATHS = frozenset({
+    ".github/workflows/android-required.yml",
+    ".github/android-owner-transfer.json",
+    "tests/android-owner-transfer-test.py",
+    "tools/repository-checks/android_handoff.py",
+    "tools/repository-checks/workflows/android-owned/android-required.yml",
+    "tools/repository-checks/workflows/android-owned/handoff/.github/workflows/android-tests.yml",
+    "tools/repository-checks/workflows/android-owned/handoff/.github/workflows/android-vr-tests.yml",
+    "tools/repository-checks/workflows/android-owned/handoff/android/common/tests/android-workflow-contract-test.py",
+    "tools/repository-checks/workflows/android-owned/handoff/android/common/tests/ci/test_ci_contract.py",
+    "tools/repository-checks/workflows/android-owned/handoff/android/common/tests/ci/validate_ci_contract.py",
+    "tools/repository-checks/workflows/android-owned/project-tests.yml",
+    "tools/repository-checks/workflows/android-owned/repository-checks.yml",
+    "tools/repository-checks/workflows/android-owned/handoff/android/phone/tests/phone-release-metadata-test.py",
+    'tools/repository-checks/workflows/metadata-edits/codeql.yml',
+    'tools/repository-checks/workflows/metadata-edits/repository-checks.yml',
+    'tools/repository-checks/workflows/metadata-edits/sync-test-reuse.yml',
     'tools/repository-checks/workflows/sync-ci-selection.yml',
     'tools/repository-checks/npm_consumers.py',
     'tools/repository-checks/npm-source-map-tests.cjs',

@@ -37,7 +37,7 @@ CI_TESTS = frozenset({
     'tests/issue-intake-test.py', 'tests/android-ci-test.py', 'tests/android-orchestration-test.py',
     'tests/android-build-inputs-test.py', 'tests/ios-build-qualification-test.py',
     'tests/ios-input-selection-test.py', 'tests/codeql-selection-test.py',
-    'tests/browser-cpu-selection-test.py', 'tests/host-selection-test.py',
+    'tests/browser-cpu-selection-test.py', 'tests/host-selection-test.py', 'tests/android-owner-transfer-test.py',
 })
 CI_POLICY = frozenset({
     '.github/branch-policy.json', '.github/branch-cleanup.json', '.github/issue-policy.json',
@@ -47,6 +47,7 @@ CI_POLICY = frozenset({
     '.github/workflows/branch-cleanup.yml', '.github/workflows/branch-policy.yml',
     # Complete tuple validation runs before selection; arbitrary edits fail.
     '.github/workflows/project-tests.yml', '.github/workflows/codeql.yml',
+    '.github/workflows/android-required.yml',
     '.github/workflows/parent-qualification.yml',
     '.github/codeql/codeql-config.yml',
     '.github/workflows/browser-client.yml', '.github/workflows/browser-direct-client.yml',
@@ -56,7 +57,7 @@ CI_POLICY = frozenset({
 # import/read these controls or unit tests. Do not extend this to tools/** or
 # tests/**: those roots also contain real product readers and import candidates.
 CI_ROLLOUT_PATHS = frozenset({
-    '.github/android-checks.json', '.github/android-orchestration.json',
+    '.github/android-checks.json', '.github/android-orchestration.json', '.github/android-owner-transfer.json',
     '.github/attested-runtime.json', '.github/sync-test-reuse.json',
     '.github/workflows/dependency-releases.yml', '.github/workflows/repository-checks.yml',
     '.github/workflows/repository-health.yml', '.github/workflows/sync-test-reuse.yml',
@@ -99,28 +100,29 @@ PROGRAM_INPUTS = (
     'android/vr/common/openxr/README.md',
     'android/phone/device-tests/parity/fixtures/README.md',
 )
-# Reviewed genuine complete parent merges at protected main2bef5593 and the
-# opt-in sync execution successor. Their complete reader delta is precisely
-# validate-sync.py. Only the two separately owned foreign locks are outside this
-# reader complement; changed locks still need mandatory package coverage.
+# Reviewed genuine complete parent merges at protected main2478d9e and the
+# prospective sole-owner generation. Common readers change only in the shared
+# runner and execution controller; Android additionally binds all six exact
+# legacy-retirement/contract handoff files. Only the two separately owned foreign
+# locks are outside this complement; changed locks need mandatory package coverage.
 # These identities are not execution receipts or application-build evidence.
-REVIEWED_PROGRAMS = '2482e27f5bb625e9d0763d73f5cabd3a83653b90db1cd290511c336576e05243'
+REVIEWED_PROGRAMS = '027bd858d2b1faf9ad096ac83701ae6b06e423a9c0821d9c00a41ce0d73d9291'
 REVIEWED_CHILD_PROGRAMS = {
+    'android-main': '508825cb1b57270125cea139eaa0cad22af51d73c7adef40d9130d3c1988c5d6',
+    'android-phone': '179899d75b3fbe2e4ed6e65867640c9f8544c32b4825c2585a76214e669ba60b',
+    'android-vr': '508825cb1b57270125cea139eaa0cad22af51d73c7adef40d9130d3c1988c5d6',
+    'android-vr-pico': 'b333d61ff8ceee01b79b552a35b7f4a5440fee6a0144276fed339368256f1be6',
+    'apple-ios': '2df93ba973772f7f308cdf469ad3afc976d978df5ca2c3ae960430fd6d6b360e',
+    'apple-main': '3e92d8e5f2960ec5dc972955b45a199cb0ddb5b657d29f1b45ee540f238f9c7e',
+}
+REVIEWED_PREDECESSORS = {
     'android-main': '800883906b2769263a6f67d46e922287c160cbf0ea5e863c1d3d505eec6fe783',
     'android-phone': '1ca73473506a290eede5099198850eead38c9b9326e895750eb2937bee23a57e',
     'android-vr': '800883906b2769263a6f67d46e922287c160cbf0ea5e863c1d3d505eec6fe783',
     'android-vr-pico': '398387a25115acc134bc080e09084490a4515c8c7cd86e8e0ecc50a7475258e1',
     'apple-ios': 'c0e16b46f25d22eef8242914fe090059c37e631b02d4d10d8bb36b37cf94cd40',
     'apple-main': '70891038cb1845e99ef258d0488266414b5b3ec5bf3c3fbc642d5069d6029b07',
-}
-REVIEWED_PREDECESSORS = {
-    'android-main': '5eea9379d3f089125de652235a21ec228ebdf0e052dee82d3411adcd10b4c2de',
-    'android-phone': '1e1d32d15dcec7a58a67a661c49725391fcf53a3c933b897e640a601dfe5ed4c',
-    'android-vr': '5eea9379d3f089125de652235a21ec228ebdf0e052dee82d3411adcd10b4c2de',
-    'android-vr-pico': 'd84aa4ee8f3a8bea58a48c75ab314a3258d27a57b40b4e31dfac2811eeefbc89',
-    'apple-ios': '3d15f1094bc5bfc0a69fa5ed73142f6aa3cb87dfc791bf9775f1c2e088c7df2c',
-    'apple-main': 'f785ccfa7561f72fb9f8acf1bd5fabe6c1a14eb007cca8e77212c0d4679034f7',
-    'main': '64c80e2a372ca4aa9d67b69560f262daad3b5fa35827021992581d1236f72487',
+    'main': '2482e27f5bb625e9d0763d73f5cabd3a83653b90db1cd290511c336576e05243',
 }
 CONTROL_PLANE = 'tests/device/run_control_plane_tests.py'
 PACKAGE_LOCKS = {
@@ -317,6 +319,27 @@ def package_policy():
     spec.loader.exec_module(policy)
     return policy
 
+
+def candidate_selection(candidate, event, sha, expected_plan=None):
+    """Independently recompute selection; never infer execution from a receipt."""
+    candidate = Path(candidate).resolve(strict=True)
+    before = execution.checkout_identity(candidate)
+    policy = package_policy()
+    policy.validate_wiring(candidate)
+    plan = policy.candidate_plan(candidate, event, sha)
+    if plan['candidate'] != before[0] or plan['host_mode'] != 'full' \
+            or expected_plan is not None and plan['plan'] != expected_plan:
+        raise ValueError('owned host execution differs from the exact required package plan')
+    base_tree = inputs.full_tree(candidate, plan['base']) if plan.get('base') and not plan['unknown'] else None
+    selected = select(inputs.full_tree(candidate, before[0]), plan['paths'], regular_ci_inventory(plan, base_tree, inputs.full_tree(candidate, before[0])),
+        unknown=plan['unknown'], trusted_tree=inputs.full_tree(ROOT, 'HEAD'), candidate_root=candidate,
+        target=target_branch(event), base_tree=base_tree, package_paths=package_owned_paths(plan))
+    registry = inputs.load_registry(ROOT / '.github/test-suites.json')
+    if additional_suites(candidate_registry(candidate), registry):
+        raise ValueError('new candidate command requires a reviewed Android host generation')
+    if execution.checkout_identity(candidate) != before:
+        raise ValueError('candidate changed during owned host selection')
+    return selected
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)

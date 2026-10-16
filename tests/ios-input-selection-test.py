@@ -19,6 +19,23 @@ sys.modules[SPEC.name] = INPUTS
 SPEC.loader.exec_module(INPUTS)
 
 
+REVIEWED_ANDROID_CI_PATHS = (
+    ".github/workflows/android-required.yml",
+    ".github/android-owner-transfer.json",
+    "tests/android-owner-transfer-test.py",
+    "tools/repository-checks/android_handoff.py",
+    "tools/repository-checks/workflows/android-owned/android-required.yml",
+    "tools/repository-checks/workflows/android-owned/handoff/.github/workflows/android-tests.yml",
+    "tools/repository-checks/workflows/android-owned/handoff/.github/workflows/android-vr-tests.yml",
+    "tools/repository-checks/workflows/android-owned/handoff/android/common/tests/android-workflow-contract-test.py",
+    "tools/repository-checks/workflows/android-owned/handoff/android/common/tests/ci/test_ci_contract.py",
+    "tools/repository-checks/workflows/android-owned/handoff/android/common/tests/ci/validate_ci_contract.py",
+    "tools/repository-checks/workflows/android-owned/project-tests.yml",
+    "tools/repository-checks/workflows/android-owned/repository-checks.yml",
+    "tools/repository-checks/workflows/android-owned/handoff/android/phone/tests/phone-release-metadata-test.py",
+)
+
+
 class ImmutableInputTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
@@ -104,11 +121,15 @@ class ImmutableInputTests(unittest.TestCase):
             destination.chmod(0o755 if relative in INPUTS.INDEPENDENT_EXECUTABLE_HOST_PATHS else 0o644)
         plan = self.assert_independent(self.commit("Propagate reviewed host CI foundation inventory"))
         self.assertTrue(plan["changes"])
+        self.assertTrue(set(REVIEWED_ANDROID_CI_PATHS).issubset(INPUTS.INDEPENDENT_HOST_PATHS))
         self.assertTrue(all(change["kind"] == "independent-host" for change in plan["changes"]))
         self.assertTrue({"tests/android-ci-test.py", "tests/repository-health-test.py", "tests/run-project-tests.py",
                          "tools/repository-checks/check.py", "tools/repository-checks/android.py",
                          ".github/workflows/parent-qualification.yml",
                          "tools/repository-checks/workflows/sync-ci-selection.yml",
+                         "tools/repository-checks/workflows/metadata-edits/repository-checks.yml",
+                         "tools/repository-checks/workflows/metadata-edits/codeql.yml",
+                         "tools/repository-checks/workflows/metadata-edits/sync-test-reuse.yml",
                          "tools/repository-checks/workflows/host/parent-qualification.yml"}.issubset(
                              {change["path"] for change in plan["changes"]}))
 
@@ -125,7 +146,10 @@ class ImmutableInputTests(unittest.TestCase):
                 plan = self.plan(changed_mode, executable)
                 self.assertTrue(plan["requires_application_build"])
                 self.assertEqual(plan["changes"][0]["kind"], "application-input")
-        for relative in ("tools/test-evidence/run.py", "tools/repository-checks/workflows/sync-ci-selection.yml"):
+        for relative in ("tools/test-evidence/run.py", "tools/repository-checks/workflows/sync-ci-selection.yml",
+                         "tools/repository-checks/workflows/metadata-edits/repository-checks.yml",
+                         "tools/repository-checks/workflows/metadata-edits/codeql.yml",
+                         "tools/repository-checks/workflows/metadata-edits/sync-test-reuse.yml"):
             with self.subTest(path=relative):
                 self.git("checkout", "-q", "--detach", self.base)
                 self.write(relative, "# Independent CI source\n")
@@ -133,6 +157,32 @@ class ImmutableInputTests(unittest.TestCase):
                 plan = self.plan(self.commit("Make a different independent host file executable"))
                 self.assertTrue(plan["requires_application_build"])
                 self.assertEqual(plan["changes"][0]["kind"], "application-input")
+
+    def test_metadata_workflow_siblings_are_not_blanket_independent_inputs(self):
+        self.write("tools/repository-checks/workflows/metadata-edits/unreviewed.yml", "name: Unreviewed\n")
+        self.assertTrue(self.plan(self.commit("Add an unreviewed staged workflow"))["requires_application_build"])
+
+    def test_android_handoff_ci_paths_require_ordinary_exact_files(self):
+        for relative in REVIEWED_ANDROID_CI_PATHS:
+            for mode in ("100755", "120000"):
+                with self.subTest(path=relative, mode=mode):
+                    self.git("checkout", "-q", "--detach", self.base)
+                    self.write(relative, "# Independent CI fixture\n")
+                    if mode == "120000":
+                        (self.root / relative).unlink()
+                        (self.root / relative).symlink_to("unreviewed-target")
+                    else:
+                        (self.root / relative).chmod(0o755)
+                    self.assertTrue(self.plan(self.commit("Reject nonordinary staged Android CI"))["requires_application_build"])
+        for relative in (".github/android-owner-transfer-unreviewed.json",
+                         "tests/android-owner-transfer-unreviewed-test.py",
+                         "tools/repository-checks/android_handoff_unreviewed.py",
+                         "tools/repository-checks/workflows/android-owned/handoff/android/phone/tests/unreviewed.py",
+                         "android/phone/tests/phone-release-metadata-test.py"):
+            with self.subTest(path=relative):
+                self.git("checkout", "-q", "--detach", self.base)
+                self.write(relative, "# Unknown sibling or real product target\n")
+                self.assertTrue(self.plan(self.commit("Reject unreviewed Android input"))["requires_application_build"])
 
     def npm_fixture(self):
         """Review a disposable real-Git graph, retaining actual dependency entries."""

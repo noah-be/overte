@@ -1,5 +1,50 @@
 # Project testing
 
+The dormant Android owner-transfer source composes one exact five-file npm
+consumer generation with the required Android callee. It is preparation only:
+Android activation remains disabled, and deployed legacy owners stay intact.
+Ordinary, labelled and complete inventories retain 40, 45 and 46 distinct
+executions, including diagnostic prerequisites and scaled variants.
+
+The project owner independently recomputes trusted host selection. Partial CI
+selections omit unchanged platform suites and produce nonreusable observations.
+The complete declared profile can delegate only Pico to an actually selected
+required Android owner; that pending handoff does not certify passing execution.
+Legacy direct, push and synchronization entry points retain their full profile.
+The two foreign Browser/S3 lockfiles are absent from the host reader complement,
+but changed lock paths still require the independently recomputed mandatory npm
+owner. Android reporter sources remain real test inputs.
+
+Before activation, review fresh reader identities against the final protected
+source and actual child trees, qualify the complete prospective caller and Pico
+handoff on hosted infrastructure, then propagate through governed parent syncs.
+Unsupported combinations, unknown inputs and missing execution owners fail
+closed. Local fixture regressions do not satisfy hosted qualification.
+
+The prospective execution validator checks the complete owner generation and
+the actual predecessor before allowing qualification jobs. The required outer
+repository verifier separately enforces the activation blockers, reviewed
+activation state and target branch. Successful prospective execution cannot
+authorize a merge while activation is blocked. Pending Pico handoffs remain
+nonreusable diagnostic observations.
+
+The staged Phone release-metadata regression invokes the unchanged production
+archive tool on a small temporary Git repository. It verifies exact committed
+archive content, revision and digest independently of unrelated checkout files,
+including the two foreign npm lockfiles. Older test generations that archive
+the real checkout retain conservative Android selection until this test is
+integrated on both sides of the comparison.
+
+Android's separately reviewed lock-only route covers only the two existing
+ordinary Browser/S3 lockfiles and the ordinary 40-execution inventory. It
+requires matching complete reader complements on both trees, the hermetic Phone
+test on both trees, an unchanged regular orchestration-policy entry and an
+independently recomputed supported npm owner. Unknown package changes, mixed
+inputs, older readers and optional extended diagnostics retain the complete
+Android selection. This finite proof does not exempt either package directory
+or the repository's CI tools as a whole.
+
+
 For a task-oriented entry point, use the
 [automated testing portal](../docs/portal/testing/index.md). This page remains
 the authoritative guide for project-runner commands and prerequisites.
@@ -465,6 +510,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `repository-checks` | `quick` | `python3 tests/run-project-tests.py --suite repository-checks` |
 | `android-ci` | `quick` | `python3 tests/run-project-tests.py --suite android-ci` |
 | `android-orchestration` | `quick` | `python3 tests/run-project-tests.py --suite android-orchestration` |
+| `android-owner-transfer` | `quick` | `python3 tests/run-project-tests.py --suite android-owner-transfer` |
 | `android-build-inputs` | `quick` | `python3 tests/run-project-tests.py --suite android-build-inputs` |
 | `codeql-selection` | `quick` | `python3 tests/run-project-tests.py --suite codeql-selection` |
 | `browser-cpu-selection` | `quick` | `python3 tests/run-project-tests.py --suite browser-cpu-selection` |
@@ -1027,3 +1073,18 @@ imitate the result job name to avoid its verifier. The source prerequisite kept 
 enables `main`; all other targets retain their staged compatibility until their
 reviewed workflow deployment. The separate required-context ruleset is applied
 only after this workflow has passed live qualification.
+
+The dormant `tools/repository-checks/workflows/metadata-edits/codeql.yml`
+successor also receives PR base-retarget `edited` events. Before reading the
+candidate, its trusted event classifier recognizes only complete title/body
+changes. Those events use isolated concurrency and a distinct skipped security
+check name; they do not replace a failed or missing required result. Missing or
+failed classification, unknown fields and base edits keep canonical required
+qualification. Retargets independently select languages from the new base and
+current merge and require their current-run analysis and processed findings.
+The exact old and successor result-workflow blobs are admitted together during
+source deployment; once a protected base uses the successor, both the result
+verifier and independent sync gate reject reverting it. The metadata classifier
+is a finite shared analysis control. Neither this staged template nor its source
+admission activates it; active workflows and existing security assertions remain
+unchanged until separately reviewed deployment and hosted qualification.

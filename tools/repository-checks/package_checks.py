@@ -170,6 +170,8 @@ def _policy_inputs():
     relatives += ["tools/test-evidence/" + name for name in ("run.py", "execution.py", "inputs.py", "runtime.py", "attested.py")]
     relatives += [".github/attested-runtime.json"]
     relatives += [CONSUMER_TEMPLATES + name for name in ('browser-client.yml', 'repository-checks.yml')]
+    relatives += ['tools/repository-checks/workflows/metadata-edits/' + name
+                  for name in ('repository-checks.yml', 'sync-test-reuse.yml')]
     relatives += list(_requirement_paths())
     return {relative: hashlib.sha256(_trusted_bytes(relative, git_fallback=True)).hexdigest()
             for relative in sorted(set(relatives))}

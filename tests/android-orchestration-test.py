@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import redirect_stderr, redirect_stdout
 from copy import deepcopy
+import base64
 import hashlib
 import importlib.util
 import io
@@ -12,9 +13,11 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import tarfile
 import tempfile
 import unittest
 from unittest.mock import patch
+import zlib
 
 import yaml
 
@@ -33,8 +36,73 @@ ownership = load("android_owner_fixture", "tests/android-ci-test.py")
 checks = load("android_outer_test_subject", "tools/repository-checks/check.py")
 
 
+# Exact pre-hermetic archive-reading test bytes. Shallow CI checkouts need not
+# contain this historical Git object; verify its original identity before use.
+LEGACY_METADATA_BLOB = "de670465b44ca7be8d550274acbe92bdfc9e7acc"
+LEGACY_METADATA_ZLIB = (
+    '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'
+)
+
+
+def legacy_metadata_fixture():
+    source = zlib.decompress(base64.b64decode(LEGACY_METADATA_ZLIB, validate=True))
+    if gate._blob(source)["sha"] != LEGACY_METADATA_BLOB:
+        raise ValueError("legacy metadata fixture identity changed")
+    return source
+
+
 class RequiredAndroidTests(unittest.TestCase):
     def setUp(self):
+        # Every test supplies its own runner context, never the enclosing CI job's.
+        self.enterContext(patch.dict(os.environ, {
+            name: value for name, value in os.environ.items() if not name.startswith("GITHUB_")
+        }, clear=True))
         self.fixture = ownership.AndroidOwnershipTests(methodName="runTest")
         self.fixture.setUp()
         self.addCleanup(self.fixture.doCleanups)
@@ -46,7 +114,12 @@ class RequiredAndroidTests(unittest.TestCase):
                  ".github/branch-policy.json",
                  "tools/repository-checks/android_gate.py", "tools/repository-checks/check.py",
                  "tools/repository-checks/package_checks.py", gate.CALLEE, *gate.CALLERS,
+                 "tools/repository-checks/host_selection.py",
                  *gate.android().EXECUTION_FILES]
+        names += [".github/android-owner-transfer.json", "tools/repository-checks/android_handoff.py",
+                  "tools/repository-checks/workflows/browser-client.yml", "tools/repository-checks/workflows/browser-direct-client.yml",
+                  "tools/repository-checks/workflows/npm-consumers/browser-client.yml"]
+        names += [str(path.relative_to(ROOT)) for path in (ROOT / gate.OWNED).rglob("*") if path.is_file()]
         for relative in set(names):
             target = self.policy_root / relative
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -60,9 +133,11 @@ class RequiredAndroidTests(unittest.TestCase):
     def write_policy(self):
         (self.policy_root / gate.POLICY).write_text(json.dumps(self.policy))
 
-    def workflow_files(self, *, direct=False, producer=False):
+    def workflow_files(self, *, direct=False, producer=False, owned=True, browser=False):
         packages = gate.packages()
         name = ("shared-receipt-v1" if producer else "packages-v1") + ("-direct" if direct else "") + "-android"
+        if owned:
+            name = "android-owned-npm5-sync-ci-v1"
         generation = next(item for item in packages.workflow_generations() if item["name"] == name)
         paths = list((ROOT / "tools/repository-checks/workflows").rglob("*.yml"))
         contents = {gate._blob(path.read_bytes())["sha"]: path.read_bytes() for path in paths}
@@ -70,11 +145,33 @@ class RequiredAndroidTests(unittest.TestCase):
             target = self.candidate / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(contents[entry["sha"]])
-        (self.candidate / gate.WORKFLOW).write_bytes((ROOT / gate.CALLEE).read_bytes())
+        callee = gate.OWNED + "/android-required.yml" if owned else gate.CALLEE
+        (self.candidate / gate.WORKFLOW).write_bytes((ROOT / callee).read_bytes())
+        if owned:
+            if direct:
+                (self.candidate / ".github/workflows/browser-direct-client.yml").write_bytes(
+                    (ROOT / "tools/repository-checks/workflows/browser-direct-client.yml").read_bytes())
+            transfer = gate.handoff().policy()
+            for group in ("legacy_workflows", "source_contracts"):
+                for target, item in transfer[group].items():
+                    path = self.candidate / target
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes((ROOT / item["source"]).read_bytes())
+                    path.chmod(0o755 if item["mode"] == "100755" else 0o644)
+            profile = {"schema": 1, "platform": "android", "suites": transfer["profiles"]["android-phone"]["required_suites"]}
+            path = self.candidate / "tests/platform-profile.json"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(profile))
+            for item in profile["suites"]:
+                entrypoint = self.candidate / item["entrypoint"]
+                if not entrypoint.exists():
+                    entrypoint.parent.mkdir(parents=True, exist_ok=True)
+                    entrypoint.write_text("# Profile fixture.\n")
         self.fixture.commit()
         return generation
 
-    def merge(self, relative="android/phone/changed.cpp", contents="// changed\n", *, empty=False, mode=None, rename_from=None):
+    def merge(self, relative="android/phone/changed.cpp", contents="// changed\n", *, empty=False, mode=None, rename_from=None,
+              additional=None):
         base = self.git("rev-parse", "HEAD")
         self.sequence += 1
         task = "task" + str(self.sequence)
@@ -89,12 +186,17 @@ class RequiredAndroidTests(unittest.TestCase):
             elif mode == "gitlink":
                 self.git("update-index", "--add", "--cacheinfo", "160000," + base + "," + relative)
             elif mode == "symlink":
+                path.unlink(missing_ok=True)
                 path.symlink_to("outside")
             elif contents is None:
                 path.unlink()
             else:
                 path.write_text(contents)
                 if mode is not None: path.chmod(mode)
+            for name, value in (additional or {}).items():
+                extra = self.candidate / name
+                extra.parent.mkdir(parents=True, exist_ok=True)
+                extra.write_text(value)
             if mode == "gitlink":
                 self.git("commit", "-qm", "Foreign gitlink fixture")
             else:
@@ -116,6 +218,51 @@ class RequiredAndroidTests(unittest.TestCase):
     def anchor(self):
         self.policy["reviewed_sources"]["android-phone"]["readers"] = gate.reader_identity(gate._sources(self.candidate).entries)
         self.write_policy()
+
+    def lock_sources(self):
+        """Actual reviewed package trees and caller wiring; no npm execution."""
+        self.workflow_files()
+        packages = gate.packages()
+        archive = subprocess.check_output([
+            "git", "archive", "--format=tar", "HEAD", "--", packages.BROWSER, packages.S3,
+        ], cwd=ROOT)
+        with tarfile.open(fileobj=io.BytesIO(archive)) as contents:
+            for member in contents:
+                destination = self.candidate / member.name
+                if member.isdir():
+                    destination.mkdir(parents=True, exist_ok=True)
+                else:
+                    self.assertTrue(member.isfile())
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    destination.write_bytes(contents.extractfile(member).read())
+                    destination.chmod(member.mode)
+        consumers = packages.load("android_lock_fixture_consumers", "tools/repository-checks/npm_consumers.py")
+        self.consumer_policies = consumers.PROJECTS
+        for project, policy in self.consumer_policies.items():
+            target = self.candidate / project / "package-lock.json"
+            value = json.loads(target.read_text())
+            value["packages"][policy["node"]] = policy["old"]
+            target.write_text(json.dumps(value) + "\n")
+        (self.candidate / gate.POLICY).write_bytes((ROOT / gate.POLICY).read_bytes())
+        self.fixture.commit()
+
+    def lock_anchor(self):
+        sources = gate._sources(self.candidate)
+        self.policy["reviewed_lock_sources"]["android-phone"] = {
+            "commit": self.git("rev-parse", "HEAD"), "tree": self.git("rev-parse", "HEAD^{tree}"),
+            "readers": gate.lock_reader_identity(sources.entries),
+            "entries": len(sources.entries) - len(gate.FOREIGN_LOCKS),
+        }
+        self.write_policy()
+
+    def updated_lock(self, relative, *, unsupported=False, formatting=False):
+        value = json.loads((self.candidate / relative).read_text())
+        if not formatting:
+            policy = self.consumer_policies[str(Path(relative).parent)]
+            value["packages"][policy["node"]] = deepcopy(policy["new"])
+            if unsupported:
+                value["packages"][policy["node"]]["version"] = "99.0.0"
+        return json.dumps(value, indent=4) + "\n"
 
     def test_exact_pr_selects_forty_distinct_owners_and_all_current_phone_cases(self):
         result = self.merge()
@@ -174,6 +321,174 @@ class RequiredAndroidTests(unittest.TestCase):
         self.fixture.commit()
         self.assertTrue(self.merge("browser-client/asset.txt", "changed")["required"])
 
+    def test_exact_lock_updates_recompute_actual_mandatory_npm_owners(self):
+        self.lock_sources()
+        self.lock_anchor()
+        for path, formatting in (("browser-client/package-lock.json", True),
+                                 ("browser-client/package-lock.json", False),
+                                 ("script-archive/marketplace/S3Server/package-lock.json", False)):
+            with self.subTest(path=path, formatting=formatting):
+                result = self.merge(path, self.updated_lock(path, formatting=formatting))
+                self.assertFalse(result["required"])
+                self.assertEqual(result["reason"], "reviewed-package-lock-inputs")
+                self.assertEqual(result["views"], [])
+                expected = gate.packages().candidate_plan(self.candidate, self.event, self.sha)
+                self.assertEqual(result["lock_package_plan"], expected["plan"])
+                selected = expected["dependency_profiles"]["projects"][str(Path(path).parent)]
+                self.assertEqual(selected["required"], not formatting)
+                sparse = self.fixture.sparse_clone("lock-sparse-" + str(self.sequence))
+                self.assertEqual(gate.candidate_plan(sparse, self.event, self.sha, policy_root=self.policy_root), result)
+
+    def test_two_lock_delta_retains_both_separate_package_owners(self):
+        self.lock_sources()
+        self.lock_anchor()
+        browser, s3 = "browser-client/package-lock.json", "script-archive/marketplace/S3Server/package-lock.json"
+        result = self.merge(browser, self.updated_lock(browser), additional={s3: self.updated_lock(s3)})
+        self.assertFalse(result["required"])
+        package = gate.packages().candidate_plan(self.candidate, self.event, self.sha)
+        self.assertEqual(set(package["package_set"]), {"browser-client", "script-archive/marketplace/S3Server"})
+        self.assertEqual(result["lock_package_plan"], package["plan"])
+
+    def test_lock_reader_projection_binds_every_other_root_and_policy_membership(self):
+        self.lock_sources()
+        original = gate._sources(self.candidate).entries
+        expected = gate.lock_reader_identity(original)
+        policy_bytes = deepcopy(original)
+        policy_bytes[gate.POLICY]["sha"] = "e" * 40
+        self.assertEqual(gate.lock_reader_identity(policy_bytes), expected)
+        for relative in (*[root + "new-reader.py" for root in gate.INDEPENDENT_ROOTS],
+                         "android/common/tests/javascript/package-lock.json", "package.json",
+                         "scripts/new-lock-reader.js", "tests/new-lock-reader.py"):
+            changed = deepcopy(original)
+            changed[relative] = gate._blob(b"new consumer\n")
+            with self.subTest(relative=relative):
+                self.assertNotEqual(gate.lock_reader_identity(changed), expected)
+        for mode in (None, "100755", "120000", "160000"):
+            changed = deepcopy(original)
+            if mode is None:
+                del changed[gate.POLICY]
+            else:
+                changed[gate.POLICY].update(mode=mode, type="commit" if mode == "160000" else "blob")
+            with self.subTest(policy_mode=mode), self.assertRaises(ValueError):
+                gate.lock_reader_identity(changed)
+        before = gate._policy_identity(self.policy_root)
+        self.policy["required_branches"] = []
+        self.write_policy()
+        self.assertNotEqual(gate._policy_identity(self.policy_root), before)
+
+    def test_lock_omission_requires_new_anchor_and_hermetic_base_without_old_root_fallthrough(self):
+        self.lock_sources()
+        self.anchor()  # A legacy Browser-root anchor cannot authorize this route.
+        browser = "browser-client/package-lock.json"
+        self.assertTrue(self.merge(browser, self.updated_lock(browser))["required"])
+        old = legacy_metadata_fixture()
+        self.assertEqual(gate.handoff().policy()["source_contracts"][gate.HERMETIC_METADATA_TEST]["reviewed_blob"],
+                         LEGACY_METADATA_BLOB)
+        (self.candidate / gate.HERMETIC_METADATA_TEST).write_bytes(old)
+        self.fixture.commit()
+        self.assertEqual(self.git("rev-parse", "HEAD:" + gate.HERMETIC_METADATA_TEST), LEGACY_METADATA_BLOB)
+        self.lock_anchor()  # Even a matching anchor cannot review the old archive reader.
+        self.anchor()
+        result = self.merge(browser, (self.candidate / browser).read_text() + "\n")
+        self.assertTrue(result["required"])
+        self.assertIsNone(result["lock_package_plan"])
+
+    def test_nonordinary_lock_entries_missing_inputs_and_unknown_npm_keep_complete_union(self):
+        self.lock_sources()
+        base = self.git("rev-parse", "HEAD")
+        browser = "browser-client/package-lock.json"
+        supported = self.updated_lock(browser)
+        for mutation in ("unsupported", "malformed", "mode", "symlink", "delete", "missing-base", "executable-base"):
+            with self.subTest(mutation=mutation):
+                self.git("reset", "--hard", base)
+                target = self.candidate / browser
+                if mutation == "missing-base":
+                    target.unlink()
+                    self.fixture.commit()
+                elif mutation == "executable-base":
+                    target.chmod(0o755)
+                    self.fixture.commit()
+                self.lock_anchor()
+                self.anchor()
+                contents, mode = supported, None
+                if mutation == "unsupported": contents = self.updated_lock(browser, unsupported=True)
+                elif mutation == "malformed": contents = '{"unexpected":true}\n'
+                elif mutation == "mode": mode = 0o755
+                elif mutation == "symlink": mode = "symlink"
+                elif mutation == "delete": contents = None
+                elif mutation == "executable-base": mode = 0o644
+                result = self.merge(browser, contents, mode=mode)
+                self.assertTrue(result["required"])
+                self.assertIsNone(result["lock_package_plan"])
+                self.assertEqual(len(gate.android().plan(self.candidate, "android-phone", views=result["views"])["executions"]), 40)
+
+    def test_lock_plus_policy_consumer_or_ancestor_changes_keep_complete_union(self):
+        self.lock_sources()
+        self.lock_anchor()
+        self.anchor()
+        base = self.git("rev-parse", "HEAD")
+        browser = "browser-client/package-lock.json"
+        for relative in (gate.POLICY, "browser-client/new-consumer.js", "package.json",
+                         "android/common/tests/javascript/package-lock.json"):
+            with self.subTest(relative=relative):
+                self.git("reset", "--hard", base)
+                value = (self.candidate / gate.POLICY).read_text() + "\n" if relative == gate.POLICY else "{}\n"
+                result = self.merge(browser, self.updated_lock(browser), additional={relative: value})
+                self.assertTrue(result["required"])
+                self.assertIsNone(result["lock_package_plan"])
+
+    def test_historical_reader_or_other_npm_graph_difference_cannot_use_lock_anchor(self):
+        self.lock_sources()
+        self.lock_anchor()
+        base = self.git("rev-parse", "HEAD")
+        browser = "browser-client/package-lock.json"
+        for relative in ("tools/issue-intake/new-lock-reader.py", "scripts/new-lock-reader.js",
+                         "browser-client/new-consumer.js"):
+            with self.subTest(relative=relative):
+                self.git("reset", "--hard", base)
+                target = self.candidate / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("# historical difference outside the event delta\n")
+                self.fixture.commit()
+                self.assertTrue(self.merge(browser, self.updated_lock(browser))["required"])
+
+    def test_lock_only_diagnostics_and_manual_events_retain_extended_inventories(self):
+        self.lock_sources()
+        self.lock_anchor()
+        browser = "browser-client/package-lock.json"
+        self.assertFalse(self.merge(browser, self.updated_lock(browser))["required"])
+        self.event["pull_request"]["labels"] = [{"name": "android-long-diagnostics"}]
+        labelled = self.plan()
+        self.assertTrue(labelled["required"])
+        self.assertIsNone(labelled["lock_package_plan"])
+        self.assertEqual(len(gate.android().plan(self.candidate, "android-phone", views=labelled["views"])["executions"]), 45)
+        event = {"repository": self.event["repository"], "ref": "refs/heads/android-phone"}
+        manual = gate.candidate_plan(self.candidate, event, self.sha, event_name="workflow_dispatch", policy_root=self.policy_root)
+        self.assertTrue(manual["required"])
+        self.assertEqual(len(gate.android().plan(self.candidate, "android-phone", views=manual["views"])["executions"]), 45)
+        complete = list(gate.android().VIEWS) + list(gate.android().DIAGNOSTIC_VIEWS)
+        self.assertEqual(len(gate.android().plan(self.candidate, "android-phone", views=complete)["executions"]), 46)
+
+    def test_lock_omission_rejects_recomputed_package_identity_and_owner_tampering(self):
+        self.lock_sources()
+        self.lock_anchor()
+        browser = "browser-client/package-lock.json"
+        self.assertFalse(self.merge(browser, self.updated_lock(browser))["required"])
+        packages = gate.packages()
+        expected = packages.candidate_plan(self.candidate, self.event, self.sha)
+        for mutation in ("candidate", "base", "head", "tree", "paths", "unknown", "regular", "owner", "generation"):
+            changed = deepcopy(expected)
+            if mutation in ("candidate", "base", "head", "tree"): changed[mutation] = "c" * 40
+            elif mutation == "paths": changed["paths"] = []
+            elif mutation in ("unknown", "regular"): changed[mutation] = mutation == "unknown"
+            elif mutation == "owner": changed["package_set"] = []
+            else: changed["consumer_generation"] = False
+            with self.subTest(mutation=mutation), patch.object(gate, "packages", return_value=packages), \
+                    patch.object(packages, "candidate_plan", return_value=changed):
+                self.assertTrue(self.plan()["required"])
+        (self.candidate / browser).write_text("dirty working tree\n")
+        with self.assertRaises(ValueError): self.plan()
+
     def test_real_deletion_and_rename_keep_both_change_sides(self):
         self.anchor()
         self.assertFalse(self.merge("browser-client/deleted.txt", "browser fixture")["required"])
@@ -205,14 +520,14 @@ class RequiredAndroidTests(unittest.TestCase):
         event = {"repository": self.event["repository"], "ref": "refs/heads/android-phone"}
         manual = gate.candidate_plan(self.candidate, event, self.sha, event_name="workflow_dispatch", policy_root=self.policy_root)
         self.assertTrue(manual["required"])
-        self.assertEqual(manual["views"], list(ownership.android.DEFAULT_VIEWS))
+        self.assertEqual(manual["views"], list(ownership.android.DEFAULT_VIEWS) + list(ownership.android.DIAGNOSTIC_VIEWS))
         self.assertNotIn("mutation", manual["views"])
         self.assertNotIn("stability", result["views"])
         self.assertNotIn("endurance", result["views"])
 
     def test_complete_old_and_new_package_tuples_remain_approved_but_mixed_android_callee_fails(self):
         for direct, producer in ((False, False), (False, True), (True, False), (True, True)):
-            generation = self.workflow_files(direct=direct, producer=producer)
+            generation = self.workflow_files(direct=direct, producer=producer, owned=False)
             self.assertEqual(gate.validate_tree_wiring(gate._sources(self.candidate).entries), generation["name"])
         original = deepcopy(gate._sources(self.candidate).entries)
         for mutate in (lambda t: t.pop(gate.WORKFLOW),
@@ -232,7 +547,7 @@ class RequiredAndroidTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "activation blocked"):
             gate.admit(self.candidate, self.event)
         # Trusted test policy enables only the fake fixture target.
-        with self.assertRaisesRegex(ValueError, "not implemented"):
+        with self.assertRaisesRegex(ValueError, "not qualified"):
             gate.admit(self.candidate, self.event, policy_root=self.policy_root)
         with patch.object(gate, "ACTIVATION_READY", True):
             gate.admit(self.candidate, self.event, policy_root=self.policy_root)
@@ -240,29 +555,6 @@ class RequiredAndroidTests(unittest.TestCase):
         self.write_policy()
         with self.assertRaisesRegex(ValueError, "extended-tier-prerequisite-transfer"):
             gate.admit(self.candidate, self.event, policy_root=self.policy_root)
-
-    def test_staged_detection_works_without_execution_runtime_in_trusted_sparse_checkout(self):
-        trusted = self.temporary / 'legacy-trusted-sparse'
-        for relative in ('tools/repository-checks/android_gate.py', 'tools/repository-checks/android.py', *gate.CALLERS):
-            target = trusted / relative
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(ROOT / relative, target)
-        sparse_gate = load('legacy_sparse_android_gate', str(trusted / 'tools/repository-checks/android_gate.py'))
-        caller = self.candidate / '.github/workflows/repository-checks.yml'
-        caller.parent.mkdir(parents=True, exist_ok=True)
-        caller.write_text('# legacy non-Android caller\n')
-        self.fixture.commit()
-        with patch.object(sparse_gate, '_sources', side_effect=AssertionError('execution must remain unloaded')):
-            self.assertFalse(sparse_gate.has_staged_caller(self.candidate, policy_root=trusted))
-            # A dirty file cannot manufacture ownership absent from Git HEAD.
-            caller.write_bytes((ROOT / gate.CALLERS[0]).read_bytes())
-            self.assertFalse(sparse_gate.has_staged_caller(self.candidate, policy_root=trusted))
-            self.fixture.commit()
-            self.assertTrue(sparse_gate.has_staged_caller(self.candidate, policy_root=trusted))
-            self.assertTrue(sparse_gate.has_staged_caller(self.fixture.sparse_clone(), policy_root=trusted))
-            caller.chmod(0o755)
-            self.fixture.commit()
-            self.assertFalse(sparse_gate.has_staged_caller(self.candidate, policy_root=trusted))
 
     def test_untrusted_candidate_flags_and_corrupt_trusted_policy_cannot_authorize_activation(self):
         self.workflow_files()
@@ -275,6 +567,9 @@ class RequiredAndroidTests(unittest.TestCase):
         for mutate in (lambda p: p["activation_blockers"].append("unknown"),
                        lambda p: p["required_branches"].append("unknown"),
                        lambda p: p["independent_roots"].append("scripts/"),
+                       lambda p: p["reviewed_lock_sources"].pop("android-vr"),
+                       lambda p: p["reviewed_lock_sources"]["android-phone"].update(entries=True),
+                       lambda p: p["reviewed_lock_sources"]["android-phone"].update(readers="sha256:unknown"),
                        lambda p: p["workflow_generations"].append(deepcopy(p["workflow_generations"][0]))):
             value = deepcopy(self.policy)
             mutate(value)

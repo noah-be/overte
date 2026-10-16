@@ -83,7 +83,7 @@ checks. Both input trees must still match this reader boundary; new application
 readers invalidate the exception even for a later CI-only change.
 
 The own iOS host run also has an independent, narrower negative dependency
-boundary in `host.py`. Exactly 114 reviewed CI paths may change while both the
+boundary in `host.py`. Exactly 130 reviewed CI paths may change while both the
 protected base and merge candidate retain the complete reviewed complement of
 11,168 ordinary Git entries, including historical child differences, test
 discovery, imports, helpers, product sources, consumed documentation and modes.
@@ -106,8 +106,30 @@ staged `tools/repository-checks/workflows/sync-ci-selection.yml` template is als
 independent CI: the protected iOS launcher does not import or discover it, and
 ordinary YAML is outside its repository-wide native source scan. The template
 is absent from the protected reader tree, so admitting this one path leaves both
-reviewed complement identities unchanged. Sibling paths and executable YAML
-remain conservative inputs. The two locks
+reviewed complement identities unchanged. The three exact dormant
+`tools/repository-checks/workflows/metadata-edits/repository-checks.yml` and
+`sync-test-reuse.yml` and `codeql.yml` templates have the same negative reader proof: none is
+present in the protected tree, imported by the launcher or included in native
+source discovery. They do not activate metadata-only routing. Sibling paths and
+executable YAML remain conservative inputs.
+
+Twelve more exact ordinary CI sources cover `.github/android-owner-transfer.json`,
+`tests/android-owner-transfer-test.py`, `tools/repository-checks/android_handoff.py`
+and nine staged files under `tools/repository-checks/workflows/android-owned/`:
+`android-required.yml`, `project-tests.yml`, `repository-checks.yml`,
+`handoff/.github/workflows/android-tests.yml`, `handoff/.github/workflows/android-vr-tests.yml`,
+`handoff/android/common/tests/android-workflow-contract-test.py`,
+`handoff/android/common/tests/ci/test_ci_contract.py`,
+`handoff/android/common/tests/ci/validate_ci_contract.py`, and
+`handoff/android/phone/tests/phone-release-metadata-test.py`.
+None exists in the protected reader tree, is imported by its launcher or belongs
+to either discovered iOS test directory. The native source scan excludes their
+JSON, YAML and Python suffixes. Both immutable reader complements therefore keep
+their existing identities. This admits only their ordinary `100644` staging
+sources; it does not exempt the executable Android product targets, unknown
+siblings, mode changes or symbolic links, and does not activate the staged owner.
+
+The two locks
 `browser-client/package-lock.json` and
 `script-archive/marketplace/S3Server/package-lock.json` form a separate conditional
 class. They are not independent-host files and remain present in ordinary app

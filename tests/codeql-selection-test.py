@@ -140,10 +140,28 @@ class LanguageSelectionTests(unittest.TestCase):
     def test_saved_workflow_digest_matches_the_actual_reviewed_activation(self):
         actual = subprocess.check_output(['git', 'hash-object', '.github/workflows/codeql.yml'],
                                          cwd=ROOT, text=True).strip()
-        self.assertIn(actual, {CODEQL._SELECTIVE_WORKFLOW, CODEQL._RESULTS_WORKFLOW})
+        self.assertIn(actual, {CODEQL._SELECTIVE_WORKFLOW, *CODEQL.result_workflow_blobs()})
         canonical = ROOT / "tools/repository-checks/workflows/codeql-results.yml"
         expected = subprocess.check_output(["git", "hash-object", str(canonical)], cwd=ROOT, text=True).strip()
         self.assertEqual(expected, CODEQL._RESULTS_WORKFLOW)
+        successor = ROOT / 'tools/repository-checks/workflows/metadata-edits/codeql.yml'
+        self.assertEqual(subprocess.check_output(['git', 'hash-object', str(successor)], cwd=ROOT, text=True).strip(),
+                         CODEQL._RETARGET_RESULTS_WORKFLOW)
+
+    def test_retarget_generation_is_exact_and_classification_control_is_shared(self):
+        before = reviewed_tree()
+        before['.github/workflows/codeql.yml']['sha'] = CODEQL._RETARGET_RESULTS_WORKFLOW
+        for path, expected in (('app/main.py', ['python']), ('app/main.ts', ['javascript-typescript']),
+                               ('tools/repository-checks/check.py', list(CODEQL.LANGUAGES))):
+            after = deepcopy(before); after[path] = entry('b')
+            self.assertEqual(CODEQL.select_languages(before, after)['languages'], expected)
+        after = deepcopy(before)
+        after['.github/workflows/codeql.yml']['sha'] = CODEQL._RESULTS_WORKFLOW
+        selected = CODEQL.select_languages(before, after)
+        self.assertTrue(selected['full_scan'])
+        self.assertEqual(selected['reasons'][0]['code'], 'analysis-workflow-rollback')
+        self.assertTrue(CODEQL.result_workflow_rollback(before['.github/workflows/codeql.yml'],
+                                                       after['.github/workflows/codeql.yml']))
 
     def test_both_sides_must_match_reviewed_actual_workflow_and_configuration(self):
         for path in CODEQL._REVIEWED_CONTROLS:
@@ -221,10 +239,16 @@ class ImmutableRepositoryTests(unittest.TestCase):
         self.git("config", "user.email", "fixture@example.invalid")
         for relative in CODEQL._REVIEWED_CONTROLS:
             self.write(relative, (ROOT / relative).read_text())
+        # Historical transitions start at the exact predecessor even after the
+        # checkout activates its successor; do not inherit ROOT's active version.
+        self.write(".github/workflows/codeql.yml",
+                   (ROOT / "tools/repository-checks/workflows/codeql-results.yml").read_text())
         self.write("tools/check.py", "raise RuntimeError('candidate source must never be imported')\n")
         self.write("tools/test-evidence/inputs.py", "raise RuntimeError('candidate inventory must never be imported')\n")
         self.write("browser/main.ts", "export const value = 1;\n")
         self.base = self.commit()
+        self.assertEqual(self.git("rev-parse", self.base + ":.github/workflows/codeql.yml"),
+                         CODEQL._RESULTS_WORKFLOW)
 
     def git(self, *arguments):
         return subprocess.check_output(["git", "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", *arguments],
@@ -269,6 +293,24 @@ class ImmutableRepositoryTests(unittest.TestCase):
                 self.assertTrue(CODEQL.select_repository(self.root, sha, self.base)["full_scan"])
                 self.assertTrue(CODEQL.select_repository(self.root, self.base, sha)["full_scan"])
         self.assertTrue(CODEQL.select_repository("/missing-repository", "", "", event="schedule")["full_scan"])
+
+    def test_retarget_reselects_from_new_base_and_actual_merge_without_importing_sources(self):
+        self.write('.github/workflows/codeql.yml',
+                   (ROOT / 'tools/repository-checks/workflows/metadata-edits/codeql.yml').read_text())
+        base = self.commit()
+        for changes, expected in (({'app.py': 'raise RuntimeError("never import")\n'}, ['python']),
+                                  ({'app.ts': 'export const value=2;\n'}, ['javascript-typescript']),
+                                  ({'app.py': '# changed\n', 'app.ts': '// changed\n'}, list(CODEQL.LANGUAGES)),
+                                  ({'unknown.input': 'unknown\n'}, list(CODEQL.LANGUAGES))):
+            self.git('checkout', '-q', '--detach', base)
+            for path, source in changes.items(): self.write(path, source)
+            head = self.commit()
+            merge = self.git('commit-tree', self.git('rev-parse', head + '^{tree}'),
+                             '-p', base, '-p', head, '-m', 'Retarget exact merge fixture')
+            with self.subTest(changes=changes):
+                plan = CODEQL.select_repository(self.root, base, merge, event='pull_request')
+                self.assertEqual(plan['languages'], expected)
+                self.assertEqual(plan['commits'], {'base': base, 'candidate': merge})
 
 
 RESULT_SPEC = importlib.util.spec_from_file_location("trusted_codeql_results", ROOT / "tools/repository-checks/codeql_results.py")
@@ -461,6 +503,48 @@ class SelectedResultTests(unittest.TestCase):
         self.env['CODEQL_EXPECTED_LANGUAGES'] = '[]'
         with self.assertRaisesRegex(RESULTS.ResultError, 'independent immutable selection'):
             self.verify()
+
+    def test_selected_result_plan_rejects_deployed_successor_rollback_independently(self):
+        workflow = RESULTS.WORKFLOW
+        self.write(workflow, (ROOT / 'tools/repository-checks/workflows/metadata-edits/codeql.yml').read_text())
+        base = self.commit()
+        self.write(workflow, (ROOT / 'tools/repository-checks/workflows/codeql-results.yml').read_text())
+        head = self.commit()
+        candidate = self.git('commit-tree', self.git('rev-parse', head + '^{tree}'),
+                             '-p', base, '-p', head, '-m', 'Forbidden rollback fixture')
+        self.git('checkout', '-q', '--detach', candidate)
+        self.event['pull_request']['base']['sha'] = base
+        self.event['pull_request']['head']['sha'] = head
+        env = dict(self.env, GITHUB_SHA=candidate, GITHUB_WORKFLOW_SHA=candidate,
+                   CODEQL_EXPECTED_LANGUAGES='["javascript-typescript","python"]')
+        with self.assertRaisesRegex(RESULTS.ResultError, 'cannot be reverted'):
+            RESULTS.Verifier(self.root, self.event, env, api=self.api).plan()
+
+    def test_successor_retarget_verifies_current_candidate_results_and_rejects_old_sarif(self):
+        old_candidate = self.candidate
+        self.write(RESULTS.WORKFLOW, (ROOT / 'tools/repository-checks/workflows/metadata-edits/codeql.yml').read_text())
+        self.base = self.commit()
+        self.write('tools/check.py', '# changed Python after retarget baseline\n')
+        self.head = self.commit()
+        self.candidate = self.git('commit-tree', self.git('rev-parse', self.head + '^{tree}'),
+                                  '-p', self.base, '-p', self.head, '-m', 'Current retarget merge fixture')
+        self.git('checkout', '-q', '--detach', self.candidate)
+        self.pr['base'].update(ref='apple-main', sha=self.base)
+        self.pr['head']['sha'] = self.head
+        self.pr['merge_commit_sha'] = self.candidate
+        self.event.update(action='edited', changes={'base': {'ref': {'from': 'main'},
+                                                            'sha': {'from': '1' * 40}}},
+                          pull_request=deepcopy(self.pr))
+        self.env.update(GITHUB_SHA=self.candidate, GITHUB_WORKFLOW_SHA=self.candidate, GITHUB_BASE_REF='apple-main')
+        self.refs = {'heads/apple-main': self.base, 'heads/fix/main/example': self.head,
+                     'pull/42/merge': self.candidate}
+        self.merge = {'sha': self.candidate, 'parents': [{'sha': self.base}, {'sha': self.head}]}
+        self.run['head_sha'] = self.head
+        for job in self.jobs: job['head_sha'] = self.head
+        self.analyses[0]['commit_sha'] = self.candidate
+        self.assertEqual(self.verify()['languages'], ['python'])
+        self.analyses[0]['commit_sha'] = old_candidate
+        with self.assertRaises(RESULTS.ResultError): self.verify()
 
     def test_unknown_duplicate_languages_and_foreign_actions_repository_reject(self):
         for key, value in [('CODEQL_EXPECTED_LANGUAGES', '["python","python"]'),

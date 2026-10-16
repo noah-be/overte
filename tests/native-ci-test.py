@@ -339,9 +339,21 @@ class WorkflowCostTests(unittest.TestCase):
         config = json.loads((ROOT / '.github/repository-checks.json').read_text())
         if config.get('native_required', False) or 'main' in config.get('native_required_branches', []):
             jobs = yaml.safe_load(caller)['jobs']
-            self.assertEqual(jobs['native']['if'], "needs.route.outputs.native != 'skip'")
+            generation = load('native_complete_workflow_contract',
+                              'tests/workflow-contract-test.py').reviewed_package_generation()
+            metadata = generation in ('npm-consumers-metadata-edits-v1', 'android-owned-npm5-sync-ci-v1')
+            condition = "needs.route.outputs.native != 'skip'"
+            if metadata:
+                condition = "needs.route.outputs.metadata_only != 'true' && " + condition
+            self.assertEqual(jobs['native']['if'], condition)
             self.assertEqual(jobs['native']['needs'], 'route')
-            self.assertEqual(jobs['repository-checks']['if'], 'always()')
+            self.assertEqual(jobs['repository-checks']['if'],
+                             "always() && (needs.route.result != 'success' || needs.route.outputs.metadata_only != 'true')"
+                             if metadata else 'always()')
+            if metadata:
+                self.assertEqual(jobs['repository-checks']['name'],
+                    "${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && "
+                    "'repository-checks (metadata unchanged)' || 'repository-checks' }}")
             self.assertIn('native', jobs['repository-checks']['needs'])
         self.assertIn("timeout-minutes: ${{ inputs.mode == 'full' && 90 || 15 }}", workflow)
         self.assertIn('timeout-minutes: 10', workflow)

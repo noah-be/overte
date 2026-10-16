@@ -65,33 +65,85 @@ def workflow_events(source):
     return data.get('on', data.get(True))
 
 
+def codeql_generation(case, source):
+    """Admit exact old/new result workflows, never arbitrary metadata guards."""
+    spec = importlib.util.spec_from_file_location('workflow_contract_codeql', ROOT / 'tools/repository-checks/codeql.py')
+    policy = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(policy)
+    def blob(value):
+        raw = value.encode()
+        return hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
+    previous = ROOT / 'tools/repository-checks/workflows/codeql-results.yml'
+    successor = ROOT / 'tools/repository-checks/workflows/metadata-edits/codeql.yml'
+    case.assertEqual(blob(previous.read_text()), policy._RESULTS_WORKFLOW)
+    case.assertEqual(blob(successor.read_text()), policy._RETARGET_RESULTS_WORKFLOW)
+    known = {policy._SELECTIVE_WORKFLOW: 'selective', policy._RESULTS_WORKFLOW: 'results',
+             policy._RETARGET_RESULTS_WORKFLOW: 'retarget-results'}
+    identity = blob(source)
+    case.assertIn(identity, known, 'unreviewed CodeQL workflow cannot inherit omission contracts')
+    return known[identity]
+
+
+def codeql_analyze_condition(case, source):
+    return ("needs.select.outputs.metadata_only != 'true' && needs.select.outputs.scan == 'true'"
+            if codeql_generation(case, source) == 'retarget-results' else "needs.select.outputs.scan == 'true'")
+
+
+def reviewed_package_generation():
+    """Bind the complete current tuple, including the Android successor callee."""
+    spec = importlib.util.spec_from_file_location(
+        'workflow_contract_packages', ROOT / 'tools/repository-checks/package_checks.py')
+    packages = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(packages)
+    name = packages.validate_wiring(ROOT)
+    if name == 'android-owned-npm5-sync-ci-v1':
+        spec = importlib.util.spec_from_file_location(
+            'workflow_contract_android', ROOT / 'tools/repository-checks/android_gate.py')
+        android = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(android)
+        tree = {}
+        for relative in (*packages.CONSUMER_WORKFLOW_PATHS, '.github/workflows/android-required.yml'):
+            path = ROOT / relative
+            if not path.is_file() or path.is_symlink() or path.stat().st_mode & 0o111:
+                raise AssertionError('owned Android workflow must be an ordinary source')
+            tree[relative] = android._blob(path.read_bytes())
+        if android.validate_tree_wiring(tree) != name:
+            raise AssertionError('owned Android requires its exact complete generation')
+    return name
+
+
 def sync_condition(legacy, selected):
-    """Admit selected conditions only with the exact complete reviewed caller."""
+    """Admit selected conditions only with an exact complete reviewed caller."""
     staged = ROOT / 'tools/repository-checks/workflows/sync-ci-selection.yml'
     if SYNC_VALIDATION_WORKFLOW.read_bytes() != staged.read_bytes():
         return legacy
-    spec = importlib.util.spec_from_file_location(
-        'sync_condition_packages', ROOT / 'tools/repository-checks/package_checks.py')
-    packages = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(packages)
-    if packages.validate_wiring(ROOT) != 'npm-consumers-sync-ci-v1':
+    if reviewed_package_generation() not in (
+            'npm-consumers-sync-ci-v1', 'npm-consumers-metadata-edits-v1',
+            'android-owned-npm5-sync-ci-v1'):
         raise AssertionError('selected synchronization requires the exact complete generation')
     return selected
 
 
 def assert_project_caller_routing(case, source):
-    """The finite npm successor must bind its whole generation and exact route."""
-    template = ROOT / 'tools/repository-checks/workflows/npm-consumers/repository-checks.yml'
-    if source == template.read_text(encoding='utf-8'):
-        spec = importlib.util.spec_from_file_location(
-            'workflow_contract_packages', ROOT / 'tools/repository-checks/package_checks.py')
-        packages = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(packages)
-        case.assertIn(packages.validate_wiring(ROOT), ('npm-consumers-v1', 'npm-consumers-sync-ci-v1'))
-        case.assertEqual(workflow_data(source)['jobs']['project']['if'],
-                         "needs.route.outputs.package_host_mode == 'full' || "
-                         "needs.route.outputs.package_host_mode == 'tool-dependencies' || "
-                         "needs.route.outputs.package_set != '[]'")
+    """Finite successors bind their whole generation and exact project route."""
+    templates = (
+        ('tools/repository-checks/workflows/npm-consumers/repository-checks.yml',
+         ('npm-consumers-v1', 'npm-consumers-sync-ci-v1'), False),
+        ('tools/repository-checks/workflows/metadata-edits/repository-checks.yml',
+         ('npm-consumers-metadata-edits-v1',), True),
+        ('tools/repository-checks/workflows/android-owned/repository-checks.yml',
+         ('android-owned-npm5-sync-ci-v1',), True),
+    )
+    for relative, generations, metadata in templates:
+        if source != (ROOT / relative).read_text(encoding='utf-8'):
+            continue
+        case.assertIn(reviewed_package_generation(), generations)
+        condition = ("needs.route.outputs.package_host_mode == 'full' || "
+                     "needs.route.outputs.package_host_mode == 'tool-dependencies' || "
+                     "needs.route.outputs.package_set != '[]'")
+        if metadata:
+            condition = "needs.route.outputs.metadata_only != 'true' && (" + condition + ")"
+        case.assertEqual(workflow_data(source)['jobs']['project']['if'], condition)
         return 'package_host_mode'
     # An unadmitted caller cannot inherit the successor's formatting-only omission.
     case.assertIn("if: needs.route.outputs.mode == 'full'", source)
@@ -207,12 +259,11 @@ class LightweightWorkflowContracts(unittest.TestCase):
             source = path.read_text(encoding="utf-8")
             self.assertEqual(workflow_events(source)['push']['paths-ignore'], ['**/*.md'])
         source = CODEQL_WORKFLOW.read_text(encoding="utf-8")
-        canonical = (ROOT / "tools/repository-checks/workflows/codeql-results.yml").read_text()
-        if source == canonical:
+        if codeql_generation(self, source) in {'results', 'retarget-results'}:
             # Required context is published for docs; the immutable selector
             # omits both analyzer jobs, rather than omitting the entire check.
             self.assertNotIn('paths-ignore', workflow_events(source)['pull_request'])
-            self.assertIn("if: needs.select.outputs.scan == 'true'", source)
+            self.assertEqual(workflow_data(source)['jobs']['analyze']['if'], codeql_analyze_condition(self, source))
         else:
             self.assertEqual(workflow_events(source)['pull_request']['paths-ignore'], ['**/*.md'])
 
@@ -307,7 +358,8 @@ class CodeQLWorkflowContracts(unittest.TestCase):
         self.assertNotIn("self-hosted", self.source)
         self.assertIn("timeout-minutes: 30", self.source)
         self.assertIn("language: ${{ fromJSON(needs.select.outputs.languages) }}", self.source)
-        self.assertIn("if: needs.select.outputs.scan == 'true'", self.source)
+        self.assertEqual(workflow_data(self.source)['jobs']['analyze']['if'],
+                         codeql_analyze_condition(self, self.source))
         self.assertIn("build-mode: none", self.source)
 
     def test_permissions_are_least_privilege(self):
@@ -321,8 +373,7 @@ class CodeQLWorkflowContracts(unittest.TestCase):
 
     def test_actions_are_fresh_full_sha_pins(self):
         actions = ACTION_USE.findall(self.source)
-        canonical = ROOT / "tools/repository-checks/workflows/codeql-results.yml"
-        self.assertEqual(len(actions), 7 if self.source == canonical.read_text() else 5)
+        self.assertEqual(len(actions), 7 if codeql_generation(self, self.source) in {'results', 'retarget-results'} else 5)
         self.assertEqual([action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], [])
         codeql = [action for action in actions if action.startswith("github/codeql-action/")]
         self.assertEqual(
@@ -355,6 +406,13 @@ class CodeQLWorkflowContracts(unittest.TestCase):
         aggregate = self.source.split('  codeql-checks:', 1)[1]
         self.assertIn('if: always()', aggregate)
         self.assertIn('needs: [select, analyze]', aggregate)
+        selected = codeql_generation(self, self.source) == 'retarget-results'
+        job = workflow_data(self.source)['jobs']['codeql-checks']
+        self.assertEqual(job['if'], "always() && (needs.select.result != 'success' || needs.select.outputs.metadata_only != 'true')"
+                         if selected else 'always()')
+        self.assertEqual(job['name'], "${{ needs.select.result == 'success' && needs.select.outputs.metadata_only == 'true' && "
+                         "'codeql-security-results (metadata unchanged)' || 'codeql-security-results' }}"
+                         if selected else 'codeql-security-results')
         steps = workflow_data(self.source)['jobs']['codeql-checks']['steps']
         script = next(step['run'] for step in steps if step['name'] == 'Require every selected analysis')
         for selected in ('success', 'failure', 'cancelled', 'skipped'):
@@ -368,8 +426,7 @@ class CodeQLWorkflowContracts(unittest.TestCase):
 
 
     def test_selected_results_are_independent_and_cannot_bypass_the_truth_table(self):
-        canonical = (ROOT / "tools/repository-checks/workflows/codeql-results.yml").read_text()
-        if self.source != canonical:
+        if codeql_generation(self, self.source) not in {'results', 'retarget-results'}:
             self.skipTest("Selected-result generation is covered by its staged workflow contracts")
         workflow = workflow_data(self.source)
         job = workflow['jobs']['codeql-checks']
@@ -407,6 +464,42 @@ class SelectedCodeQLResultWorkflowContracts(CodeQLWorkflowContracts):
     @classmethod
     def setUpClass(cls):
         cls.source = (ROOT / "tools/repository-checks/workflows/codeql-results.yml").read_text()
+
+
+class RetargetCodeQLResultWorkflowContracts(CodeQLWorkflowContracts):
+    @classmethod
+    def setUpClass(cls):
+        cls.source = (ROOT / 'tools/repository-checks/workflows/metadata-edits/codeql.yml').read_text()
+
+    def test_retarget_and_metadata_route_preserve_existing_analysis_and_security_assertions(self):
+        previous = workflow_data((ROOT / 'tools/repository-checks/workflows/codeql-results.yml').read_text())
+        successor = workflow_data(self.source)
+        triggers = successor.get('on', successor.get(True))
+        self.assertEqual(triggers['pull_request']['types'], ['opened', 'reopened', 'synchronize', 'edited'])
+        ordinary = workflow_data((ROOT / 'tools/repository-checks/workflows/codeql-results.yml').read_text())
+        normal_triggers = ordinary.get('on', ordinary.get(True))
+        self.assertEqual({k: v for k, v in triggers['pull_request'].items() if k != 'types'}, normal_triggers['pull_request'])
+        self.assertEqual(triggers['push'], normal_triggers['push'])
+        self.assertEqual(triggers['schedule'], normal_triggers['schedule'])
+        suffix = "-${{ github.event.action == 'edited' && !github.event.changes.base && " \
+                 "(github.event.changes.title || github.event.changes.body) && github.run_id || 'qualification' }}"
+        self.assertTrue(successor['concurrency']['group'].endswith(suffix))
+        self.assertIs(successor['concurrency']['cancel-in-progress'], True)
+        self.assertEqual(successor['permissions'], previous['permissions'])
+        for name in ('analyze', 'codeql-checks'):
+            future, old = dict(successor['jobs'][name]), dict(previous['jobs'][name])
+            for key in ('name', 'if'): future.pop(key); old.pop(key)
+            self.assertEqual(future, old, 'all actual analysis and security-verification steps must remain unchanged')
+        select = successor['jobs']['select']
+        self.assertEqual(select['outputs']['metadata_only'], '${{ steps.event.outputs.metadata_only }}')
+        classifier = next(step for step in select['steps'] if step.get('id') == 'event')
+        self.assertIn('trusted/tools/repository-checks/check.py metadata-event', classifier['run'])
+        candidate = next(step for step in select['steps'] if step['name'] == 'Read the exact candidate inventory')
+        plan = next(step for step in select['steps'] if step.get('id') == 'plan')
+        self.assertLess(select['steps'].index(classifier), select['steps'].index(candidate))
+        for step in (candidate, plan): self.assertEqual(step['if'], "steps.event.outputs.metadata_only != 'true'")
+        self.assertEqual(plan['env']['BASE_SHA'], '${{ github.event.pull_request.base.sha || github.event.before || github.sha }}')
+        self.assertEqual(plan['env']['CANDIDATE_SHA'], '${{ github.sha }}')
 
 class BranchGovernanceWorkflowContracts(unittest.TestCase):
     def test_policy_is_a_native_read_only_pull_request_check(self):
@@ -520,7 +613,8 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
             spec = importlib.util.spec_from_file_location(
                 'sync_workflow_packages', ROOT / 'tools/repository-checks/package_checks.py')
             packages = importlib.util.module_from_spec(spec); spec.loader.exec_module(packages)
-            self.assertEqual(packages.validate_wiring(ROOT), 'npm-consumers-sync-ci-v1')
+            self.assertIn(reviewed_package_generation(), ('npm-consumers-sync-ci-v1',
+                'npm-consumers-metadata-edits-v1', 'android-owned-npm5-sync-ci-v1'))
             self.assertIn("steps.select.outputs.full_host == 'true'", source)
             self.assertIn('--expected-selection "$EXPECTED_SELECTION"', source)
         else:
@@ -594,7 +688,9 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
             value = path.read_bytes()
             tree[relative] = {'mode': '100644', 'type': 'blob', 'sha': hashlib.sha1(
                 b'blob ' + str(len(value)).encode() + b'\0' + value).hexdigest()}
-        self.assertEqual(packages.validate_tree_wiring(tree), 'npm-consumers-sync-ci-v1')
+        self.assertEqual(packages.validate_tree_wiring(tree), reviewed_package_generation())
+        self.assertIn(reviewed_package_generation(), ('npm-consumers-sync-ci-v1',
+            'npm-consumers-metadata-edits-v1', 'android-owned-npm5-sync-ci-v1'))
         for relative in tree:
             changed = {path: dict(entry) for path, entry in tree.items()}
             changed[relative]['sha'] = '0' * 40
@@ -835,7 +931,12 @@ class ArchivedRefRetirementContracts(unittest.TestCase):
 def assert_reviewed_host_selection(case, source):
     """Accept the exact reviewed successor while retaining execution authority."""
     template = ROOT / 'tools/repository-checks/workflows/host/project-tests.yml'
-    case.assertEqual(source, template.read_text(encoding='utf-8'))
+    owned = ROOT / 'tools/repository-checks/workflows/android-owned/project-tests.yml'
+    android_owned = source == owned.read_text(encoding='utf-8')
+    if android_owned:
+        case.assertEqual(reviewed_package_generation(), 'android-owned-npm5-sync-ci-v1')
+    else:
+        case.assertEqual(source, template.read_text(encoding='utf-8'))
     jobs = workflow_data(source)['jobs']
     host = jobs['project-tests']
     case.assertEqual(host['if'], "needs.route.outputs.package_host_mode == 'full'")
@@ -849,12 +950,31 @@ def assert_reviewed_host_selection(case, source):
     selection = next(step for step in steps if step.get('id') == 'host')
     execution = next(step for step in steps if step['name'] == 'Run independently selected host contracts')
     case.assertIn('--select-only --output "$GITHUB_OUTPUT"', selection['run'])
-    case.assertIn('build/host-tests-env/bin/python trusted/tools/repository-checks/host_selection.py', execution['run'])
+    controller = 'android_handoff.py' if android_owned else 'host_selection.py'
+    case.assertIn('build/host-tests-env/bin/python trusted/tools/repository-checks/' + controller, execution['run'])
     for step in (selection, execution):
         case.assertIn('--candidate candidate', step['run'])
-        case.assertIn('--event "$GITHUB_EVENT_PATH" --sha "$GITHUB_SHA"', step['run'])
-        case.assertIn('--expected-plan "$EXPECTED_PLAN"', step['run'])
+        if not android_owned:
+            case.assertIn('--event "$GITHUB_EVENT_PATH" --sha "$GITHUB_SHA"', step['run'])
+            case.assertIn('--expected-plan "$EXPECTED_PLAN"', step['run'])
+        else:
+            case.assertIn('trusted/tools/repository-checks/android_handoff.py', step['run'])
         case.assertEqual(step['env']['EXPECTED_PLAN'], '${{ needs.route.outputs.package_plan }}')
+    if android_owned:
+        controller_source = (ROOT / 'tools/repository-checks/android_handoff.py').read_text()
+        controller_tree = ast.parse(controller_source)
+        main = next(node for node in controller_tree.body if isinstance(node, ast.FunctionDef) and node.name == 'main')
+        calls = [node for node in ast.walk(main) if isinstance(node, ast.Call)
+                 and isinstance(node.func, ast.Name) and node.func.id in {'selected_host', 'project'}]
+        case.assertEqual({node.func.id for node in calls}, {'selected_host', 'project'})
+        for call in calls:
+            case.assertEqual(ast.unparse(call.args[2]), "os.environ.get('GITHUB_SHA')")
+            case.assertEqual(ast.unparse(call.args[3]), "os.environ.get('GITHUB_EVENT_NAME')")
+            expected = next(item.value for item in call.keywords if item.arg == 'expected_plan')
+            case.assertEqual(ast.unparse(expected), "os.environ.get('EXPECTED_PLAN')")
+        case.assertIn('event = json.loads(Path(event_path).read_text())', controller_source)
+        case.assertIn('event_path = os.environ.get("GITHUB_EVENT_PATH")', controller_source)
+        case.assertIn('--receipt build/test-results/owned-project-execution.json', execution['run'])
     qt = next(step for step in steps if step['name'] == 'Install QML and portable C++ contract prerequisites')
     case.assertEqual(qt['if'], "steps.host.outputs.full_host == 'true'")
     runs = '\n'.join(step.get('run', '') for step in steps)
@@ -942,7 +1062,8 @@ class ProjectWorkflowContracts(unittest.TestCase):
     def test_ci_runs_complete_device_control_plane_with_qml(self):
         self.assertIn("qml-module-qttest", self.source)
         self.assertIn("qtdeclarative5-dev-tools", self.source)
-        if 'trusted/tools/repository-checks/host_selection.py' in self.source:
+        if any('trusted/tools/repository-checks/' + name in self.source
+               for name in ('host_selection.py', 'android_handoff.py')):
             assert_reviewed_host_selection(self, self.source)
         else:
             self.assertIn("--profile host --timeout 240 --host-timeout 900", self.source)
@@ -1028,7 +1149,8 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
                     self.assertIn("--candidate candidate --include-platform --timeout 240 --host-timeout 900", runs)
                     self.assertNotIn("python tests/run-project-tests.py", source)
                     self.assertNotIn("candidate/tests/run-project-tests.py", source)
-                elif 'trusted/tools/repository-checks/host_selection.py' in source:
+                elif any('trusted/tools/repository-checks/' + controller in source
+                         for controller in ('host_selection.py', 'android_handoff.py')):
                     assert_reviewed_host_selection(self, source)
                 else:
                     self.assertIn("-r tests/requirements-host.txt", runs)

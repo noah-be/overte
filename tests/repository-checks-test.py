@@ -2,6 +2,7 @@
 """Negative routing, merge identity and aggregate-result regressions."""
 
 from copy import deepcopy
+import hashlib
 import importlib.util
 import json
 import os
@@ -80,6 +81,228 @@ def inactive_browser_trusted_checkout(test):
     test.assertEqual(checks.configuration()[0]['browser_client_required_branches'], [])
     test.assertEqual((ROOT / '.github/repository-checks.json').read_bytes(), original)
     return trusted, checks.package_policy()
+
+
+class MetadataEditTests(unittest.TestCase):
+    """Dormant edit routing must preserve the original required check result."""
+
+    TEMPLATES = ROOT / 'tools/repository-checks/workflows/metadata-edits'
+
+    def edited(self, changes=None):
+        payload = event()
+        payload.update(action='edited', number=17, changes=changes or {'title': {'from': 'Previous title'}})
+        payload['pull_request'].update(number=17, state='open', title='Current title', body='Current description')
+        return payload
+
+    def test_only_complete_known_title_and_body_edits_are_metadata(self):
+        for changes in ({'title': {'from': 'Old'}}, {'body': {'from': 'Old'}}, {'body': {'from': None}},
+                        {'title': {'from': ''}, 'body': {'from': 'Old'}}):
+            for name in ('pull_request', 'pull_request_target'):
+                with self.subTest(changes=changes, name=name):
+                    self.assertTrue(CHECKS.metadata_edit(self.edited(changes), name))
+        payload = self.edited({'body': {'from': 'Removed description'}})
+        payload['pull_request']['body'] = None
+        self.assertTrue(CHECKS.metadata_edit(payload, 'pull_request'))
+
+    def test_retarget_unknown_and_malformed_changes_keep_normal_qualification(self):
+        changes = ({}, None, [], 'title', {'base': {'ref': {'from': 'old'}, 'sha': {'from': '1' * 40}}},
+                   {'title': {'from': 'Old'}, 'base': {}}, {'title': {'from': 'Old'}, 'future': {}},
+                   {'title': {}}, {'title': {'from': 'Old', 'extra': True}}, {'title': {'from': None}},
+                   {'body': {'from': False}}, {'body': 'old'}, {'unknown': {'from': 'Old'}})
+        for change in changes:
+            payload = self.edited(); payload['changes'] = change
+            with self.subTest(changes=change):
+                self.assertFalse(CHECKS.metadata_edit(payload, 'pull_request'))
+        payload = self.edited(); payload.pop('changes')
+        self.assertFalse(CHECKS.metadata_edit(payload, 'pull_request'))
+
+    def test_missing_or_foreign_server_context_does_not_omit_required_jobs(self):
+        original = self.edited()
+        for name in ('workflow_dispatch', 'push', 'schedule', '', None):
+            self.assertFalse(CHECKS.metadata_edit(original, name))
+        for replace in ('number', 'state', 'action', 'repository', 'base-repo', 'head-sha', 'base-sha', 'title'):
+            payload = deepcopy(original)
+            if replace == 'number': payload['number'] = True
+            elif replace == 'state': payload['pull_request']['state'] = 'closed'
+            elif replace == 'action': payload['action'] = 'synchronize'
+            elif replace == 'repository': payload['repository'] = {'id': 1319052603, 'full_name': 'overte-org/overte'}
+            elif replace == 'base-repo': payload['pull_request']['base']['repo'] = None
+            elif replace in ('head-sha', 'base-sha'): payload['pull_request'][replace.split('-')[0]]['sha'] = '0' * 40
+            else: payload['pull_request']['title'] = []
+            with self.subTest(replace=replace):
+                self.assertFalse(CHECKS.metadata_edit(payload, 'pull_request'))
+
+    def test_malformed_json_files_keep_normal_routing_without_a_qualification_claim(self):
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / 'event.json'
+            payload = self.edited()
+            for raw in ('{', '{}', json.dumps(payload).replace('"edited"', '"edited", "action": "edited"', 1),
+                        json.dumps(payload).replace('"Previous title"', 'NaN', 1), ' ' * 1_000_001):
+                path.write_text(raw)
+                with self.subTest(raw=raw[:35]):
+                    self.assertEqual(CHECKS.classify_metadata_event(path, 'pull_request'),
+                        {'kind': 'pr-metadata-classification', 'qualification': False, 'metadata_only': 'false'})
+            path.unlink()
+            self.assertEqual(CHECKS.classify_metadata_event(path, 'pull_request')['metadata_only'], 'false')
+
+    def test_classifier_cli_never_invokes_configuration_candidate_routing_or_verification(self):
+        from contextlib import redirect_stdout
+        import io
+        with tempfile.TemporaryDirectory() as name:
+            path, output = Path(name) / 'event.json', Path(name) / 'outputs'
+            path.write_text(json.dumps(self.edited()))
+            command = ['check.py', 'metadata-event', '--event', str(path), '--event-name', 'pull_request',
+                       '--output', str(output)]
+            with patch.object(sys, 'argv', command), patch.object(CHECKS, 'configuration') as config, \
+                    patch.object(CHECKS, 'plan') as plan, patch.object(CHECKS, 'verify') as verify, \
+                    redirect_stdout(io.StringIO()) as printed:
+                self.assertEqual(CHECKS.main(), 0)
+            config.assert_not_called(); plan.assert_not_called(); verify.assert_not_called()
+            self.assertEqual(output.read_text(), 'metadata_only=true\n')
+            self.assertIs(json.loads(printed.getvalue())['qualification'], False)
+
+    def test_actual_classifier_failure_is_nonzero_and_emits_no_metadata_output(self):
+        from contextlib import redirect_stderr
+        import io
+        with tempfile.TemporaryDirectory() as name:
+            output = Path(name) / 'outputs'
+            command = ['check.py', 'metadata-event', '--event', str(Path(name) / 'event.json'),
+                       '--event-name', 'pull_request_target', '--output', str(output)]
+            with patch.object(sys, 'argv', command), \
+                    patch.object(CHECKS, 'classify_metadata_event', side_effect=OSError('classifier unavailable')), \
+                    redirect_stderr(io.StringIO()):
+                self.assertEqual(CHECKS.main(), 1)
+            self.assertFalse(output.exists())
+
+    def test_metadata_output_is_not_an_aggregate_or_package_success_receipt(self):
+        needs = results()
+        needs['route']['outputs']['metadata_only'] = 'true'
+        for job in ('project', 'native', 'documentation', 'workflow-security'):
+            for outcome in ('failure', 'skipped', 'cancelled'):
+                broken = deepcopy(needs); broken[job]['result'] = outcome
+                with self.subTest(job=job, outcome=outcome), self.assertRaises(ValueError):
+                    CHECKS.verify(broken)
+        for outcome in ('failure', 'cancelled', 'skipped'):
+            broken = deepcopy(needs); broken['route']['result'] = outcome
+            with self.subTest(route=outcome), self.assertRaises(ValueError):
+                CHECKS.verify(broken)
+        missing = deepcopy(needs); missing['route']['outputs'] = {}
+        with self.assertRaises(ValueError): CHECKS.verify(missing)
+
+    def workflows(self):
+        import yaml
+        return {name: yaml.safe_load((self.TEMPLATES / (name + '.yml')).read_text())
+                for name in ('repository-checks', 'sync-test-reuse')}
+
+    def test_dormant_workflows_isolate_metadata_concurrency_before_job_classification(self):
+        import yaml
+        suffix = "-${{ github.event.action == 'edited' && !github.event.changes.base && " \
+                 "(github.event.changes.title || github.event.changes.body) && github.run_id || 'qualification' }}"
+        for name, workflow in self.workflows().items():
+            with self.subTest(workflow=name):
+                self.assertTrue(workflow['concurrency']['group'].endswith(suffix))
+                self.assertIs(workflow['concurrency']['cancel-in-progress'], True)
+                self.assertNotIn('needs.', workflow['concurrency']['group'])
+                if name == 'repository-checks':
+                    previous = yaml.safe_load((ROOT / PACKAGES.CONSUMER_TEMPLATES / 'repository-checks.yml').read_text())
+                    expected_events = previous.get('on', previous.get(True))
+                else:
+                    # Exact protected pre-metadata 2478d9e event contract. Do
+                    # not depend on historical Git objects in hosted checkouts.
+                    expected_events = {'pull_request_target': {
+                        'types': ['opened', 'reopened', 'synchronize', 'edited'],
+                        'branches': ['main', 'android-main', 'android-phone', 'android-vr',
+                                     'android-vr-pico', 'apple-main', 'apple-ios']},
+                        'workflow_dispatch': None}
+                self.assertEqual(workflow.get('on', workflow.get(True)), expected_events)
+
+    def test_repository_metadata_skips_all_work_with_distinct_names_and_unchanged_real_verifier(self):
+        import yaml
+        future = self.workflows()['repository-checks']['jobs']
+        previous = yaml.safe_load((ROOT / PACKAGES.CONSUMER_TEMPLATES / 'repository-checks.yml').read_text())['jobs']
+        for name in ('native', 'project', 'documentation', 'workflow-security', 'repository-checks'):
+            job = deepcopy(future[name])
+            self.assertEqual(job.pop('name'), "${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && '" + name +
+                             " (metadata unchanged)' || '" + name + "' }}")
+            original = deepcopy(previous[name]); original.pop('name', None)
+            condition = original.pop('if', None)
+            guard = "needs.route.outputs.metadata_only != 'true'"
+            expected = ("always() && (needs.route.result != 'success' || " + guard + ')' if name == 'repository-checks' else
+                        guard + ' && (' + condition + ')' if name == 'project' else
+                        guard + ' && ' + condition if condition else guard)
+            self.assertEqual(job.pop('if'), expected)
+            self.assertEqual(job, original)
+        route = deepcopy(future['route'])
+        self.assertEqual(route['outputs'].pop('metadata_only'), '${{ steps.event.outputs.metadata_only }}')
+        classifier = route['steps'].pop(1)
+        self.assertEqual(classifier['id'], 'event')
+        self.assertIn('check.py metadata-event', classifier['run'])
+        for step in route['steps'][1:]:
+            self.assertEqual(step.pop('if'), "steps.event.outputs.metadata_only != 'true'")
+        self.assertEqual(route, previous['route'])
+
+    def test_sync_metadata_cannot_dispatch_and_classifier_failure_retains_a_failing_required_name(self):
+        import yaml
+        jobs = self.workflows()['sync-test-reuse']['jobs']
+        job = deepcopy(jobs['sync-test-reuse'])
+        self.assertEqual(job.pop('name'), "${{ needs.classify.result == 'success' && needs.classify.outputs.metadata_only == 'true' && "
+                         "'sync-test-reuse (metadata unchanged)' || 'sync-test-reuse' }}")
+        self.assertEqual(job.pop('if'), "always() && (needs.classify.result != 'success' || needs.classify.outputs.metadata_only != 'true')")
+        self.assertEqual(job.pop('needs'), 'classify')
+        failure = job['steps'].pop(0)
+        self.assertEqual(failure['env'], {'CLASSIFICATION_RESULT': '${{ needs.classify.result }}'})
+        self.assertEqual(failure['run'], 'test "$CLASSIFICATION_RESULT" = success')
+        for state in ('success', 'failure', 'cancelled', 'skipped', ''):
+            observed = subprocess.run(['sh', '-c', failure['run']], env={'CLASSIFICATION_RESULT': state},
+                                      capture_output=True, timeout=5)
+            self.assertEqual(observed.returncode, 0 if state == 'success' else 1)
+        # Normalize only the already asserted metadata guard/name/first step.
+        # The remaining complete six-step job must retain protected 2478d9e's
+        # exact semantics even after ROOT itself deploys this successor.
+        normalized = (json.dumps(job, sort_keys=True, separators=(',', ':')) + '\n').encode()
+        self.assertEqual(hashlib.sha256(normalized).hexdigest(),
+                         '3d28170e8016afbed93a758e00a9842888c90ef252b0b74df23d7d4c9a4b6f33')
+        active = (ROOT / '.github/workflows/sync-test-reuse.yml').read_bytes()
+        successor = (self.TEMPLATES / 'sync-test-reuse.yml').read_bytes()
+        if active == successor:
+            self.assertIn(PACKAGES.validate_wiring(ROOT),
+                          ('npm-consumers-metadata-edits-v1', 'android-owned-npm5-sync-ci-v1'))
+            self.assertEqual(yaml.safe_load(active)['jobs']['sync-test-reuse']['name'],
+                "${{ needs.classify.result == 'success' && needs.classify.outputs.metadata_only == 'true' && "
+                "'sync-test-reuse (metadata unchanged)' || 'sync-test-reuse' }}")
+        else:
+            identity = hashlib.sha1(b'blob ' + str(len(active)).encode() + b'\0' + active).hexdigest()
+            self.assertEqual(identity, '59a19621ac160fc5c48d5323e4e61490e83f708a')
+            self.assertEqual(yaml.safe_load(active)['jobs']['sync-test-reuse']['name'], 'sync-test-reuse')
+        classify = jobs['classify']
+        self.assertEqual(classify['outputs'], {'metadata_only': '${{ steps.event.outputs.metadata_only }}'})
+        self.assertIn('check.py metadata-event', classify['steps'][-1]['run'])
+        self.assertEqual(classify['steps'][0]['with']['ref'], '${{ github.event.repository.default_branch }}')
+        self.assertIs(classify['steps'][0]['with']['persist-credentials'], False)
+
+    def test_new_caller_requires_exact_complete_five_workflow_generation(self):
+        import hashlib
+        source = (self.TEMPLATES / 'repository-checks.yml').read_bytes()
+        identity = hashlib.sha1(b'blob ' + str(len(source)).encode() + b'\0' + source).hexdigest()
+        generations = PACKAGES.workflow_generations()
+        future = next(g for g in generations if g['name'] == 'npm-consumers-metadata-edits-v1')
+        previous = next(g for g in generations if g['name'] == 'npm-consumers-sync-ci-v1')
+        self.assertEqual(set(future['workflows']), set(PACKAGES.CONSUMER_WORKFLOW_PATHS))
+        self.assertEqual([name for name in future['workflows'] if future['workflows'][name] != previous['workflows'][name]],
+                         ['.github/workflows/repository-checks.yml'])
+        self.assertEqual(future['workflows']['.github/workflows/repository-checks.yml']['sha'], identity)
+        self.assertEqual(future['workflows']['.github/workflows/sync-validation.yml']['sha'],
+                         '55d08b65a987224ce576459cede693cfd49375f6')
+        self.assertEqual(PACKAGES.validate_tree_wiring(future['workflows']), future['name'])
+        for change in ('missing', 'unknown', 'legacy-sync'):
+            tree = deepcopy(future['workflows'])
+            if change == 'missing': tree.pop('.github/workflows/browser-client.yml')
+            elif change == 'unknown': tree['.github/workflows/repository-checks.yml']['sha'] = 'a' * 40
+            else:
+                tree['.github/workflows/sync-validation.yml']['sha'] = next(
+                    g for g in generations if g['name'] == 'npm-consumers-v1')['workflows']['.github/workflows/sync-validation.yml']['sha']
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                PACKAGES.validate_tree_wiring(tree)
 
 
 class RoutingTests(unittest.TestCase):
@@ -282,14 +505,42 @@ class AggregateTests(unittest.TestCase):
         dependencies = set(jobs['repository-checks']['needs'])
         required_jobs = {'route', 'project', 'documentation', 'workflow-security'}
         self.assertTrue(required_jobs <= dependencies)
-        self.assertTrue(dependencies <= required_jobs | {'native', 'direct-browser', 'browser-client'})
+        generation = PACKAGES.validate_wiring(ROOT)
+        metadata_callers = {
+            'npm-consumers-metadata-edits-v1': 'metadata-edits/repository-checks.yml',
+            'android-owned-npm5-sync-ci-v1': 'android-owned/repository-checks.yml',
+        }
+        metadata = generation in metadata_callers
+        if metadata:
+            self.assertEqual(source, (ROOT / 'tools/repository-checks/workflows' / metadata_callers[generation]).read_text())
+        if generation == 'android-owned-npm5-sync-ci-v1':
+            spec = importlib.util.spec_from_file_location('aggregate_android_generation',
+                ROOT / 'tools/repository-checks/android_gate.py')
+            android = importlib.util.module_from_spec(spec); spec.loader.exec_module(android)
+            tree = {}
+            for relative in (*PACKAGES.CONSUMER_WORKFLOW_PATHS, '.github/workflows/android-required.yml'):
+                path = ROOT / relative
+                self.assertTrue(path.is_file() and not path.is_symlink() and not path.stat().st_mode & 0o111)
+                tree[relative] = android._blob(path.read_bytes())
+            self.assertEqual(android.validate_tree_wiring(tree), generation)
+            self.assertEqual(dependencies, required_jobs | {'native', 'android'})
+        else:
+            self.assertTrue(dependencies <= required_jobs | {'native', 'direct-browser', 'browser-client'})
         if CONFIG.get('native_required', False) or 'main' in CONFIG.get('native_required_branches', []):
             self.assertIn('native', dependencies)
         if 'main' in CONFIG.get('direct_browser_required_branches', []):
             self.assertIn('direct-browser', dependencies)
         if 'main' in CONFIG.get('browser_client_required_branches', []):
             self.assertIn('browser-client', dependencies)
-        self.assertEqual(jobs['repository-checks']['if'], 'always()')
+        if metadata:
+            self.assertEqual(jobs['repository-checks']['if'],
+                "always() && (needs.route.result != 'success' || needs.route.outputs.metadata_only != 'true')")
+            for name in dependencies - {'route'} | {'repository-checks'}:
+                self.assertEqual(jobs[name]['name'],
+                    "${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && '" + name +
+                    " (metadata unchanged)' || '" + name + "' }}")
+        else:
+            self.assertEqual(jobs['repository-checks']['if'], 'always()')
         self.assertNotIn("paths:", source)
         self.assertNotIn("secrets:", source)
         self.assertNotIn("secrets.", source)
@@ -1470,13 +1721,21 @@ class NpmConsumerSelectionTests(unittest.TestCase):
             legacy.assert_not_called()
 
     def install_consumer_callers(self):
-        for relative in PACKAGES.CONSUMER_WORKFLOW_PATHS:
-            path = self.root / relative
+        # This fixture deliberately starts at the complete npm-consumers-v1
+        # predecessor, independent of the real checkout's active generation.
+        sources = {
+            'project-tests.yml': 'host/project-tests.yml',
+            'parent-qualification.yml': 'host/parent-qualification.yml',
+            'sync-validation.yml': 'packages/sync-validation.yml',
+            'repository-checks.yml': 'npm-consumers/repository-checks.yml',
+            'browser-client.yml': 'npm-consumers/browser-client.yml',
+        }
+        self.assertEqual(set(sources), {Path(path).name for path in PACKAGES.CONSUMER_WORKFLOW_PATHS})
+        for name, relative in sources.items():
+            path = self.root / '.github/workflows' / name
             path.parent.mkdir(parents=True, exist_ok=True)
-            name = Path(relative).name
-            source = (ROOT / PACKAGES.CONSUMER_TEMPLATES / name if name in (
-                'browser-client.yml', 'repository-checks.yml') else ROOT / relative)
-            path.write_bytes(source.read_bytes())
+            path.write_bytes((ROOT / 'tools/repository-checks/workflows' / relative).read_bytes())
+        self.assertEqual(PACKAGES.validate_wiring(self.root), 'npm-consumers-v1')
         self.base = self.commit()
 
     def automatic_plan(self, base=None, **kwargs):

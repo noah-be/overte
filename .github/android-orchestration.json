@@ -4,8 +4,7 @@
   "repository_id": 1319052603,
   "required_branches": [],
   "activation_blockers": [
-    "extended-tier-prerequisite-transfer",
-    "advisory-profile-owner-handoff"
+    "prospective-generation-hosted-qualification"
   ],
   "independent_roots": [
     "browser-client/",
@@ -52,6 +51,40 @@
       "name": "android-v1-direct",
       "caller": "tools/repository-checks/workflows/android/repository-checks-direct-browser.yml",
       "callee": "tools/repository-checks/workflows/android-required.yml"
+    },
+    {
+      "name": "android-owned-npm5-sync-ci-v1",
+      "caller": "tools/repository-checks/workflows/android-owned/repository-checks.yml",
+      "callee": "tools/repository-checks/workflows/android-owned/android-required.yml",
+      "project": "tools/repository-checks/workflows/android-owned/project-tests.yml",
+      "browser": "tools/repository-checks/workflows/npm-consumers/browser-client.yml"
     }
-  ]
+  ],
+  "handoff_manifest": ".github/android-owner-transfer.json",
+  "reviewed_lock_sources": {
+    "android-main": {
+      "commit": "b0b26f31ff63305a6a71f424f312bad10258b783",
+      "tree": "6b16cddee2b8a5fd349c8f96315f56d7f977affe",
+      "readers": "sha256:bfcc20ddf7d3f619fccd9f8f522b2bf40bd92e7c0d6e8bd1fd1f9687dd3b9682",
+      "entries": 11698
+    },
+    "android-phone": {
+      "commit": "a4a13dcb608555a4608664aead0c2d9ea79972d0",
+      "tree": "f6d7fa2539ae3841139520bd1a8bc0ba4bf89d5d",
+      "readers": "sha256:298aa3d3fed0d1ed137b53500e414053a42a5aacfd35cdd50cbe0b285de71a17",
+      "entries": 11958
+    },
+    "android-vr": {
+      "commit": "e1d42923be51e12737e58115b0c39ed253ea92e9",
+      "tree": "6b16cddee2b8a5fd349c8f96315f56d7f977affe",
+      "readers": "sha256:bfcc20ddf7d3f619fccd9f8f522b2bf40bd92e7c0d6e8bd1fd1f9687dd3b9682",
+      "entries": 11698
+    },
+    "android-vr-pico": {
+      "commit": "00b15434627316dbd24278402932813dde91bf7d",
+      "tree": "d1dd0d3b37ee5c40b0a054811b8ec29fa593c22f",
+      "readers": "sha256:120ee2a1afea3cb530274d18df9ceaefb10cf3524084b2daee211af0bf711cb1",
+      "entries": 11871
+    }
+  }
 }

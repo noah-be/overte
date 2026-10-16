@@ -62,6 +62,64 @@ def tool_dependency_projects(paths: list[str], regular: bool) -> tuple[str, ...]
     return module.affected_projects(paths, regular)
 
 
+def metadata_edit(event: dict, event_name: str) -> bool:
+    """Recognize an event-only omission, never a successful qualification.
+
+    GitHub reports retargets in changes.base. Admit only the complete known
+    title/body shapes; a future edit field or incomplete event keeps the normal
+    required jobs. No PR text, label or attestation grants execution evidence.
+    """
+    if event_name not in {"pull_request", "pull_request_target"} or not isinstance(event, dict) \
+            or event.get("action") != "edited":
+        return False
+    repository, pr, changes = event.get("repository"), event.get("pull_request"), event.get("changes")
+    if not isinstance(repository, dict) or repository.get("full_name") != "noah-l-frank/overte" \
+            or type(repository.get("id")) is not int or repository["id"] != 1319052603 \
+            or not isinstance(pr, dict) or type(event.get("number")) is not int or event["number"] < 1 \
+            or type(pr.get("number")) is not int or pr["number"] != event["number"] \
+            or pr.get("state") != "open" or not isinstance(changes, dict) or not changes \
+            or not set(changes) <= {"title", "body"}:
+        return False
+    for side in ("base", "head"):
+        identity = pr.get(side)
+        if not isinstance(identity, dict) or not isinstance(identity.get("ref"), str) or not identity["ref"] \
+                or not isinstance(identity.get("sha"), str) or not re.fullmatch(r"[0-9a-f]{40}", identity["sha"]) \
+                or identity["sha"] == "0" * 40:
+            return False
+    base_repository = pr["base"].get("repo")
+    if not isinstance(base_repository, dict) or base_repository.get("full_name") != repository["full_name"] \
+            or type(base_repository.get("id")) is not int or base_repository["id"] != repository["id"]:
+        return False
+    for key, change in changes.items():
+        if not isinstance(change, dict) or set(change) != {"from"}:
+            return False
+        allowed = (str, type(None)) if key == "body" else (str,)
+        if not isinstance(change["from"], allowed) or key not in pr or not isinstance(pr[key], allowed):
+            return False
+    return True
+
+
+def classify_metadata_event(path: Path, event_name: str) -> dict:
+    """Malformed metadata is normal qualification, including duplicate JSON."""
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate event field")
+            result[key] = value
+        return result
+    try:
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > 1_000_000:
+            raise ValueError("metadata event is unavailable or oversized")
+        event = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique,
+                           parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite event")))
+        metadata = metadata_edit(event, event_name)
+    except (ValueError, OSError, TypeError, AttributeError):
+        metadata = False
+    return {"kind": "pr-metadata-classification", "qualification": False,
+            "metadata_only": "true" if metadata else "false"}
+
+
 def configuration(root: Path = ROOT) -> tuple[dict, dict]:
     config = json.loads((root / ".github/repository-checks.json").read_text())
     branches = json.loads((root / ".github/branch-policy.json").read_text())["branches"]
@@ -474,6 +532,10 @@ def browser_policy():
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
+    metadata = commands.add_parser("metadata-event")
+    metadata.add_argument("--event", type=Path, required=True)
+    metadata.add_argument("--event-name", required=True)
+    metadata.add_argument("--output", type=Path, required=True)
     route = commands.add_parser("plan")
     route.add_argument("--event", type=Path, required=True)
     route.add_argument("--candidate", type=Path, required=True)
@@ -502,6 +564,12 @@ def main() -> int:
     inner.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     try:
+        if args.command == "metadata-event":
+            result = classify_metadata_event(args.event, args.event_name)
+            with args.output.open("a") as output:
+                output.write("metadata_only=" + result["metadata_only"] + "\n")
+            print(json.dumps(result, sort_keys=True))
+            return 0
         config, branches = configuration()
         if args.command == "plan":
             event = json.loads(args.event.read_text())
@@ -525,7 +593,7 @@ def main() -> int:
                 result.update(browser.outer_outputs(browser.route(event, event_name, args.candidate, args.sha)))
             android = android_policy()
             if android.activated(event) or android.has_staged_caller(args.candidate):
-                android.admit(args.candidate, event)
+                android.validate_execution_generation(args.candidate, event)
                 result.update(android.outputs(android.candidate_plan(
                     args.candidate, event, args.sha, event_name=os.environ.get("GITHUB_EVENT_NAME", "pull_request"))))
             with args.output.open("a") as output:

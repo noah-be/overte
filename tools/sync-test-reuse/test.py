@@ -45,6 +45,8 @@ HEAD = "3" * 40
 MERGE = "4" * 40
 TREE = "5" * 40
 WORKFLOW_BLOB = "6" * 40
+CODEQL_BASE_TREE = "7" * 40
+RETARGET_WORKFLOW_BLOB = "8" * 40
 
 
 class GitHubApiDiagnosticsTests(unittest.TestCase):
@@ -1451,7 +1453,8 @@ class RequiredCodeQLInvocationTests(unittest.TestCase):
         (self.policy_root / '.github').mkdir()
         source = self.policy_root / 'tools/repository-checks/codeql.py'
         source.parent.mkdir(parents=True)
-        source.write_text(f"_RESULTS_WORKFLOW = '{WORKFLOW_BLOB}'\n_SELECTIVE_WORKFLOW = '{PARENT}'\n")
+        source.write_text(f"_RESULTS_WORKFLOW = '{WORKFLOW_BLOB}'\n_SELECTIVE_WORKFLOW = '{PARENT}'\n"
+                          f"_RETARGET_RESULTS_WORKFLOW = '{RETARGET_WORKFLOW_BLOB}'\n")
         self.write_policy()
         side = lambda ref, sha: {'ref': ref, 'sha': sha, 'repo': {'full_name': REPOSITORY, 'id': REPOSITORY_ID}}
         self.pr = {'number': 610, 'state': 'open', 'mergeable': True, 'merge_commit_sha': MERGE,
@@ -1467,6 +1470,10 @@ class RequiredCodeQLInvocationTests(unittest.TestCase):
                                                      'parents': [{'sha': BASE}, {'sha': HEAD}]},
             f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1': {
                 'sha': TREE, 'truncated': False, 'tree': [entry('.github/workflows/codeql.yml')]},
+            f'repos/{REPOSITORY}/git/commits/{BASE}': {'sha': BASE, 'tree': {'sha': CODEQL_BASE_TREE},
+                                                    'parents': []},
+            f'repos/{REPOSITORY}/git/trees/{CODEQL_BASE_TREE}?recursive=1': {
+                'sha': CODEQL_BASE_TREE, 'truncated': False, 'tree': [entry('.github/workflows/codeql.yml')]},
         }
         self.api = MappingApi(self.documents)
 
@@ -1522,6 +1529,37 @@ class RequiredCodeQLInvocationTests(unittest.TestCase):
             self.documents[f'repos/{REPOSITORY}/git/ref/heads/{target}'] = {
                 'ref': 'refs/heads/' + target, 'object': {'type': 'commit', 'sha': BASE}}
             with self.subTest(target=target): self.assertTrue(self.validate())
+
+    def test_exact_retarget_generation_can_deploy_but_cannot_be_reverted(self):
+        current = self.documents[f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1']['tree'][0]
+        previous = self.documents[f'repos/{REPOSITORY}/git/trees/{CODEQL_BASE_TREE}?recursive=1']['tree'][0]
+        current['sha'] = RETARGET_WORKFLOW_BLOB
+        self.assertTrue(self.validate())
+        previous['sha'] = RETARGET_WORKFLOW_BLOB
+        self.assertTrue(self.validate())
+        current['sha'] = WORKFLOW_BLOB
+        with self.assertRaisesRegex(gate.GateError, 'cannot be reverted'):
+            self.validate()
+        previous['sha'] = WORKFLOW_BLOB
+        self.assertTrue(self.validate())
+
+    def test_retarget_rollback_proof_requires_complete_authenticated_base_tree(self):
+        endpoint = f'repos/{REPOSITORY}/git/trees/{CODEQL_BASE_TREE}?recursive=1'
+        original = self.documents[endpoint]
+        self.documents[endpoint] = gate.GateError('authenticated base tree unavailable')
+        with self.assertRaises(gate.GateError): self.validate()
+        self.documents[endpoint] = original
+        original['truncated'] = True
+        with self.assertRaises(gate.GateError): self.validate()
+        original['truncated'] = False
+        original['sha'] = TREE
+        with self.assertRaises(gate.GateError): self.validate()
+        original['sha'] = CODEQL_BASE_TREE
+        original['tree'] = []
+        with self.assertRaises(gate.GateError): self.validate()
+        for mode, kind in (('100755', 'blob'), ('120000', 'blob'), ('160000', 'commit')):
+            original['tree'] = [{**entry('.github/workflows/codeql.yml'), 'mode': mode, 'type': kind}]
+            with self.subTest(mode=mode), self.assertRaises(gate.GateError): self.validate()
 
     def test_old_workflow_fake_named_job_missing_and_nonregular_cannot_pass(self):
         tree = self.documents[f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1']
