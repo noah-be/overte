@@ -286,6 +286,11 @@ def select_sync(args, *, api=None):
         raise ValidationError("selection checkout is not the exact synchronization candidate")
     registry = inputs.load_registry(ROOT / ".github/test-suites.json")
     result = _ci_selection(args, request, candidate, initial, registry, api)
+    scheduling, _ = _native_zero_setup(args, gate, api, config, request, candidate, initial, registry, result)
+    if scheduling is not None:
+        # Additional outputs schedule prerequisites only. The existing pure
+        # source selection digest remains independent of transient API proof.
+        result = {**result, 'consumer_setup': 'none', 'native_setup': scheduling}
     if execution.checkout_identity(candidate) != initial:
         raise ValidationError("candidate changed during synchronization selection")
     _recheck(api, gate, request)
@@ -367,7 +372,7 @@ def _verify_ci_execution(observed, selection, registry, initial, *, suite_names=
         raise ValidationError("affected synchronization execution time order is invalid")
 
 
-def _native_ci_reuse(args, gate, api, config, request, registry, local_tree, selection):
+def _native_ci_reuse(args, gate, api, config, request, registry, local_tree, selection, *, native_evidence=None):
     """Intersect original native proof with independently selected current work.
 
     No legacy JSON class or preview chooses a suite. The actual native adapter
@@ -377,10 +382,13 @@ def _native_ci_reuse(args, gate, api, config, request, registry, local_tree, sel
     selected = selection["suites"]
     if args.mode != "reuse" or not callable(getattr(gate, 'native_parent_evidence', None)):
         return None, [], list(selected)
-    try:
-        evidence = gate.native_parent_evidence(api, config, request)
-    except (gate.EvidenceError, gate.GateError):
-        return None, [], list(selected)
+    if native_evidence is None:
+        try:
+            evidence = gate.native_parent_evidence(api, config, request)
+        except (gate.EvidenceError, gate.GateError):
+            return None, [], list(selected)
+    else:
+        evidence = native_evidence
     if not isinstance(evidence, getattr(gate, 'NativeParentEvidence', ())):
         return None, [], list(selected)
     if evidence.get('candidate_inputs') != local_tree:
@@ -396,6 +404,34 @@ def _native_ci_reuse(args, gate, api, config, request, registry, local_tree, sel
     if not reused:
         return None, [], list(selected)
     return evidence, reused, [name for name in selected if name not in reused]
+
+
+def _native_zero_setup(args, gate, api, config, request, candidate, initial, registry, selection):
+    """Schedule no consumer setup only for actual native zero-command coverage.
+
+    This stdlib-only lookup grants no execution or reusable authority. The
+    validator independently reconstructs it before the differential and then
+    authenticates the original proof again after that actual validation.
+    """
+    if args.mode != 'reuse' or selection['lane'] not in {'affected-ci','complete'} \
+            or request.repair_paths or selection.get('pending_platform_owners') \
+            or execution.platform_suites(candidate, registry['suites']):
+        return None, None
+    selected = selection['suites'] if selection['lane'] == 'affected-ci' else list(registry['suites'])
+    tree = inputs.full_tree(candidate, initial[0])
+    evidence, reused, required = _native_ci_reuse(args, gate, api, config, request, registry, tree,
+        {'suites': selected})
+    if evidence is None or required or reused != selected:
+        return None, None
+    if gate.parse_time(evidence['expires_at'], 'expires_at') <= datetime.now(timezone.utc):
+        return None, None
+    value = {'schema':1, 'kind':'native-zero-command-setup-v1',
+        'base':request.base_sha, 'head':request.head_sha, 'candidate':initial[0], 'tree':initial[1],
+        'selection':selection['selection'], 'suites':selected,
+        'original_commit':evidence['original_commit'], 'parent_commit':evidence['parent_commit'],
+        'qualified_at':evidence['qualified_at'], 'expires_at':evidence['expires_at'],
+        'original_proof':evidence['original_proof']}
+    return execution.digest(value), evidence
 
 
 def _recheck_native_ci(gate, api, config, request, evidence, registry, local_tree, reused):
@@ -435,6 +471,7 @@ def validate_sync(args, *, api=None):
     evidence, observed, reused, executed, projects = None, None, [], [], []
     native_parent = False
     ci_required = None
+    prepared_native = None
     external_packages = []
     selection = None
     if getattr(args, "expected_selection", ""):
@@ -444,6 +481,14 @@ def validate_sync(args, *, api=None):
     affected = selection is not None and selection["lane"] == "affected-ci"
     bounded = args.mode == "reuse" and request.profile in ("documentation", "tool-dependencies")
     pending = _sync_platform_owner(args, request, candidate, api) if not affected and not bounded else {}
+    no_setup = getattr(args, 'expected_native_setup', '')
+    if no_setup:
+        if selection is None:
+            raise ValidationError('no-setup scheduling requires the independently bound source selection')
+        scheduling, prepared_native = _native_zero_setup(args, gate, api, config, request,
+            candidate, initial, registry, selection)
+        if scheduling is None or scheduling != no_setup:
+            raise ValidationError('native zero-command setup plan changed; prepared fallback is unavailable')
     if args.mode == "reuse" or affected:
         # Keep every branch differential assertion even when all common suites
         # have matching proof. Bounded profiles share this one invocation.
@@ -453,7 +498,10 @@ def validate_sync(args, *, api=None):
         # preparation output never selects the commands or certifies execution.
         if _ci_selection(args, request, candidate, initial, registry, api) != selection:
             raise ValidationError("affected synchronization selection changed before execution")
-        evidence, reused, ci_required = _native_ci_reuse(args, gate, api, config, request, registry, local_tree, selection)
+        evidence, reused, ci_required = _native_ci_reuse(args, gate, api, config, request, registry, local_tree, selection,
+            native_evidence=prepared_native)
+        if no_setup and (evidence is None or ci_required):
+            raise ValidationError('unprepared selected CI commands cannot run after native proof changed')
         if ci_required:
             execution_path = Path(args.receipt).with_name(Path(args.receipt).name + ".ci-execution.json")
             status, returned = _execute_ci(candidate, initial, selection, registry, args.junit, execution_path,
@@ -500,11 +548,14 @@ def validate_sync(args, *, api=None):
     else:
         required = list(registry["suites"])
         if args.mode == "reuse":
-            try:
-                evidence = gate.verify_evidence(api, config, request)
-            except (gate.EvidenceError, gate.GateError):
-                # Absent/expired/untrusted evidence cannot justify any omission.
-                evidence = None
+            if prepared_native is not None:
+                evidence = prepared_native
+            else:
+                try:
+                    evidence = gate.verify_evidence(api, config, request)
+                except (gate.EvidenceError, gate.GateError):
+                    # Absent/expired/untrusted evidence cannot justify any omission.
+                    evidence = None
             if evidence is not None:
                 if evidence.get("candidate_inputs") != local_tree:
                     raise ValidationError("local immutable candidate inputs differ from verified API inputs")
@@ -524,6 +575,8 @@ def validate_sync(args, *, api=None):
         # consumer's legacy runtime. With no remaining command or platform
         # owner there is no execution E/receipt to manufacture or measure.
         product = execution.platform_suites(candidate, registry["suites"])
+        if no_setup and (not native_parent or required or product or pending):
+            raise ValidationError('unprepared shared or platform commands cannot replace the scheduled native proof')
         if native_parent and not required and not product and not pending:
             _bounded_junit(args.junit, [])
         else:
@@ -635,15 +688,18 @@ def main(argv=None):
     parser.add_argument("--select-only", action="store_true")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--expected-selection", default="")
+    parser.add_argument("--expected-native-setup", default="")
     args = parser.parse_args(argv)
     try:
         if args.select_only:
-            if args.output is None or args.expected_selection:
+            if args.output is None or args.expected_selection or args.expected_native_setup:
                 raise ValidationError("prerequisite selection requires an output and no claimed selection")
             selected = select_sync(args)
             with args.output.open("a") as output:
                 for key, value in (("selection", selected["selection"]), ("lane", selected["lane"]),
-                                   ("full_host", str(selected["full_host"]).lower())):
+                                   ("full_host", str(selected["full_host"]).lower()),
+                                   ("consumer_setup", selected.get('consumer_setup', 'required')),
+                                   ("native_setup", selected.get('native_setup', ''))):
                     output.write(key + "=" + value + "\n")
             print(json.dumps(selected, sort_keys=True))
             return 0

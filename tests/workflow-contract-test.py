@@ -129,13 +129,21 @@ def reviewed_package_generation():
     return name
 
 
-def sync_condition(legacy, selected):
+def sync_condition(legacy, selected, *, setup=False):
     """Admit selected conditions only with an exact complete reviewed caller."""
     staged = ROOT / 'tools/repository-checks/workflows/sync-ci-selection.yml'
     if SYNC_VALIDATION_WORKFLOW.read_bytes() != staged.read_bytes():
         return legacy
     if reviewed_package_generation() not in SELECTED_SYNC_GENERATIONS:
         raise AssertionError('selected synchronization requires the exact complete generation')
+    if setup:
+        steps = workflow_data(staged.read_text())['jobs']['validate']['steps']
+        product = next(step for step in steps if step['name'] == 'Verify exact candidate suites and complete runtime identity')
+        if 'SYNC_VALIDATOR_PYTHON' in product.get('env', {}):
+            expected = "${{ steps.select.outputs.consumer_setup == 'none' && steps.select.outputs.native_setup != '' && 'python3' || 'build/host-tests-env/bin/python' }}"
+            if product['env']['SYNC_VALIDATOR_PYTHON'] != expected or '--expected-native-setup "$EXPECTED_NATIVE_SETUP"' not in product['run']:
+                raise AssertionError('unreviewed no-setup interpreter or expected proof transport')
+            selected = "(steps.select.outputs.consumer_setup != 'none' || steps.select.outputs.native_setup == '') && " + selected
     return selected
 
 
@@ -650,7 +658,9 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         import yaml
         source = SYNC_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
         workflow = yaml.safe_load(source)
-        self.assertEqual(workflow['permissions'], {'actions': 'read', 'contents': 'read', 'pull-requests': 'read'})
+        self.assertEqual(workflow['permissions'], sync_condition(
+            {'actions': 'read', 'contents': 'read', 'pull-requests': 'read'},
+            {'actions': 'read', 'checks': 'read', 'contents': 'read', 'pull-requests': 'read'}))
         self.assertNotRegex(source, r"(?m)^\s+[a-z-]+: write$")
         self.assertNotIn("secrets.", source)
         steps = workflow['jobs']['validate']['steps']
@@ -694,12 +704,12 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         staged = ROOT / 'tools/repository-checks/workflows/sync-ci-selection.yml'
         source = staged.read_text()
         workflow = workflow_data(source)
-        self.assertEqual(workflow['permissions'], {'actions': 'read', 'contents': 'read', 'pull-requests': 'read'})
+        self.assertEqual(workflow['permissions'], {'actions': 'read', 'checks': 'read', 'contents': 'read', 'pull-requests': 'read'})
         self.assertEqual(set(workflow_events(source)), {'workflow_dispatch'})
         steps = workflow['jobs']['validate']['steps']
         selected = next(step for step in steps if step.get('id') == 'select')
         self.assertIn('--select-only --output "$GITHUB_OUTPUT"', selected['run'])
-        self.assertIn('python3 trusted/tools/test-evidence/validate-sync.py', selected['run'])
+        self.assertIn('python3 -B trusted/tools/test-evidence/validate-sync.py', selected['run'])
         candidate = next(step for step in steps if step.get('with', {}).get('path') == 'candidate')
         self.assertEqual(candidate['with']['fetch-depth'], 2)
         self.assertFalse(candidate['with']['persist-credentials'])
@@ -715,7 +725,7 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
             self.assertEqual(previous, current)
         for name in ('Set up candidate Java', 'Install candidate host prerequisites'):
             self.assertEqual(next(step for step in steps if step['name'] == name)['if'],
-                             "steps.select.outputs.full_host == 'true'")
+                             "(steps.select.outputs.consumer_setup != 'none' || steps.select.outputs.native_setup == '') && steps.select.outputs.full_host == 'true'")
         executions = [step for step in steps if 'trusted/tools/test-evidence/validate-sync.py' in step.get('run', '')
                       and step.get('id') != 'select']
         self.assertEqual(len(executions), 2)
@@ -760,8 +770,7 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         import yaml
         source = SYNC_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
         steps = yaml.safe_load(source)['jobs']['validate']['steps']
-        product = next(step for step in steps if 'build/host-tests-env/bin/python trusted/tools/test-evidence/validate-sync.py'
-                       in step.get('run', ''))
+        product = next(step for step in steps if step.get('name') == 'Verify exact candidate suites and complete runtime identity')
         self.assertEqual(product['if'], sync_condition(
             "inputs.mode == 'fallback' || (inputs.profile != 'documentation' && inputs.profile != 'tool-dependencies')", "steps.select.outputs.lane != 'legacy-bounded'"))
         self.assertIn('--mode "$MODE" --profile "$PROFILE"', product['run'])
@@ -1347,13 +1356,12 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
         self.assertEqual(len(installs), 1, 'Both paths must share one prerequisite installation')
         index, install = installs[0]
         self.assertEqual(install['if'], sync_condition(
-            "inputs.mode == 'fallback' || (inputs.profile != 'documentation' && inputs.profile != 'tool-dependencies')", "steps.select.outputs.full_host == 'true'"))
+            "inputs.mode == 'fallback' || (inputs.profile != 'documentation' && inputs.profile != 'tool-dependencies')", "steps.select.outputs.full_host == 'true'", setup=True))
         for package in ('qt6-base-dev', 'qt6-base-dev-tools', 'pkg-config',
                         'qml-module-qttest', 'qtdeclarative5-dev-tools'):
             self.assertIn(package, install['run'].split())
         executions = [i for i, step in enumerate(steps)
-                      if 'build/host-tests-env/bin/python trusted/tools/test-evidence/validate-sync.py'
-                      in step.get('run', '')]
+                      if step.get('name') == 'Verify exact candidate suites and complete runtime identity']
         self.assertEqual(len(executions), 1, 'Reuse and fallback share one trusted execution controller')
         self.assertLess(index, executions[0])
         self.assertEqual(steps[executions[0]]['if'], sync_condition(
@@ -1365,9 +1373,11 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
         name = 'Prepare isolated shared and product Python validators'
         index = next(i for i, step in enumerate(steps) if step.get('name') == name)
         prepare = steps[index]
-        product = next(step for step in steps if 'build/host-tests-env/bin/python trusted/tools/test-evidence/validate-sync.py'
-                       in step.get('run', ''))
-        self.assertEqual(prepare['if'], product['if'])
+        product = next(step for step in steps if step.get('name') == 'Verify exact candidate suites and complete runtime identity')
+        expected_prepare = sync_condition(
+            "inputs.mode == 'fallback' || (inputs.profile != 'documentation' && inputs.profile != 'tool-dependencies')",
+            "steps.select.outputs.lane != 'legacy-bounded'", setup=True)
+        self.assertEqual(prepare['if'], expected_prepare)
         self.assertIsNone(prepare.get('working-directory'))
         self.assertIsNone(product.get('working-directory'))
         self.assertLess(index, steps.index(product))
@@ -1375,7 +1385,14 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
         self.assertIn('python3 -m venv build/host-tests-env', prepare['run'])
         self.assertIn(interpreter + ' -m pip install --disable-pip-version-check '
                       '-r trusted/tests/requirements-host.txt', prepare['run'])
-        self.assertEqual(product['run'].split()[0], interpreter)
+        if 'SYNC_VALIDATOR_PYTHON' in product['env']:
+            self.assertEqual(product['run'].split()[:2], ['"$SYNC_VALIDATOR_PYTHON"', '-B'])
+            self.assertEqual(product['env']['SYNC_VALIDATOR_PYTHON'],
+                "${{ steps.select.outputs.consumer_setup == 'none' && steps.select.outputs.native_setup != '' && 'python3' || 'build/host-tests-env/bin/python' }}")
+            self.assertEqual(product['env']['EXPECTED_NATIVE_SETUP'], '${{ steps.select.outputs.native_setup }}')
+            self.assertIn('--expected-native-setup "$EXPECTED_NATIVE_SETUP"', product['run'])
+        else:
+            self.assertEqual(product['run'].split()[0], interpreter)
         self.assertIn('trusted/tools/test-evidence/validate-sync.py', product['run'])
         self.assertIn('--candidate candidate', product['run'])
         self.assertEqual(prepare['env'], {'GH_TOKEN': '', 'GITHUB_TOKEN': ''})
@@ -1388,8 +1405,7 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
     def test_complete_fallback_isolates_disposable_git_background_writers(self):
         import yaml
         steps = yaml.safe_load(SYNC_VALIDATION_WORKFLOW.read_text())['jobs']['validate']['steps']
-        fallback = next(step for step in steps if 'build/host-tests-env/bin/python trusted/tools/test-evidence/validate-sync.py'
-                        in step.get('run', ''))
+        fallback = next(step for step in steps if step.get('name') == 'Verify exact candidate suites and complete runtime identity')
         self.assertEqual(fallback['if'], sync_condition(
             "inputs.mode == 'fallback' || (inputs.profile != 'documentation' && inputs.profile != 'tool-dependencies')", "steps.select.outputs.lane != 'legacy-bounded'"))
         self.assertNotEqual(fallback.get('working-directory'), 'candidate')
@@ -1500,16 +1516,17 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
         self.assertIn('--mode reuse --profile "$PROFILE"', tools['run'])
         self.assertNotIn('apt-get', tools['run'])
         self.assertNotIn('host-tests-env', tools['run'])
-        product = next(step for step in steps if 'build/host-tests-env/bin/python trusted/tools/test-evidence/validate-sync.py'
-                       in step.get('run', ''))
+        product = next(step for step in steps if step.get('name') == 'Verify exact candidate suites and complete runtime identity')
         self.assertEqual(product['if'], sync_condition(
             "inputs.mode == 'fallback' || (inputs.profile != 'documentation' && inputs.profile != 'tool-dependencies')", "steps.select.outputs.lane != 'legacy-bounded'"))
         for step in steps:
             if 'apt-get' in step.get('run', '') or step.get('name') == 'Set up candidate Java':
                 self.assertEqual(step['if'], sync_condition(
-                    "inputs.mode == 'fallback' || (inputs.profile != 'documentation' && inputs.profile != 'tool-dependencies')", "steps.select.outputs.full_host == 'true'"))
+                    "inputs.mode == 'fallback' || (inputs.profile != 'documentation' && inputs.profile != 'tool-dependencies')", "steps.select.outputs.full_host == 'true'", setup=True))
             elif step.get('name') == 'Prepare isolated shared and product Python validators':
-                self.assertEqual(step['if'], product['if'])
+                self.assertEqual(step['if'], sync_condition(
+                    "inputs.mode == 'fallback' || (inputs.profile != 'documentation' && inputs.profile != 'tool-dependencies')",
+                    "steps.select.outputs.lane != 'legacy-bounded'", setup=True))
 
 
 

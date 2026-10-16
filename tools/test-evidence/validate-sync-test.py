@@ -656,13 +656,20 @@ class IsolatedConsumerTests(unittest.TestCase):
         for name in ("Set up candidate Java", "Install candidate host prerequisites"):
             step = next(step for step in steps if step["name"] == name)
             self.assertGreater(steps.index(step), steps.index(selection))
-            self.assertEqual(step["if"], "steps.select.outputs.full_host == 'true'")
+            self.assertEqual(step["if"], "(steps.select.outputs.consumer_setup != 'none' || steps.select.outputs.native_setup == '') && steps.select.outputs.full_host == 'true'")
         executions = [step for step in steps if "--expected-selection" in step.get("run", "")]
         self.assertEqual(len(executions), 2)
         for step in executions:
             self.assertEqual(step["env"]["EXPECTED_SELECTION"], "${{ steps.select.outputs.selection }}")
             self.assertIn('trusted/tools/test-evidence/validate-sync.py', step["run"])
-            self.assertIn('python -B ' if 'host-tests-env' in step['run'] else 'python3 -B ', step['run'])
+            if step['name'] == 'Verify exact candidate suites and complete runtime identity':
+                self.assertIn('"$SYNC_VALIDATOR_PYTHON" -B ', step['run'])
+                self.assertEqual(step['env']['SYNC_VALIDATOR_PYTHON'],
+                    "${{ steps.select.outputs.consumer_setup == 'none' && steps.select.outputs.native_setup != '' && 'python3' || 'build/host-tests-env/bin/python' }}")
+                self.assertEqual(step['env']['EXPECTED_NATIVE_SETUP'], '${{ steps.select.outputs.native_setup }}')
+                self.assertIn('--expected-native-setup "$EXPECTED_NATIVE_SETUP"', step['run'])
+            else:
+                self.assertIn('python3 -B ', step['run'])
         self.assertEqual(data["permissions"], {"actions": "read", "checks": "read", "contents": "read", "pull-requests": "read"})
         self.assertEqual(workflow.read_bytes(), (VALIDATION.ROOT / '.github/workflows/sync-validation.yml').read_bytes())
         gate = yaml.safe_load((VALIDATION.ROOT / '.github/workflows/sync-test-reuse.yml').read_text())
@@ -792,6 +799,144 @@ class NativeParentConsumerTests(unittest.TestCase):
         f.gate.native_parent_evidence.assert_not_called()
 
 
+class NativeZeroCommandSetupTests(unittest.TestCase):
+    def setUp(self):
+        self.native = NativeParentConsumerTests()
+        self.native.setUp()
+        self.addCleanup(self.native.doCleanups)
+        self.fixture = self.native.fixture
+
+    def prepare(self, *, affected=False):
+        f = self.fixture
+        if affected:
+            f.ci_fixture(); f.args.mode = 'reuse'; self.native.bind_native()
+        selected = f.ci_prepare()
+        f.args.expected_native_setup = selected.get('native_setup', '')
+        return selected
+
+    def test_early_lookup_is_stdlib_only_and_does_not_change_pure_selection(self):
+        f = self.fixture
+        with patch.object(execution,'execute',side_effect=AssertionError('no execution during setup plan')), \
+                patch.object(execution,'capture_execution_environment',side_effect=AssertionError('no unused consumer E')):
+            selected = self.prepare()
+        self.assertEqual(selected['consumer_setup'], 'none')
+        self.assertTrue(selected['native_setup'].startswith('sha256:'))
+        with patch.object(inputs,'load_registry',return_value=f.registry):
+            source = VALIDATION._ci_selection(f.args,f.request,f.candidate,(f.commit,f.tree_sha),f.registry,f.api)
+        self.assertEqual({key:value for key,value in selected.items() if key not in {'consumer_setup','native_setup'}}, source)
+        self.assertEqual(f.executed(), [])
+
+    def test_no_setup_complete_and_selected_paths_revalidate_native_proof_around_differential(self):
+        # Separate real candidates keep selection-policy and typed-proof seams
+        # explicit; neither path needs a venv, Qt installation or consumer E.
+        for affected in (False, True):
+            if affected:
+                self.native.doCleanups(); self.setUp()
+            f = self.fixture; selected = self.prepare(affected=affected)
+            self.assertEqual(selected['consumer_setup'],'none')
+            f.gate.native_parent_evidence.reset_mock()
+            f.gate.verify_evidence = lambda *a: (_ for _ in ()).throw(AssertionError('no legacy capsule'))
+            def differential(*args):
+                self.assertEqual(f.gate.native_parent_evidence.call_count, 1, 'fresh native proof precedes differential')
+            with patch.object(VALIDATION,'_differential',side_effect=differential) as check:
+                result = f.validate(runtime_failure=AssertionError('no unused consumer E'),
+                    execute_override=lambda *a,**k: (_ for _ in ()).throw(AssertionError('no unprepared fallback')),
+                    ci_execute_override=lambda *a,**k: (_ for _ in ()).throw(AssertionError('no selected command')))
+            check.assert_called_once()
+            self.assertEqual(f.gate.native_parent_evidence.call_count,2)
+            self.assertIsNone(result['execution'])
+            self.assertEqual(result['executed_suites'],[])
+            self.assertEqual(f.executed(),[])
+
+    def test_missing_initial_proof_keeps_existing_setup_and_real_execution(self):
+        f = self.fixture
+        f.gate.native_parent_evidence.side_effect = EvidenceError('no current native proof')
+        selected = self.prepare()
+        self.assertNotIn('consumer_setup',selected)
+        self.assertEqual(f.args.expected_native_setup,'')
+        f.gate.verify_evidence = lambda *a: (_ for _ in ()).throw(EvidenceError('no legacy proof'))
+        result = f.validate()
+        self.assertEqual(set(result['executed_suites']),{'alpha','beta'})
+        self.assertEqual(set(f.executed()),{'alpha','beta'})
+
+    def test_marker_without_proof_or_changed_expired_required_proof_never_runs_unprepared_commands(self):
+        f = self.fixture; self.prepare()
+        original = deepcopy(f.evidence)
+        changed = deepcopy(original); changed['original_proof']['receipt_sha256']='0'*64
+        expired = deepcopy(original); expired['expires_at']='2020-01-01T00:00:00Z'
+        required = deepcopy(original); del required['results']['suites']['alpha']
+        for value in (EvidenceError('proof unavailable'), dict(original), changed, expired, required):
+            f.gate.native_parent_evidence.side_effect = [value]
+            with self.subTest(value=type(value).__name__), patch.object(VALIDATION,'_differential') as differential, \
+                    self.assertRaises(VALIDATION.ValidationError):
+                f.validate(execute_override=lambda *a,**k: (_ for _ in ()).throw(AssertionError('no unprepared fallback')))
+            differential.assert_not_called()
+            self.assertEqual(f.executed(),[])
+            self.assertFalse(f.args.receipt.exists())
+
+    def test_original_proof_expiry_or_ref_drift_after_differential_is_hard_failure(self):
+        f = self.fixture; self.prepare()
+        original = deepcopy(f.evidence)
+        def differential(*args):
+            f.evidence['original_proof']['receipt_sha256']='0'*64
+        with patch.object(VALIDATION,'_differential',side_effect=differential), self.assertRaises(VALIDATION.ValidationError):
+            f.validate()
+        self.assertEqual(f.executed(),[])
+        self.assertFalse(f.args.receipt.exists())
+        f.evidence=deepcopy(original)
+        def expired(*args): f.evidence['expires_at']='2020-01-01T00:00:00Z'
+        with patch.object(VALIDATION,'_differential',side_effect=expired), self.assertRaises(VALIDATION.ValidationError): f.validate()
+        self.assertEqual(f.executed(),[])
+        self.assertFalse(f.args.receipt.exists())
+        f.evidence=deepcopy(original)
+        def moved(*args): f.api.pr['head']['sha']='f'*40
+        with patch.object(VALIDATION,'_differential',side_effect=moved), self.assertRaises(VALIDATION.ValidationError): f.validate()
+        self.assertEqual(f.executed(),[])
+        self.assertFalse(f.args.receipt.exists())
+
+    def test_nonempty_current_platform_cannot_schedule_no_setup(self):
+        f = self.fixture
+        profile=f.candidate/'tests/platform-profile.json'
+        profile.write_text(json.dumps({'schema':1,'platform':'android','suites':[
+            {'name':'product','entrypoint':'tests/product.py','interpreter':'python'}]}))
+        (f.candidate/'tests/product.py').write_text('raise AssertionError("unprepared product must not run")\n')
+        f.git('add','.');f.git('commit','-qm','Declare actual product requirement')
+        f.commit,f.tree_sha=execution.checkout_identity(f.candidate);f.tree=inputs.full_tree(f.candidate)
+        f.request.merge_sha=f.args.merge_sha=f.api.pr['merge_commit_sha']=f.commit
+        self.native.bind_native()
+        selected=self.prepare()
+        self.assertNotIn('consumer_setup',selected)
+        f.args.expected_native_setup='sha256:'+'0'*64
+        with self.assertRaises(VALIDATION.ValidationError): f.validate()
+        self.assertEqual(f.executed(),[])
+
+    def test_workflow_skips_all_unused_setup_and_missing_required_venv_cannot_silently_fall_back(self):
+        import yaml
+        path=VALIDATION.ROOT/'tools/repository-checks/workflows/sync-ci-selection.yml'
+        steps=yaml.safe_load(path.read_text())['jobs']['validate']['steps']
+        for name in ('Set up candidate Python','Set up candidate Node.js','Set up candidate Java',
+                'Install candidate host prerequisites','Prepare isolated shared and product Python validators'):
+            self.assertTrue(next(step for step in steps if step['name']==name)['if'].startswith("(steps.select.outputs.consumer_setup != 'none' || steps.select.outputs.native_setup == '') && "))
+        step=next(step for step in steps if step['name']=='Verify exact candidate suites and complete runtime identity')
+        self.assertEqual(step['env']['SYNC_VALIDATOR_PYTHON'],
+            "${{ steps.select.outputs.consumer_setup == 'none' && steps.select.outputs.native_setup != '' && 'python3' || 'build/host-tests-env/bin/python' }}")
+        f=self.fixture; binary=f.output/'bin';binary.mkdir()
+        fake=binary/'python3';fake.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$FIXTURE_VALIDATOR_ARGS"\n');fake.chmod(0o755)
+        environment={**os.environ,'PATH':str(binary)+os.pathsep+os.environ['PATH'],
+            'SYNC_VALIDATOR_PYTHON':'python3','EXPECTED_NATIVE_SETUP':'sha256:'+'1'*64,
+            'FIXTURE_VALIDATOR_ARGS':str(f.output/'args')}
+        # The exact workflow command can run without its missing venv. The fake
+        # interpreter observes argument transport only, never asserts authority.
+        result=subprocess.run(['bash','-e','-o','pipefail','-c',step['run']],cwd=f.output,env=environment,capture_output=True)
+        self.assertEqual(result.returncode,0,result.stderr)
+        arguments=(f.output/'args').read_text().splitlines()
+        self.assertEqual(arguments[:2],['-B','trusted/tools/test-evidence/validate-sync.py'])
+        self.assertEqual(arguments[arguments.index('--expected-native-setup')+1],environment['EXPECTED_NATIVE_SETUP'])
+        environment['SYNC_VALIDATOR_PYTHON']='build/host-tests-env/bin/python'
+        result=subprocess.run(['bash','-e','-o','pipefail','-c',step['run']],cwd=f.output,env=environment,capture_output=True)
+        self.assertNotEqual(result.returncode,0)
+
+
 class NativeSelectedParentConsumerTests(unittest.TestCase):
     """Real selected fixture commands plus independently supplied typed proof."""
     def setUp(self):
@@ -817,6 +962,9 @@ class NativeSelectedParentConsumerTests(unittest.TestCase):
         f.args.mode = 'reuse'
         selected = f.ci_prepare()
         self.bind_native(parent_tree)
+        # These counters describe final validation; early no-setup scheduling
+        # has its own typed-proof tests and cannot authorize this invocation.
+        f.gate.native_parent_evidence.reset_mock()
         return selected
 
     def bind_native(self, parent_tree=None):
