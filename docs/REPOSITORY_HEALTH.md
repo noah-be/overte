@@ -2,7 +2,11 @@
 
 The Doctor audits repository governance without changing branches, Issues,
 labels, rulesets, or repository content. Pull requests run offline fixtures and
-local contracts. Live audits run only from the trusted default branch.
+local contracts through the required shared `repository-doctor` suite. That
+suite also invokes the real local CLI with empty GitHub tokens and verifies
+its report and exit status. The Doctor workflow handles scheduled and manual
+live audits only, avoiding a second copy of the PR fixtures and local check.
+Live audits run only from the trusted default branch.
 
 ## Execution and freshness
 

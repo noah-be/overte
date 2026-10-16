@@ -11,6 +11,7 @@ import io
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -529,13 +530,19 @@ class WorkflowContractTests(unittest.TestCase):
     def setUpClass(cls):
         cls.source = (ROOT / ".github/workflows/repository-health.yml").read_text(encoding="utf-8")
 
-    def test_yaml_shape_schedule_dispatch_and_pr_paths(self):
+    def test_yaml_shape_schedule_dispatch_and_shared_pr_owner(self):
         self.assertRegex(self.source, r"(?m)^name: Repository Health Doctor$")
         self.assertIn('cron: "17 0,6,12,18 * * *"', self.source)
         self.assertIn('timezone: "Europe/Berlin"', self.source)
         self.assertIn('--when-idle --event "$HEALTH_EVENT"', self.source)
         self.assertIn("workflow_dispatch:", self.source)
-        self.assertIn("pull_request:", self.source)
+        self.assertNotIn("pull_request:", self.source)
+        self.assertNotIn("pull-request-contracts:", self.source)
+        registry = json.loads((ROOT / '.github/test-suites.json').read_text())
+        self.assertEqual(registry['suites']['repository-doctor']['command'],
+                         ['python', 'tests/repository-health-test.py'])
+        self.assertEqual(registry['suites']['repository-doctor']['layer'], 'quick')
+        self.assertEqual(registry['suites']['repository-doctor']['closure']['kind'], 'repository')
         self.assertNotIn("pull_request_target", self.source)
 
     def test_permissions_are_read_only_and_actions_are_pinned(self):
@@ -544,11 +551,10 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertTrue(actions)
         self.assertEqual([action for action in actions if not HEALTH.FULL_PIN.fullmatch(action)], [])
 
-    def test_pr_has_no_live_token_and_live_checks_out_default_branch(self):
-        local, live = self.source.split("  live-audit:", 1)
-        self.assertIn('GITHUB_TOKEN: ""', local)
-        self.assertNotIn("github.token", local)
-        self.assertNotIn("REPOSITORY_HEALTH_READ_TOKEN", local)
+    def test_only_live_workflow_checks_out_default_branch(self):
+        _, live = self.source.split("  live-audit:", 1)
+        self.assertNotIn('tests/repository-health-test.py', self.source)
+        self.assertNotIn('--local', self.source)
         self.assertIn("github.event.repository.default_branch", live)
         self.assertIn(
             "GITHUB_TOKEN: ${{ secrets.REPOSITORY_HEALTH_READ_TOKEN || github.token }}",
@@ -566,17 +572,57 @@ class WorkflowContractTests(unittest.TestCase):
         checker = CHECKER.read_text(encoding="utf-8")
         self.assertIn("GITHUB_STEP_SUMMARY", checker)
 
-    def test_both_jobs_install_the_declared_python_dependencies(self):
-        for job in self.source.split('  live-audit:'):
-            self.assertIn('actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1', job)
-            self.assertIn('python-version: "3.12"', job)
-            self.assertIn('python3 -m pip install -r tests/requirements-repository.txt', job)
-        self.assertIn('"tests/requirements-repository.txt"', self.source)
+    def test_live_job_and_shared_owner_declare_python_dependencies(self):
+        self.assertIn('actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1', self.source)
+        self.assertIn('python-version: "3.12"', self.source)
+        self.assertIn('python3 -m pip install -r tests/requirements-repository.txt', self.source)
+        self.assertIn('-r requirements-repository.txt',
+                      (ROOT / 'tests/requirements-host.txt').read_text())
 
     def test_local_repository_contracts_pass(self):
         subject = doctor()
         report = subject.local()
         self.assertEqual(report["status"], "PASS", report)
+
+
+class LocalContractCliTests(unittest.TestCase):
+    """Keep the former standalone PR CLI contract in its required shared suite."""
+
+    def invoke(self, directory, *arguments):
+        report = Path(directory) / 'local-report.json'
+        environment = {**os.environ, 'GITHUB_TOKEN': '', 'GH_TOKEN': '',
+                       'GITHUB_STEP_SUMMARY': ''}
+        result = subprocess.run(
+            [sys.executable, '-B', str(CHECKER), '--local', '--report', str(report),
+             *arguments], cwd=ROOT, env=environment, capture_output=True, text=True,
+            timeout=30)
+        self.assertTrue(report.is_file(), result.stderr)
+        data = json.loads(report.read_text())
+        self.assertEqual(data['mode'], 'local')
+        self.assertFalse(data['audit_executed'])
+        self.assertFalse(data['audit_complete'])
+        self.assertEqual(result.returncode, data['exit_code'])
+        return result, data
+
+    def test_actual_candidate_contracts_pass_without_live_tokens(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, data = self.invoke(directory)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(data['status'], 'PASS', data)
+        self.assertEqual(data['repository'], CONFIG['repository'])
+        for area, value in data['results'].items():
+            self.assertEqual(value['status'],
+                             'PASS' if area == 'repository_contracts' else 'NOT_RUN')
+
+    def test_invalid_configuration_cannot_pass_the_cli(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory) / 'invalid.json'
+            config.write_text('{"repository":')
+            result, data = self.invoke(directory, '--config', str(config))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(data['status'], 'FAIL')
+        self.assertEqual(data['results']['repository_contracts']['status'], 'FAIL')
+        self.assertTrue(data['results']['repository_contracts']['findings'])
 
 
 class QuiescenceTests(unittest.TestCase):
