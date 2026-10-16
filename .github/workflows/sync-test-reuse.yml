@@ -1,4 +1,3 @@
-# Dormant successor; requires protected event-classifier source before deployment.
 name: Sync test reuse
 run-name: Sync test reuse for PR ${{ github.event.pull_request.number || 'contract-seed' }}
 
@@ -21,41 +20,15 @@ permissions:
   pull-requests: read
 
 concurrency:
-  # Metadata-looking events cannot cancel a real gate or its validation child.
-  group: sync-test-reuse-${{ github.event.pull_request.number || github.run_id }}-${{ github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body) && github.run_id || 'qualification' }}
+  group: sync-test-reuse-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
-  classify:
-    name: Classify PR metadata event
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    outputs:
-      metadata_only: ${{ steps.event.outputs.metadata_only }}
-    steps:
-      - name: Check out trusted event policy only
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-          path: trusted
-          persist-credentials: false
-          sparse-checkout: tools/repository-checks
-      - name: Recognize only complete title or body edit events
-        id: event
-        run: >-
-          python3 trusted/tools/repository-checks/check.py metadata-event
-          --event "$GITHUB_EVENT_PATH" --event-name "$GITHUB_EVENT_NAME" --output "$GITHUB_OUTPUT"
   sync-test-reuse:
-    name: ${{ needs.classify.result == 'success' && needs.classify.outputs.metadata_only == 'true' && 'sync-test-reuse (metadata unchanged)' || 'sync-test-reuse' }}
-    if: always() && (needs.classify.result != 'success' || needs.classify.outputs.metadata_only != 'true')
-    needs: classify
+    name: sync-test-reuse
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
-      - name: Require successful event classification
-        env:
-          CLASSIFICATION_RESULT: ${{ needs.classify.result }}
-        run: test "$CLASSIFICATION_RESULT" = success
       - name: Check out trusted default-branch gate only
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
