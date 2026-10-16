@@ -16,7 +16,7 @@ import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import zipfile
 
 
@@ -1091,6 +1091,175 @@ class HostGenerationTests(unittest.TestCase):
         with patch.object(self.host, "ci_host_omission", side_effect=AssertionError("app needs full host")):
             output = self.route(event, source)
         self.assertEqual((output["required"], output["host_required"]), ("true", "true"))
+
+    def npm_fixture(self):
+        """Bind real immutable synthetic packages to disposable trusted definitions."""
+        consumers = CHECK.input_selector().npm_selector()
+        self.npm_policies = copy.deepcopy(consumers.PROJECTS)
+        sources = {}
+        for project, definition in self.npm_policies.items():
+            sources[project + "/package.json"] = '{"private":true}\n'
+            sources[project + "/consumer.js"] = 'module.exports = 1;\n'
+            sources[project + "/package-lock.json"] = self.npm_lock(project, definition["old"])
+        self.base = self.commit(self.base, sources)
+        snapshot = consumers._snapshot(self.root, self.base)
+        for project, definition in self.npm_policies.items():
+            complement = consumers._digest(consumers._complement(snapshot, project))
+            lock = json.loads(sources[project + "/package-lock.json"])
+            graph = consumers._digest(consumers._graph(lock, definition["node"]))
+            definition.update({"complement": complement, "graph": graph, "entries": 2})
+        # Review only the disposable policy data in memory. Keep the actual
+        # immutable selector implementation and avoid rewriting tool source.
+        consumers.PROJECTS = copy.deepcopy(self.npm_policies)
+        original_selector = self.host.selector
+
+        def fixture_selector(policy_root):
+            module = original_selector(policy_root)
+            module.npm_selector = lambda: consumers
+            return module
+
+        selector_patch = patch.object(self.host, "selector", side_effect=fixture_selector)
+        selector_patch.start(); self.addCleanup(selector_patch.stop)
+        target = self.trusted / ".github/repository-checks.json"
+        target.write_text(json.dumps({"repository": CHECK.REPOSITORY, "repository_id": CHECK.REPOSITORY_ID,
+                                      "required_contexts": ["repository-checks"]}))
+        inputs = self.host.selector(self.trusted)
+        boundary = inputs.review_boundary(self.root, self.base)["boundary"]
+        target = self.trusted / "tools/ios-build-qualification/inputs.py"
+        target.write_text(target.read_text().replace(inputs.REVIEWED_BOUNDARY, boundary)
+                          + "\n# Reviewed synthetic npm reader graph.\n")
+        self.npm_host_boundary = self.host.ci_host_boundary(inputs.read_snapshot(self.root, self.base))
+
+    def npm_lock(self, project, dependency):
+        return json.dumps({"lockfileVersion": 3, "packages": {"": {"name": "fixture"},
+            self.npm_policies[project]["node"]: dependency,
+            "node_modules/unchanged": {"version": "1.0.0"}}}) + "\n"
+
+    def npm_changes(self):
+        return {project + "/package-lock.json": self.npm_lock(project, definition["new"])
+                for project, definition in self.npm_policies.items()}
+
+    def npm_owner(self, event, source):
+        inputs = self.host.selector(self.trusted)
+        base = event["pull_request"]["base"]["sha"]
+        profiles = inputs.npm_selector().select(self.root, base, source)
+        value = {"base": base, "candidate": source, "tree": profiles["candidate"]["tree"], "unknown": False,
+                 "consumer_generation": True, "policy": {"trusted-fixture": "a" * 64},
+                 "dependency_profiles": profiles,
+                 "package_set": [project for project, selected in profiles["projects"].items() if selected["required"]]}
+        value["plan"] = inputs._digest(value).removeprefix("sha256:")
+        return value
+
+    def npm_controller(self, owner, *, generation=True, mandatory=True, activated=False):
+        return SimpleNamespace(validate_wiring=Mock(return_value="npm-consumers-v1"),
+            consumer_generation=Mock(return_value=generation), has_staged_caller=Mock(return_value=mandatory),
+            activated=Mock(return_value=activated), candidate_plan=Mock(return_value=owner))
+
+    def test_required_five_workflow_npm_owner_omits_only_unchanged_ios_readers(self):
+        self.npm_fixture()
+        event, source = self.candidate({**self.npm_changes(),
+            "tools/repository-checks/npm_consumers.py": "candidate code must never execute\n",
+            "tools/repository-checks/workflows/npm-consumers/browser-client.yml": "# Independent CI\n"})
+        owner = self.npm_owner(event, source)
+        controller = self.npm_controller(owner)  # Explicit target activation can still be main-only.
+        with patch.object(self.host, "package_controller", return_value=controller), \
+                patch.object(self.host, "REVIEWED_CI_HOST_BOUNDARY", self.npm_host_boundary):
+            output = self.route(event, source)
+            self.assertEqual((output["required"], output["host_required"], output["reason"]),
+                             ("false", "false", "reviewed-ci-and-required-npm-host-inputs"))
+            controller.validate_wiring.assert_called_with(self.root)
+            controller.consumer_generation.assert_called_with(self.root)
+            controller.candidate_plan.assert_called_with(self.root, event, source)
+            self.assertEqual(self.verify(output, event, source), output)
+            with patch.object(self.host, "verify_execution", side_effect=AssertionError("no host executed")), \
+                    patch.object(CHECK, "host_handoff", return_value=self.host):
+                result = CHECK.report(self.needs(output), source, 688, 123, 1, self.root, [],
+                                      event=event, candidate=self.root, policy_root=self.trusted)
+            self.assertEqual(result["ipa"], "not-required")
+            self.assertIsNone(result["hostSelection"]["producer"])
+            controller.candidate_plan.return_value = {**owner, "plan": "0" * 64}
+            with self.assertRaises(ValueError): self.verify(output, event, source)
+        inputs = self.host.selector(self.trusted)
+        previous = inputs.read_snapshot(self.root, self.base); current = inputs.read_snapshot(self.root, source)
+        with patch.object(self.host, "REVIEWED_CI_HOST_BOUNDARY", self.npm_host_boundary):
+            self.assertIsNone(self.host.ci_host_omission(previous, current))
+            self.assertIsNotNone(self.host.ci_host_omission(previous, current, repository=self.root,
+                                                           package_owner=owner, policy_root=self.trusted))
+
+    def test_npm_owner_requires_full_generation_and_independent_mandatory_aggregate(self):
+        self.npm_fixture(); event, source = self.candidate(self.npm_changes())
+        owner = self.npm_owner(event, source)
+        for controller in (self.npm_controller(owner, generation=False),
+                           self.npm_controller(owner, mandatory=False),
+                           self.npm_controller({**owner, "consumer_generation": False})):
+            with self.subTest(controller=controller), patch.object(self.host, "package_controller", return_value=controller):
+                output = self.route(event, source)
+                self.assertEqual((output["required"], output["host_required"]), ("true", "true"))
+        controller = self.npm_controller(owner)
+        controller.validate_wiring.side_effect = ValueError("incomplete five-workflow tuple")
+        with patch.object(self.host, "package_controller", return_value=controller):
+            self.assertEqual(self.route(event, source)["required"], "true")
+        controller = self.npm_controller(owner)
+        (self.trusted / ".github/repository-checks.json").write_text(json.dumps({"repository": CHECK.REPOSITORY,
+            "repository_id": CHECK.REPOSITORY_ID, "required_contexts": []}))
+        with patch.object(self.host, "package_controller", return_value=controller):
+            self.assertEqual(self.route(event, source)["required"], "true")
+        with patch.object(self.host, "package_controller", side_effect=ValueError("owner unavailable")):
+            self.assertEqual(self.route(event, source)["required"], "true")
+
+    def test_reviewed_npm_formatting_omits_ios_jobs_without_a_package_execution_claim(self):
+        self.npm_fixture()
+        project = "browser-client"
+        content = json.dumps(json.loads(self.npm_lock(project, self.npm_policies[project]["old"])), indent=4)
+        event, source = self.candidate({project + "/package-lock.json": content})
+        owner = self.npm_owner(event, source)
+        self.assertEqual(owner["package_set"], [])
+        with patch.object(self.host, "package_controller", return_value=self.npm_controller(owner)), \
+                patch.object(self.host, "REVIEWED_CI_HOST_BOUNDARY", self.npm_host_boundary):
+            output = self.route(event, source)
+            self.assertEqual((output["required"], output["host_required"]), ("false", "false"))
+            self.assertEqual(self.verify(output, event, source), output)
+
+    def test_npm_owned_selection_keeps_unknown_product_config_graph_and_modes_full(self):
+        self.npm_fixture()
+        cases = ({"browser-client/consumer.js": "module.exports = 2;\n"},
+                 {"postcss.config.cjs": "throw Error('never execute');\n"},
+                 {".npmrc": "registry=https://example.invalid\n"},
+                 {"interface/src/changed.cpp": "// Native product input\n"},
+                 {"ios/release-check/test_added.py": "# New discovered test\n"},
+                 {"unknown/input.py": "# Unknown input\n"},
+                 {"unknown-link": ("120000", "outside")},
+                 {"unknown-gitlink": ("160000", "")},
+                 {"browser-client/package-lock.json": ("100755", self.npm_changes()["browser-client/package-lock.json"])},
+                 {"browser-client/package-lock.json": ("120000", "package.json")},
+                 {"browser-client/package-lock.json": None},
+                 {"browser-client/package-lock.json": self.npm_changes()["browser-client/package-lock.json"].replace(
+                     '"1.0.0"', '"9.0.0"')})
+        for changes in cases:
+            with self.subTest(changes=changes):
+                event, source = self.candidate({**self.npm_changes(), **changes})
+                owner = self.npm_owner(event, source)
+                with patch.object(self.host, "package_controller", return_value=self.npm_controller(owner)), \
+                        patch.object(self.host, "REVIEWED_CI_HOST_BOUNDARY", self.npm_host_boundary):
+                    output = self.route(event, source)
+                    self.assertEqual((output["required"], output["host_required"]), ("true", "true"))
+
+    def test_npm_host_boundary_rejects_historical_reader_drift_and_keeps_app_proof_separate(self):
+        self.npm_fixture()
+        drift = self.commit(self.base, {"docs/ios/HOST_PREPARATION.md": "Historical host reader input\n"})
+        event, source = self.candidate(self.npm_changes(), base=drift)
+        owner = self.npm_owner(event, source)
+        with patch.object(self.host, "package_controller", return_value=self.npm_controller(owner)), \
+                patch.object(self.host, "REVIEWED_CI_HOST_BOUNDARY", self.npm_host_boundary):
+            output = self.route(event, source)
+            self.assertEqual((output["required"], output["host_required"]), ("false", "true"))
+        drift = self.commit(self.base, {"ios/tests/imported-reader.py": "# Historical new helper\n"})
+        event, source = self.candidate(self.npm_changes(), base=drift)
+        owner = self.npm_owner(event, source)
+        with patch.object(self.host, "package_controller", return_value=self.npm_controller(owner)), \
+                patch.object(self.host, "REVIEWED_CI_HOST_BOUNDARY", self.npm_host_boundary):
+            output = self.route(event, source)
+            self.assertEqual((output["required"], output["host_required"]), ("true", "true"))
 
     def test_exact_three_tree_noop_can_skip_host_and_app_without_ci_boundary(self):
         event, source = self.candidate()

@@ -571,6 +571,18 @@ class CanonicalTemplateTests(unittest.TestCase):
         if active in (LEGACY, narrowed_advisory):
             self.assertEqual(outer, LEGACY_OUTER)
             self.assertEqual(targets, [])
+        elif active == BROWSER.trusted_bytes('tools/repository-checks/workflows/npm-consumers/browser-client.yml'):
+            # The separately admitted npm consumer pair leaves general Browser
+            # CPU ownership dormant and retains the original product jobs.
+            self.assertEqual(BROWSER._blob(active), '8f6e3e009e201ce6c9980f4f23ff4a994588bb9d')
+            self.assertEqual(outer, BROWSER.trusted_bytes(
+                'tools/repository-checks/workflows/npm-consumers/repository-checks.yml'))
+            self.assertEqual(BROWSER._blob(outer), '7f7ec83f15581ebc9cd693201aac1d8cd77d944f')
+            spec = importlib.util.spec_from_file_location('npm_pair_contract', ROOT / 'tools/repository-checks/package_checks.py')
+            packages = importlib.util.module_from_spec(spec); spec.loader.exec_module(packages)
+            self.assertEqual(packages.validate_wiring(ROOT), 'npm-consumers-v1')
+            self.assertTrue(packages.consumer_generation(ROOT))
+            self.assertEqual(targets, [])
         else:
             self.assertEqual(active, BROWSER.canonical_workflow())
             self.assertEqual(outer, BROWSER.trusted_bytes(BROWSER.OUTER_TEMPLATE))

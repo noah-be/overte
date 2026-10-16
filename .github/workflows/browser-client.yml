@@ -29,7 +29,47 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  npm-route:
+    name: Select the required npm consumer owner
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      browser_npm_only: ${{ steps.plan.outputs.browser_npm_only }}
+    steps:
+      - name: Check out trusted package policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: trusted
+          persist-credentials: false
+          sparse-checkout: |
+            .github
+            tools/repository-checks
+            tools/test-evidence
+            tools/sync-test-reuse
+            tools/sbom
+            tests/run-project-tests.py
+            tests/platform-profile.json
+            tests/requirements-host.txt
+            tests/requirements-repository.txt
+      - name: Read the exact candidate Git objects
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: candidate
+          fetch-depth: 2
+          persist-credentials: false
+          sparse-checkout: .github
+      - name: Require complete reviewed ownership before omitting legacy jobs
+        id: plan
+        run: >-
+          python3 trusted/tools/repository-checks/package_checks.py browser-route
+          --candidate candidate --event "$GITHUB_EVENT_PATH"
+          --sha "$GITHUB_SHA" --output "$GITHUB_OUTPUT"
+
   browser:
+    needs: npm-route
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.npm-route.result != 'success' || needs.npm-route.outputs.browser_npm_only != 'true') }}
     name: ${{ inputs.startup_diagnostics && 'Protocol and network startup diagnostics' || 'browser' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -135,6 +175,8 @@ jobs:
         run: xvfb-run --auto-servernum --server-args='-screen 0 1280x720x24' npm run test:browser -- --headed
 
   native-journey:
+    needs: npm-route
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.npm-route.result != 'success' || needs.npm-route.outputs.browser_npm_only != 'true') }}
     name: ${{ inputs.startup_diagnostics && 'Native startup diagnostics (journeys not-run)' || 'Actual native and browser core journeys' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35

@@ -1567,13 +1567,20 @@ class NpmConsumerSelectionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.automatic_plan(include_consumers=False)
         path = self.root / '.github/workflows/repository-checks.yml'
-        path.write_bytes((ROOT / '.github/workflows/repository-checks.yml').read_bytes())
+        path.write_bytes((PACKAGES.TEMPLATES / 'repository-checks.yml').read_bytes())
         with self.assertRaises(ValueError):
             self.automatic_plan()
 
     def test_prepared_workflows_preserve_all_legacy_steps_and_fail_to_full(self):
+        import hashlib
         import yaml
-        legacy = yaml.safe_load((ROOT / '.github/workflows/browser-client.yml').read_text())
+        # Reviewed normalized job bodies from protected pre-deployment 3cdee920.
+        # Keep this invariant after the active file itself becomes the new pair;
+        # comparing the deployed template with itself would lose that evidence.
+        legacy = {
+            'browser': '4574371f2035432bd44919ed152ab1a3af54b930e05eb48071bb1530e720ffe8',
+            'native-journey': 'f18fb63f1e67d7c6109587a62bfd9bfc79782dde3e006887c2e0cf476f5818bc',
+        }
         future = yaml.safe_load((ROOT / PACKAGES.CONSUMER_TEMPLATES / 'browser-client.yml').read_text())
         self.assertEqual(future['permissions'], {'contents': 'read'})
         for name in ('browser', 'native-journey'):
@@ -1584,7 +1591,8 @@ class NpmConsumerSelectionTests(unittest.TestCase):
             self.assertIn("github.event_name != 'pull_request'", condition)
             self.assertIn("needs.npm-route.result != 'success'", condition)
             self.assertIn("needs.npm-route.outputs.browser_npm_only != 'true'", condition)
-            self.assertEqual(job, legacy['jobs'][name])
+            normalized = (json.dumps(job, sort_keys=True, separators=(',', ':')) + '\n').encode()
+            self.assertEqual(hashlib.sha256(normalized).hexdigest(), legacy[name])
         route = future['jobs']['npm-route']
         self.assertEqual(route['if'], "github.event_name == 'pull_request'")
         self.assertIn('package_checks.py browser-route', route['steps'][-1]['run'])

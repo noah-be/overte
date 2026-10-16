@@ -36,10 +36,94 @@ class HostSelectionTests(unittest.TestCase):
         self.addCleanup(self.review.stop)
 
     def selected(self, paths, *, tree=None, regular=True, unknown=False, trusted_tree=None,
-                 target='main', base_tree=None):
+                 target='main', base_tree=None, package_paths=()):
         return HOST.select(self.tree if tree is None else tree, paths, regular,
                            unknown=unknown, trusted_tree=self.tree if trusted_tree is None else trusted_tree,
-                           target=target, base_tree=base_tree)
+                           target=target, base_tree=base_tree, package_paths=package_paths)
+
+    def package_plan(self, path='browser-client/package-lock.json', *, formatting=False):
+        project, profile = HOST.PACKAGE_LOCKS[path]
+        return {'base': 'a'*40, 'candidate': 'b'*40, 'tree': 'c'*40,
+                'consumer_generation': True, 'paths': [path],
+                'package_set': [] if formatting else [project],
+                'dependency_profiles': {'unknown': False, 'base': {'revision': 'a'*40},
+                    'candidate': {'revision': 'b'*40, 'tree': 'c'*40}, 'projects': {
+                        project: {'profile': 'none' if formatting else profile,
+                                  'required': not formatting, 'changed_paths': [path],
+                                  'reason': 'reviewed-lockfile-format-only' if formatting else
+                                      'reviewed-single-dependency-security-update'}}}}
+
+    def test_package_paths_require_complete_matching_independent_owner(self):
+        for path in HOST.PACKAGE_LOCKS:
+            for formatting in (False, True):
+                plan = self.package_plan(path, formatting=formatting)
+                self.assertEqual(HOST.package_owned_paths(plan), (path,))
+                for mutation in ('generation', 'candidate', 'tree', 'base', 'unknown', 'profile', 'paths', 'owner'):
+                    changed = deepcopy(plan)
+                    project = HOST.PACKAGE_LOCKS[path][0]
+                    profile = changed['dependency_profiles']['projects'][project]
+                    if mutation == 'generation': changed['consumer_generation'] = False
+                    elif mutation in {'candidate', 'tree', 'base'}: changed[mutation] = 'd'*40
+                    elif mutation == 'unknown': changed['dependency_profiles']['unknown'] = True
+                    elif mutation == 'profile': profile['profile'] = 'full'
+                    elif mutation == 'paths': profile['changed_paths'].append(project + '/consumer.js')
+                    elif formatting: profile['reason'] = 'unchanged-package-inputs'
+                    else: changed['package_set'] = []
+                    with self.subTest(path=path, formatting=formatting, mutation=mutation):
+                        self.assertEqual(HOST.package_owned_paths(changed), ())
+
+    def test_mixed_ci_and_owned_locks_keep_reviewed_production_graph_without_full_host(self):
+        paths = tuple(HOST.PACKAGE_LOCKS)
+        candidate = deepcopy(self.tree)
+        for path in paths:
+            candidate[path]['sha'] = 'b'*40
+        selected = self.selected(['tools/branch-cleanup/cleanup.py', *paths],
+                                 tree=candidate, base_tree=self.tree, package_paths=paths)
+        self.assertEqual(set(selected['suites']), self.ci_quick)
+        self.assertFalse(selected['full_host'])
+        self.assertFalse(selected['include_platform'])
+        self.assertEqual(selected['package_owned_paths'], sorted(paths))
+        self.assertNotIn('results', selected)
+        self.assertNotEqual(HOST.program_digest(candidate), HOST.REVIEWED_PROGRAMS)
+
+    def test_owned_locks_do_not_hide_historical_or_new_product_differences(self):
+        path = 'browser-client/package-lock.json'
+        for reader in ('tests/platform-profile.json', 'scripts/system/chat.js',
+                       'libraries/shared/src/new-package-reader.h'):
+            candidate = deepcopy(self.tree)
+            candidate[path]['sha'] = 'b'*40
+            candidate[reader] = {'mode': '100644', 'type': 'blob', 'sha': 'c'*40}
+            with self.subTest(reader=reader):
+                selected = self.selected(['tools/branch-cleanup/cleanup.py', path], tree=candidate,
+                                         base_tree=self.tree, package_paths=(path,))
+                self.assertTrue(selected['full_host'])
+                self.assertTrue(selected['include_platform'])
+
+    def test_owned_locks_keep_required_changed_control_plane_owner(self):
+        path = 'browser-client/package-lock.json'
+        candidate = deepcopy(self.tree); candidate[path]['sha'] = 'b'*40
+        previous = deepcopy(self.tree); previous[HOST.CONTROL_PLANE]['sha'] = 'c'*40
+        selected = self.selected([HOST.CONTROL_PLANE, path], tree=candidate,
+                                 base_tree=previous, package_paths=(path,))
+        self.assertEqual(set(selected['suites']), self.ci_quick | {'device-control-plane-full'})
+        self.assertTrue(selected['full_host'])
+        self.assertFalse(selected['include_platform'])
+
+    def test_owned_locks_require_ordinary_complete_base_inputs_and_regular_inventory(self):
+        path = 'browser-client/package-lock.json'
+        for mode in ('missing', '100755', '120000', '160000'):
+            for side in ('base', 'candidate'):
+                candidate, previous = deepcopy(self.tree), deepcopy(self.tree)
+                changed = candidate if side == 'candidate' else previous
+                if mode == 'missing': del changed[path]
+                else: changed[path] = {'mode': mode, 'type': 'commit' if mode == '160000' else 'blob', 'sha': 'b'*40}
+                with self.subTest(mode=mode, side=side):
+                    self.assertTrue(self.selected([path], tree=candidate, base_tree=previous,
+                                                  package_paths=(path,))['full_host'])
+        self.assertTrue(self.selected([path], package_paths=(path,))['full_host'])
+        self.assertTrue(self.selected([path], base_tree=self.tree, package_paths=(path,), regular=False)['full_host'])
+        with self.assertRaises(ValueError):
+            self.selected(['interface/src/Application.cpp'], package_paths=('interface/src/Application.cpp',))
 
     def test_reviewed_generation_binds_actual_reader_inventory(self):
         tree=deepcopy(self.tree)

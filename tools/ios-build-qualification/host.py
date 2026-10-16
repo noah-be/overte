@@ -41,8 +41,13 @@ VARIANTS = ["complete-reviewed-launcher", "Qt6Core/Gui/Qml/Concurrent/WebChannel
 # membership, local imports and historical child differences, remain anchored.
 # This proves only that the own host run is unaffected; it is not a passing
 # test receipt, shared-owner handoff or application-build selection authority.
-REVIEWED_CI_HOST_BOUNDARY = "13fa4cd533f88d961dcc4624fe8ebeb7d37ee859e66022453c91f8a81dccf7bf"
+REVIEWED_CI_HOST_BOUNDARY = "eb10f2ce89017a4efc75001773c1da415994dc2f4d542fb2804183bc2f77ba15"
 CI_HOST_INDEPENDENT_PATHS = frozenset({
+    'tools/repository-checks/npm_consumers.py',
+    'tools/repository-checks/npm-source-map-tests.cjs',
+    'tools/repository-checks/npm-proxy-addr-tests.cjs',
+    'tools/repository-checks/workflows/npm-consumers/browser-client.yml',
+    'tools/repository-checks/workflows/npm-consumers/repository-checks.yml',
     '.github/android-checks.json',
     '.github/android-orchestration.json',
     '.github/attested-runtime.json',
@@ -155,6 +160,12 @@ CI_HOST_INDEPENDENT_PATHS = frozenset({
 CI_HOST_EXECUTABLE_PATHS = frozenset({
     "tests/project-suite-self-test.py", "tests/repository-health-test.py", "tests/run-project-tests.py",
 })
+# Outside the iOS host reader graph, but a changed lock additionally requires
+# the independently mandatory package owner. Never add these to the CI set.
+NPM_HOST_PATHS = frozenset({
+    'browser-client/package-lock.json',
+    'script-archive/marketplace/S3Server/package-lock.json',
+})
 
 
 def require(condition, message):
@@ -188,6 +199,43 @@ def selector(policy_root):
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def package_controller(policy_root):
+    path = trusted_file(policy_root, "tools/repository-checks/package_checks.py")
+    spec = importlib.util.spec_from_file_location("ios_required_package_controller", path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def required_package_owner(event, candidate, source, *, policy_root=ROOT):
+    """Recompute the exact mandatory package plan, not an execution receipt.
+
+    A complete five-workflow caller is independently enforced by check.py even
+    before the target is listed in the explicit package activation inventory.
+    The required repository aggregate still owns the actual successful receipt.
+    Missing/unsupported ownership selects the full iOS gate instead of waiving it.
+    """
+    try:
+        module = package_controller(policy_root)
+        module.validate_wiring(candidate)
+        if not module.consumer_generation(candidate):
+            return None
+        config = json.loads(trusted_file(policy_root, ".github/repository-checks.json").read_text())
+        mandatory = (config.get("repository") == REPOSITORY
+                     and type(config.get("repository_id")) is int and config["repository_id"] == REPOSITORY_ID
+                     and "repository-checks" in config.get("required_contexts", [])
+                     and module.has_staged_caller(candidate))
+        if not (module.activated(event) or mandatory):
+            return None
+        plan = module.candidate_plan(candidate, event, source)
+        if plan.get("consumer_generation") is not True or plan.get("candidate") != source:
+            return None
+        return plan
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, ImportError, subprocess.SubprocessError):
+        return None
 
 
 def policy(policy_root=ROOT):
@@ -386,31 +434,42 @@ def ci_host_boundary(snapshot):
            for entry in snapshot.entries):
         return None
     values = [entry.identity() for entry in sorted(snapshot.entries)
-              if entry.path not in CI_HOST_INDEPENDENT_PATHS]
+              if entry.path not in CI_HOST_INDEPENDENT_PATHS | NPM_HOST_PATHS]
     return hashlib.sha256((json.dumps(values, sort_keys=True, separators=(",", ":"),
                                      allow_nan=False) + "\n").encode()).hexdigest()
 
 
-def ci_host_omission(previous, current):
+def ci_host_omission(previous, current, *, repository=None, package_owner=None, policy_root=ROOT):
     """Finite negative dependency proof; never infer independence from app inputs."""
     old, new = entries(previous), entries(current)
     changed = {path for path in old.keys() | new.keys() if old.get(path) != new.get(path)}
-    if not changed or not changed <= CI_HOST_INDEPENDENT_PATHS:
+    if not changed or not changed <= CI_HOST_INDEPENDENT_PATHS | NPM_HOST_PATHS:
         return None
+    npm = None
+    if changed & NPM_HOST_PATHS:
+        if repository is None:
+            return None
+        npm = selector(policy_root).npm_package_admission(repository, previous, current, package_owner)
+        if npm is None or set(npm["changedPaths"]) != changed & NPM_HOST_PATHS:
+            return None
     if any((old[path]["mode"], old[path]["type"]) != (new[path]["mode"], new[path]["type"])
            for path in changed if path in old and path in new):
         return None
     if any(value["mode"] != ("100755" if path in CI_HOST_EXECUTABLE_PATHS else "100644")
            or value["type"] != "blob" for tree in (old, new) for path, value in tree.items()
-           if path in CI_HOST_INDEPENDENT_PATHS):
+           if path in CI_HOST_INDEPENDENT_PATHS | NPM_HOST_PATHS):
         return None
     if any(ci_host_boundary(snapshot) != REVIEWED_CI_HOST_BOUNDARY
            for snapshot in (previous, current)):
         return None
-    return {"schema": 1, "reason": "reviewed-ci-only-host-inputs",
+    result = {"schema": 1, "reason": "reviewed-ci-only-host-inputs" if npm is None
+              else "reviewed-ci-and-required-npm-host-inputs",
             "boundary": REVIEWED_CI_HOST_BOUNDARY, "changedPaths": sorted(changed),
             "base": {"revision": previous.revision, "tree": previous.tree},
             "candidate": {"revision": current.revision, "tree": current.tree}}
+    if npm is not None:
+        result["package_ownership"] = npm
+    return result
 
 
 def route(event, candidate, source, *, policy_root=ROOT):
@@ -427,12 +486,16 @@ def route(event, candidate, source, *, policy_root=ROOT):
             reason, required, host_required = "unchanged-tree", False, False
             selection = {"tree": current.tree, "base": base, "head": head, "candidate": source}
         else:
+            old, new = entries(previous), entries(current)
+            npm_changed = any(old.get(path) != new.get(path) for path in NPM_HOST_PATHS)
+            package_owner = required_package_owner(event, candidate, source, policy_root=policy_root) if npm_changed else None
             selection = workflow_bootstrap(candidate, previous, current, head_source, policy_root=policy_root)
             if selection is None:
-                selection = inputs.candidate_plan(candidate, base, source)
+                selection = inputs.candidate_plan(candidate, base, source, package_owner=package_owner)
             required, host_required = selection["requires_application_build"], True
             reason = selection["reason"]
-            omission = None if required else ci_host_omission(previous, current)
+            omission = None if required else ci_host_omission(previous, current, repository=candidate,
+                package_owner=package_owner, policy_root=policy_root)
             if omission is not None:
                 host_required = False
                 reason = omission["reason"]

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
+import importlib.util
 import json
 from pathlib import Path, PurePosixPath
 import re
@@ -32,7 +33,7 @@ import subprocess
 # Protected apple-ios merge of the successful host-only workflow bootstrap.
 # Its only tree delta from the previous anchor is the exact reviewed workflow.
 REVIEWED_REVISION = "2fc894a0605103843b36653f250f854714a963ee"
-REVIEWED_BOUNDARY = "sha256:8a369137ffeb67b79a087901500bdeb74dda81359197712577f0ecb5607aee05"
+REVIEWED_BOUNDARY = "sha256:cba03775542c32affcfe172b66b80b23cab31abd9f61293abd3f5cb0e19c03e8"
 
 # Reviewed host control-plane files, not generic tests/** or tools/** patterns.
 # In particular, E2E builds can compile tests/device source and fixtures.
@@ -42,6 +43,11 @@ REVIEWED_BOUNDARY = "sha256:8a369137ffeb67b79a087901500bdeb74dda81359197712577f0
 # its device-control-plane-full and project-runner owners remain independently required.
 # Independent required CI must still validate these files before any app waiver.
 INDEPENDENT_HOST_PATHS = frozenset({
+    "tools/repository-checks/npm_consumers.py",
+    "tools/repository-checks/npm-source-map-tests.cjs",
+    "tools/repository-checks/npm-proxy-addr-tests.cjs",
+    "tools/repository-checks/workflows/npm-consumers/browser-client.yml",
+    "tools/repository-checks/workflows/npm-consumers/repository-checks.yml",
     "tools/repository-checks/codeql_results.py",
     "tools/repository-checks/workflows/codeql-results.yml",
     "tools/repository-checks/workflows/codeql-main.json",
@@ -150,6 +156,14 @@ INDEPENDENT_EXECUTABLE_HOST_PATHS = frozenset({
 INDEPENDENT_DOCUMENTS = frozenset({
     "CONTRIBUTING.md", "README.md", "ios/README.md", "tests/PROJECT_TESTING.md",
 })
+# These locks are outside the reviewed iOS readers. Their bytes remain in normal
+# application fingerprints. Only an independently required exact package owner
+# can admit a changed lock; they are deliberately NOT independent-host paths.
+NPM_PACKAGE_PROFILES = {
+    "browser-client/package-lock.json": ("browser-client", "source-map-postcss-v1"),
+    "script-archive/marketplace/S3Server/package-lock.json": (
+        "script-archive/marketplace/S3Server", "proxy-addr-express-v1"),
+}
 
 _OBJECT = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
 _MODES = {"100644": "blob", "100755": "blob", "120000": "blob", "160000": "commit"}
@@ -251,7 +265,8 @@ def _kind(entry: Entry) -> str:
 
 def _boundary(snapshot: Snapshot) -> str:
     return _digest({"domain": _BOUNDARY_DOMAIN,
-                    "entries": [entry.identity() for entry in snapshot.entries if _kind(entry) == "application-input"]})
+                    "entries": [entry.identity() for entry in snapshot.entries
+                                if _kind(entry) == "application-input" and entry.path not in NPM_PACKAGE_PROFILES]})
 
 
 def review_boundary(repository: Path | str, revision: str) -> dict:
@@ -270,16 +285,19 @@ def _policy() -> str:
                     "reviewed_boundary": REVIEWED_BOUNDARY,
                     "host_paths": sorted(INDEPENDENT_HOST_PATHS), "documents": sorted(INDEPENDENT_DOCUMENTS),
                     "executable_host_paths": sorted(INDEPENDENT_EXECUTABLE_HOST_PATHS),
+                    "conditional_npm_paths": NPM_PACKAGE_PROFILES,
                     "document_rule": "ordinary-docs/**/*.md", "nonregular_rule": "disable-all-exclusions",
                     "implementation": hashlib.sha256(Path(__file__).read_bytes()).hexdigest()})
 
 
-def _identity(snapshot: Snapshot, policy: str) -> dict:
+def _identity(snapshot: Snapshot, policy: str, admitted_npm=()) -> dict:
     nonregular = [entry.path for entry in snapshot.entries if entry.mode in {"120000", "160000"}]
     boundary = _boundary(snapshot)
-    applicable = boundary == REVIEWED_BOUNDARY and not nonregular
+    ordinary_locks = all(entry.mode == "100644" and entry.object_type == "blob"
+                         for entry in snapshot.entries if entry.path in NPM_PACKAGE_PROFILES)
+    applicable = boundary == REVIEWED_BOUNDARY and not nonregular and ordinary_locks
     selected = [entry.identity() for entry in snapshot.entries
-                if not applicable or _kind(entry) == "application-input"]
+                if not applicable or (_kind(entry) == "application-input" and entry.path not in admitted_npm)]
     return {"revision": snapshot.revision, "tree": snapshot.tree, "boundary": boundary,
             "exclusions_applicable": applicable, "nonregular_paths": nonregular,
             "fingerprint": _digest({"domain": _INPUT_DOMAIN, "policy": policy,
@@ -291,7 +309,77 @@ def input_fingerprint(repository: Path | str, revision: str) -> dict:
     return _identity(read_snapshot(repository, revision), _policy())
 
 
-def candidate_plan(repository: Path | str, base: str, candidate: str) -> dict:
+def npm_selector():
+    """Load the dependency definitions from this trusted policy, never candidate code."""
+    path = Path(__file__).resolve().parents[2] / "tools/repository-checks/npm_consumers.py"
+    if not path.is_file() or any(parent.is_symlink() for parent in (path, *path.parents)):
+        raise InputError("trusted npm dependency selector unavailable")
+    spec = importlib.util.spec_from_file_location("ios_trusted_npm_consumers", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def npm_package_admission(repository, previous, current, package_owner):
+    """Check immutable dependency evidence supplied by the required host caller.
+
+    This validates data, not remote branch protection or successful execution.
+    host.py independently establishes the mandatory owner before supplying its
+    plan. The separate required repository aggregate verifies execution receipts.
+    """
+    old = {entry.path: entry for entry in previous.entries}
+    new = {entry.path: entry for entry in current.entries}
+    # host.resolve() and the later selector can load separate trusted dataclass
+    # instances. Compare immutable entry values, not Python class identities.
+    changed = sorted(path for path in NPM_PACKAGE_PROFILES
+                     if (old[path].identity() if path in old else None)
+                     != (new[path].identity() if path in new else None))
+    if not changed or not isinstance(package_owner, dict):
+        return None
+    try:
+        if package_owner.get("consumer_generation") is not True \
+                or package_owner.get("unknown") is not False \
+                or package_owner.get("base") != previous.revision \
+                or package_owner.get("candidate") != current.revision \
+                or package_owner.get("tree") != current.tree \
+                or not isinstance(package_owner.get("policy"), dict) or not package_owner["policy"] \
+                or not isinstance(package_owner.get("package_set"), list) \
+                or any(project not in {value[0] for value in NPM_PACKAGE_PROFILES.values()}
+                       for project in package_owner["package_set"]) \
+                or len(set(package_owner["package_set"])) != len(package_owner["package_set"]) \
+                or package_owner.get("plan") != _digest({key: value for key, value in package_owner.items()
+                                                        if key != "plan"}).removeprefix("sha256:"):
+            return None
+        selected = npm_selector().select(repository, previous.revision, current.revision)
+        if selected.get("unknown") is not False or package_owner.get("dependency_profiles") != selected:
+            return None
+        for path in changed:
+            if any(path not in tree or tree[path].mode != "100644" or tree[path].object_type != "blob"
+                   for tree in (old, new)):
+                return None
+            project, profile = NPM_PACKAGE_PROFILES[path]
+            item = selected["projects"][project]
+            if item["changed_paths"] != [path]:
+                return None
+            focused = item["profile"] == profile and item["required"] is True \
+                and project in package_owner["package_set"]
+            formatting = item["profile"] == "none" and item["required"] is False \
+                and item["reason"] == "reviewed-lockfile-format-only" \
+                and project not in package_owner["package_set"]
+            if not (focused or formatting):
+                return None
+        return {"reason": "required-reviewed-npm-consumers", "changedPaths": changed,
+                "base": {"revision": previous.revision, "tree": previous.tree},
+                "candidate": {"revision": current.revision, "tree": current.tree},
+                "packagePlan": package_owner["plan"], "packagePolicy": package_owner["policy"],
+                "dependencyPlan": selected["plan"],
+                "projects": {NPM_PACKAGE_PROFILES[path][0]: selected["projects"][NPM_PACKAGE_PROFILES[path][0]]
+                             for path in changed}}
+    except (InputError, OSError, ValueError, TypeError, KeyError, AttributeError, ImportError):
+        return None
+
+
+def candidate_plan(repository: Path | str, base: str, candidate: str, *, package_owner=None) -> dict:
     """Classify every actual tree delta without accepting a caller path list.
 
     The eventual trusted caller must independently validate repository, target,
@@ -300,7 +388,9 @@ def candidate_plan(repository: Path | str, base: str, candidate: str) -> dict:
     """
     previous, current = read_snapshot(repository, base), read_snapshot(repository, candidate)
     policy = _policy()
-    base_identity, candidate_identity = _identity(previous, policy), _identity(current, policy)
+    npm = npm_package_admission(repository, previous, current, package_owner)
+    admitted = npm["changedPaths"] if npm is not None else ()
+    base_identity, candidate_identity = (_identity(snapshot, policy, admitted) for snapshot in (previous, current))
     old, new = {entry.path: entry for entry in previous.entries}, {entry.path: entry for entry in current.entries}
     changes = []
     for path in sorted(old.keys() | new.keys()):
@@ -310,7 +400,8 @@ def candidate_plan(repository: Path | str, base: str, candidate: str) -> dict:
         kinds = {_kind(entry) for entry in (before, after) if entry is not None}
         changes.append({"path": path, "old": before.identity() if before else None,
                         "new": after.identity() if after else None,
-                        "kind": "application-input" if "application-input" in kinds else kinds.pop()})
+                        "kind": "independent-npm-package" if path in admitted else
+                            "application-input" if "application-input" in kinds else kinds.pop()})
     applicable = base_identity["exclusions_applicable"] and candidate_identity["exclusions_applicable"]
     if not changes:
         reason = "empty-change-inventory"
@@ -322,7 +413,10 @@ def candidate_plan(repository: Path | str, base: str, candidate: str) -> dict:
         reason = "reader-boundary-not-reviewed"
     else:
         reason = "independent-host-or-documentation-only"
-    return {"schema": 1, "policy": policy, "reviewed_revision": REVIEWED_REVISION,
+    result = {"schema": 1, "policy": policy, "reviewed_revision": REVIEWED_REVISION,
             "reviewed_boundary": REVIEWED_BOUNDARY, "base": base_identity, "candidate": candidate_identity,
             "exclusions_applicable": applicable, "changes": changes, "reason": reason,
             "requires_application_build": reason != "independent-host-or-documentation-only"}
+    if npm is not None:
+        result["package_ownership"] = npm
+    return result

@@ -112,6 +112,39 @@ REVIEWED_CHILD_PROGRAMS = {
     'android-vr-pico': '939f06ce47bb28c6efae3f97fdd26482a904b92286b5bb923cbbca082fcef79d',
 }
 CONTROL_PLANE = 'tests/device/run_control_plane_tests.py'
+PACKAGE_LOCKS = {
+    'browser-client/package-lock.json': ('browser-client', 'source-map-postcss-v1'),
+    'script-archive/marketplace/S3Server/package-lock.json':
+        ('script-archive/marketplace/S3Server', 'proxy-addr-express-v1'),
+}
+
+
+def package_owned_paths(plan):
+    """Read only a trusted, independently recomputed package candidate plan.
+
+    This is a dependency omission, never a package execution receipt. The
+    required repository aggregate still requires the separate package owner.
+    """
+    if not isinstance(plan, dict) or plan.get('consumer_generation') is not True:
+        return ()
+    consumers = plan.get('dependency_profiles')
+    if not isinstance(consumers, dict) or consumers.get('unknown') is not False \
+            or consumers.get('base', {}).get('revision') != plan.get('base') \
+            or consumers.get('candidate', {}).get('revision') != plan.get('candidate') \
+            or consumers.get('candidate', {}).get('tree') != plan.get('tree'):
+        return ()
+    result = []
+    for path, (project, profile) in PACKAGE_LOCKS.items():
+        selected = consumers.get('projects', {}).get(project, {})
+        if path not in plan.get('paths', ()) or selected.get('changed_paths') != [path]:
+            continue
+        focused = (selected.get('profile') == profile and selected.get('required') is True
+                   and project in plan.get('package_set', ()))
+        formatting = (selected.get('profile') == 'none' and selected.get('required') is False
+                      and selected.get('reason') == 'reviewed-lockfile-format-only')
+        if focused or formatting:
+            result.append(path)
+    return tuple(result)
 
 
 def program_digest(tree, root=ROOT):
@@ -146,29 +179,50 @@ def ci_owned(path):
 
 
 def select(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_root=ROOT,
-           trusted_root=ROOT, target='main', base_tree=None):
+           trusted_root=ROOT, target='main', base_tree=None, package_paths=()):
     registry = inputs.load_registry(ROOT / '.github/test-suites.json')
     names = list(registry['suites'])
     reason = 'unowned-inputs'
+    if not isinstance(package_paths, (tuple, list)) or any(path not in PACKAGE_LOCKS for path in package_paths):
+        raise ValueError('host package normalization requires finite separately owned lock paths')
     if unknown or not regular or not paths:
         reason = 'unknown-or-nonregular-inventory'
-    elif not all(isinstance(path, str) and ci_owned(path) for path in paths):
+    elif not all(isinstance(path, str) and (ci_owned(path) or path in package_paths) for path in paths):
         reason = 'unowned-inputs'
     else:
         try:
+            # Keep the reviewed historical program identity. Only the separate
+            # required npm owner covers these exact lock deltas; all other
+            # candidate files and the trusted production reader graph stay bound.
+            reviewed_tree = tree
+            if package_paths:
+                if base_tree is None or any(
+                        not isinstance(snapshot.get(path), dict)
+                        or snapshot[path].get('mode') != '100644'
+                        or snapshot[path].get('type') != 'blob'
+                        for snapshot in (tree, base_tree) for path in package_paths):
+                    raise ValueError('package lock normalization requires ordinary inputs on both sides')
+                reviewed_tree = dict(tree)
+                for path in package_paths:
+                    reviewed_tree[path] = dict(base_tree[path])
             expected = REVIEWED_PROGRAMS if target == 'main' else REVIEWED_CHILD_PROGRAMS.get(target)
-            reviewed = expected is not None and program_digest(tree, candidate_root) == expected
+            reviewed = expected is not None and program_digest(reviewed_tree, candidate_root) == expected
             if trusted_tree is not None:
                 reviewed &= program_digest(trusted_tree, trusted_root) == REVIEWED_PROGRAMS
         except (ValueError, OSError, subprocess.SubprocessError):
             reviewed = False
         if reviewed:
             affected = CONTROL_PLANE in paths or (base_tree is not None and base_tree.get(CONTROL_PLANE) != tree.get(CONTROL_PLANE))
-            return {'suites': [name for name in names if (
+            result = {'suites': [name for name in names if (
                         registry['suites'][name]['layer'] == 'quick' and name not in PRODUCT_QUICK_SUITES
                         or affected and name == 'device-control-plane-full')],
                     'reason': 'reviewed-ci-with-control-plane-update' if affected else 'reviewed-ci-only-inputs',
                     'full_host': affected, 'include_platform': False}
+            if package_paths:
+                result['package_owned_paths'] = sorted(package_paths)
+                result['reason'] = ('reviewed-ci-control-plane-and-package-owners' if affected
+                                    else 'reviewed-ci-and-package-owners')
+            return result
         reason = 'host-reader-generation-not-reviewed'
     return {'suites': names, 'reason': reason, 'full_host': True, 'include_platform': True}
 
@@ -237,7 +291,8 @@ def main():
         base_tree = inputs.full_tree(candidate, plan['base']) if plan.get('base') and not plan['unknown'] else None
         selected = select(inputs.full_tree(candidate, before[0]), plan['paths'], plan['regular'],
                           unknown=plan['unknown'], trusted_tree=inputs.full_tree(ROOT, 'HEAD'),
-                          candidate_root=candidate, target=target_branch(event), base_tree=base_tree)
+                          candidate_root=candidate, target=target_branch(event), base_tree=base_tree,
+                          package_paths=package_owned_paths(plan))
         registry = inputs.load_registry(ROOT / '.github/test-suites.json')
         additions = additional_suites(candidate_registry(candidate), registry)
         if additions:
