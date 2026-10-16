@@ -173,6 +173,59 @@ class HostSelectionTests(unittest.TestCase):
                 self.assertEqual(result,{'suites':list(self.registry['suites']),
                     'reason':'reviewed-protected-producer-transition','full_host':True,'include_platform':True})
 
+    def retained_default_transition(self, source):
+        rows={row['name']:row['workflows'] for row in HOST.package_policy().workflow_generations()}
+        previous,candidate=copy_git_tree(self.tree),copy_git_tree(self.tree)
+        previous.pop('.github/workflows/pr-metadata-context.yml',None)
+        previous.update(deepcopy(rows[source]))
+        candidate.update(deepcopy(rows['protected-producer-original-default-v1']))
+        previous['.github/workflows/codeql.yml']={'mode':'100644','type':'blob',
+            'sha':'6d55d0fe4e9edc86204c66e1fa3967681793a2cd'}
+        candidate['.github/workflows/codeql.yml']={'mode':'100644','type':'blob',
+            'sha':'e9aaaed9693efc5ffb4701697ac2a4d51f5f5ba1'}
+        paths=sorted(path for path in previous.keys() | candidate.keys() if previous.get(path)!=candidate.get(path))
+        return previous,candidate,paths
+
+    def test_retained_original_default_installation_requires_one_full_owner_from_each_finite_source(self):
+        for source in ('npm-consumers-sync-ci-v1','android-owned-npm5-sync-ci-v1'):
+            old,new,paths=self.retained_default_transition(source)
+            with self.subTest(source=source):
+                self.assertEqual(set(paths),{'.github/workflows/'+name+'.yml' for name in (
+                    'repository-checks','project-tests','parent-qualification','sync-validation',
+                    'pr-metadata-context','codeql')})
+                self.assertTrue(HOST._protected_producer_transition(new,paths,old,old,'main'))
+                self.assertEqual(self.selected(paths,tree=new,trusted_tree=old,base_tree=old),{
+                    'suites':list(self.registry['suites']),'reason':'reviewed-protected-producer-transition',
+                    'full_host':True,'include_platform':True})
+
+    def test_retained_original_default_installation_rejects_mixed_or_unbound_sources(self):
+        for source in ('npm-consumers-sync-ci-v1','android-owned-npm5-sync-ci-v1'):
+            old,new,paths=self.retained_default_transition(source)
+            for side in ('base','candidate'):
+                for path in paths:
+                    for mutation in ('missing','mode','alias','gitlink','unknown'):
+                        previous,current=copy_git_tree(old),copy_git_tree(new)
+                        tree=previous if side=='base' else current
+                        if mutation=='missing':tree.pop(path,None)
+                        elif path not in tree:continue
+                        elif mutation=='mode':tree[path]['mode']='100755'
+                        elif mutation=='alias':tree[path]['mode']='120000'
+                        elif mutation=='gitlink':tree[path].update(mode='160000',type='commit')
+                        else:tree[path]['sha']='a'*40
+                        with self.subTest(source=source,side=side,path=path,mutation=mutation):
+                            # Missing helper is the expected legacy state.
+                            if side=='base' and path.endswith('/pr-metadata-context.yml') and mutation=='missing':
+                                continue
+                            self.assertFalse(HOST._protected_producer_transition(current,paths,previous,previous,'main'))
+            for target in ('apple-ios','android-main','unknown'):
+                self.assertFalse(HOST._protected_producer_transition(new,paths,old,old,target))
+            self.assertFalse(HOST._protected_producer_transition(new,paths+paths[:1],old,old,'main'))
+            drift=copy_git_tree(new);drift['native.cpp']={'mode':'100644','type':'blob','sha':'a'*40}
+            self.assertFalse(HOST._protected_producer_transition(drift,paths,old,old,'main'))
+            self.assertFalse(HOST._protected_producer_transition(new,paths,old,new,'main'))
+        old,new,paths=self.retained_default_transition('npm-consumers-v1')
+        self.assertFalse(HOST._protected_producer_transition(new,paths,old,old,'main'))
+
     def test_joint_installation_rejects_every_endpoint_mutation_and_unreviewed_combination(self):
         for producer_name in ("protected-producer-metadata-ci-v1", "protected-producer-seven-target-ci-v1"):
             with self.subTest(producer_name=producer_name):

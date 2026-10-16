@@ -284,9 +284,10 @@ def _protected_producer_transition(tree, paths, base_tree, trusted_tree, target)
                           '.github/workflows/pr-metadata-context.yml'}
     codeql_path = '.github/workflows/codeql.yml'
     joint_endpoints = {*metadata_endpoints, codeql_path}
+    retained_endpoints = {*joint_endpoints, '.github/workflows/sync-validation.yml'}
     if target != 'main' or not isinstance(paths, (tuple, list)) \
             or len(paths) != len(set(paths)) \
-            or set(paths) not in (producer_endpoints, metadata_endpoints, joint_endpoints) \
+            or set(paths) not in (producer_endpoints, metadata_endpoints, joint_endpoints, retained_endpoints) \
             or not isinstance(base_tree, dict) \
             or not isinstance(trusted_tree, dict) or trusted_tree != base_tree:
         return False
@@ -297,6 +298,27 @@ def _protected_producer_transition(tree, paths, base_tree, trusted_tree, target)
     policy = package_policy()
     generations = {generation['name']: generation['workflows'] for generation in policy.workflow_generations()}
     consumers = set(policy.CONSUMER_WORKFLOW_PATHS)
+    if set(paths) == retained_endpoints:
+        producer = generations.get('protected-producer-original-default-v1', {})
+        ordinary = lambda oid: {'mode': '100644', 'type': 'blob', 'sha': oid}
+        # The pre-sole-owner source recipe keeps the original Android owners
+        # during source propagation. This exact installation still requires a
+        # new full producer run; neither recipe grants execution evidence.
+        for name in ('npm-consumers-sync-ci-v1', 'android-owned-npm5-sync-ci-v1'):
+            previous = generations.get(name, {})
+            if set(previous) != consumers or set(producer) != set(policy.METADATA_WORKFLOW_PATHS) \
+                    or {path for path in consumers | set(producer)
+                        if previous.get(path) != producer.get(path)} != retained_endpoints - {codeql_path} \
+                    or any(base_tree.get(path) is not None for path in set(producer) - consumers):
+                continue
+            if base_tree.get(codeql_path) != ordinary('6d55d0fe4e9edc86204c66e1fa3967681793a2cd') \
+                    or tree.get(codeql_path) != ordinary('e9aaaed9693efc5ffb4701697ac2a4d51f5f5ba1'):
+                continue
+            if all(snapshot.get(path) == entry
+                   for snapshot, workflows in ((trusted_tree, previous), (base_tree, previous), (tree, producer))
+                   for path, entry in workflows.items()):
+                return True
+        return False
     for old_name, new_name, endpoints, candidate_paths, joint_codeql in (
             ('android-owned-npm5-sync-ci-v1', 'protected-shared-producer-v1', producer_endpoints, consumers, False),
             ('postmerge-original-e-v1', 'protected-producer-postmerge-original-e-v1', producer_endpoints, consumers, False),
