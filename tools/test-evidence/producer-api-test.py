@@ -1126,6 +1126,7 @@ class MainConsumerTests(unittest.TestCase):
         from types import SimpleNamespace
         self.module = postmerge
         self.real_host_policy = postmerge.producer._host_policy
+        self.real_package = self.real_host_policy().package_policy()
         self.real_full_tree = postmerge.inputs.full_tree
         self.real_selection_profile = getattr(postmerge.producer, 'selection_profile', None)
         fixture = IntegratedSourceTests(); fixture.setUp()
@@ -1135,8 +1136,30 @@ class MainConsumerTests(unittest.TestCase):
         self.registry = old.registry
         self.tree = deepcopy(old.tree)
         generations = json.loads((postmerge.ROOT / '.github/package-workflow-generations.json').read_text())['generations']
-        generation = next(item for item in generations if item['name'] == 'protected-producer-postmerge-original-e-v1')
-        self.tree.update(deepcopy(generation['workflows']))
+        self.generation_name = getattr(self,'generation_name','protected-producer-ci37-v1')
+        generation = next(item for item in generations if item['name'] == self.generation_name)
+        self.generations = {item['name']:deepcopy(item['workflows']) for item in generations}
+        if self.generation_name == 'protected-producer-ci37-v1':
+            # Derive the actual prospective native tuple from its reviewed
+            # sources. A stale hard-coded historical tuple must not hide a
+            # missing admission of the installed producer generation.
+            sources={'.github/workflows/project-tests.yml':postmerge.producer.TEMPLATE,
+                '.github/workflows/repository-checks.yml':'tools/repository-checks/workflows/producers/repository-checks.yml',
+                '.github/workflows/parent-qualification.yml':postmerge.TEMPLATE,
+                '.github/workflows/sync-validation.yml':'.github/workflows/sync-validation.yml',
+                '.github/workflows/browser-client.yml':'.github/workflows/browser-client.yml'}
+            workflows={}
+            for target,relative in sources.items():
+                path=postmerge.ROOT/relative
+                self.assertTrue(path.is_file() and not path.is_symlink())
+                self.assertEqual(path.stat().st_mode & 0o777,0o644)
+                raw=path.read_bytes()
+                workflows[target]={'mode':'100644','type':'blob',
+                    'sha':hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()}
+            self.assertEqual(workflows,generation['workflows'])
+        else:
+            workflows=deepcopy(generation['workflows'])
+        self.tree.update(workflows)
         self.tree[postmerge.TEMPLATE] = deepcopy(self.tree['.github/workflows/parent-qualification.yml'])
         self.tree['.github/test-suites.json'] = {'mode':'100644','type':'blob','sha':'1'*40}
         self.tree['tests/platform-profile.json'] = {'mode':'100644','type':'blob','sha':'2'*40}
@@ -1160,7 +1183,7 @@ class MainConsumerTests(unittest.TestCase):
         self.api.immutable_tree = lambda oid: self.api.mutate(A.PREFIX+'/git/trees/'+oid+'?recursive=1', {
             'sha':oid,'truncated':False,'tree':[{'path':path,**entry} for path,entry in
                 (self.previous if oid=='6'*40 else self.tree).items()]})
-        package = SimpleNamespace(validate_tree_wiring=lambda tree:'protected-producer-postmerge-original-e-v1',
+        package = SimpleNamespace(validate_tree_wiring=self.real_package.validate_tree_wiring,
             _trusted_bytes=lambda name,**_:b'{"schema":1,"platform":"shared","suites":[]}',
             tools=lambda:SimpleNamespace(PROJECTS=('server-console','tools/jsdoc')),
             S3='script-archive/marketplace/S3Server', BROWSER='browser-client')
@@ -1207,6 +1230,32 @@ class MainConsumerTests(unittest.TestCase):
         self.assertFalse(proof['reusable'])
         self.assertFalse(proof['package_work'])
         self.assertEqual(self.receipt['candidate_commit'],self.case.binding['merge_sha'])
+
+    def test_current_canonical_producer_generation_reaches_original_native_commitment(self):
+        self.assertEqual(self.real_package.validate_tree_wiring(self.tree),'protected-producer-ci37-v1')
+        self.assertEqual(self.tree['.github/workflows/project-tests.yml']['sha'],
+                         self.generations['protected-producer-ci37-v1']['.github/workflows/project-tests.yml']['sha'])
+        value=self.lookup()
+        self.assertTrue(value['reused'],value)
+        proof=value['proof']
+        self.assertEqual(proof['original_proof']['source_chain']['producer_blob'],
+                         self.tree['.github/workflows/project-tests.yml']['sha'])
+        self.assertEqual(proof['original_proof']['receipt_sha256'],hashlib.sha256(P.canonical(self.receipt)).hexdigest())
+        self.assertNotEqual(proof['current_commit'],proof['original_commit'])
+        self.assertEqual(proof['executed_suites'],[])
+
+    def test_unknown_and_mixed_complete_workflow_tuples_decline_before_original_proof(self):
+        path='.github/workflows/parent-qualification.yml'
+        original=deepcopy(self.tree[path])
+        for kind in ('unknown','mixed'):
+            self.tree[path]={'mode':'100644','type':'blob','sha':'f'*40} if kind=='unknown' else deepcopy(
+                self.generations['protected-shared-producer-v1'][path])
+            # Even known individual blobs cannot form an unreviewed tuple.
+            with self.subTest(kind=kind),patch.object(self.adapter,'capture_integrated',
+                    side_effect=AssertionError('unapproved tuple reached original proof')):
+                with self.assertRaises(ValueError):self.real_package.validate_tree_wiring(self.tree)
+                self.assertEqual(self.lookup(),{'reused':False,'reason':'original-proof-unavailable'})
+        self.tree[path]=original
 
     def test_missing_failed_newer_pending_or_rerun_original_selects_one_actual_fallback(self):
         for kind in ('missing','failed','pending','newer','attempt','publisher','artifact','foreign'):
@@ -1485,6 +1534,17 @@ class MainCI37ConsumerTests(unittest.TestCase):
 
 
 class MainConsumerSourceTests(unittest.TestCase):
+    def test_previous_complete_consumer_generations_remain_reusable(self):
+        for generation in ('postmerge-original-e-v1','protected-producer-postmerge-original-e-v1'):
+            fixture=MainConsumerTests();fixture.generation_name=generation
+            try:
+                fixture.setUp()
+                with self.subTest(generation=generation):
+                    self.assertEqual(fixture.real_package.validate_tree_wiring(fixture.tree),generation)
+                    self.assertTrue(fixture.lookup()['reused'])
+            finally:
+                fixture.doCleanups()
+
     def test_original_controller_is_reconstructed_from_immutable_base_without_historical_execution(self):
         import postmerge as C
         import tempfile
