@@ -662,7 +662,134 @@ class IsolatedConsumerTests(unittest.TestCase):
         for step in executions:
             self.assertEqual(step["env"]["EXPECTED_SELECTION"], "${{ steps.select.outputs.selection }}")
             self.assertIn('trusted/tools/test-evidence/validate-sync.py', step["run"])
-        self.assertEqual(data["permissions"], {"actions": "read", "contents": "read", "pull-requests": "read"})
+            self.assertIn('python -B ' if 'host-tests-env' in step['run'] else 'python3 -B ', step['run'])
+        self.assertEqual(data["permissions"], {"actions": "read", "checks": "read", "contents": "read", "pull-requests": "read"})
+        self.assertEqual(workflow.read_bytes(), (VALIDATION.ROOT / '.github/workflows/sync-validation.yml').read_bytes())
+        gate = yaml.safe_load((VALIDATION.ROOT / '.github/workflows/sync-test-reuse.yml').read_text())
+        self.assertEqual(gate['permissions'], {'actions':'write','checks':'read','contents':'read','pull-requests':'read'})
+        trusted = gate['jobs']['sync-test-reuse']['steps'][0]
+        self.assertEqual(trusted['with']['ref'], '${{ github.event.repository.default_branch }}')
+        self.assertIs(trusted['with']['persist-credentials'], False)
+        self.assertNotIn('secrets', gate['jobs']['sync-test-reuse'])
+        invocations=[step['run'] for step in gate['jobs']['sync-test-reuse']['steps']
+            if 'tools/sync-test-reuse/' in step.get('run','')]
+        self.assertEqual(len(invocations),3)
+        self.assertTrue(all('python3 -B ' in command for command in invocations))
+
+
+class NativeParentConsumerTests(unittest.TestCase):
+    """Actual tiny candidate commands; native API admission is a typed seam."""
+    def setUp(self):
+        self.fixture=IsolatedConsumerTests()
+        self.fixture.setUp()
+        self.addCleanup(self.fixture.doCleanups)
+        self.native_type=VALIDATION._gate().NativeParentEvidence
+        self.fixture.gate.NativeParentEvidence=self.native_type
+        self.fixture.gate.native_parent_evidence=Mock(side_effect=lambda *args:deepcopy(self.fixture.evidence))
+        self.bind_native()
+
+    def bind_native(self, parent_tree=None):
+        f=self.fixture
+        f.evidence=self.native_type(f.make_evidence(parent_tree) | {
+            'kind':'original-native-parent-v1','original_commit':'e'*40,
+            'original_git_context':{'fixture':'original immutable M'},
+            'original_proof':{'verified':True,'run_id':100,'attempt':1,
+                'receipt_sha256':'1'*64,'expires_at':'kept in outer evidence'}})
+
+    def test_complete_native_reuse_has_no_unused_consumer_e_or_execution_receipt(self):
+        f=self.fixture
+        result=f.validate(runtime_failure=AssertionError('no unused consumer E'),
+            execute_override=lambda *a,**k:(_ for _ in ()).throw(AssertionError('no unused execution')))
+        self.assertEqual(result['mode'],'reuse')
+        self.assertEqual(result['reused_suites'],['alpha','beta'])
+        self.assertEqual(result['executed_suites'],[])
+        self.assertIsNone(result['execution'])
+        self.assertEqual(f.executed(),[])
+        self.assertFalse(Path(str(f.args.receipt)+'.execution.json').exists())
+        self.assertEqual(result['parent_evidence']['original_commit'],'e'*40)
+        self.assertEqual(result['parent_evidence']['parent_commit'],f.parent)
+        self.assertFalse(result['parent_evidence']['qualification'])
+        self.assertFalse(result['parent_evidence']['reusable'])
+        self.assertEqual(result['parent_evidence']['expires_at'],f.evidence['expires_at'])
+        self.assertNotIn('workflow',result['parent_evidence'])
+        f.gate.native_parent_evidence.assert_called_once()
+        import xml.etree.ElementTree as ET
+        names=[item.attrib['name'] for item in ET.parse(f.args.junit).iter('testcase')]
+        self.assertEqual(names,['sync-differential'])
+
+    def test_historical_child_change_executes_only_affected_suite_under_its_actual_runtime(self):
+        f=self.fixture
+        parent=deepcopy(f.tree);parent['libraries/alpha.cpp']['sha']='c'*40
+        self.bind_native(parent)
+        result=f.validate(actual_environment=f.environment | {'qt':'different consumer runtime'})
+        self.assertEqual(result['reused_suites'],['beta'])
+        self.assertEqual(result['executed_suites'],['alpha'])
+        self.assertEqual(f.executed(),['alpha'])
+        self.assertEqual(result['execution']['environment']['qt'],'different consumer runtime')
+        self.assertEqual(result['parent_evidence']['reused_results'],{'beta':f.evidence['results']['suites']['beta']})
+        f.gate.native_parent_evidence.assert_called_once()
+
+    def test_native_common_reuse_never_omits_actual_platform_commands(self):
+        f=self.fixture
+        profile=f.candidate/'tests/platform-profile.json'
+        profile.write_text(json.dumps({'schema':1,'platform':'android','suites':[
+            {'name':'product-fixture','interpreter':'python','entrypoint':'tests/product.py'}]}))
+        (f.candidate/'tests/product.py').write_text('from pathlib import Path\nimport os\nPath(os.environ["FIXTURE_EXECUTION_LOG"]).write_text("product\\n")\n')
+        f.git('add','.');f.git('commit','-qm','Declare required fixture platform')
+        f.commit,f.tree_sha=execution.checkout_identity(f.candidate)
+        f.tree=inputs.full_tree(f.candidate)
+        f.request.merge_sha=f.commit;f.pr['merge_commit_sha']=f.commit;f.args.merge_sha=f.commit
+        self.bind_native()
+        result=f.validate()
+        self.assertEqual(result['reused_suites'],['alpha','beta'])
+        self.assertEqual(result['executed_suites'],[])
+        self.assertEqual(f.executed(),['product'])
+        self.assertEqual(set(result['execution']['platform_results']),{'product-fixture'})
+        self.assertTrue(result['execution']['include_platform'])
+
+    def test_after_start_missing_changed_or_expired_native_proof_is_hard_failure_without_retry(self):
+        f=self.fixture
+        parent=deepcopy(f.tree);parent['libraries/alpha.cpp']['sha']='c'*40
+        self.bind_native(parent)
+        f.gate.native_parent_evidence.side_effect=EvidenceError('native publisher unavailable')
+        with self.assertRaisesRegex(VALIDATION.ValidationError,'became unavailable'):
+            f.validate()
+        self.assertEqual(f.executed(),['alpha'])
+        self.assertFalse(f.args.receipt.exists())
+        f.gate.native_parent_evidence.assert_called_once()
+
+    def test_changed_native_bookend_is_rejected_even_without_workload(self):
+        f=self.fixture
+        changed=deepcopy(f.evidence);changed['original_proof']['receipt_sha256']='0'*64
+        f.gate.native_parent_evidence.side_effect=None
+        f.gate.native_parent_evidence.return_value=changed
+        with self.assertRaisesRegex(VALIDATION.ValidationError,'proof changed'):
+            f.validate(runtime_failure=AssertionError('no unused consumer E'))
+        self.assertEqual(f.executed(),[])
+        self.assertFalse(f.args.receipt.exists())
+
+    def test_untyped_legacy_json_kind_cannot_bypass_consumer_runtime_comparison(self):
+        f=self.fixture
+        f.evidence=dict(f.evidence)
+        result=f.validate(actual_environment=f.environment | {'qt':'different consumer runtime'})
+        self.assertEqual(result['mode'],'fallback')
+        self.assertEqual(set(f.executed()),{'alpha','beta'})
+        f.gate.native_parent_evidence.assert_not_called()
+
+    def test_expired_native_proof_during_validation_cannot_publish_success(self):
+        f=self.fixture
+        f.evidence['expires_at']='2020-01-01T00:00:00Z'
+        with self.assertRaisesRegex(VALIDATION.ValidationError,'expired'):
+            f.validate(runtime_failure=AssertionError('no unused consumer E'))
+        self.assertFalse(f.args.receipt.exists())
+
+    def test_missing_native_admission_keeps_real_full_fallback(self):
+        f=self.fixture
+        f.gate.verify_evidence=lambda *args:(_ for _ in ()).throw(EvidenceError('missing original native proof'))
+        result=f.validate()
+        self.assertEqual(result['mode'],'fallback')
+        self.assertEqual(set(f.executed()),{'alpha','beta'})
+        f.gate.native_parent_evidence.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -18,6 +18,8 @@ import tempfile
 from types import SimpleNamespace
 import xml.etree.ElementTree as ET
 
+sys.dont_write_bytecode = True
+
 import execution
 import inputs
 import runtime
@@ -149,9 +151,14 @@ def _read_execution(path, returned):
     return persisted
 
 
-def _parent_provenance(evidence, reused):
+def _parent_provenance(evidence, reused, gate):
     if evidence is None:
         return None
+    if isinstance(evidence, getattr(gate, 'NativeParentEvidence', ())):
+        return {key: evidence[key] for key in ('kind', 'parent_branch', 'parent_commit', 'parent_tree',
+            'original_commit', 'original_git_context', 'qualified_at', 'expires_at', 'original_proof')} | {
+            'qualification': False, 'reusable': False,
+            'reused_results': {name: evidence['results']['suites'][name] for name in reused}}
     return {key: evidence[key] for key in (
         "evidence_digest", "parent_branch", "parent_commit", "parent_tree", "workflow", "qualified_at", "expires_at",
     )} | {"reused_results": {name: evidence["results"]["suites"][name] for name in reused}}
@@ -376,6 +383,7 @@ def validate_sync(args, *, api=None):
     registry = inputs.load_registry(ROOT / ".github/test-suites.json")
     started = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     evidence, observed, reused, executed, projects = None, None, [], [], []
+    native_parent = False
     external_packages = []
     selection = None
     if getattr(args, "expected_selection", ""):
@@ -438,8 +446,11 @@ def validate_sync(args, *, api=None):
             if evidence is not None:
                 if evidence.get("candidate_inputs") != local_tree:
                     raise ValidationError("local immutable candidate inputs differ from verified API inputs")
+                native_parent = isinstance(evidence, getattr(gate, 'NativeParentEvidence', ()))
                 try:
-                    actual_environment = execution.capture_execution_environment()
+                    # Original native schema3 E was independently admitted by
+                    # the parent adapter. It is not a consumer-E measurement.
+                    actual_environment = evidence['environment'] if native_parent else execution.capture_execution_environment()
                     plan = inputs.plan_reuse(
                         registry, evidence["parent_inputs"], local_tree, evidence["results"]["suites"],
                         evidence["environment"], actual_environment,
@@ -447,40 +458,54 @@ def validate_sync(args, *, api=None):
                 except (runtime.RuntimeIdentityError, inputs.InputError, KeyError, TypeError):
                     plan = {"reused": [], "required": list(registry["suites"])}
                 required, reused = plan["required"], plan["reused"]
-        execution_path = Path(args.receipt).with_name(Path(args.receipt).name + ".execution.json")
-        with candidate_environment():
-            status, returned = execution.execute(
-                candidate, suite_names=required, include_platform=True, junit=args.junit, receipt_path=execution_path,
-                _platform_owner=lambda: pending,
-            )
-        observed = _read_execution(execution_path, returned)
-        if status != 0:
-            raise ValidationError("a selected shared or product suite failed")
-        execution.validate_receipt(observed, registry, local_tree)
-        if (observed["candidate_commit"], observed["candidate_tree"]) != initial or observed["include_platform"] is not True:
-            raise ValidationError("execution receipt is not bound to the exact candidate and product suites")
-        expected_product = dict(execution.platform_suites(candidate, registry["suites"]))
-        if pending:
-            partition = observed.get("platform_selection", {})
-            if observed["schema"] != 2 or observed["reusable"] is not False or observed["environment"] is not None \
-                    or partition.get("original") != list(expected_product) or partition.get("delegated") != pending:
-                raise ValidationError("pending Android owner differs from the exact observed product partition")
-            expected_product = {name: command for name, command in expected_product.items() if name not in pending}
-        elif observed["schema"] != 1:
-            raise ValidationError("unexpected pending product ownership without authenticated source PR")
-        if set(observed["platform_results"]) != set(expected_product) or any(
-            observed["platform_results"][name]["command"] != command for name, command in expected_product.items()
-        ):
-            raise ValidationError("execution receipt omits or alters a declared product suite")
-        executed = list(observed["results"])
-        reused = [name for name in reused if name not in observed["results"]]
+        # A native proof covers the common suites independently of this
+        # consumer's legacy runtime. With no remaining command or platform
+        # owner there is no execution E/receipt to manufacture or measure.
+        product = execution.platform_suites(candidate, registry["suites"])
+        if native_parent and not required and not product and not pending:
+            _bounded_junit(args.junit, [])
+        else:
+            execution_path = Path(args.receipt).with_name(Path(args.receipt).name + ".execution.json")
+            with candidate_environment():
+                status, returned = execution.execute(
+                    candidate, suite_names=required, include_platform=True, junit=args.junit, receipt_path=execution_path,
+                    _platform_owner=lambda: pending,
+                )
+            observed = _read_execution(execution_path, returned)
+            if status != 0:
+                raise ValidationError("a selected shared or product suite failed")
+            execution.validate_receipt(observed, registry, local_tree)
+            if (observed["candidate_commit"], observed["candidate_tree"]) != initial or observed["include_platform"] is not True:
+                raise ValidationError("execution receipt is not bound to the exact candidate and product suites")
+            expected_product = dict(execution.platform_suites(candidate, registry["suites"]))
+            if pending:
+                partition = observed.get("platform_selection", {})
+                if observed["schema"] != 2 or observed["reusable"] is not False or observed["environment"] is not None \
+                        or partition.get("original") != list(expected_product) or partition.get("delegated") != pending:
+                    raise ValidationError("pending Android owner differs from the exact observed product partition")
+                expected_product = {name: command for name, command in expected_product.items() if name not in pending}
+            elif observed["schema"] != 1:
+                raise ValidationError("unexpected pending product ownership without authenticated source PR")
+            if set(observed["platform_results"]) != set(expected_product) or any(
+                observed["platform_results"][name]["command"] != command for name, command in expected_product.items()
+            ):
+                raise ValidationError("execution receipt omits or alters a declared product suite")
+            executed = list(observed["results"])
+            reused = [name for name in reused if name not in observed["results"]]
         if reused:
-            if observed["reusable"] is not True:
+            if not native_parent and observed["reusable"] is not True:
                 raise ValidationError("actual execution environment cannot support remaining reused proof")
+            if native_parent:
+                try:
+                    final_evidence = gate.native_parent_evidence(api, config, request)
+                except (gate.EvidenceError, gate.GateError) as error:
+                    raise ValidationError('original native parent proof became unavailable after candidate execution') from error
+                if not isinstance(final_evidence, gate.NativeParentEvidence) or final_evidence != evidence:
+                    raise ValidationError('original native parent proof changed after candidate execution')
             try:
                 final_plan = inputs.plan_reuse(
                     registry, evidence["parent_inputs"], local_tree, evidence["results"]["suites"],
-                    evidence["environment"], observed["environment"],
+                    evidence["environment"], evidence['environment'] if native_parent else observed["environment"],
                 )
             except (inputs.InputError, KeyError, TypeError) as error:
                 raise ValidationError("remaining reusable input identities became unverifiable") from error
@@ -512,7 +537,7 @@ def validate_sync(args, *, api=None):
                       "parent_branch": request.parent, "parent_commit": request.parent_sha,
                       "profile": request.profile, "classification": request.classification},
         "requested_mode": args.mode, "mode": mode, "reused_suites": reused, "executed_suites": executed,
-        "bounded_projects": projects, "execution": observed, "parent_evidence": _parent_provenance(evidence, reused),
+        "bounded_projects": projects, "execution": observed, "parent_evidence": _parent_provenance(evidence, reused, gate),
         "conclusion": "success", "started_at": started,
         "completed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }

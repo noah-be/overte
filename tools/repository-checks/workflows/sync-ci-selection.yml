@@ -15,6 +15,7 @@ on:
 
 permissions:
   actions: read
+  checks: read
   contents: read
   pull-requests: read
 
@@ -71,7 +72,7 @@ jobs:
           MERGE_SHA: ${{ inputs.expected_merge_sha }}
           PULL_REQUEST: ${{ inputs.pull_request }}
         run: >-
-          python3 trusted/tools/test-evidence/validate-sync.py
+          python3 -B trusted/tools/test-evidence/validate-sync.py
           --select-only --output "$GITHUB_OUTPUT"
           --candidate candidate --repository "$GITHUB_REPOSITORY" --pull-request "$PULL_REQUEST"
           --mode "$MODE" --profile "$PROFILE" --base-sha "$BASE_SHA" --head-sha "$HEAD_SHA" --merge-sha "$MERGE_SHA"
@@ -128,7 +129,7 @@ jobs:
           MERGE_SHA: ${{ inputs.expected_merge_sha }}
           PULL_REQUEST: ${{ inputs.pull_request }}
         run: >-
-          python3 trusted/tools/test-evidence/validate-sync.py
+          python3 -B trusted/tools/test-evidence/validate-sync.py
           --candidate candidate --repository "$GITHUB_REPOSITORY" --pull-request "$PULL_REQUEST"
           --mode reuse --profile "$PROFILE" --base-sha "$BASE_SHA" --head-sha "$HEAD_SHA" --merge-sha "$MERGE_SHA"
           --expected-selection "$EXPECTED_SELECTION"
@@ -145,7 +146,7 @@ jobs:
           MERGE_SHA: ${{ inputs.expected_merge_sha }}
           PULL_REQUEST: ${{ inputs.pull_request }}
         run: >-
-          build/host-tests-env/bin/python trusted/tools/test-evidence/validate-sync.py
+          build/host-tests-env/bin/python -B trusted/tools/test-evidence/validate-sync.py
           --candidate candidate --repository "$GITHUB_REPOSITORY" --pull-request "$PULL_REQUEST"
           --mode "$MODE" --profile "$PROFILE" --base-sha "$BASE_SHA" --head-sha "$HEAD_SHA" --merge-sha "$MERGE_SHA"
           --expected-selection "$EXPECTED_SELECTION"

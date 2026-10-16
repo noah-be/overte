@@ -16,6 +16,7 @@ on: # zizmor: ignore[dangerous-triggers] Default-branch data-only gate; candidat
 
 permissions:
   actions: write
+  checks: read
   contents: read
   pull-requests: read
 
@@ -36,14 +37,14 @@ jobs:
           persist-credentials: false
       - name: Seed and test the trusted contract
         if: github.event_name == 'workflow_dispatch'
-        run: python3 tools/sync-test-reuse/test.py
+        run: python3 -B tools/sync-test-reuse/test.py
       - name: Inspect topology and exact parent evidence
         if: github.event_name == 'pull_request_target'
         id: inspect
         env:
           GH_TOKEN: ${{ github.token }}
         run: >-
-          python3 tools/sync-test-reuse/gate.py inspect
+          python3 -B tools/sync-test-reuse/gate.py inspect
           --event "$GITHUB_EVENT_PATH" --output "$GITHUB_OUTPUT"
       - name: Summarize ordinary pull request
         if: github.event_name == 'pull_request_target' && steps.inspect.outputs.mode == 'ordinary'
@@ -63,7 +64,7 @@ jobs:
           PULL_REQUEST: ${{ steps.inspect.outputs.pr }}
           REPOSITORY: ${{ steps.inspect.outputs.repository }}
         run: >-
-          python3 tools/sync-test-reuse/gate.py dispatch-and-wait
+          python3 -B tools/sync-test-reuse/gate.py dispatch-and-wait
           --repository "$REPOSITORY" --pull-request "$PULL_REQUEST"
           --mode "$MODE" --profile "$PROFILE" --base-sha "$BASE_SHA"
           --head-sha "$HEAD_SHA" --merge-sha "$MERGE_SHA"

@@ -1731,5 +1731,282 @@ class RequiredCodeQLInvocationTests(unittest.TestCase):
         output.assert_not_called()
 
 
+class NativeParentEvidenceTests(unittest.TestCase):
+    """Real schema3/API proof with explicit local source/runtime primitives.
+
+    The tiny receipt fixture is not actual protected-source or hosted-E proof.
+    Native jobs, source chains, original artifacts and whole receipt hashes use
+    the actual producer Adapter verifier. No execution/environment query occurs.
+    """
+    @classmethod
+    def setUpClass(cls):
+        directory = str(HERE.parent / 'test-evidence')
+        sys.path.insert(0, directory)
+        try:
+            spec = importlib.util.spec_from_file_location('sync_native_api_fixtures',
+                HERE.parent / 'test-evidence/producer-api-test.py')
+            cls.fixtures = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(cls.fixtures)
+        finally:
+            sys.path.remove(directory)
+
+    def setUp(self):
+        self.fixture = self.fixtures.MainConsumerTests()
+        self.fixture.generation_name = 'protected-producer-postmerge-original-e-v1'
+        self.fixture.setUp()
+        self.addCleanup(self.fixture.doCleanups)
+        self.controller = self.fixture.module
+        self.case = self.fixture.case
+        self.case.push.update(status='completed', conclusion='success')
+        self.original_run = self.fixture.adapter.capture_integrated(500,
+            self.case.plan,self.case.policy,now=self.fixtures.NOW).observations[0].run
+        self.child_base = hashlib.sha1(b'native child base').hexdigest()
+        self.child_merge = hashlib.sha1(b'native child merge').hexdigest()
+        self.child_tree = hashlib.sha1(b'native child tree').hexdigest()
+        self.default = self.case.integrated
+        self.default_tree = self.case.binding['merge_tree']
+        self.local = deepcopy(self.fixture.tree)
+        self.candidate = deepcopy(self.fixture.tree)
+        self.request = gate.SyncRequest(repository=REPOSITORY, repository_id=REPOSITORY_ID,
+            number=42, base='apple-main', base_sha=self.child_base, head='main',
+            head_sha=self.case.integrated, head_repository_id=REPOSITORY_ID,
+            merge_sha=self.child_merge, parent='main', parent_sha=self.case.integrated,
+            profile='apple-family', classification='direct', changed_paths=(), parent_changed_paths=(), repair_paths=())
+        self.push_rows = [deepcopy(self.case.push)]
+        self.extra_mutation = lambda endpoint, value: value
+        outer = self
+        class Api:
+            def json(self, endpoint):
+                A = outer.fixtures.A
+                path = endpoint[len(A.PREFIX):].lstrip('/').split('?', 1)[0]
+                q = outer.request
+                if path == 'pulls/42':
+                    value = {'number':42,'state':'open', **{
+                        side:{'ref':ref,'sha':sha,'repo':{'id':REPOSITORY_ID,'full_name':REPOSITORY}}
+                        for side,ref,sha in (('base',q.base,q.base_sha),('head',q.head,q.head_sha))}}
+                elif path == 'commits/refs/pull/42/merge':
+                    value = {'sha':q.merge_sha,'commit':{'tree':{'sha':outer.child_tree}},
+                        'parents':[{'sha':q.base_sha},{'sha':q.head_sha}]}
+                elif path == 'git/commits/'+q.merge_sha:
+                    value = {'sha':q.merge_sha,'tree':{'sha':outer.child_tree},
+                        'parents':[{'sha':q.base_sha},{'sha':q.head_sha}]}
+                elif path == 'git/commits/'+outer.default and outer.default != outer.case.integrated:
+                    value = {'sha':outer.default,'tree':{'sha':outer.default_tree},'parents':[]}
+                elif path.startswith('branches/'):
+                    branch = path[len('branches/'):]
+                    sha = q.base_sha if branch == q.base else outer.default if branch == 'main' else q.parent_sha
+                    value = {'name':branch,'protected':True,'commit':{'sha':sha}}
+                elif path.startswith('git/ref/heads/'):
+                    branch=path[len('git/ref/heads/'):]
+                    sha = q.base_sha if branch == q.base else outer.default if branch == 'main' else q.parent_sha
+                    value = {'ref':'refs/heads/'+branch,'object':{'type':'commit','sha':sha}}
+                elif path == 'actions/workflows/350930890/runs':
+                    value = {'total_count':len(outer.push_rows),'workflow_runs':deepcopy(outer.push_rows)}
+                else:
+                    return outer.extra_mutation(endpoint, outer.fixture.api.json(endpoint))
+                outer.fixture.api.calls.append(endpoint)
+                return outer.extra_mutation(endpoint, deepcopy(value))
+            def bytes(self, endpoint): return outer.fixture.api.bytes(endpoint)
+            def integrated_pr(self, number): return outer.fixture.api.integrated_pr(number)
+            def immutable_blob(self, oid, **kwargs):
+                raise AssertionError('full-profile fixture has no immutable data reader')
+            def immutable_tree(self, oid):
+                tree = outer.candidate if oid == outer.child_tree else outer.local if oid == outer.default_tree else None
+                return ({'sha':oid,'truncated':False,'tree':[{'path':name,**entry} for name,entry in tree.items()]}
+                    if tree is not None else outer.fixture.api.immutable_tree(oid))
+        self.api = Api()
+        self.transport = SimpleNamespace(native_producer_api=lambda controller:self.api)
+        for item in (mock.patch.object(gate,'_native_parent_controller',return_value=self.controller),
+            mock.patch.object(self.controller.execution,'checkout_identity',side_effect=lambda root:(self.default,self.default_tree)),
+            mock.patch.object(self.controller.inputs,'full_tree',side_effect=lambda *args:self.local)):
+            item.start(); self.addCleanup(item.stop)
+
+    def verify(self):
+        return gate.native_parent_evidence(self.transport, config(), self.request, now=self.fixtures.NOW)
+
+    def test_native_whole_proof_keeps_original_m_e_lifetime_and_child_input_comparison(self):
+        value = self.verify()
+        self.assertIsInstance(value, gate.NativeParentEvidence)
+        self.assertEqual(value['original_commit'],self.case.binding['merge_sha'])
+        self.assertNotEqual(value['original_commit'],value['parent_commit'])
+        self.assertNotEqual(value['original_commit'],self.request.merge_sha)
+        self.assertEqual(value['environment'],self.fixture.receipt['environment'])
+        self.assertEqual(value['expires_at'],self.case.aggregate['expires_at'])
+        self.assertEqual(value['candidate_plan']['reused'],list(self.fixture.registry['suites']))
+        self.assertEqual(value['candidate_plan']['required'],[])
+        self.assertEqual(value['original_proof']['receipt_sha256'],
+            hashlib.sha256(self.fixtures.P.canonical(self.fixture.receipt)).hexdigest())
+        self.assertTrue(any('/check-runs/' in endpoint for endpoint in self.fixture.api.calls))
+        self.assertTrue(any('/attempts/1/jobs' in endpoint for endpoint in self.fixture.api.calls))
+        self.assertFalse(any('/dispatches' in endpoint for endpoint in self.fixture.api.calls))
+        self.controller.execution.capture_execution_environment.assert_not_called()
+        self.controller.execution.execute.assert_not_called()
+
+    def test_every_exact_direct_edge_retains_actual_original_native_source_and_target_profile(self):
+        # Protocol source facts are synthetic, independently selected platform
+        # omission is explicit. This does not qualify Android platform owners.
+        for child, edge in config()['edges'].items():
+            parent=edge['parent']
+            self.case.binding['base_ref']=parent
+            self.case.push['head_branch']=parent
+            self.push_rows=[deepcopy(self.case.push)]
+            self.default=self.case.integrated if parent=='main' else hashlib.sha1(b'protected default D').hexdigest()
+            self.default_tree=self.case.binding['merge_tree'] if parent=='main' else hashlib.sha1(b'protected default tree').hexdigest()
+            for tree in (self.fixture.tree,self.fixture.previous,self.candidate):
+                tree['tests/platform-profile.json']=self.controller.source_admission.ordinary(
+                    self.controller.source_admission.TARGET_PROFILES[parent])
+            self.local=deepcopy(self.fixture.tree)
+            self.local['tests/platform-profile.json']=self.controller.source_admission.ordinary(
+                self.controller.source_admission.SHARED_PROFILE)
+            self.request=replace(self.request,base=child,head=parent,parent=parent,profile=edge['differential'])
+            # Re-sign exact synthetic source fingerprints; native API publisher
+            # is regenerated, never patched away or inferred from success.
+            profile={'profile':'ubuntu24-host-qt5-qt6-v1','suites':list(self.fixture.registry['suites']),
+                'selection':{'suites':list(self.fixture.registry['suites']),'full_host':True,
+                    'include_platform':False,'reason':'fixture-selected-platform-omission'}}
+            self.controller.producer.selection_profile.return_value=profile
+            self.case.plan['owners']['shared-host']['include_platform']=False
+            receipt=deepcopy(self.fixture.receipt)
+            receipt['include_platform']=False
+            receipt['results']={name:{'status':'passed','fingerprint':self.fixtures.P.inputs.suite_fingerprint(
+                self.fixture.registry,name,self.fixture.tree,receipt['environment'])} for name in self.fixture.registry['suites']}
+            receipt=self.fixtures.FIXTURES.signed(receipt,'receipt_digest')
+            self.case.aggregate['results']['shared-host']['receipt']=receipt
+            run=self.original_run
+            run=replace(run,final_publisher=replace(run.final_publisher,receipt_sha256=hashlib.sha256(self.fixtures.P.canonical(receipt)).hexdigest()))
+            self.case.add_run(run)
+            self.case.runs[100]['pull_requests']=[]
+            with self.subTest(child=child,parent=parent):
+                value=self.verify()
+                self.assertEqual(value['parent_branch'],parent)
+                self.assertEqual(value['candidate_plan']['reused'],list(self.fixture.registry['suites']))
+                self.assertEqual(value['original_proof']['integration']['target'],parent)
+
+    def test_changed_historical_child_content_cannot_match_repository_scoped_proof(self):
+        path=next(name for name in self.candidate if name not in self.controller.A.WORKFLOWS
+            and name not in {'tests/platform-profile.json','.github/test-suites.json',self.controller.TEMPLATE})
+        self.candidate[path]={**self.candidate[path],'sha':'e'*40}
+        expected=self.controller.inputs.plan_reuse(self.fixture.registry,self.fixture.tree,self.candidate,
+            self.fixture.receipt['results'],self.fixture.receipt['environment'],self.fixture.receipt['environment'])
+        self.assertEqual(expected['reused'],[])
+        self.assertEqual(expected['required'],list(self.fixture.registry['suites']))
+        with self.assertRaises(gate.EvidenceError):self.verify()
+
+    def test_pending_failed_tied_or_retried_latest_parent_never_uses_old_success(self):
+        for status,conclusion,attempt in (('queued',None,1),('in_progress',None,1),('completed','failure',1),('completed','success',2)):
+            row={**deepcopy(self.case.push),'id':501,'run_started_at':'2026-10-15T10:05:00Z',
+                'status':status,'conclusion':conclusion,'run_attempt':attempt}
+            self.push_rows=[deepcopy(self.case.push),row]
+            with self.subTest(status=status,conclusion=conclusion,attempt=attempt),self.assertRaises(gate.EvidenceError):self.verify()
+        self.push_rows=[deepcopy(self.case.push),{**deepcopy(self.case.push),'id':501}]
+        with self.assertRaises(gate.EvidenceError):self.verify()
+
+    def test_current_refs_protection_default_and_original_native_whole_hash_are_mandatory(self):
+        def mismatch(mode,endpoint,value):
+            value=deepcopy(value)
+            if mode=='child-parent' and endpoint.endswith('/git/commits/'+self.child_merge): value['parents'].reverse()
+            elif mode=='protection' and endpoint.endswith('/branches/'+self.request.base): value['protected']=False
+            elif mode=='default' and endpoint.endswith('/git/ref/heads/main'): value['object']['sha']='f'*40
+            elif mode=='app' and '/check-runs/' in endpoint: value['app']['id']=42
+            elif mode=='publisher' and '/attempts/1/jobs?' in endpoint:
+                for job in value['jobs']:
+                    if job.get('name','').startswith(self.case.policy.final_publisher_prefix):
+                        job['name']=self.case.policy.final_publisher_prefix+'0'*64
+            elif mode=='mixed-attempt' and '/attempts/1/jobs?' in endpoint:
+                value['jobs'][0]['run_attempt']=2
+            elif mode=='push-status' and endpoint.endswith('/actions/runs/500/attempts/1'): value['status']='in_progress';value['conclusion']=None
+            return value
+        for mode in ('child-parent','protection','default','app','publisher','mixed-attempt','push-status'):
+            self.extra_mutation=lambda endpoint,value:mismatch(mode,endpoint,value)
+            with self.subTest(mode=mode),self.assertRaises(gate.EvidenceError):self.verify()
+
+    def test_final_context_inventory_source_and_expiry_are_bookended(self):
+        for mode in ('child','parent-run','controller','expiry'):
+            counts={'child':0,'rows':0,'source':0}
+            def mutate(endpoint,value):
+                if endpoint.endswith('/pulls/42'):
+                    counts['child']+=1
+                    if mode=='child' and counts['child']>1:value['head']['sha']='f'*40
+                if '/actions/workflows/350930890/runs?' in endpoint:
+                    counts['rows']+=1
+                    if mode=='parent-run' and counts['rows']>1:value['workflow_runs'][0]['status']='queued'
+                return value
+            self.extra_mutation=mutate
+            def source(*args):
+                counts['source']+=1
+                return self.case.pp.controller_digest if mode!='controller' or counts['source']==1 else 'sha256:'+'0'*64
+            with self.subTest(mode=mode),mock.patch.object(self.controller,'integrated_controller',side_effect=source):
+                if mode=='expiry':
+                    values=iter([self.fixtures.NOW,self.fixtures.NOW,self.fixtures.NOW,self.fixtures.NOW+timedelta(days=5)])
+                    class Clock:
+                        @staticmethod
+                        def now(tz):return next(values)
+                    with mock.patch.object(gate,'datetime',Clock),self.assertRaises(gate.EvidenceError):
+                        gate.native_parent_evidence(self.transport,config(),self.request)
+                else:
+                    with self.assertRaises(gate.EvidenceError):self.verify()
+
+    def test_legacy_success_and_unknown_transport_keep_existing_behavior(self):
+        legacy={'schema':2,'kind':gate.NATIVE_PARENT_KIND}
+        with mock.patch.object(gate,'_verify_legacy_evidence',return_value=legacy),mock.patch.object(gate,'native_parent_evidence') as native:
+            result=gate.verify_evidence(self.transport,config(),self.request)
+            self.assertIs(result,legacy)
+            self.assertNotIsInstance(result,gate.NativeParentEvidence)
+            native.assert_not_called()
+        with mock.patch.object(gate,'_verify_legacy_evidence',side_effect=gate.EvidenceError('missing')), \
+                mock.patch.object(gate,'native_parent_evidence',return_value=gate.NativeParentEvidence(native=True)) as native:
+            self.assertEqual(gate.verify_evidence(self.transport,config(),self.request),{'native':True})
+            native.assert_called_once()
+            with self.assertRaises(gate.EvidenceError):gate.verify_evidence(MappingApi(),config(),self.request)
+
+
+class NativeParentSourceGuardTests(unittest.TestCase):
+    def test_immutable_complete_import_lookup_precedes_any_proof_import(self):
+        # Real immutable Git metadata + real materialized lookup. The only
+        # mocked boundary is entering the proof modules after the guard passes.
+        with tempfile.TemporaryDirectory(prefix='overte-native-sync-source-') as temporary:
+            root=Path(temporary)
+            raw=(gate.ROOT/'tools/test-evidence/source_admission.py').read_bytes()
+            guard=type(sys)('native_sync_guard_fixture')
+            exec(compile(raw,'reviewed source guard','exec'),guard.__dict__)
+            for name in guard.IMPORT_MEMBERS:
+                path=root/name;path.parent.mkdir(parents=True,exist_ok=True)
+                path.write_bytes(raw if name==guard.SELF else b'# immutable fixture lookup\n')
+            def git(*args):
+                subprocess.run(['git','-c','commit.gpgsign=false',*args],cwd=root,check=True,
+                    stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+            git('init','-q','--initial-branch=main')
+            git('config','user.name','Native source fixture')
+            git('config','user.email','fixture@example.invalid')
+            git('add','.');git('commit','-qm','Commit complete fixture lookup')
+            subject=root/'tools/test-evidence/inputs.py'
+            class ReachedProofImport(Exception):pass
+            with mock.patch.object(gate,'ROOT',root),mock.patch.object(gate.importlib.util,
+                    'spec_from_file_location',side_effect=ReachedProofImport) as imported:
+                with self.assertRaises(ReachedProofImport):gate._native_parent_controller()
+                self.assertEqual(imported.call_count,1)
+                for mode in ('content','executable','untracked','bytecode','missing','alias','helper'):
+                    with self.subTest(mode=mode):
+                        extra=None
+                        if mode=='content':subject.write_bytes(b'# changed after immutable Git\n')
+                        elif mode=='executable':subject.chmod(0o755)
+                        elif mode=='untracked':extra=subject.with_name('unreviewed.py');extra.write_bytes(b'# negative import lookup\n')
+                        elif mode=='bytecode':
+                            extra=subject.parent/'__pycache__'/'inputs.cpython-312.pyc'
+                            extra.parent.mkdir();extra.write_bytes(b'not an admitted source member')
+                        elif mode=='missing':subject.unlink()
+                        elif mode=='alias':subject.unlink();subject.symlink_to('execution.py')
+                        else:(root/guard.SELF).write_bytes(raw+b'\n# uncommitted helper\n')
+                        before=imported.call_count
+                        with self.assertRaises(ValueError):gate._native_parent_controller()
+                        self.assertEqual(imported.call_count,before,'invalid source must fail before proof import')
+                        if subject.is_symlink():subject.unlink()
+                        subject.write_bytes(b'# immutable fixture lookup\n');subject.chmod(0o644)
+                        (root/guard.SELF).write_bytes(raw)
+                        if extra:
+                            extra.unlink()
+                            if mode=='bytecode':extra.parent.rmdir()
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
