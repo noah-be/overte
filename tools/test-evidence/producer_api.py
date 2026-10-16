@@ -75,10 +75,13 @@ class GitHubReadOnly:
     stderr body, environment or arbitrary endpoint is returned in errors.
     """
 
-    def _request(self, endpoint, maximum):
+    def _request(self, endpoint, maximum, *, api_version="2026-03-10"):
         require(isinstance(endpoint, str) and (endpoint == PREFIX or endpoint.startswith(PREFIX + "/"))
                 and not re.search(r"[\x00-\x20\x7f]", endpoint) and ":" not in endpoint
                 and ".." not in endpoint and "\\" not in endpoint, "GET endpoint is outside the reviewed fork")
+        require(api_version == "2026-03-10" or api_version == "2022-11-28"
+                and re.fullmatch(re.escape(PREFIX) + r"/pulls/[1-9][0-9]*", endpoint) is not None,
+                "GET API version is outside the reviewed endpoint contract")
         executable = shutil.which("gh")
         roots = (Path("/usr/bin"), Path("/usr/local/bin"), Path("/opt/hostedtoolcache"))
         try:
@@ -90,7 +93,7 @@ class GitHubReadOnly:
         except (OSError, RuntimeError):
             raise ApiError("reviewed system GitHub CLI unavailable") from None
         command = [str(resolved), "api", "--hostname", "github.com", "--method", "GET",
-                   "-H", "Accept: application/vnd.github+json", "-H", "X-GitHub-Api-Version: 2026-03-10", endpoint]
+                   "-H", "Accept: application/vnd.github+json", "-H", "X-GitHub-Api-Version: " + api_version, endpoint]
         process = None
         try:
             process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
@@ -127,16 +130,25 @@ class GitHubReadOnly:
                     if pipe is not None:
                         pipe.close()
 
-    def json(self, endpoint):
+    def _json(self, raw):
         def invalid_constant(value):
             raise ApiError("GitHub GET returned invalid bounded JSON")
         try:
-            return json.loads(self._request(endpoint, 2_000_000), object_pairs_hook=P.inputs._unique_object,
+            return json.loads(raw, object_pairs_hook=P.inputs._unique_object,
                               parse_constant=invalid_constant)
         except (UnicodeError, ValueError) as error:
             if isinstance(error, ApiError):
                 raise
             raise ApiError("GitHub GET returned invalid bounded JSON") from None
+
+    def json(self, endpoint):
+        return self._json(self._request(endpoint, 2_000_000))
+
+    def integrated_pr(self, number):
+        # 2026-03-10 removed merge_commit_sha. This independently versioned
+        # full-PR read is fixed, explicit and has no unversioned fallback.
+        endpoint = PREFIX + f"/pulls/{positive(number)}"
+        return self._json(self._request(endpoint, 2_000_000, api_version="2022-11-28"))
 
     def bytes(self, endpoint):
         return self._request(endpoint, P._MAX_ARCHIVE)
@@ -255,6 +267,69 @@ class Adapter:
                 return values
         raise ApiError("merged PR association exceeds reviewed pagination bound")
 
+    def _introduced_pr(self, revision, now):
+        """Classify every actual association; only its introducer supplies proof.
+
+        Non-default commits may also be associated with open/downstream PRs.
+        Their existence is not ambiguity about which PR actually merged here.
+        """
+        introduced, facts = [], []
+        for summary in self._associated_prs(revision):
+            number = positive(summary.get("number"))
+            pr = self.api.integrated_pr(number)
+            require(isinstance(pr, dict) and all(key in pr for key in (
+                "id", "number", "state", "base", "head", "merged", "merge_commit_sha", "merged_at", "closed_at")),
+                "versioned full PR identity is unavailable")
+            identity = {}
+            for value in (summary, pr):
+                current = {"id": positive(value.get("id")), "number": positive(value.get("number")),
+                           "state": value.get("state")}
+                require(current["state"] in {"open", "closed"}, "associated PR state is unknown")
+                for side in ("base", "head"):
+                    branch = value.get(side)
+                    repo = branch.get("repo") if isinstance(branch, dict) else None
+                    require(isinstance(repo, dict) and repo.get("id") == 1319052603
+                            and repo.get("full_name") == REPOSITORY,
+                            "associated PR repository is outside the same-fork contract")
+                    ref = branch.get("ref")
+                    require(isinstance(ref, str) and 0 < len(ref) <= 255
+                            and re.search(r"[\x00-\x20\x7f]", ref) is None,
+                            "associated PR ref identity is unavailable")
+                    current[side] = {"ref": ref, "sha": sha(branch.get("sha")),
+                                     "repository_id": repo["id"], "repository": repo["full_name"]}
+                require(not identity or identity == current, "associated PR summary/full identity differs")
+                identity = current
+            require(type(pr["merged"]) is bool, "associated PR merged state is unavailable")
+            merge = pr["merge_commit_sha"]
+            if merge is not None:
+                sha(merge)
+            # No summary field is required that the 2026 API actually omits.
+            # A contradictory optional claim still cannot be silently ignored.
+            require(all(key not in summary or summary[key] == pr[key]
+                        for key in ("merged", "merge_commit_sha", "merged_at", "closed_at")),
+                    "associated PR summary/full merge facts differ")
+            if pr["state"] == "open":
+                require(pr["merged"] is False and pr["merged_at"] is None and pr["closed_at"] is None,
+                        "open associated PR has contradictory merge facts")
+            else:
+                closed = P._time(pr["closed_at"])
+                require(closed <= now, "associated PR close is in the future")
+                if pr["merged"]:
+                    require(merge is not None and P._time(pr["merged_at"]) <= closed,
+                            "merged associated PR commit/time is unavailable")
+                else:
+                    require(pr["merged_at"] is None, "unmerged associated PR has a merge time")
+            introduces = merge == revision
+            require(not introduces or pr["state"] == "closed" and pr["merged"] is True,
+                    "associated PR contradicts the actual protected integration")
+            if introduces:
+                introduced.append(pr)
+            facts.append({**identity, **{key: pr[key] for key in
+                          ("merged", "merge_commit_sha", "merged_at", "closed_at")},
+                          "classification": "introducer" if introduces else "known-nonintroducer"})
+        require(len(introduced) == 1, "integrated source introducer PR is missing or ambiguous")
+        return introduced[0], sorted(facts, key=lambda value: value["id"])
+
     def _integrated_current(self, push_run_id, app_id, now):
         """Authenticate a normal current protected push without a topic ref.
 
@@ -298,19 +373,8 @@ class Adapter:
                 and suite.get("app", {}).get("id") == app_id, "protected push check-suite/app mismatch")
         tree, parents = self._commit(revision)
         require(len(parents) == 2, "integrated source requires a normal two-parent PR merge")
-        associated = self._associated_prs(revision)
-        require(len(associated) == 1, "integrated source PR is missing or ambiguous")
-        item = associated[0]
-        number = positive(item.get("number"))
-        pr = self._object(f"pulls/{number}")
-        require(pr.get("id") == item["id"] and pr.get("number") == number
-                and pr.get("state") == item.get("state") == "closed" and pr.get("merged") is True
-                and pr.get("merge_commit_sha") == item.get("merge_commit_sha") == revision,
-                "actual merged PR does not introduce this protected push")
-        for side in ("base", "head"):
-            repo = pr.get(side, {}).get("repo", {})
-            require(repo.get("id") == 1319052603 and repo.get("full_name") == REPOSITORY,
-                    "integrated PR is not from the same fork")
+        pr, associations = self._introduced_pr(revision, now)
+        number = positive(pr["number"])
         merged = P._time(pr.get("merged_at"))
         require(merged <= P._time(pr.get("closed_at")) <= now
                 and merged <= P._time(run.get("run_started_at")) <= now,
@@ -324,10 +388,11 @@ class Adapter:
         require(binding["base_ref"] == target, "merged PR targets a different protected branch")
         integration = {"push_run_id": push_run_id, "push_attempt": 1, "workflow_id": run["workflow_id"],
                        "workflow_path": path, "target": target, "commit": revision, "tree": tree,
-                       "parents": parents, "pull_request": number, "pr_id": item["id"],
+                       "parents": parents, "pull_request": number, "pr_id": pr["id"],
                        "merged_at": pr["merged_at"], "closed_at": pr["closed_at"],
                        "push_status": run["status"], "push_conclusion": run.get("conclusion")}
-        references = {"integration": integration, "target": revision, "default_ref": "main",
+        references = {"integration": integration, "associated_prs": associations,
+                      "target": revision, "default_ref": "main",
                       "default": self._ref("heads/main")}
         return binding, references
 

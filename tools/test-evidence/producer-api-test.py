@@ -536,19 +536,38 @@ class AdapterTests(unittest.TestCase):
 
 class IntegratedFakeApi(FakeApi):
     """Closed PR metadata survives deletion; no live topic/PR merge ref exists."""
+    def detail(self, number):
+        case, binding = self.case, self.case.binding
+        if number != 17:
+            if number not in case.associated_details:
+                raise A.ApiError("full associated PR is unavailable")
+            return deepcopy(case.associated_details[number])
+        return {"id": 1700, "number": 17, "state": "closed", "merged": True,
+                "merge_commit_sha": case.integrated, "merged_at": case.merged_at, "closed_at": case.merged_at,
+                **{side: {"repo": {"id": 1319052603, "full_name": A.REPOSITORY},
+                          "ref": binding[side + "_ref"], "sha": binding[side + "_sha"]}
+                   for side in ("base", "head")}}
+
+    def integrated_pr(self, number):
+        endpoint = A.PREFIX + f"/pulls/{number}"
+        self.calls.append(endpoint)
+        self.case.legacy_pr_calls.append(number)
+        return self.mutate(endpoint, self.detail(number))
+
     def json(self, endpoint):
         case, binding = self.case, self.case.binding
         path = endpoint[len(A.PREFIX):].lstrip("/").split("?", 1)[0]
         query = parse_qs(urlsplit(endpoint).query)
         if path == "pulls/17":
-            result = {"id": 1700, "number": 17, "state": "closed", "merged": True,
-                      "merge_commit_sha": case.integrated, "merged_at": case.merged_at, "closed_at": case.merged_at,
-                      **{side: {"repo": {"id": 1319052603, "full_name": A.REPOSITORY},
-                                "ref": binding[side + "_ref"], "sha": binding[side + "_sha"]}
-                         for side in ("base", "head")}}
+            result = self.detail(17)
+            del result["merge_commit_sha"]
         elif path == "commits/" + case.integrated + "/pulls":
             page = int(query["page"][0])
             result = deepcopy(case.associated[(page - 1) * 100:page * 100])
+            for row in result:
+                detail = self.detail(row["number"]) if row["number"] in case.associated_details else self.detail(17)
+                for side in ("base", "head"):
+                    row.setdefault(side, deepcopy(detail[side]))
         elif path.startswith("branches/"):
             self._require(unquote(path[len("branches/"):]) == binding["base_ref"], endpoint)
             result = {"name": binding["base_ref"], "protected": True, "commit": {"sha": case.integrated}}
@@ -581,8 +600,8 @@ class IntegratedSourceTests(unittest.TestCase):
         self.case = AdapterTests(methodName="runTest")
         self.case.setUp()
         self.case.integrated, self.case.merged_at = "9" * 40, "2026-10-15T10:04:50Z"
-        self.case.associated = [{"id": 1700, "number": 17, "state": "closed",
-                                 "merge_commit_sha": self.case.integrated}]
+        self.case.associated = [{"id": 1700, "number": 17, "state": "closed"}]
+        self.case.associated_details, self.case.legacy_pr_calls = {}, []
         self.case.push = {"id": 500, "workflow_id": 350930890, "check_suite_id": 1500,
                           "path": ".github/workflows/parent-qualification.yml", "event": "push",
                           "head_sha": self.case.integrated, "head_branch": "main", "run_attempt": 1,
@@ -600,6 +619,16 @@ class IntegratedSourceTests(unittest.TestCase):
         return self.adapter.verify_integrated(500, self.case.plan, self.case.policy,
                                               {"shared-host": context or self.case.context}, clock=clock)
 
+    def add_association(self, *, number=18, state="open", merged=False, merge="6" * 40):
+        detail = self.api.detail(17)
+        detail.update(id=number * 100, number=number, state=state, merged=merged, merge_commit_sha=merge,
+                      merged_at=self.case.merged_at if merged else None,
+                      closed_at=self.case.merged_at if state == "closed" else None)
+        detail["base"].update(ref="android-phone", sha=self.case.integrated)
+        detail["head"].update(ref="sync/android-phone/example", sha="7" * 40)
+        self.case.associated_details[number] = detail
+        self.case.associated.append({key: deepcopy(detail[key]) for key in ("id", "number", "state", "base", "head")})
+
     def test_deleted_topic_lookup_preserves_original_candidate_receipt_and_expiry(self):
         with patch.object(P.execution, "execute", side_effect=AssertionError("no candidate execution")):
             snapshot, result = self.capture(), self.verify()
@@ -614,6 +643,7 @@ class IntegratedSourceTests(unittest.TestCase):
                              "/git/ref/heads/" + self.case.binding["head_ref"] in endpoint
                              for endpoint in self.api.calls))
         self.assertTrue(all(endpoint.startswith(A.PREFIX) for endpoint in self.api.calls))
+        self.assertTrue(self.case.legacy_pr_calls, "actual merged SHA requires the explicitly versioned full PR endpoint")
 
     def test_original_source_context_is_never_aliased_to_integrated_commit(self):
         with self.assertRaises(P.ProtocolError):
@@ -705,6 +735,108 @@ class IntegratedSourceTests(unittest.TestCase):
         self.case.associated = original
         self.api.mutate = lambda endpoint, value: ({"items": value} if "/pulls?" in endpoint else value)
         with self.assertRaises(P.ProtocolError): self.capture()
+
+    def test_known_open_and_merged_downstream_associations_do_not_supply_or_obstruct_introducer(self):
+        self.add_association()
+        self.add_association(number=19, state="closed", merged=True, merge="8" * 40)
+        snapshot = self.capture()
+        self.assertEqual([item["classification"] for item in snapshot.references["associated_prs"]],
+                         ["introducer", "known-nonintroducer", "known-nonintroducer"])
+        self.assertEqual(self.verify()["run_id"], 100)
+        self.assertEqual(set(self.case.legacy_pr_calls), {17, 18, 19})
+        self.assertFalse(any("refs/pull/18" in endpoint or "refs/pull/19" in endpoint for endpoint in self.api.calls))
+        self.case.associated = self.case.associated[1:]
+        with self.assertRaisesRegex(P.ProtocolError, "introducer PR is missing"): self.capture()
+
+    def test_multiple_or_contradictory_introducers_and_unknown_associations_deny(self):
+        for mode in ("second-introducer", "open-claims-integration", "unknown-detail", "foreign", "conflicting-summary"):
+            self.case.associated = [{"id": 1700, "number": 17, "state": "closed"}]
+            self.case.associated_details = {}
+            self.add_association(state="closed" if mode == "second-introducer" else "open",
+                                 merged=mode == "second-introducer",
+                                 merge=self.case.integrated if mode in {"second-introducer", "open-claims-integration"}
+                                 else "6" * 40)
+            if mode == "unknown-detail": del self.case.associated_details[18]
+            elif mode == "foreign": self.case.associated_details[18]["head"]["repo"]["id"] = 42
+            elif mode == "conflicting-summary": self.case.associated[1]["head"]["sha"] = "f" * 40
+            with self.subTest(mode=mode), self.assertRaises(P.ProtocolError): self.capture()
+
+    def test_missing_legacy_merge_field_and_mismatched_full_summary_identity_deny(self):
+        for mode in ("missing-merge", "missing-merged", "state", "base", "head", "summary-merge"):
+            def changed(endpoint, result):
+                if endpoint.endswith("/pulls/17"):
+                    if mode == "missing-merge": del result["merge_commit_sha"]
+                    elif mode == "missing-merged": del result["merged"]
+                    elif mode == "state": result["state"] = "open"
+                    elif mode in {"base", "head"}: result[mode]["sha"] = "f" * 40
+                elif mode == "summary-merge" and "/pulls?" in endpoint:
+                    result[0]["merge_commit_sha"] = "f" * 40
+                return result
+            self.api.mutate = changed
+            with self.subTest(mode=mode), self.assertRaises(P.ProtocolError): self.capture()
+
+    def test_recorded_seven_real_api_shapes_authenticate_current_introducers(self):
+        # Actual minimal field observations, 2026-10-16. Summaries and 2026
+        # full PRs omit merge_commit_sha; only explicit 2022 full PRs supply it.
+        # These fake API source snapshots are not hosted qualification receipts.
+        records = (
+            ("main", 1321, 4883606325, "727c6e2b9ec33dbd343740f5daaaa92196e53120",
+             "ad636dc97fe7e213c7ff626dd5b5cf7873a7d4c2", "25ec68fbfa00768828f82ee78a56a8fdeea295fc",
+             "fix/main/ci-sandbox-host-snapshot-qualification-20261016", "2026-10-16T05:16:32Z"),
+            ("apple-main", 1261, 4869813471, "f7f6c47aff64213deb46c2d0b834b6df2cc93b06",
+             "20f9c44665bc08e9e924d2da1d0c3429d8ab0c23", "a9b600cabc5a3d85e1b107e1734545847c53cb5e",
+             "reconcile/apple/ios-kit-fetch-fixture-policy-20261015", "2026-10-15T07:47:02Z"),
+            ("apple-ios", 1300, 4878868180, "2fc894a0605103843b36653f250f854714a963ee",
+             "3941e0861eb7995b9cfa6e4116e9f70bc25d9837", "5ea4f920e01be7c48650affcda75b6ec5e0d0efa",
+             "fix/ios/host-only-qualification-20261015", "2026-10-15T20:05:31Z"),
+            ("android-main", 1272, 4871975509, "664fb0e83dd80f1557571471d2a8c48a86d1b2ee",
+             "17e3e529c4a82fef8057558206cb9d4ceed680bd", "d753ff8ef163207c7466660d4872b0a71c20bb93",
+             "fix/android/common-qml-reporter-fixture-isolation-20261015", "2026-10-15T10:58:30Z"),
+            ("android-phone", 1286, 4874106309, "a89d21db26a30aa1cc6627f40708c4b2801fc480",
+             "277bad9119c9ee16f4bbb3038cedeb6625741d34", "2338d3547fec0a2e3a337bc51775658cb17019fd",
+             "fix/android-phone/adopted-history-pr-1198-319a59f04eae", "2026-10-15T13:46:39Z"),
+            ("android-vr", 1270, 4871580861, "2199dc03b796b14d69973b50cb538e3779866306",
+             "d2f09ed8872f48dd81d157ed3881db74ae9795d2", "4895b4a4d10b9a023ff921ed6b4134e85369370a",
+             "reconcile/android-vr/shared-reporting-current-parent-20261015", "2026-10-15T10:26:26Z"),
+            ("android-vr-pico", 1276, 4872457039, "410847ff312553de81f9f8ff7e32029b22495603",
+             "5505cf999978c07a4d42de825362270f9282d097", "abb558cde0fd9b40370f643cc61a57a8372246b7",
+             "fix/android-pico/activity-focus-current-parent-20261015", "2026-10-15T11:44:51Z"),
+        )
+        for target, number, identity, revision, base, head, head_ref, merged in records:
+            self.case.integrated, self.case.merged_at = revision, merged
+            self.case.binding.update(base_ref=target, base_sha=base, head_sha=head, head_ref=head_ref,
+                                     merge_parents=[base, head])
+            detail = {"id": identity, "number": number, "state": "closed", "merged": True,
+                      "merge_commit_sha": revision, "merged_at": merged, "closed_at": merged,
+                      **{side: {"ref": ref, "sha": sha, "repo": {"id": 1319052603, "full_name": A.REPOSITORY}}
+                         for side, ref, sha in (("base", target, base), ("head", head_ref, head))}}
+            self.case.associated_details = {number: detail}
+            self.case.associated = [{key: deepcopy(detail[key]) for key in
+                                     ("id", "number", "state", "base", "head", "merged_at", "closed_at")}]
+            workflow_id = next(identity for identity, (_, targets) in A.PROTECTED_PUSH_WORKFLOWS.items()
+                               if target in targets)
+            self.case.push.update(workflow_id=workflow_id, path=A.PROTECTED_PUSH_WORKFLOWS[workflow_id][0],
+                                  head_branch=target, head_sha=revision, run_started_at="2026-10-16T05:32:01Z")
+            with self.subTest(target=target):
+                binding, refs = self.adapter._integrated_current(500, 15368, NOW.replace(day=17))
+                self.assertEqual(binding["pull_request"], number)
+                self.assertEqual(refs["integration"]["commit"], revision)
+                self.assertEqual(refs["associated_prs"][0]["classification"], "introducer")
+                self.assertNotIn("merge_commit_sha", self.case.associated[0])
+
+    def test_known_nonintroducer_inventory_is_also_bookended(self):
+        self.add_association()
+        count = 0
+        def changed(endpoint, result):
+            nonlocal count
+            if "/commits/" in endpoint and "/pulls?" in endpoint:
+                count += 1
+                if count >= 2:
+                    self.case.associated_details[18]["head"]["sha"] = "f" * 40
+                    result[1]["head"]["sha"] = "f" * 40
+            return result
+        self.api.mutate = changed
+        with self.assertRaisesRegex(P.ProtocolError, "current refs changed"): self.capture()
 
     def test_missing_original_ref_unknown_chain_or_conflicting_run_association_deny(self):
         for mode in ("missing", "ref", "sha", "foreign", "wrong-pr", "multiple-pr"):
@@ -844,6 +976,29 @@ class IntegratedSourceTests(unittest.TestCase):
 
 
 class ReadOnlyBoundaryTests(unittest.TestCase):
+    def test_legacy_pr_version_is_explicit_and_unavailable_for_other_endpoints(self):
+        real, commands = subprocess.Popen, []
+        def child(command, **kwargs):
+            commands.append(command)
+            return real([sys.executable, "-c", "print('{}')"], **kwargs)
+        with patch.object(A.shutil, "which", return_value="/usr/bin/gh"), patch.object(
+                A.subprocess, "Popen", side_effect=child):
+            api = A.GitHubReadOnly()
+            self.assertEqual(api.integrated_pr(17), {})
+            self.assertEqual(api.json(A.PREFIX + "/pulls/17"), {})
+        self.assertIn("X-GitHub-Api-Version: 2022-11-28", commands[0])
+        self.assertIn("X-GitHub-Api-Version: 2026-03-10", commands[1])
+        self.assertTrue(all(command[-1] == A.PREFIX + "/pulls/17" and "GET" in command for command in commands))
+        for endpoint, version in ((A.PREFIX + "/actions/runs/100", "2022-11-28"),
+                                  (A.PREFIX + "/pulls/17?other=1", "2022-11-28"),
+                                  (A.PREFIX + "/pulls/17", "unknown")):
+            with patch.object(A.subprocess, "Popen") as process, self.assertRaises(A.ApiError):
+                api._request(endpoint, 1000, api_version=version)
+            process.assert_not_called()
+        with patch.object(A.GitHubReadOnly, "_request", return_value=b'{"duplicate":1,"duplicate":2}'), \
+                self.assertRaises(A.ApiError):
+            A.GitHubReadOnly().integrated_pr(17)
+
     def test_only_fixed_fork_gets_are_issued_and_error_details_stay_private(self):
         real = subprocess.Popen
         commands = []

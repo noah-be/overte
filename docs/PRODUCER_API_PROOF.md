@@ -114,14 +114,30 @@ not evidence that its selected tests passed. Only the independent original
 producer can supply completed successful proof; this route does not require a
 consumer to finish before looking up that source.
 
-The complete commit-to-PR API inventory must identify exactly one actual merged
-same-fork PR introducing that protected push. The closed PR's actual merge SHA,
+The complete commit-to-PR API inventory must authenticate exactly one actual
+merged same-fork PR introducing that protected push. Every returned association
+is independently read in full, with matching summary/full ID, state, base and
+head identity. Known open or other merged downstream associations are classified
+and bookended without supplying source authority. Unknown or contradictory
+associations and multiple introducers remain unavailable.
+The closed introducing PR's actual merge SHA,
 base/head commits and target must match the immutable merge and its two ordered
-parents. Squash, rebase, ambiguous associations and incomplete inventories are
+parents. Squash, rebase, ambiguous introducers and incomplete inventories are
 unsupported. Neither the deleted topic ref nor the former live PR merge ref is
 requested. Closed PR runs can have an empty API `pull_requests` array; only this
 separate route accepts it after authenticating that independent merged-PR chain.
 The open route still requires its original API association.
+
+The existing adapter reads remain pinned to REST version `2026-03-10`. That
+version removed `merge_commit_sha` from PR summaries and full PR responses.
+Only the integrated route's full PR read explicitly uses the supported
+`2022-11-28` version to authenticate the actual merged SHA; it has the same fixed
+fork GET, deadline, byte limit and strict JSON boundary. No summary merge field
+is assumed, and there is no silent version fallback. A missing retained field,
+unsupported API version or summary/full conflict prevents lookup. GitHub's
+[breaking changes](https://docs.github.com/en/rest/about-the-rest-api/breaking-changes)
+and [API version contract](https://docs.github.com/en/rest/about-the-rest-api/api-versions)
+document this endpoint-specific compatibility requirement.
 
 Every original caller run for the exact PR head is still enumerated, including
 queued, failed and cancelled runs. Its original `referenced_workflows` entry
