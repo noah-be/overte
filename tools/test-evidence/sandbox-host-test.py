@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 import sandbox
 import sandbox_host as H
+import sandbox_shared as SHARED
 
 
 def context():
@@ -64,7 +65,7 @@ class ContextTests(unittest.TestCase):
 
     def test_fixed_account_requires_actual_distinct_uid_and_no_sudo_grants(self):
         account = SimpleNamespace(pw_uid=2001, pw_gid=2001, pw_shell="/usr/sbin/nologin")
-        denied = SimpleNamespace(returncode=1, stdout=b"", stderr=b"User overte-ci-qualification is not allowed to run sudo on host.\n")
+        denied = SimpleNamespace(returncode=1, stdout=b"User overte-ci-qualification is not allowed to run sudo on host.\n", stderr=b"")
         with (patch.object(H.pwd, "getpwnam", return_value=account), patch.object(H.os, "getgrouplist", return_value=[2001]),
               patch.object(H.grp, "getgrgid", return_value=SimpleNamespace(gr_name="qualification")), patch.object(H, "command", return_value=denied)):
             self.assertEqual(H.verify_account(1001), (2001, 2001))
@@ -310,6 +311,13 @@ class SupervisorFixtures(unittest.TestCase):
         self.assertLess(events.index("release"), events.index("kernel-kill-empty"))
         self.assertEqual(result["cleanup"]["kernel_populated"], 0)
         self.assertEqual(result["observation"], {"descendants_started": 1})
+
+    def test_actual_supervisor_suite_mode_never_parses_candidate_stdout_as_proof(self):
+        with patch.object(H.json, "loads", side_effect=AssertionError("candidate JSON must not be interpreted")):
+            events, result = self.run_fixture(case="suite")
+        self.assertIsNone(result["observation"])
+        self.assertIn(b"descendants_started", result["diagnostic"])
+        self.assertEqual(result["cleanup"], {"kernel_populated": 0, "subtree_kill": True})
 
     def test_failed_attachment_never_releases_candidate(self):
         events, _ = self.run_fixture(reject_attachment=True)
@@ -602,12 +610,16 @@ class GuardianTests(unittest.TestCase):
 class FixedResultTests(unittest.TestCase):
     def test_manual_workflow_matches_template_without_pr_trigger_or_success_skip(self):
         template = (H.ROOT / "tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml").read_text()
-        self.assertIn("workflow_dispatch: null", template)
+        self.assertIn("options: [boundary, shared-host]", template)
+        self.assertIn("default: boundary", template)
         self.assertNotIn("pull_request:", template)
         self.assertNotIn("workflow_call:", template)
         self.assertIn("--property=Delegate=yes", template)
-        for property in ("KillMode=control-group", "TimeoutStopSec=10s", "SendSIGKILL=yes", "RuntimeMaxSec=120s"):
+        for property in ("KillMode=control-group", "TimeoutStopSec=10s", "SendSIGKILL=yes"):
             self.assertIn("--property=" + property, template)
+        self.assertIn("lifetime=120", template)
+        self.assertIn("lifetime=2400", template)
+        self.assertIn('--property="RuntimeMaxSec=${lifetime}s"', template)
         self.assertIn('test "$GITHUB_WORKFLOW_SHA" = "$GITHUB_SHA"', template)
         self.assertIn('GITHUB_WORKFLOW_SHA="$GITHUB_WORKFLOW_SHA"', template)
         self.assertIn("--wait --pipe --collect --quiet --service-type=exec", template)
@@ -676,6 +688,341 @@ class FixedResultTests(unittest.TestCase):
             self.assertEqual(H.main([]), 1)
         self.assertEqual(json.loads(output.getvalue())["status"], "unavailable")
 
+
+
+class SharedHostCompatibilityTests(unittest.TestCase):
+    """Only fake suite commands/control facts; never root/bwrap/Qt workloads."""
+    def test_current_registry_uses_actual_controller_commands_and_device_deadline(self):
+        registry = SHARED.inputs.load_registry(H.ROOT / ".github/test-suites.json")
+        calls = []
+        def fake(command, timeout, cancelled):
+            calls.append((command, timeout))
+            return 0, "", ""
+        with tempfile.TemporaryDirectory() as temporary:
+            report = Path(temporary) / "suites.xml"
+            observed = SHARED.run_suites(SimpleNamespace(run_command=fake), registry, [], report=report)
+            self.assertTrue(report.is_file())
+        self.assertEqual([entry["name"] for entry in observed], list(registry["suites"]))
+        self.assertEqual(len(calls), len(registry["suites"]))
+        for (name, entry), (command, timeout) in zip(registry["suites"].items(), calls):
+            expected = entry["command"] + (["--timeout-seconds", "900"] if name == "device-control-plane-full" else [])
+            self.assertEqual(command, expected)
+            self.assertEqual(timeout, 900 if name == "device-control-plane-full" else 240)
+        self.assertIn("--require-qml", registry["suites"]["device-control-plane-full"]["command"])
+        self.assertFalse(any(any("browser-client/" in argument for argument in command) for command, _ in calls))
+
+    def test_failed_or_cancelled_actual_controller_result_cannot_pass(self):
+        registry = {"suites": {"one": {"layer": "quick", "command": ["python", "fake.py"]}}}
+        for failed, cancelled in ((True, []), (False, [15])):
+            with self.subTest(failed=failed, cancelled=cancelled), tempfile.TemporaryDirectory() as temporary:
+                batch = SimpleNamespace(run_command=lambda *_: (1 if failed else 0, "candidate-output: \"::error::fake\"", ""))
+                with self.assertRaises(H.Unavailable):
+                    SHARED.run_suites(batch, registry, cancelled, report=Path(temporary) / "suite.xml")
+
+    def test_whole_batch_checks_surround_full_probes_and_actual_suite_execution(self):
+        for mismatch in (None, "after", "prepared", "policy", "suite"):
+            events = []
+            batch = SimpleNamespace(candidate=Path("/fixture"), snapshot={}, policy=Path("/policy"), projection={},
+                                    protected=Path("/protected"), prepared=((), None, None, Path("/usr/lib/jvm/fake")),
+                                    empty=lambda: events.append("kernel-empty"))
+            def probe(_):
+                events.append("probe")
+                return {"real-E": len(events) if mismatch == "after" else 1}
+            batch.probe = probe
+            def suites(*_a, **_k):
+                events.append("actual-run-suites")
+                if mismatch == "suite": raise H.Unavailable("suite failed")
+                return [{"name": "fake", "status": "passed"}]
+            with (patch.object(sandbox, "verify_snapshot", side_effect=lambda *_: events.append("verify-source")),
+                  patch.object(sandbox, "_files", return_value={"changed": True} if mismatch == "policy" else {}),
+                  patch.object(SHARED, "prepared_identity", return_value={"different": 1} if mismatch == "prepared" else {}),
+                  patch.object(SHARED, "run_suites", side_effect=suites)):
+                if mismatch is None:
+                    SHARED.check_batch(batch, {}, [], {})
+                    self.assertEqual(events, ["verify-source", "probe", "actual-run-suites", "kernel-empty", "probe", "verify-source"])
+                else:
+                    with self.assertRaises(H.Unavailable):SHARED.check_batch(batch, {}, [], {})
+                    if mismatch == "suite": self.assertEqual(events.count("probe"), 1)
+                    if mismatch == "policy":self.assertNotIn("actual-run-suites", events)
+
+    def test_failure_summary_survives_private_log_removal_and_cannot_emit_action_commands(self):
+        registry = {"suites": {"actual-suite": {"layer": "host", "command": ["python", "fake.py"]}}}
+        batch = SimpleNamespace(run_command=lambda *_: (1, sandbox.safe_diagnostic(b"::error::fixture\n\x1b[31m"), "timeout"))
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaises(H.Unavailable) as caught:
+                SHARED.run_suites(batch, registry, [], report=Path(temporary) / "suites.xml")
+        message = str(caught.exception)
+        self.assertIn("actual-suite", message)
+        self.assertIn("timeout", message)
+        self.assertIn("fixture", message)
+        self.assertNotIn("\n", message)
+        self.assertNotIn("\x1b", message)
+        self.assertLess(len(message), 16_000)
+        probe = {"exit_code": 1, "reason": None, "cleanup": {"kernel_populated": 0, "subtree_kill": True},
+                 "diagnostic": b"runtime.RuntimeIdentityError: required Qt dependency unavailable\n"}
+        with self.assertRaises(H.Unavailable) as caught:SHARED.validate_probe(probe, {}, 2001, 2001)
+        self.assertIn("required Qt dependency unavailable", str(caught.exception))
+        self.assertNotIn("\n", str(caught.exception))
+
+    def test_live_scope_blocks_next_launch_and_protected_post_probe(self):
+        batch = object.__new__(SHARED.Batch)
+        batch.scopes = [SimpleNamespace(populated=lambda: 1)]
+        with self.assertRaises(H.Unavailable):batch.empty()
+        with patch.object(batch, "launch") as launch, self.assertRaises(H.Unavailable):batch.probe([])
+        launch.assert_not_called()
+
+    def test_candidate_output_is_encoded_before_existing_runner_can_print_it(self):
+        batch = object.__new__(SHARED.Batch)
+        with patch.object(batch, "launch", return_value={"exit_code": 1, "reason": "timeout", "diagnostic": b"::error::untrusted\n\x1b[31m"}):
+            code, output, message = batch.run_command(["python", "fake.py"], 240, [])
+        self.assertEqual((code, message), (1, "timeout"))
+        self.assertTrue(output.startswith("candidate-output: "))
+        self.assertNotIn("\n", output)
+        self.assertNotIn("\x1b", output)
+
+    def test_shared_plan_uses_only_prepared_tools_exact_safe_work_and_no_credentials(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            paths = [root / name for name in ("source", "scratch", "policy", "venv", "protected")]
+            for path in paths:path.mkdir()
+            (paths[0] / ".git").mkdir()
+            layout = sandbox.Layout(*paths)
+            prepared = ((), Path("/opt/hostedtoolcache/Python/3.12.12/x64"),
+                        Path("/opt/hostedtoolcache/node/22.20.0/x64"), Path("/usr/lib/jvm/temurin-17-jdk-amd64"))
+            plan = SHARED.shared_plan(layout, ["python", "tests/fake.py", "--require-qml"], prepared, {})
+            args = plan["argv"]
+            self.assertEqual(args[-3:], ["/opt/overte-ci/venv/bin/python", "tests/fake.py", "--require-qml"])
+            triples = [args[i + 1:i + 3] for i, value in enumerate(args) if value == "--setenv"]
+            self.assertIn(["GIT_CONFIG_COUNT", "3"], triples)
+            self.assertIn(["GIT_CONFIG_KEY_2", "safe.directory"], triples)
+            self.assertIn(["GIT_CONFIG_VALUE_2", "/work"], triples)
+            self.assertFalse(any("TOKEN" in key or key in {"GITHUB_OUTPUT", "GITHUB_ENV"} for key, _ in triples))
+            for flag in ("--unshare-user", "--unshare-pid", "--unshare-net", "--unshare-ipc", "--unshare-uts", "--cap-drop", "--clearenv"):
+                self.assertIn(flag, args)
+            with self.assertRaises(H.Unavailable):SHARED.shared_plan(layout, ["npm", "test"], prepared, {})
+
+    def test_private_controller_log_is_bounded_without_turning_failed_tests_green(self):
+        output = io.BytesIO()
+        log = SHARED.BoundedLog(output)
+        log.write("x" * 4_000_100)
+        log.write("::error::discarded")
+        self.assertEqual(len(output.getvalue()), 4_000_000)
+        self.assertEqual(log.remaining, 0)
+
+    def test_unknown_full_E_has_no_local_process_or_incomplete_fallback(self):
+        result = {"exit_code": 0, "reason": None, "cleanup": {"kernel_populated": 0, "subtree_kill": True},
+                  "observation": {"schema": 1, "authority": "none", "measurement": SHARED.PROFILE,
+                                  "binding": {}, "environment": {"unknown": True}, "process": {}, "mounts": {}, "namespaces": {}, "reusable": False}}
+        binding = {"prepared": {}, "outside_namespaces": {"user": 1}}
+        result["observation"]["binding"] = binding
+        result["observation"]["mounts"] = {name: ["ro"] for name in ("/usr", "/work", "/overte-policy", str(SHARED.VENV))}
+        result["observation"]["mounts"]["/work/build"] = ["rw"]
+        result["observation"]["namespaces"] = {"user": 2}
+        for field in ("environment", "binding", "cleanup", "reason"):
+            with self.subTest(field=field):
+                changed = deepcopy(result)
+                if field == "environment":changed["observation"][field] = None
+                elif field == "binding":changed["observation"][field] = {"foreign": True}
+                elif field == "cleanup":changed[field]["kernel_populated"] = 1
+                else:changed[field] = "timeout"
+                with self.assertRaises((H.Unavailable, SHARED.inputs.InputError)):
+                    SHARED.validate_probe(changed, binding, 2001, 2001)
+        with self.assertRaises(H.Unavailable):SHARED.validate_probe(result, binding, 2001, 2001)
+
+    def test_protected_probe_calls_complete_runtime_and_never_falls_back_to_unknown_E(self):
+        import sandbox_probe as probe
+        binding = {"profile": SHARED.PROFILE, "prepared": {"/opt/overte-ci/venv": "fixed"}}
+        paths = ("/usr", "/work", "/overte-policy", "/opt/overte-ci/venv", "/work/build")
+        mounts = "\n".join(f"1 0 0:1 / {path} {'rw' if path.endswith('/build') else 'ro'} - tmpfs tmpfs rw" for path in paths)
+        error = probe.runtime.RuntimeIdentityError("required host Python dependencies are missing")
+        with (patch.object(probe.Path, "read_bytes", return_value=json.dumps({"shared_host": binding}).encode()),
+              patch.object(probe.Path, "read_text", return_value=mounts),
+              patch.object(probe.socket, "if_nameindex", return_value=[(1, "lo")]),
+              patch.object(probe.socket, "socket"), patch.object(probe.fcntl, "ioctl", return_value=b"\0" * 16 + b"\1\0"),
+              patch.object(probe, "process_observation", return_value={"fixture": "not real process proof"}),
+              patch.object(probe.os, "stat", return_value=SimpleNamespace(st_ino=123)),
+              patch.object(probe.runtime, "capture_host_environment", side_effect=error) as capture):
+            with self.assertRaises(probe.runtime.RuntimeIdentityError):probe.measure_shared_host()
+            capture.assert_called_once_with()
+            capture.side_effect = None
+            capture.return_value = {"fixture": "fake complete-runtime call only, no actual E qualification"}
+            result = probe.measure_shared_host()
+            self.assertFalse(result["reusable"])
+            self.assertEqual(result["authority"], "none")
+            self.assertEqual(result["environment"], capture.return_value)
+            self.assertEqual(result["binding"], binding)
+            with patch.object(probe.socket, "if_nameindex", return_value=[(1, "lo"), (2, "eth0")]), self.assertRaises(ValueError):
+                probe.measure_shared_host()
+            with patch.object(probe.Path, "read_text", return_value=mounts.replace("/work ro", "/work rw")), self.assertRaises(ValueError):
+                probe.measure_shared_host()
+
+    def test_prepared_symlink_cannot_escape_readonly_roots(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "escape").symlink_to("/tmp")
+            with patch.object(SHARED, "VENV", root):
+                # No local root assumptions: protection of a prepared directory
+                # is itself mandatory before any alias/content claim.
+                with self.assertRaises(H.Unavailable):SHARED.prepared_identity(())
+
+    def test_sudo_successful_zero_rights_listing_is_denial_but_grants_errors_or_extras_are_not(self):
+        account = SimpleNamespace(pw_uid=2001, pw_gid=2001, pw_shell="/usr/sbin/nologin")
+        denial = b"User overte-ci-qualification is not allowed to run sudo on host.\n"
+        cases = [(0, denial, b"", True), (1, denial, b"", True), (2, denial, b"", False),
+                 (0, b"User overte-ci-qualification may run the following commands on host:\n (ALL) ALL\n", b"", False),
+                 (0, denial, b"policy plugin error", False), (1, b"", denial, False),
+                 (0, denial + b"extra policy\n", b"", False), (0, b"header\n" + denial, b"", False),
+                 (0, denial.replace(b"qualification", b"foreign"), b"", False), (0, b"", b"", False)]
+        with (patch.object(H.pwd, "getpwnam", return_value=account), patch.object(H.os, "getgrouplist", return_value=[2001]),
+              patch.object(H.grp, "getgrgid", return_value=SimpleNamespace(gr_name="qualification"))):
+            for code, out, err, accepted in cases:
+                with self.subTest(code=code, out=out, err=err), patch.object(H, "command", return_value=SimpleNamespace(returncode=code, stdout=out, stderr=err)):
+                    if accepted:self.assertEqual(H.verify_account(1001), (2001, 2001))
+                    else:
+                        with self.assertRaises(H.Unavailable):H.verify_account(1001)
+
+    def test_failed_sudo_policy_prints_only_bounded_public_classification(self):
+        account = SimpleNamespace(pw_uid=2001, pw_gid=2001, pw_shell="/usr/sbin/nologin")
+        private = b"PRIVATE-HOST and /private/command may run the following commands"
+        with (patch.object(H.pwd, "getpwnam", return_value=account), patch.object(H.os, "getgrouplist", return_value=[2001]),
+              patch.object(H.grp, "getgrgid", return_value=SimpleNamespace(gr_name="qualification")),
+              patch.object(H, "command", return_value=SimpleNamespace(returncode=0, stdout=private, stderr=b""))):
+            with self.assertRaises(H.Unavailable) as caught:H.verify_account(1001)
+        message = str(caught.exception)
+        self.assertIn('"exit_code": 0', message)
+        self.assertIn('"grant_marker": true', message)
+        self.assertNotIn("PRIVATE-HOST", message)
+        self.assertNotIn("/private", message)
+
+    def test_launch_has_fresh_scratch_guardian_before_work_and_cleanup_on_failure(self):
+        for failure in (None, "work", "proof"):
+            events, scratch_paths = [], []
+            with tempfile.TemporaryDirectory() as temporary:
+                base = Path(temporary)
+                candidate, policy = base / "source", base / "policy"
+                candidate.mkdir();policy.mkdir()
+                prepared = ((), Path("/python"), Path("/node"), Path("/java"))
+                batch = SHARED.Batch(base, candidate, policy, {}, {}, {}, prepared, Path("/delegated"), 2001, 2001, {})
+                scope = SimpleNamespace(populated=lambda: 0, kill_and_wait=lambda: events.append("kill-empty"),
+                                        close=lambda: events.append("close-scope"))
+                guardian = SimpleNamespace(finish=lambda: events.append("proof") or {},
+                                           close=lambda: events.append("close-guardian"))
+                def plan(layout, *_):
+                    scratch_paths.append(layout.scratch)
+                    return {"argv": ["/usr/bin/bwrap", "--", "fake-only"]}
+                def work(*_a, **_k):
+                    events.append("work")
+                    if failure == "work":raise H.Unavailable("failed workload")
+                    return {"exit_code": 0}
+                def guard(*_a, **_k):
+                    events.append("guardian-ready")
+                    if failure == "proof":
+                        guardian.finish=lambda: (_ for _ in ()).throw(H.Unavailable("no proof"))
+                    return guardian
+                with (patch.object(SHARED.os, "chown"), patch.object(SHARED, "shared_plan", side_effect=plan),
+                      patch.object(H, "OwnedScope", return_value=scope), patch.object(H, "Guardian", side_effect=guard),
+                      patch.object(H, "supervise", side_effect=work)):
+                    if failure:
+                        with self.assertRaises(H.Unavailable):batch.launch(["python", "fake.py"], 900, [])
+                    else:
+                        batch.launch(["python", "fake.py"], 900, [])
+                        batch.launch(["python", "fake.py"], 900, [])
+                        self.assertNotEqual(scratch_paths[0], scratch_paths[1])
+                    self.assertTrue(all(not path.exists() for path in scratch_paths))
+                    self.assertEqual(events[0:2], ["guardian-ready", "work"])
+                    self.assertEqual(events[-3:], ["close-guardian", "kill-empty", "close-scope"])
+                    self.assertEqual(batch.scopes, [])
+
+    def test_manual_profile_is_finite_and_pr_production_paths_remain_denied(self):
+        template = (H.ROOT / ".github/workflows/shared-sandbox-host-diagnostic.yml").read_text()
+        self.assertIn("options: [boundary, shared-host]", template)
+        self.assertIn("fetch-depth: 2", template)
+        self.assertIn("node-version: '22'", template)
+        self.assertIn("python-version: '3.12'", template)
+        self.assertIn("java-version: '17'", template)
+        self.assertNotIn("workflow_call:", template)
+        self.assertNotIn("pull_request:", template)
+        self.assertFalse(sandbox.ACTIVATION_READY)
+        for call in (sandbox.execute, sandbox.capture_after_execution):
+            with self.assertRaises(sandbox.SandboxUnavailable):call()
+
+
+class SharedHostSourceTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.names = SHARED.sources()
+        for name in self.names:
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(H.ROOT / name, path)
+        self.git("init", "-q", "--initial-branch=main")
+        self.git("add", ".")
+        self.git("commit", "-qm", "Record protected shared-host controls")
+        self.revision = self.git("rev-parse", "HEAD").strip().decode()
+    def git(self, *arguments):
+        result = H.command(["/usr/bin/git", "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false",
+                            "-c", "user.name=Source fixture", "-c", "user.email=fixture@example.invalid", *arguments], cwd=self.root)
+        result.check_returncode()
+        return result.stdout
+    def test_actual_shallow_source_and_finite_projection_exclude_candidate_shadow_imports(self):
+        (self.root / ".git/shallow").write_text(self.revision + "\n")
+        (self.root / "json.py").write_text("raise RuntimeError('candidate shadow must never execute')\n")
+        projection = self.root / "projected"
+        projection.mkdir()
+        with patch.object(SHARED, "ROOT", self.root):
+            self.assertEqual(SHARED.verify_source(self.revision), self.names)
+            expected = SHARED.project_policy(projection, self.names)
+        self.assertNotIn("json.py", expected)
+        for required in (*runtime_files(), "tools/test-evidence/sandbox_shared.py", "tests/requirements-host.txt"):
+            self.assertIn(required, expected)
+        self.assertFalse((projection / ".git").exists())
+        (projection / "json.py").write_text("unexpected import\n")
+        (projection / "json.py").chmod(0o444)
+        self.assertNotEqual(sandbox._files(projection), expected)
+    def test_shared_source_materializes_exact_ordered_parents_and_truthful_depth2_boundary(self):
+        original = self.revision
+        (self.root / "ordinary-source").write_text("source fixture\n")
+        self.git("add", "ordinary-source")
+        self.git("commit", "-qm", "Record fixture source")
+        first = self.git("rev-parse", "HEAD").strip().decode()
+        original_tree = self.git("rev-parse", original + "^{tree}").strip().decode()
+        other = self.git("commit-tree", original_tree, "-p", original, "-m", "Record other fixture parent").strip().decode()
+        first_tree = self.git("rev-parse", first + "^{tree}").strip().decode()
+        merged = self.git("commit-tree", first_tree, "-p", first, "-p", other, "-m", "Record ordered fixture merge").strip().decode()
+        (self.root / ".git/shallow").write_text(first + "\n" + other + "\n")
+        destination = self.root.parent / (self.root.name + "-snapshot")
+        destination.mkdir()
+        self.addCleanup(shutil.rmtree, destination)
+        with patch.object(SHARED, "ROOT", self.root):
+            SHARED.verify_source(merged)
+            expected = SHARED.materialize_source(merged, destination)
+        sandbox.verify_snapshot(destination, expected)
+        self.assertEqual(list(expected["git_context"]["commits"]), [merged, first, other])
+        self.assertEqual(expected["identity"]["parents"], [first, other])
+        self.assertEqual(expected["git_context"]["shallow"], sorted([first, other]))
+        self.assertEqual((destination / ".git/shallow").read_text(), "".join(value + "\n" for value in sorted([first, other])))
+        self.assertEqual((destination / "ordinary-source").read_text(), "source fixture\n")
+        self.assertNotIn(original, expected["git_context"]["commits"])
+        self.assertFalse((destination / ".git/objects" / original[:2] / original[2:]).exists())
+        observed = H.command(["/usr/bin/git", "--no-optional-locks", "rev-list", "--count", "HEAD"], cwd=destination)
+        observed.check_returncode()
+        self.assertEqual(observed.stdout.strip(), b"3")
+
+    def test_modified_loaded_control_or_missing_executable_source_is_rejected(self):
+        path = self.root / "tools/test-evidence/sandbox_shared.py"
+        path.write_bytes(path.read_bytes() + b"\n# altered loaded source\n")
+        with patch.object(SHARED, "ROOT", self.root), self.assertRaises(H.Unavailable):SHARED.verify_source(self.revision)
+        self.git("checkout", "--", "tools/test-evidence/sandbox_shared.py")
+        self.git("update-index", "--chmod=-x", "tests/run-project-tests.py")
+        self.git("commit", "-qm", "Remove required controller executable mode")
+        revision = self.git("rev-parse", "HEAD").strip().decode()
+        with patch.object(SHARED, "ROOT", self.root), self.assertRaises(H.Unavailable):SHARED.verify_source(revision)
+
+
+def runtime_files():
+    return SHARED.runtime._TRUSTED_EXECUTION_FILES
 
 if __name__ == "__main__":
     unittest.main()

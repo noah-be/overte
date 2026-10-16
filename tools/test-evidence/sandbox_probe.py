@@ -16,6 +16,9 @@ import os
 from pathlib import Path
 import re
 import sys
+import socket
+import fcntl
+import struct
 
 # -I deliberately removes the script directory from import lookup. Load only
 # the protected sibling projected by the supervisor, never a candidate module.
@@ -96,8 +99,44 @@ def measure_boundary():
             "runtime_compatibility": "unqualified"}
 
 
+def measure_shared_host():
+    """Full actual E from protected policy, after real empty-scope gating."""
+    control = json.loads(Path("/overte-policy/context.json").read_bytes())
+    if type(control) is not dict or set(control) != {"shared_host"}:
+        raise ValueError("protected shared-host context is incomplete")
+    binding = control["shared_host"]
+    if type(binding) is not dict or binding.get("profile") != "manual-shared-host-compatibility-v1":
+        raise ValueError("protected shared-host binding is unsupported")
+    paths = {"/usr", "/work", "/overte-policy", "/opt/overte-ci/venv"}
+    paths.update(path for path in binding["prepared"] if not Path(path).is_relative_to("/usr"))
+    mounts = {}
+    for line in Path("/proc/self/mountinfo").read_text(encoding="ascii").splitlines():
+        fields = line.partition(" - ")[0].split()
+        if len(fields) >= 6 and fields[4] in paths | {"/work/build"}:
+            if fields[4] in mounts:
+                raise ValueError("protected shared-host mount is ambiguous")
+            mounts[fields[4]] = fields[5].split(",")
+    if not all("ro" in mounts.get(path, ()) for path in paths) or "rw" not in mounts.get("/work/build", ()):
+        raise ValueError("prepared shared-host mount is not read-only")
+    interfaces = socket.if_nameindex()
+    if [name for _index, name in interfaces] != ['lo']:
+        raise ValueError("shared-host network exposes an outside interface")
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as query:
+        flags = struct.unpack_from('H', fcntl.ioctl(query.fileno(), 0x8913, struct.pack('16sH14s', b'lo', 0, b'')), 16)[0]
+    if not flags & 1:
+        raise ValueError("shared-host private loopback is not initialized")
+    # No local-process fallback: an unknown interpreter/package/tool/Qt/GLM/
+    # requirements/controller identity fails the entire manual diagnostic.
+    environment = runtime.capture_host_environment()
+    return {"schema": 1, "authority": "none", "measurement": "manual-shared-host-compatibility-v1",
+            "binding": binding, "environment": environment, "process": process_observation(),
+            "mounts": mounts, "namespaces": {name: os.stat("/proc/self/ns/" + name).st_ino
+                                                for name in ("user", "mnt", "pid", "net", "ipc", "uts")},
+            "reusable": False}
+
+
 if __name__ == "__main__":
-    if sys.argv[1:] not in ([], ["--boundary-diagnostic"]):
+    if sys.argv[1:] not in ([], ["--boundary-diagnostic"], ["--shared-host"]):
         raise SystemExit("unsupported protected probe mode")
-    result = measure_boundary() if sys.argv[1:] else measure_local_process()
+    result = measure_shared_host() if sys.argv[1:] == ["--shared-host"] else measure_boundary() if sys.argv[1:] else measure_local_process()
     print(json.dumps(result, sort_keys=True, separators=(",", ":"), allow_nan=False))

@@ -35,7 +35,7 @@ ROOT = Path(__file__).resolve().parents[2]
 ACCOUNT = "overte-ci-qualification"
 WORKFLOW = "noah-l-frank/overte/.github/workflows/shared-sandbox-host-diagnostic.yml@refs/heads/main"
 CASES = ("protections", "nested", "daemon", "fork-exit", "timeout")
-_BOOTSTRAP_CASES = (*CASES, "probe")
+_BOOTSTRAP_CASES = (*CASES, "probe", "suite", "shared-probe")
 _MAX_BYTES = 65536
 
 
@@ -87,8 +87,23 @@ def verify_account(runner_uid):
             "diagnostic account belongs to a privileged group")
     verdict = command(["/usr/bin/sudo", "-n", "-l", "-U", ACCOUNT])
     denied = (verdict.stdout + verdict.stderr).decode("utf-8", errors="replace")
-    require(verdict.returncode == 1 and re.search(r"User " + ACCOUNT + r" is not allowed to run sudo on [^\r\n]+", denied),
-            "diagnostic account has sudo authority or its policy cannot be established")
+    # sudo1.9.15p5 display_privs returns success even when its command count
+    # is zero; the frontend maps that successful listing to exit0. Accept only
+    # its complete single denial line, with no diagnostics or extra policy.
+    denial = rb"User " + ACCOUNT.encode("ascii") + rb" is not allowed to run sudo on [A-Za-z0-9_.-]{1,255}\.\n"
+    if verdict.returncode not in {0, 1} or verdict.stderr or not re.fullmatch(denial, verdict.stdout):
+        # Do not dump hostnames, sudoers entries or arbitrary command listings.
+        # Unknown output remains denial of qualification; these public-only
+        # facts distinguish an unexpected exit/wording from an actual grant.
+        summary = {"exit_code": verdict.returncode,
+                   "stdout_bytes": len(verdict.stdout), "stderr_bytes": len(verdict.stderr),
+                   "stdout_sha256": hashlib.sha256(verdict.stdout).hexdigest(),
+                   "stderr_sha256": hashlib.sha256(verdict.stderr).hexdigest(),
+                   "denial_marker": "is not allowed to run sudo" in denied,
+                   "grant_marker": "may run the following commands" in denied,
+                   "policy_error_marker": any(value in denied.lower() for value in (
+                       "policy plugin", "authentication failure", "a password is required", "parse error"))}
+        raise Unavailable("diagnostic sudo policy is unestablished: " + json.dumps(summary, sort_keys=True))
     return account.pw_uid, account.pw_gid
 
 
@@ -308,9 +323,11 @@ def bootstrap(gate, plan, case="protections"):
     os.execve(value[0], value, {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"})
 
 
-def supervise(scope, plan, uid, gid, *, timeout, case="protections", _before_cleanup=None):
+def supervise(scope, plan, uid, gid, *, timeout, case="protections", _before_cleanup=None, cancelled=None):
     """Contain before exec, then kill/confirm the whole kernel subtree."""
-    require(case in _BOOTSTRAP_CASES and 0 < timeout <= 8, "unsupported fixed supervisor case or deadline")
+    maximum = 900 if case == "suite" else 120 if case == "shared-probe" else 8
+    limit = 2_000_000 if case == "shared-probe" else 1_000_000 if case == "suite" else _MAX_BYTES
+    require(case in _BOOTSTRAP_CASES and 0 < timeout <= maximum, "unsupported fixed supervisor case or deadline")
     gate_read, gate_write = os.pipe2(os.O_CLOEXEC)
     process, data, reason = None, bytearray(), None
     selector = selectors.DefaultSelector()
@@ -328,14 +345,17 @@ def supervise(scope, plan, uid, gid, *, timeout, case="protections", _before_cle
         selector.register(process.stdout, selectors.EVENT_READ)
         deadline = time.monotonic() + timeout
         while True:
+            if cancelled:
+                reason = "cancelled"
+                break
             if time.monotonic() >= deadline:
                 reason = "timeout"
                 break
             for key, _ in selector.select(0.02):
-                block = os.read(key.fileobj.fileno(), min(8192, _MAX_BYTES + 1 - len(data)))
+                block = os.read(key.fileobj.fileno(), min(8192, limit + 1 - len(data)))
                 if block:
                     data.extend(block)
-                    require(len(data) <= _MAX_BYTES, "fixed fixture diagnostic output exceeded bound")
+                    require(len(data) <= limit, "fixed fixture diagnostic output exceeded bound")
                 else:
                     selector.unregister(key.fileobj)
             if process.poll() is not None:
@@ -361,15 +381,18 @@ def supervise(scope, plan, uid, gid, *, timeout, case="protections", _before_cle
         cleanup = scope.kill_and_wait()
         process.wait(timeout=3)
         # Drain bounded fixed-fixture output ONLY after kernel scope is empty.
-        remainder = process.stdout.read(_MAX_BYTES + 1 - len(data))
+        remainder = process.stdout.read(limit + 1 - len(data))
         data.extend(remainder)
-        require(len(data) <= _MAX_BYTES, "fixed fixture diagnostic output exceeded bound")
-        try:
-            observation = json.loads(data)
-        except (ValueError, UnicodeError):
-            observation = None
+        require(len(data) <= limit, "fixed fixture diagnostic output exceeded bound")
+        observation = None
+        if case != "suite":
+            try:
+                observation = json.loads(data)
+            except (ValueError, UnicodeError):
+                pass
         return {"exit_code": process.returncode, "reason": reason, "live_before_cleanup": live_before_cleanup,
-                "cleanup": cleanup, "observation": observation, "trusted_cleanup_canaries": canaries}
+                "cleanup": cleanup, "observation": observation, "trusted_cleanup_canaries": canaries,
+                **({"diagnostic": bytes(data)} if case in {"suite", "shared-probe"} else {})}
     finally:
         for descriptor in (gate_read, gate_write):
             if descriptor is not None:
@@ -413,7 +436,8 @@ def _guardian_loop(scope, channel, proof, binding, *, lifetime=30):
 
 class Guardian:
     """Root-owned sibling, provisioned and ready before any low-UID launch."""
-    def __init__(self, scope, protected, binding):
+    def __init__(self, scope, protected, binding, *, lifetime=30):
+        require(type(lifetime) is int and 1 <= lifetime <= 930, "cleanup guardian deadline is unsupported")
         require(os.geteuid() == 0, "cleanup guardian requires actual trusted root")
         info = protected.lstat()
         require(protected.is_absolute() and protected.resolve(strict=True) == protected
@@ -449,7 +473,7 @@ class Guardian:
                             pass
                 os.write(ready_write, b"1")
                 os.close(ready_write)
-                _guardian_loop(scope, reader, proof, binding)
+                _guardian_loop(scope, reader, proof, binding, lifetime=lifetime)
                 code = 0
             except (Unavailable, OSError, ValueError):
                 pass
@@ -804,12 +828,18 @@ def run_host():
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bootstrap", nargs=3, metavar=("GATE_FD", "FIXED_PLAN", "FIXTURE_CASE"))
+    parser.add_argument("--profile", choices=("boundary", "shared-host"), default="boundary")
     arguments = parser.parse_args(argv)
     if arguments.bootstrap is not None:
         bootstrap(int(arguments.bootstrap[0]), arguments.bootstrap[1], arguments.bootstrap[2])
         return 1
     try:
-        result = run_host()
+        if arguments.profile == "shared-host":
+            sys.path.insert(0, str(Path(__file__).resolve().parent))
+            import sandbox_shared
+            result = sandbox_shared.run_host()
+        else:
+            result = run_host()
         code = 0
     except (Unavailable, OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
         result = {"schema": 1, "status": "unavailable", "authority": "none", "production_qualified": False,
