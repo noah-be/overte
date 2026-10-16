@@ -768,8 +768,10 @@ helpers, workflow templates, policy files and exact generic control-plane
 runner. These files are outside the protected iOS application configure,
 resource, E2E and packaging reader graph; their shared `project-runner`,
 `device-control-plane-full` and CI contract checks remain required when selected.
-Only `tests/project-suite-self-test.py` is added to the exact executable-host
-inventory. The reader boundary is recomputed from protected `apple-ios` commit
+The exact executable-host inventory includes `tests/project-suite-self-test.py`
+and the separately required Doctor CLI `tools/repository-health/check.py`,
+preserving their known `100755` modes. Both application and own-host reader
+boundaries are recomputed from protected `apple-ios` commit
 `2fc894a0605103843b36653f250f854714a963ee`, never from an unprotected candidate.
 Neither npm lockfile belongs to the unconditional CI-only inventory. Their
 separate conditional omission requires an independently enforced exact package
