@@ -1267,7 +1267,20 @@
         "kind": "repository",
         "inputs": [],
         "required": [
-          "tools/test-evidence/test.py"
+          "tools/test-evidence/test.py",
+          "tools/test-evidence/validate-sync.py",
+          "tools/test-evidence/validate-sync-test.py",
+          "tools/repository-checks/android_handoff.py",
+          "tools/repository-checks/android_gate.py",
+          ".github/android-owner-transfer.json",
+          ".github/android-orchestration.json",
+          "tests/android-owner-transfer-test.py",
+          "tools/repository-checks/android.py",
+          ".github/android-checks.json",
+          "tools/repository-checks/package_checks.py",
+          ".github/package-workflow-generations.json",
+          "tools/sync-test-reuse/gate.py",
+          ".github/sync-test-reuse.json"
         ]
       }
     },
@@ -1434,7 +1447,10 @@
           ".github/sync-test-reuse.json",
           ".github/package-workflow-generations.json",
           "tools/repository-checks/workflows/android-owned/project-tests.yml",
-          "tools/repository-checks/workflows/android-owned/android-required.yml"
+          "tools/repository-checks/workflows/android-owned/android-required.yml",
+          "tools/test-evidence/validate-sync.py",
+          "tools/test-evidence/validate-sync-test.py",
+          "tools/sync-test-reuse/gate.py"
         ]
       }
     }

@@ -10,7 +10,12 @@ The project owner independently recomputes trusted host selection. Partial CI
 selections omit unchanged platform suites and produce nonreusable observations.
 The complete declared profile can delegate only Pico to an actually selected
 required Android owner; that pending handoff does not certify passing execution.
-Legacy direct, push and synchronization entry points retain their full profile.
+Legacy direct and push entry points retain their full profile. A complete
+synchronization fallback can delegate only the same reviewed Pico suite after
+independently re-reading and binding the actual source PR and required Android
+plan through the trusted API. It still runs every shared suite and every other
+profile entry, including branch extras. The receipt remains a nonreusable
+pending-owner diagnostic; it cannot become complete qualification evidence.
 The two foreign Browser/S3 lockfiles are absent from the host reader complement,
 but changed lock paths still require the independently recomputed mandatory npm
 owner. Android reporter sources remain real test inputs.

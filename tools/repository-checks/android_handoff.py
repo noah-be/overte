@@ -131,6 +131,10 @@ def platform_owner(candidate, event, sha, event_name, *, policy_root=ROOT):
     """Return a pending ownership plan, never a claim that Pico passed."""
     if not runner_context(event, sha, event_name):
         return {}
+    return _planned_platform_owner(candidate, event, sha, event_name, policy_root=policy_root)
+
+
+def _planned_platform_owner(candidate, event, sha, event_name, *, policy_root=ROOT):
     controller = gate()
     current = controller.candidate_plan(candidate, event, sha, event_name=event_name, policy_root=policy_root)
     if not current["required"] or current["target"] not in policy(policy_root)["profiles"]:
@@ -138,6 +142,47 @@ def platform_owner(candidate, event, sha, event_name, *, policy_root=ROOT):
     controller.validate_execution_generation(candidate, event, policy_root=policy_root)
     return {PICO: {"owner": "required-android", **{key: current[key] for key in ("candidate", "plan", "inventory")}}}
 
+
+def sync_platform_owner(candidate, request, api, *, policy_root=ROOT):
+    """Re-read the real source PR of an already attested synchronization.
+
+    This internal controller entry never treats the validation dispatch's main
+    ref as a product branch, and never changes authenticated runner variables.
+    The synchronization caller independently attests and rechecks permanent refs.
+    """
+    controller = gate()
+    if request.base not in policy(policy_root)["profiles"]:
+        return {}
+    source = controller._sources(candidate)
+    approved = controller.load_policy(policy_root)["workflow_generations"]
+    if not any("project" in item and controller._generation_matches(source.entries, item, policy_root)
+               for item in approved):
+        return {}  # Legacy callers execute the complete actual platform profile.
+    if request.repository != controller.REPOSITORY or type(request.repository_id) is not int \
+            or request.repository_id != controller.REPOSITORY_ID \
+            or type(request.head_repository_id) is not int or request.head_repository_id != controller.REPOSITORY_ID \
+            or type(request.number) is not int or request.number <= 0:
+        raise ValueError("Android sync ownership requires the reviewed source repository and PR")
+    prefix = "repos/" + controller.REPOSITORY
+    repository = api.json(prefix)
+    pr = api.json(prefix + "/pulls/" + str(request.number))
+    try:
+        actual = (pr["number"], pr["state"], pr["base"]["ref"], pr["base"]["sha"],
+                  pr["head"]["ref"], pr["head"]["sha"], pr["merge_commit_sha"])
+        expected = (request.number, "open", request.base, request.base_sha,
+                    request.head, request.head_sha, request.merge_sha)
+        identities = (repository, pr["base"]["repo"], pr["head"]["repo"])
+        if actual != expected or type(pr["number"]) is not int or pr.get("mergeable") is not True \
+                or not isinstance(pr.get("labels"), list) or any(
+                item.get("full_name") != controller.REPOSITORY or type(item.get("id")) is not int
+                or item["id"] != controller.REPOSITORY_ID for item in identities):
+            raise ValueError("Android sync source PR or repository changed")
+    except (KeyError, TypeError, AttributeError) as error:
+        raise ValueError("Android sync source PR context is incomplete") from error
+    # These are unmodified authenticated API documents, not a caller-supplied
+    # workflow event or an invented workflow_dispatch target approximation.
+    event = {"repository": repository, "number": pr["number"], "pull_request": pr}
+    return _planned_platform_owner(candidate, event, request.merge_sha, "pull_request", policy_root=policy_root)
 
 
 def host_selection():

@@ -164,7 +164,8 @@ def _ci_policy():
              "tools/repository-checks/host_selection.py", "tools/repository-checks/package_checks.py",
              "tools/repository-checks/npm_consumers.py", "tests/run-project-tests.py",
              ".github/test-suites.json", ".github/package-workflow-generations.json",
-             ".github/repository-checks.json")
+             ".github/repository-checks.json", "tools/repository-checks/android_handoff.py",
+             "tools/repository-checks/android_gate.py")
     result = {}
     for relative in paths:
         path = ROOT / relative
@@ -185,6 +186,21 @@ def _repository_owner_policy():
             or path.stat().st_mode & 0o111:
         raise ValidationError("mandatory repository owner configuration is unavailable")
     return json.loads(path.read_text(), object_pairs_hook=inputs._unique_object)
+
+
+def _sync_platform_owner(args, request, candidate, api):
+    """Only complete fallback may name a separately enforced pending owner."""
+    if args.mode != "fallback" or request.base not in {
+            "android-main", "android-phone", "android-vr", "android-vr-pico"}:
+        return {}
+    config = _repository_owner_policy()
+    if not isinstance(config, dict) or config.get("repository") != request.repository \
+            or type(config.get("repository_id")) is not int or config["repository_id"] != request.repository_id \
+            or not isinstance(config.get("required_contexts"), list) \
+            or "repository-checks" not in config["required_contexts"]:
+        raise ValidationError("pending Android ownership requires the mandatory canonical repository gate")
+    handoff = _trusted_module("sync_android_platform_owner", ROOT / "tools/repository-checks/android_handoff.py")
+    return handoff.sync_platform_owner(candidate, request, api)
 
 
 def _ci_selection(args, request, candidate, initial, registry, api):
@@ -244,6 +260,11 @@ def _ci_selection(args, request, candidate, initial, registry, api):
             # No successful diagnostic, unknown reader or missing package owner
             # can authorize omitting complete fallback and its product checks.
             pass
+    pending = _sync_platform_owner(args, request, candidate, api) if result["lane"] == "complete" else {}
+    if pending:
+        result["pending_platform_owners"] = pending
+        owner = _trusted_module("sync_android_policy_identity", ROOT / "tools/repository-checks/android_gate.py")
+        result["platform_owner_policy"] = owner._policy_identity(ROOT)
     result["selection"] = execution.digest(result)
     return result
 
@@ -363,6 +384,7 @@ def validate_sync(args, *, api=None):
             raise ValidationError("synchronization selection differs from the prerequisite plan")
     affected = selection is not None and selection["lane"] == "affected-ci"
     bounded = args.mode == "reuse" and request.profile in ("documentation", "tool-dependencies")
+    pending = _sync_platform_owner(args, request, candidate, api) if not affected and not bounded else {}
     if args.mode == "reuse" or affected:
         # Keep every branch differential assertion even when all common suites
         # have matching proof. Bounded profiles share this one invocation.
@@ -429,6 +451,7 @@ def validate_sync(args, *, api=None):
         with candidate_environment():
             status, returned = execution.execute(
                 candidate, suite_names=required, include_platform=True, junit=args.junit, receipt_path=execution_path,
+                _platform_owner=lambda: pending,
             )
         observed = _read_execution(execution_path, returned)
         if status != 0:
@@ -437,6 +460,14 @@ def validate_sync(args, *, api=None):
         if (observed["candidate_commit"], observed["candidate_tree"]) != initial or observed["include_platform"] is not True:
             raise ValidationError("execution receipt is not bound to the exact candidate and product suites")
         expected_product = dict(execution.platform_suites(candidate, registry["suites"]))
+        if pending:
+            partition = observed.get("platform_selection", {})
+            if observed["schema"] != 2 or observed["reusable"] is not False or observed["environment"] is not None \
+                    or partition.get("original") != list(expected_product) or partition.get("delegated") != pending:
+                raise ValidationError("pending Android owner differs from the exact observed product partition")
+            expected_product = {name: command for name, command in expected_product.items() if name not in pending}
+        elif observed["schema"] != 1:
+            raise ValidationError("unexpected pending product ownership without authenticated source PR")
         if set(observed["platform_results"]) != set(expected_product) or any(
             observed["platform_results"][name]["command"] != command for name, command in expected_product.items()
         ):
@@ -468,6 +499,9 @@ def validate_sync(args, *, api=None):
             raise ValidationError("synchronization selection changed during final validation")
         if affected:
             _verify_ci_execution(observed, final_selection, registry, initial)
+    final_pending = _sync_platform_owner(args, request, candidate, api) if not affected and not bounded else {}
+    if final_pending != pending:
+        raise ValidationError("Android sync ownership or source PR labels changed during execution")
     _recheck(api, gate, request)
     result = {
         "schema": 1, "producer": PRODUCER, "repository": request.repository,
@@ -482,6 +516,8 @@ def validate_sync(args, *, api=None):
         "conclusion": "success", "started_at": started,
         "completed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
+    if pending:
+        result.update(pending_platform_owners=pending, reusable=False, qualification=False)
     if external_packages:
         # The required project aggregate owns these checks. This consumer does
         # not claim their execution or fabricate a successful JUnit case.
