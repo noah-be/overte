@@ -551,6 +551,8 @@ def verify_current_owner(candidate, event, sha, needs, environment, adapter=None
     ref='refs/pull/'+str(binding['pull_request'])+'/merge'
     def observation():
         now=clock();A.P._now(now)
+        A.require(adapter._object('actions/workflows/repository-checks.yml')==registration,
+            'current Android native caller registration changed')
         listed=adapter._pages('actions/workflows/'+str(workflow)+'/runs?head_sha='+binding['head_sha'],'workflow_runs',search=True)
         A.require(listed and all(type(row) is dict for row in listed),'current Android run inventory unavailable')
         times=[A.P._time(row.get('run_started_at')) for row in listed]

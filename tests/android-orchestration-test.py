@@ -943,18 +943,20 @@ class CurrentAndroidNativeOwnerTests(unittest.TestCase):
 
     def test_source_plan_and_native_bookends_are_fresh(self):
         original=self.source_reader.side_effect
-        for change in ('source','plan','jobs'):
+        for change in ('source','plan','jobs','registration'):
             count=0
             def source(*a,**kw):
                 nonlocal count
                 count+=1;value=deepcopy(self.source)
                 if count==2 and change=='source':value[1]['default']='f'*40
                 if count==2 and change=='jobs':self.jobs[1]['steps'][0]['name']='changed step'
+                if count==2 and change=='registration':self.registration['state']='disabled_manually'
                 return value
             self.source_reader.side_effect=source
             if change=='plan':self.plan_reader.side_effect=[deepcopy(self.expected),{**self.expected,'plan':'sha256:'+'f'*64}]
             with self.subTest(change=change),self.assertRaises(ValueError):self.verify()
             self.jobs[1]['steps'][0]['name']=gate.CURRENT_JOBS['android / execute']
+            self.registration['state']='active'
             self.plan_reader.side_effect=lambda *a,**kw:deepcopy(self.expected)
         self.source_reader.side_effect=original
 
