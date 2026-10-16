@@ -2180,7 +2180,11 @@ class MainConsumerSourceTests(unittest.TestCase):
                 ('.github/workflows/pr-metadata-context.yml',
                  'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml')):
             actual=subprocess.check_output(['git','hash-object','--stdin'],input=(C.ROOT/template).read_bytes()).decode().strip()
-            self.assertEqual(latest[active]['sha'],actual)
+            if active=='.github/workflows/pr-metadata-context.yml':
+                self.assertEqual(latest[active]['sha'],'d04a6dc70213d8b549bac30c11cc15eaf0182dea')
+                self.assertEqual(current[C.producer.PLATFORM_GENERATION][active]['sha'],actual)
+            else:
+                self.assertEqual(latest[active]['sha'],actual)
 
     def test_disabled_cli_has_zero_api_and_writes_no_shared_pass_or_legacy_receipt(self):
         import postmerge as C

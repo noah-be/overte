@@ -2588,7 +2588,7 @@ class NpmConsumerSelectionTests(unittest.TestCase):
             sync.write_bytes(previous)
             self.base = self.commit()
         self.assertEqual(PACKAGES.validate_wiring(self.root), 'npm-consumers-v1')
-        sync.write_bytes((ROOT / 'tools/repository-checks/workflows/sync-ci-selection.yml').read_bytes())
+        sync.write_bytes(historical_workflow_bytes()['55d08b65a987224ce576459cede693cfd49375f6'])
         self.update()
         plan = self.automatic_plan()
         self.assertEqual(PACKAGES.validate_wiring(self.root), 'npm-consumers-sync-ci-v1')
