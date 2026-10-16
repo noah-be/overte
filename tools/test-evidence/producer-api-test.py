@@ -1569,7 +1569,7 @@ class MainCI37ConsumerTests(unittest.TestCase):
                                      object_pairs_hook=C.inputs._unique_object)
         self.registry.clear(); self.registry.update(actual_registry)
         workflow_entries = {path:deepcopy(self.tree[path]) for path in (*A.WORKFLOWS,
-            '.github/workflows/browser-client.yml', C.TEMPLATE)}
+            '.github/workflows/browser-client.yml', A.METADATA_WORKFLOW, C.TEMPLATE)}
         # This is the complete inventory of a small fake repository, carrying
         # every real definition's required leaf. No sparse inventory is admitted
         # as a production tree and no real checkout is executed by these tests.
