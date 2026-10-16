@@ -238,8 +238,9 @@ class Adapter:
             require(repo.get("full_name") == REPOSITORY and repo.get("id") == 1319052603,
                     "foreign-head source-chain contract is not implemented")
         base, head = sha(pr["base"].get("sha")), sha(pr["head"].get("sha"))
-        # The current REST API may omit merge_commit_sha. Hidden pull refs are
-        # not exposed by git/ref; resolve the supported commit-ref endpoint.
+        # Resolve the live synthetic merge without relying on the PR payload's
+        # merge_commit_sha. Bind the result to independent immutable commit
+        # facts and current base/head refs before accepting its identity.
         merge_commit = self._object(f"commits/refs/pull/{number}/merge")
         merge = sha(merge_commit.get("sha"))
         require(isinstance(merge_commit.get("commit"), dict)

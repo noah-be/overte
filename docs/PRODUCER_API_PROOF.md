@@ -41,8 +41,8 @@ The adapter reads repository identity; live PR base/head/merge; current base,
 head, merge and default-branch refs; and the exact immutable merge tree and
 ordered parents. Merge identity comes from the supported
 `commits/refs/pull/<number>/merge` endpoint and an independent immutable Git commit
-read, not the optional PR `merge_commit_sha` field or unsupported hidden
-`git/ref/pull` endpoint. Branch refs are URI-escaped inside the fixed fork;
+read, without relying on the PR `merge_commit_sha` payload field. Branch refs
+are URI-escaped inside the fixed fork;
 the PR number and all commit IDs are independently validated. It checks these
 facts before and after work. Actions `head_sha` is
 the PR branch head, so it cannot identify the tested synthetic merge or reusable
@@ -52,8 +52,9 @@ approved complete caller/producer generation and match the current candidate.
 The descriptor cannot supply a missing original source chain.
 
 Run enumeration filters only the exact PR head and approved caller workflow;
-it includes every status. Every run is resolved to its latest API attempt and
-complete current-attempt job inventory. Only attempt 1 is admissible. Failed-only
+it includes every status. Every run considered for reuse is resolved to its
+latest API attempt and complete current-attempt job inventory. Only attempt 1
+is admissible. Failed-only
 retries can expose new job IDs and attempt numbers with original successful
 timestamps; those snapshots do not authenticate original execution. A later
 attempt makes the source unavailable, rather than borrowing attempt 1.
