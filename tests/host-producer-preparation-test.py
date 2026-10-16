@@ -114,7 +114,7 @@ class WorkflowGenerationTests(TemporaryGit, unittest.TestCase):
         previous = next(g for g in self.generations if g['name'] == 'android-owned-npm5-sync-ci-v1')
         prospective = next(g for g in self.generations if g['name'] == 'protected-shared-producer-v1')
         self.assertEqual(set(prospective['workflows']), set(PACKAGES.CONSUMER_WORKFLOW_PATHS))
-        self.assertEqual(len(self.generations), 16)
+        self.assertEqual(len(self.generations), 18)
         for path in prospective['workflows']:
             if path not in {'.github/workflows/repository-checks.yml', '.github/workflows/project-tests.yml'}:
                 self.assertEqual(prospective['workflows'][path], previous['workflows'][path])

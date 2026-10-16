@@ -58,6 +58,30 @@ class HostSelectionTests(unittest.TestCase):
             'reason': 'reviewed-protected-producer-transition', 'full_host': True, 'include_platform': True})
         self.assertEqual(len(result['suites']), len(set(result['suites'])))
 
+    def test_consumer_parent_is_preserved_by_the_second_exact_producer_installation_pair(self):
+        policy=HOST.package_policy()
+        generations={g['name']:g['workflows'] for g in policy.workflow_generations()}
+        previous,candidate=deepcopy(self.tree),deepcopy(self.tree)
+        previous.update(deepcopy(generations['postmerge-original-e-v1']))
+        candidate.update(deepcopy(generations['protected-producer-postmerge-original-e-v1']))
+        paths=sorted(path for path in previous.keys() | candidate.keys() if previous.get(path)!=candidate.get(path))
+        selected=self.selected(paths,tree=candidate,trusted_tree=previous,base_tree=previous)
+        self.assertEqual(set(selected['suites']),self.all_names)
+        self.assertEqual(selected['reason'],'reviewed-protected-producer-transition')
+        self.assertTrue(selected['include_platform'])
+        # Neither individually approved endpoint nor the old parent tuple can
+        # be mixed into this complete second installation generation.
+        for side in ('base','candidate'):
+            for path in generations['postmerge-original-e-v1']:
+                snapshots={'base':deepcopy(previous),'candidate':deepcopy(candidate)}
+                snapshots[side][path]={'mode':'100755','type':'blob','sha':'a'*40}
+                with self.subTest(side=side,path=path):
+                    self.assertFalse(HOST._protected_producer_transition(snapshots['candidate'],paths,
+                        snapshots['base'],snapshots['base'],'main'))
+        candidate['.github/workflows/parent-qualification.yml']=deepcopy(generations['protected-shared-producer-v1'][
+            '.github/workflows/parent-qualification.yml'])
+        self.assertFalse(HOST._protected_producer_transition(candidate,paths,previous,previous,'main'))
+
     def test_producer_transition_requires_main_complete_inventory_and_current_trusted_base(self):
         previous, candidate, paths = self.producer_transition()
         for mutation in ('child', 'unknown', 'nonregular', 'missing-base', 'missing-trusted',
@@ -183,7 +207,8 @@ class HostSelectionTests(unittest.TestCase):
             for path in ('.github/test-suites.json', 'tests/platform-profile.json'):
                 endpoint = candidate/path
                 endpoint.parent.mkdir(parents=True, exist_ok=True)
-                endpoint.write_bytes((ROOT/path).read_bytes())
+                endpoint.write_bytes(HOST.subprocess.check_output([
+                    'git', 'cat-file', 'blob', candidate_tree[path]['sha']], cwd=ROOT))
             # program_digest reads the registry by immutable blob identity.
             HOST.subprocess.check_call(['git', 'init', '-q', '--initial-branch=main', str(candidate)])
             HOST.subprocess.check_output(['git', 'hash-object', '-w', '--', '.github/test-suites.json'], cwd=candidate)

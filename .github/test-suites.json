@@ -50,16 +50,8 @@
       "scope": "content",
       "environment": "host-qt5-qt6",
       "closure": {
-        "kind": "patterns",
-        "inputs": [
-          "tools/test-evidence/producer_api.py",
-          "tools/test-evidence/producer-api-test.py",
-          "tools/test-evidence/producer.py",
-          "tools/test-evidence/producer-test.py",
-          "tools/test-evidence/execution.py",
-          "tools/test-evidence/inputs.py",
-          "tools/test-evidence/runtime.py"
-        ],
+        "kind": "repository",
+        "inputs": [],
         "required": [
           "tools/test-evidence/producer_api.py",
           "tools/test-evidence/producer-api-test.py",
@@ -67,7 +59,17 @@
           "tools/test-evidence/producer-test.py",
           "tools/test-evidence/execution.py",
           "tools/test-evidence/inputs.py",
-          "tools/test-evidence/runtime.py"
+          "tools/test-evidence/runtime.py",
+          "tools/test-evidence/postmerge.py",
+          "tools/test-evidence/producer_workflow.py",
+          "tools/test-evidence/attested.py",
+          "tools/test-evidence/sandbox.py",
+          "tools/test-evidence/sandbox_host.py",
+          "tools/test-evidence/sandbox_shared.py",
+          "tools/repository-checks/package_checks.py",
+          "tools/repository-checks/host_selection.py",
+          "tools/repository-checks/workflows/producers/parent-qualification.yml",
+          ".github/package-workflow-generations.json"
         ]
       }
     },
@@ -1295,7 +1297,9 @@
           "tools/test-evidence/sandbox_shared.py",
           "tools/test-evidence/producer_workflow.py",
           "tools/repository-checks/workflows/producers/protected-project-tests.yml",
-          "tools/repository-checks/workflows/producers/repository-checks.yml"
+          "tools/repository-checks/workflows/producers/repository-checks.yml",
+          "tools/test-evidence/postmerge.py",
+          "tools/repository-checks/workflows/producers/parent-qualification.yml"
         ]
       }
     },

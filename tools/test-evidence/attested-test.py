@@ -69,6 +69,22 @@ class RuntimeFixture(unittest.TestCase):
 
 
 class AdmissionTests(RuntimeFixture):
+    def test_isolated_work_exception_needs_separate_source_capability_and_exact_trusted_policy(self):
+        self.assertFalse(A.ISOLATED_ADMISSION_READY)
+        self.policy['flags']['git_process_overrides'] = 'maintenance-disabled-safe-work'
+        self.write_policy(); self.environment['flags'] = deepcopy(self.policy['flags']); self.bind_controller()
+        with self.assertRaises(A.AttestedReuseUnavailable):
+            A.validate_environment(self.environment,QUALIFIED,EXPIRES,NOW,root=self.root,isolated=True)
+        with patch.object(A,'ISOLATED_ADMISSION_READY',True):
+            value=A.validate_environment(self.environment,QUALIFIED,EXPIRES,NOW,root=self.root,isolated=True)
+            self.assertEqual(value['environment_digest'],A._digest(self.environment))
+            with self.assertRaises(A.AttestedReuseUnavailable):self.admit()
+            for variant in ('maintenance-disabled','wildcard-safe-directory','none'):
+                self.policy['flags']['git_process_overrides']=variant;self.write_policy()
+                self.environment['flags']=deepcopy(self.policy['flags']);self.bind_controller()
+                with self.subTest(variant=variant),self.assertRaises(A.AttestedReuseUnavailable):
+                    A.validate_environment(self.environment,QUALIFIED,EXPIRES,NOW,root=self.root,isolated=True)
+
     def test_original_environment_is_retained_without_measuring_or_installing_consumer(self):
         original = deepcopy(self.environment)
         with patch.object(runtime, "capture_host_environment", side_effect=AssertionError("unused VM")), \

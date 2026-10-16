@@ -1040,5 +1040,263 @@ class ReadOnlyBoundaryTests(unittest.TestCase):
         self.assertTrue(children[0].stdout.closed and children[0].stderr.closed)
 
 
+class MainConsumerTests(unittest.TestCase):
+    """Native push + actual protocol/API validator; no workload/E probes."""
+    def setUp(self):
+        import postmerge
+        from types import SimpleNamespace
+        self.module = postmerge
+        fixture = IntegratedSourceTests(); fixture.setUp()
+        self.case, self.api, self.adapter = fixture.case, fixture.api, fixture.adapter
+        self.case.originals[self.case.binding['base_sha']] = ('6'*40, ['7'*40])
+        old = FIXTURES.ProducerProtocolTests(); old.setUp()
+        self.registry = old.registry
+        self.tree = deepcopy(old.tree)
+        generations = json.loads((postmerge.ROOT / '.github/package-workflow-generations.json').read_text())['generations']
+        generation = next(item for item in generations if item['name'] == 'protected-producer-postmerge-original-e-v1')
+        self.tree.update(deepcopy(generation['workflows']))
+        self.tree[postmerge.TEMPLATE] = deepcopy(self.tree['.github/workflows/parent-qualification.yml'])
+        self.tree['.github/test-suites.json'] = {'mode':'100644','type':'blob','sha':'1'*40}
+        self.tree['tests/platform-profile.json'] = {'mode':'100644','type':'blob','sha':'2'*40}
+        self.previous = deepcopy(self.tree)
+        self.case.generation = {path:self.tree[path] for path in A.WORKFLOWS}
+        self.case.pp = replace(self.case.pp, workflow_blob=self.tree['.github/workflows/project-tests.yml']['sha'], required_execution_schema=3)
+        self.case.policy = replace(self.case.policy, producer=self.case.pp, generations={'reviewed':self.case.generation})
+        self.case.plan['owners']['shared-host']['include_platform'] = True
+        self.git = postmerge.producer.expected_git_context(self.adapter, self.case.binding)
+        receipt = deepcopy(self.case.aggregate['results']['shared-host']['receipt'])
+        receipt.update(schema=3, git_context=self.git, include_platform=True)
+        receipt['results'] = {name:{'status':'passed','fingerprint':P.inputs.suite_fingerprint(
+            self.registry,name,self.tree,receipt['environment'])} for name in self.registry['suites']}
+        self.receipt = FIXTURES.signed(receipt,'receipt_digest')
+        self.case.aggregate['results']['shared-host']['receipt'] = self.receipt
+        run = replace(old.run, workflow_path=self.case.pp.workflow_path, workflow_commit=self.case.binding['merge_sha'],
+            workflow_ref=self.case.pp.workflow_ref, event='pull_request', workflow_blob=self.case.pp.workflow_blob,
+            final_publisher=replace(old.run.final_publisher, receipt_sha256=hashlib.sha256(P.canonical(self.receipt)).hexdigest()))
+        self.case.add_run(run); self.case.runs[100]['pull_requests'] = []
+        # The real adapter still reads source trees/workflows/job/check/artifact facts.
+        self.api.immutable_tree = lambda oid: self.api.mutate(A.PREFIX+'/git/trees/'+oid+'?recursive=1', {
+            'sha':oid,'truncated':False,'tree':[{'path':path,**entry} for path,entry in
+                (self.previous if oid=='6'*40 else self.tree).items()]})
+        package = SimpleNamespace(validate_tree_wiring=lambda tree:'protected-producer-postmerge-original-e-v1',
+            _trusted_bytes=lambda name,**_:b'{"schema":1,"platform":"shared","suites":[]}',
+            tools=lambda:SimpleNamespace(PROJECTS=('server-console','tools/jsdoc')),
+            S3='script-archive/marketplace/S3Server', BROWSER='browser-client')
+        self.patches = [patch.object(postmerge,'SOURCE_READY',True),
+            patch.object(postmerge.producer,'PRODUCTION_READY',True),
+            patch.object(postmerge.attested,'ISOLATED_ADMISSION_READY',True),
+            patch.object(postmerge.execution,'checkout_identity',return_value=(self.case.integrated,self.case.binding['merge_tree'])),
+            patch.object(postmerge.inputs,'full_tree',return_value=self.tree),
+            patch.object(postmerge.inputs,'load_registry',return_value=self.registry),
+            patch.object(postmerge.producer,'_host_policy',return_value=SimpleNamespace(package_policy=lambda:package)),
+            patch.object(postmerge,'original_controller',return_value=self.case.pp.controller_digest),
+            patch.object(postmerge,'_policy',return_value=(self.case.plan,self.case.policy)),
+            patch.object(postmerge.attested,'validate_environment',return_value={'environment_digest':'sha256:'+'1'*64,'policy':{'epoch':'fixture'}}),
+            patch.object(postmerge.execution,'capture_execution_environment',side_effect=AssertionError('unused consumer E')),
+            patch.object(postmerge.execution,'execute',side_effect=AssertionError('no consumer workload'))]
+        for item in self.patches:item.start();self.addCleanup(item.stop)
+        self.event={'ref':'refs/heads/main','before':self.case.binding['base_sha'],'after':self.case.integrated,
+            'deleted':False,'forced':False,'repository':{'full_name':A.REPOSITORY,'id':1319052603}}
+        self.environment={'GITHUB_ACTIONS':'true','GITHUB_REPOSITORY':A.REPOSITORY,'GITHUB_REPOSITORY_ID':'1319052603',
+            'GITHUB_EVENT_NAME':'push','GITHUB_REF':'refs/heads/main','GITHUB_RUN_ATTEMPT':'1','GITHUB_JOB':'qualify-parent',
+            'RUNNER_ENVIRONMENT':'github-hosted','ImageOS':'ubuntu24','GITHUB_SHA':self.case.integrated,
+            'GITHUB_WORKFLOW_SHA':self.case.integrated,'GITHUB_RUN_ID':'500',
+            'GITHUB_WORKFLOW_REF':A.REPOSITORY+'/.github/workflows/parent-qualification.yml@refs/heads/main'}
+
+    def lookup(self):
+        return self.module.lookup(self.event,self.environment,self.adapter,clock=lambda:NOW)
+
+    def test_original_full_e_is_authenticated_without_rebinding_or_unused_consumer_setup(self):
+        value=self.lookup()
+        self.assertTrue(value['reused'],value)
+        proof=value['proof']
+        self.assertEqual(proof['current_commit'],self.case.integrated)
+        self.assertEqual(proof['original_commit'],self.case.binding['merge_sha'])
+        self.assertNotEqual(proof['current_commit'],proof['original_commit'])
+        self.assertEqual(proof['original_proof']['expires_at'],self.case.aggregate['expires_at'])
+        self.assertEqual(proof['original_proof']['receipt_sha256'],hashlib.sha256(P.canonical(self.receipt)).hexdigest())
+        self.assertEqual(proof['reused_suites'],list(self.registry['suites']))
+        self.assertEqual(proof['executed_suites'],[])
+        self.assertFalse(proof['reusable'])
+        self.assertFalse(proof['package_work'])
+        self.assertEqual(self.receipt['candidate_commit'],self.case.binding['merge_sha'])
+
+    def test_missing_failed_newer_pending_or_rerun_original_selects_one_actual_fallback(self):
+        for kind in ('missing','failed','pending','newer','attempt','publisher','artifact','foreign'):
+            with self.subTest(kind=kind):
+                before=deepcopy((self.case.runs,self.case.jobs,self.case.artifacts))
+                if kind=='missing':self.case.runs.clear()
+                elif kind=='failed':self.case.runs[100].update(status='completed',conclusion='failure')
+                elif kind=='pending':self.case.runs[100].update(status='in_progress',conclusion=None)
+                elif kind=='attempt':self.case.runs[100]['run_attempt']=2
+                elif kind=='publisher':self.case.jobs[100][-1]['name']=self.case.policy.final_publisher_prefix+'0'*64
+                elif kind=='artifact':self.case.artifacts[100].pop()
+                elif kind=='foreign':self.case.runs[100]['head_repository']['id']=1
+                else:
+                    self.case.runs[101]={**deepcopy(self.case.runs[100]),'id':101,'status':'queued','conclusion':None}
+                self.assertEqual(self.lookup(),{'reused':False,'reason':'original-proof-unavailable'})
+                self.case.runs,self.case.jobs,self.case.artifacts=before
+
+    def test_stale_main_api_changed_context_and_wrong_native_invocations_never_waive(self):
+        for key,value in (('GITHUB_EVENT_NAME','workflow_dispatch'),('GITHUB_REF','refs/heads/apple-main'),
+                ('GITHUB_JOB','fake-pass'),('GITHUB_RUN_ATTEMPT','2'),('GITHUB_SHA','1'*40),
+                ('GITHUB_WORKFLOW_SHA','1'*40),('GITHUB_REPOSITORY','overte-org/overte')):
+            original=self.environment[key];self.environment[key]=value
+            with self.subTest(key=key):self.assertFalse(self.lookup()['reused'])
+            self.environment[key]=original
+        self.api.mutate=lambda endpoint,value:{**value,'protected':False} if '/branches/' in endpoint else value
+        self.assertFalse(self.lookup()['reused'])
+
+    def test_full_source_truncation_aliases_new_inputs_or_changed_declarations_deny(self):
+        original=deepcopy(self.tree)
+        for mutation in ('truncated','missing','mode','new-import','registry','candidate-scope','runtime'):
+            with self.subTest(mutation=mutation):
+                self.api.mutate=lambda endpoint,value:value
+                if mutation=='truncated':
+                    self.api.mutate=lambda endpoint,value:{**value,'truncated':True} if '?recursive=1' in endpoint else value
+                elif mutation=='missing':del self.tree['tests/first.py']
+                elif mutation=='mode':self.tree['tests/first.py']['mode']='120000'
+                elif mutation=='new-import':self.tree['tools/controller.py']['sha']='9'*40
+                elif mutation=='registry':self.previous['.github/test-suites.json']['sha']='9'*40
+                elif mutation=='candidate-scope':self.registry['suites']['first']['scope']='candidate'
+                else:
+                    with patch.object(self.module.attested,'validate_environment',side_effect=self.module.attested.AttestedReuseUnavailable('old epoch')):
+                        self.assertFalse(self.lookup()['reused'])
+                    continue
+                self.assertFalse(self.lookup()['reused'])
+                self.tree.clear();self.tree.update(deepcopy(original));self.previous=deepcopy(original)
+                self.registry['suites']['first']['scope']='content'
+
+    def test_each_source_guard_off_has_zero_api_and_no_policy_json_enable(self):
+        for module,name in ((self.module,'SOURCE_READY'),(self.module.producer,'PRODUCTION_READY'),
+                (self.module.attested,'ISOLATED_ADMISSION_READY')):
+            self.api.calls.clear()
+            with patch.object(module,name,False):self.assertFalse(self.lookup()['reused'])
+            self.assertEqual(self.api.calls,[])
+
+    def test_shared_proof_retains_independent_package_work_and_fresh_ref_bookends(self):
+        # A shared receipt supplies no package proof. Its original M and S maps
+        # still match, while the protected base has the old package manifest.
+        path='script-archive/marketplace/S3Server/package-lock.json'
+        self.previous[path]={'mode':'100644','type':'blob','sha':'5'*40}
+        self.tree[path]={'mode':'100644','type':'blob','sha':'6'*40}
+        value=self.lookup()
+        self.assertTrue(value['reused'],value)
+        self.assertTrue(value['proof']['package_work'])
+        count=0
+        def changed(endpoint,value):
+            nonlocal count
+            if '/branches/main' in endpoint:
+                count+=1
+                if count>2:value['commit']['sha']='7'*40
+            return value
+        self.api.mutate=changed
+        self.assertFalse(self.lookup()['reused'])
+
+    def test_immutable_tree_extended_bound_is_fixed_to_a_validated_tree_endpoint(self):
+        with patch.object(A.GitHubReadOnly,'_request',return_value=b'{"truncated":false}') as read:
+            self.assertEqual(A.GitHubReadOnly().immutable_tree('a'*40),{'truncated':False})
+        read.assert_called_once_with(A.PREFIX+'/git/trees/'+'a'*40+'?recursive=1',20_000_000)
+        with self.assertRaises(A.ApiError):A.GitHubReadOnly().immutable_tree('../other')
+
+
+class MainConsumerSourceTests(unittest.TestCase):
+    def test_original_controller_is_reconstructed_from_immutable_base_without_historical_execution(self):
+        import postmerge as C
+        import tempfile
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            def git(*args):return subprocess.check_output(['git','-c','core.hooksPath=/dev/null',*args],cwd=root,stderr=subprocess.PIPE).decode().strip()
+            git('init','-q');git('config','user.name','Fixture');git('config','user.email','fixture@example.invalid')
+            files={'tools/controller.py':b'raise RuntimeError("must never execute historic code")\n',
+                   'tests/run-project-tests.py':b'print("fixture source only")\n'}
+            for relative,raw in files.items():
+                p=root/relative;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(raw)
+            (root/'tests/run-project-tests.py').chmod(0o755)
+            git('add','.');git('commit','-qm','Create immutable controller fixture')
+            tree=C.inputs.full_tree(root,'HEAD')
+            package=SimpleNamespace(_trusted_bytes=lambda name,**_:(root/name).read_bytes())
+            policy=SimpleNamespace(package_policy=lambda:package)
+            with patch.object(C.producer,'controller_sources',return_value=sorted(files)):
+                original=C.original_controller(policy,tree,tree,root)
+                with patch.object(C.producer,'ROOT',root):
+                    self.assertEqual(C.producer._controller_identity(policy),original)
+                    injected=SimpleNamespace(__file__=str(root/'tools/injected.py'))
+                    with patch.dict(sys.modules,{'unreviewed_repo_module':injected}),self.assertRaises(C.producer.host.Unavailable):
+                        C.producer._controller_identity(policy)
+                for mutation in ('missing','changed','mode','alias'):
+                    previous=deepcopy(tree)
+                    if mutation=='missing':previous.pop('tools/controller.py')
+                    elif mutation=='changed':previous['tools/controller.py']['sha']='f'*40
+                    else:previous['tools/controller.py']['mode']='100755' if mutation=='mode' else '120000'
+                    with self.subTest(mutation=mutation),self.assertRaises(A.ApiError):
+                        C.original_controller(policy,previous,tree,root)
+                (root/'tools/controller.py').write_bytes(b'altered dirty source')
+                with self.assertRaises(A.ApiError):C.original_controller(policy,tree,tree,root)
+
+    def test_native_tree_rejects_duplicate_path_truncation_mode_and_wrong_tree_identity(self):
+        import postmerge as C
+        from types import SimpleNamespace
+        row={'path':'source.py','mode':'100644','type':'blob','sha':'a'*40}
+        good={'sha':'b'*40,'truncated':False,'tree':[row]}
+        for mutation in ('duplicate','truncated','mode','tree','path'):
+            value=deepcopy(good)
+            if mutation=='duplicate':value['tree'].append(deepcopy(row))
+            elif mutation=='truncated':value['truncated']=True
+            elif mutation=='mode':value['tree'][0]['mode']='040000'
+            elif mutation=='tree':value['sha']='c'*40
+            else:value['tree'][0]['path']='../outside'
+            adapter=SimpleNamespace(_commit=lambda _:('b'*40,[]),api=SimpleNamespace(immutable_tree=lambda _:value))
+            with self.subTest(mutation=mutation),self.assertRaises((A.ApiError,C.inputs.InputError)):
+                C.full_tree(adapter,'d'*40)
+
+    def test_prospective_parent_keeps_existing_job_and_has_no_false_qualification_on_reuse(self):
+        import postmerge as C
+        import yaml
+        old=yaml.safe_load((C.ROOT/'.github/workflows/parent-qualification.yml').read_text())
+        new=yaml.safe_load((C.ROOT/C.TEMPLATE).read_text())
+        self.assertEqual(set(new['jobs']),{'qualify-parent'})
+        job=new['jobs']['qualify-parent'];self.assertEqual(job['name'],old['jobs']['qualify-parent']['name'])
+        self.assertEqual(job['permissions'],{'contents':'read','actions':'read','pull-requests':'read','checks':'read'})
+        names=[row['name'] for row in job['steps']]
+        lookup=names.index('Look up original protected PR proof before candidate setup')
+        self.assertLess(lookup,names.index('Check out the exact parent commit'))
+        for row in job['steps']:
+            if row['name'] in {'Set up Python','Set up Java','Install QML and portable C++ contract prerequisites',
+                'Prepare isolated host evidence validators','Run complete host qualification',
+                'Run independently selected parent host contracts','Create content-addressed qualification evidence',
+                'Upload immutable qualification evidence'}:
+                self.assertIn("steps.reuse.outputs.shared_reused != 'true'",row['if'])
+        steps={row['name']:row for row in job['steps']}
+        for name in ('Check only affected tool dependencies and behavior','Check independently selected S3 package dependencies and behavior'):
+            self.assertEqual(steps[name],next(row for row in old['jobs']['qualify-parent']['steps'] if row['name']==name))
+        validator=steps['Require an explicit reuse or actual-execution route']['run']
+        for reused in ('true','false','','unknown'):
+            for packages in ('true','false','','unknown'):
+                result=subprocess.run(['bash','-c',validator],env={'SHARED_REUSED':reused,'PACKAGE_WORK':packages},capture_output=True)
+                self.assertEqual(result.returncode==0,(reused,packages) in {('true','true'),('true','false'),('false','true')})
+        manifest=json.loads((C.ROOT/'.github/package-workflow-generations.json').read_text())['generations']
+        current={g['name']:g['workflows'] for g in manifest}
+        blob=subprocess.check_output(['git','hash-object','--stdin'],input=(C.ROOT/C.TEMPLATE).read_bytes()).decode().strip()
+        for before,after in (('android-owned-npm5-sync-ci-v1','postmerge-original-e-v1'),
+                              ('protected-shared-producer-v1','protected-producer-postmerge-original-e-v1')):
+            self.assertEqual(set(current[after]),set(current[before]))
+            self.assertEqual([p for p in current[after] if current[after][p]!=current[before][p]],['.github/workflows/parent-qualification.yml'])
+            self.assertEqual(current[after]['.github/workflows/parent-qualification.yml']['sha'],blob)
+
+    def test_disabled_cli_has_zero_api_and_writes_no_shared_pass_or_legacy_receipt(self):
+        import postmerge as C
+        import tempfile,os
+        self.assertFalse(C.SOURCE_READY)
+        with tempfile.TemporaryDirectory() as folder:
+            output=Path(folder)/'output';output.touch()
+            report=Path(folder)/'report.json'
+            with patch.dict(os.environ,{'GITHUB_OUTPUT':str(output)}),patch.object(C.A,'Adapter',side_effect=AssertionError('zero API')):
+                self.assertEqual(C.main(['--report',str(report)]),0)
+            self.assertEqual(output.read_text(),'shared_reused=false\npackage_work=true\n')
+            self.assertEqual(json.loads(report.read_text()),{'reused':False,'reason':'protected-consumer-not-qualified'})
+
+
 if __name__ == "__main__":
     unittest.main()

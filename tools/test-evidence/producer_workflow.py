@@ -106,18 +106,31 @@ def _native(environment):
     return int(match[1]), int(environment['GITHUB_RUN_ID'])
 
 
+def controller_sources(policy):
+    """Finite reviewed producer graph, independent of consumer process imports.
+
+    An original protected base must retain these exact reviewed bytes before a
+    consumer may reconstruct its controller identity. Historical Python is data,
+    never code loaded by that consumer.
+    """
+    return sorted({*shared.sources(), *policy.package_policy()._policy_inputs(), *attested._CONSUMER_FILES, TEMPLATE,
+        *('tools/test-evidence/' + name + '.py' for name in (
+            'attested', 'execution', 'inputs', 'runtime', 'sandbox', 'sandbox_host',
+            'sandbox_shared', 'producer', 'producer_api', 'producer_workflow')),
+        *('tools/repository-checks/' + name + '.py' for name in (
+            'host_selection', 'package_checks', 'check', 'tool_dependencies', 'npm_consumers'))})
+
+
 def _controller_identity(policy):
     # Bind the actually reached protected modules, not all application files.
     # Imports from the immutable candidate are never performed in this process.
-    names = {*shared.sources(), *policy.package_policy()._policy_inputs(), TEMPLATE,
-             'tools/test-evidence/producer.py', 'tools/test-evidence/producer_api.py',
-             'tools/test-evidence/producer_workflow.py'}
+    names = set(controller_sources(policy))
     for module in list(sys.modules.values()):
         path = getattr(module, '__file__', None)
         if path and Path(path).resolve().is_relative_to(ROOT):
             relative = Path(path).resolve().relative_to(ROOT).as_posix()
-            host.require(relative.endswith('.py'), 'protected controller imported unsupported repository code')
-            names.add(relative)
+            host.require(relative.endswith('.py') and relative in names,
+                         'protected controller imported an unreviewed repository module')
     identity = {}
     revision, _ = execution.checkout_identity(ROOT)
     for name in sorted(names):
@@ -242,7 +255,8 @@ def protected_receipt(batch, context, cancelled, installed):
     def admit(environment):
         now = datetime.now(timezone.utc)
         try:
-            attested.validate_environment(environment, utc_seconds(now), utc_seconds(now + timedelta(hours=24)), now, root=ROOT)
+            attested.validate_environment(environment, utc_seconds(now), utc_seconds(now + timedelta(hours=24)),
+                                         now, root=ROOT, isolated=True)
         except attested.AttestedReuseUnavailable as error:
             raise PreExecutionUnavailable('original full-host environment has no qualified admission') from error
     statuses, before, after = shared.check_batch(batch, context['registry'], cancelled, installed,
@@ -286,7 +300,7 @@ def publication(context, descriptor, receipt, run, now, descriptor_expires_at):
     qualified = utc_seconds(now)
     expires = utc_seconds(min(now + timedelta(seconds=context['policy'].producer.max_age_seconds),
                               protocol._time(descriptor_expires_at)))
-    attested.validate_environment(receipt['environment'], qualified, expires, now, root=ROOT)
+    attested.validate_environment(receipt['environment'], qualified, expires, now, root=ROOT, isolated=True)
     value = {'schema': 1, 'producer': 'overte-producer-aggregate-v1', 'descriptor_digest': descriptor['descriptor_digest'],
         'results': {'shared-host': {'status': 'passed', 'job_id': owner.job_id, 'attempt': 1, 'receipt': receipt}},
         'qualified_at': qualified, 'expires_at': expires}

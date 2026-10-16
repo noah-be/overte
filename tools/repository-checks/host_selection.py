@@ -108,8 +108,10 @@ PROGRAM_INPUTS = (
     'tools/test-evidence/sandbox_probe.py',
     'tools/test-evidence/sandbox_shared.py',
     'tools/test-evidence/producer_workflow.py',
+    'tools/test-evidence/postmerge.py',
     'tools/repository-checks/workflows/producers/protected-project-tests.yml',
     'tools/repository-checks/workflows/producers/repository-checks.yml',
+    'tools/repository-checks/workflows/producers/parent-qualification.yml',
     # Actual assertions consume these documents; the generic Markdown rule does
     # not exempt them. Their membership, modes and bytes remain immutable inputs.
     'android/vr/common/openxr/README.md',
@@ -264,17 +266,20 @@ def _protected_producer_transition(tree, paths, base_tree, trusted_tree, target)
         return False
     policy = package_policy()
     generations = {generation['name']: generation['workflows'] for generation in policy.workflow_generations()}
-    previous = generations.get('android-owned-npm5-sync-ci-v1', {})
-    producer = generations.get('protected-shared-producer-v1', {})
     required = set(policy.CONSUMER_WORKFLOW_PATHS)
-    if set(previous) != required or set(producer) != required \
-            or {path for path in required if previous[path] != producer[path]} != endpoints:
-        return False
-    # Trusted policy validates ordinary entries and complete tuple identities;
-    # individual known files, mixtures and candidate policy cannot qualify.
-    return all(snapshot.get(path) == entry
+    for old_name, new_name in (
+            ('android-owned-npm5-sync-ci-v1', 'protected-shared-producer-v1'),
+            ('postmerge-original-e-v1', 'protected-producer-postmerge-original-e-v1')):
+        previous, producer = generations.get(old_name, {}), generations.get(new_name, {})
+        if set(previous) != required or set(producer) != required \
+                or {path for path in required if previous[path] != producer[path]} != endpoints:
+            continue
+        # Two reviewed complete pairs only, never an arbitrary cross-product.
+        if all(snapshot.get(path) == entry
                for snapshot, workflows in ((trusted_tree, previous), (base_tree, previous), (tree, producer))
-               for path, entry in workflows.items())
+               for path, entry in workflows.items()):
+            return True
+    return False
 
 
 def select(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_root=ROOT,
