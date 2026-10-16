@@ -295,14 +295,9 @@ class HostSelectionTests(unittest.TestCase):
         import producer_workflow as producer
         packages = HOST.package_policy()
         generations={g['name']:g['workflows'] for g in packages.workflow_generations()}
-        previous,candidate_tree=copy_git_tree(self.tree),copy_git_tree(self.tree)
-        previous.update(deepcopy(generations['postmerge-original-e-v1']))
-        previous.pop('.github/workflows/pr-metadata-context.yml',None)
-        candidate_tree.update(deepcopy(generations['protected-producer-metadata-ci-v1']))
-        self.assertEqual(set(generations['protected-producer-metadata-ci-v1']),
+        previous,candidate_tree,paths=self.metadata_joint_transition('protected-producer-seven-target-ci-v1')
+        self.assertEqual(set(generations['protected-producer-seven-target-ci-v1']),
                          set(packages.METADATA_WORKFLOW_PATHS))
-        paths=sorted(path for path in previous.keys() | candidate_tree.keys()
-                     if previous.get(path)!=candidate_tree.get(path))
         plan = {'candidate': 'a'*40, 'base': 'd'*40, 'plan': 'c'*64, 'host_mode': 'full',
                 'paths': paths, 'regular': True, 'unknown': False}
         repository = {'full_name': 'noah-l-frank/overte', 'id': 1319052603}
@@ -372,6 +367,8 @@ class HostSelectionTests(unittest.TestCase):
                  patch.object(HOST.execution, 'checkout_identity', side_effect=lambda root:
                      ('a'*40, 'b'*40) if Path(root) == candidate else (refs['default'], 'f'*40)), \
                  patch.object(producer.sandbox, 'contract', return_value={'digest': 'sha256:'+'5'*64}), \
+                 patch.object(producer, 'protected_source_context', return_value={
+                     'controller_digest': 'sha256:'+'9'*64, 'fixture': 'independently authenticated source only'}), \
                  patch.object(producer, '_controller_identity', return_value='sha256:'+'9'*64):
                 prepared = producer.prepare(candidate, event, environment, adapter)
                 self.assertEqual(prepared['selected']['reason'], 'reviewed-protected-producer-transition')
@@ -751,10 +748,14 @@ class HostSelectionTests(unittest.TestCase):
         self.assertTrue(selected['full_host'])
 
     def test_exact_ci_admissions_do_not_waive_neighboring_tests_or_runtime_readers(self):
-        self.assertEqual(len(HOST.CI_ROLLOUT_PATHS),55)
+        self.assertEqual(len(HOST.CI_ROLLOUT_PATHS),57)
         self.assertIn('tools/test-evidence/affected-test.py',HOST.CI_ROLLOUT_PATHS)
         self.assertIn('.github/workflows/pr-metadata-context.yml',HOST.CI_ROLLOUT_PATHS)
         self.assertIn('.github/workflows/documentation-push-owner.yml',HOST.CI_ROLLOUT_PATHS)
+        for path in ('.github/workflows/documentation-checks.yml','.github/workflows/workflow-security.yml'):
+            self.assertIn(path,HOST.CI_ROLLOUT_PATHS)
+            self.assertTrue(HOST.ci_owned(path))
+            self.assertFalse(HOST.ci_owned(path.replace('.yml','-extra.yml')))
         self.assertIn('tools/test-evidence/source_admission.py',HOST.CI_ROLLOUT_PATHS)
         self.assertIn('tools/test-evidence/source-admission-test.py',HOST.CI_ROLLOUT_PATHS)
         self.assertFalse(HOST.ci_owned('tools/test-evidence/source_admission_other.py'))

@@ -41,8 +41,10 @@ VARIANTS = ["complete-reviewed-launcher", "Qt6Core/Gui/Qml/Concurrent/WebChannel
 # membership, local imports and historical child differences, remain anchored.
 # This proves only that the own host run is unaffected; it is not a passing
 # test receipt, shared-owner handoff or application-build selection authority.
-REVIEWED_CI_HOST_BOUNDARY = "c949ee97705a6b0fcb66a1b809b23cabe84dc738ab68df38886dfe6907908234"
+REVIEWED_CI_HOST_BOUNDARY = "14052515fad3917fd66a9fda666acbd82be124c209687b24d92af3694c2ae283"
 CI_HOST_INDEPENDENT_PATHS = frozenset({
+    '.github/workflows/documentation-checks.yml',
+    '.github/workflows/workflow-security.yml',
     '.github/workflows/documentation-push-owner.yml',
     'tools/test-evidence/source_admission.py',
     'tools/test-evidence/source-admission-test.py',

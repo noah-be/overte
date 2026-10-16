@@ -190,6 +190,27 @@ class ImmutableInputTests(unittest.TestCase):
         target.symlink_to('unreviewed-target')
         self.assertTrue(self.plan(self.commit('Reject staged workflow alias'))['requires_application_build'])
 
+    def test_generic_ci_workflows_require_exact_ordinary_files(self):
+        for relative in ('.github/workflows/documentation-checks.yml',
+                         '.github/workflows/workflow-security.yml'):
+            with self.subTest(path=relative):
+                self.git('checkout','-q','--detach',self.base)
+                self.write(relative,'name: Fixed generic CI fixture\n')
+                self.assert_independent(self.commit('Update reviewed generic CI workflow'))
+                for mode in ('100755','120000'):
+                    self.git('checkout','-q','--detach',self.base)
+                    self.write(relative,'name: Fixed generic CI fixture\n')
+                    path=self.root/relative
+                    if mode=='120000':
+                        path.unlink();path.symlink_to('unreviewed-target')
+                    else:path.chmod(0o755)
+                    self.assertTrue(self.plan(self.commit('Reject nonordinary generic CI workflow'))[
+                        'requires_application_build'])
+                self.git('checkout','-q','--detach',self.base)
+                self.write(relative.replace('.yml','-extra.yml'),'name: Unreviewed neighbor\n')
+                self.assertTrue(self.plan(self.commit('Reject neighboring generic workflow'))[
+                    'requires_application_build'])
+
     def test_android_handoff_ci_paths_require_ordinary_exact_files(self):
         for relative in REVIEWED_ANDROID_CI_PATHS:
             for mode in ("100755", "120000"):

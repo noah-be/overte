@@ -274,6 +274,8 @@ class ShippingPolicyTests(unittest.TestCase):
             'tools/repository-checks/workflows/producers/legacy/parent-qualification-postmerge-v1.yml',
             'tools/repository-checks/workflows/producers/legacy/protected-project-tests-ci37-v1.yml',
             '.github/workflows/documentation-push-owner.yml',
+            '.github/workflows/documentation-checks.yml',
+            '.github/workflows/workflow-security.yml',
             'tools/test-evidence/source_admission.py',
             'tools/test-evidence/source-admission-test.py',
             'tools/repository-checks/workflows/producers/legacy/parent-qualification-metadata-v1.yml',
@@ -570,6 +572,7 @@ class DependencyPolicyRoutingTests(unittest.TestCase):
         ios=self.module('metadata_ios_inputs','tools/ios-build-qualification/inputs.py')
         host=self.module('metadata_ios_host','tools/ios-build-qualification/host.py')
         paths={'.github/dependency-security.md', '.github/workflows/pr-metadata-context.yml',
+            '.github/workflows/documentation-checks.yml', '.github/workflows/workflow-security.yml',
             'tools/repository-checks/metadata_context.py',
             'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml',
             'tools/repository-checks/workflows/metadata-edits/codeql-metadata.yml',
@@ -627,9 +630,9 @@ class DependencyPolicyRoutingTests(unittest.TestCase):
         # immutable reader audit; a shallow candidate need not fetch its commit.
         self.assertEqual(ios.REVIEWED_REVISION,'2fc894a0605103843b36653f250f854714a963ee')
         self.assertEqual(ios.REVIEWED_BOUNDARY,
-            'sha256:48d5394647900717f6d69de0c0059b935e6e2c6a2efc085c76da04c568d78d90')
+            'sha256:439c4efe0b3640c6da33d75854296063b60f881f0cfeb0c4a5d77fca728a786d')
         self.assertEqual(host.REVIEWED_CI_HOST_BOUNDARY,
-            'c949ee97705a6b0fcb66a1b809b23cabe84dc738ab68df38886dfe6907908234')
+            '14052515fad3917fd66a9fda666acbd82be124c209687b24d92af3694c2ae283')
 
     def test_new_policy_uses_existing_native_browser_and_package_host_routes(self):
         native=self.module('affected_native_route','tools/native-tests/check.py')

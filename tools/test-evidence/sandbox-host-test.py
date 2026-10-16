@@ -1472,7 +1472,7 @@ class SharedHostSourceTests(unittest.TestCase):
         projection.mkdir()
         with patch.object(SHARED, "ROOT", self.root):
             self.assertEqual(SHARED.verify_source(self.revision), self.names)
-            expected = SHARED.project_policy(projection, self.names)
+            expected = SHARED.project_policy(projection, self.names, trusted_source=self.revision)
         self.assertNotIn("json.py", expected)
         for required in (*runtime_files(), "tools/test-evidence/sandbox_shared.py", "tests/requirements-host.txt"):
             self.assertIn(required, expected)
@@ -1582,8 +1582,11 @@ class ProtectedSelectedProducerTests(unittest.TestCase):
             'GITHUB_HEAD_REF':'fix/main/example','GITHUB_REF':'refs/pull/17/merge',
             'GITHUB_WORKFLOW_REF':'noah-l-frank/overte/.github/workflows/repository-checks.yml@refs/pull/17/merge'}
         self.assertEqual(self.producer._native(environment),(17,123))
+        for target in self.producer.source_admission.TARGET_PROFILES:
+            with self.subTest(target=target):
+                self.assertEqual(self.producer._native({**environment,'GITHUB_BASE_REF':target}),(17,123))
         for key,value in (('GITHUB_REPOSITORY','overte-org/overte'),('GITHUB_REPOSITORY_ID','1'),
-                ('GITHUB_BASE_REF','apple-ios'),('GITHUB_EVENT_NAME','workflow_dispatch'),('GITHUB_RUN_ATTEMPT','2'),
+                ('GITHUB_BASE_REF','unknown-target'),('GITHUB_EVENT_NAME','workflow_dispatch'),('GITHUB_RUN_ATTEMPT','2'),
                 ('GITHUB_WORKFLOW_REF','other/workflow'),('GITHUB_WORKFLOW_SHA','b'*40)):
             with self.subTest(key=key),self.assertRaises(H.Unavailable):self.producer._native({**environment,key:value})
 

@@ -59,6 +59,9 @@ CI_POLICY = frozenset({
 # import/read these controls or unit tests. Do not extend this to tools/** or
 # tests/**: those roots also contain real product readers and import candidates.
 CI_ROLLOUT_PATHS = frozenset({
+    '.github/workflows/documentation-checks.yml',
+    '.github/workflows/workflow-security.yml',
+
     '.github/workflows/documentation-push-owner.yml',
     'tools/test-evidence/source_admission.py',
     'tools/test-evidence/source-admission-test.py',

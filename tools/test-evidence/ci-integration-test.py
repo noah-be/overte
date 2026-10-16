@@ -150,10 +150,13 @@ class SelectionIntegrationTests(unittest.TestCase):
         binding={'merge_sha':'a'*40,'base_ref':'main','head_ref':'fix/main/documentation'}
         adapter=SimpleNamespace(current=Mock(return_value=(binding,{'default':'b'*40,'default_ref':'main'})))
         with (patch.object(P,'_native',return_value=(17,19)),patch.object(P,'_event_binding'),
+              patch.object(P,'protected_source_context',return_value={'fixture':'already authenticated native source'}) as source,
               patch.object(P.execution,'checkout_identity',return_value=('b'*40,'c'*40)),
               patch.object(P,'_host_policy',return_value=policy),patch.object(P.inputs,'load_registry',return_value=self.registry),
               self.assertRaises(P.PreExecutionUnavailable)):
-            P.prepare(Path('/unexecuted'),event,{'GITHUB_SHA':'a'*40,'GITHUB_HEAD_REF':'fix/main/documentation'},adapter)
+            P.prepare(Path('/unexecuted'),event,{'GITHUB_SHA':'a'*40,'GITHUB_HEAD_REF':'fix/main/documentation',
+                'GITHUB_BASE_REF':'main'},adapter)
+        source.assert_called_once()
         policy.candidate_selection.assert_not_called()
 
 
@@ -822,12 +825,13 @@ class ProtectedSetupTemplateTests(unittest.TestCase):
         self.rows=yaml.safe_load(path.read_bytes())['jobs']['project-tests']['steps']
         self.steps={row['name']:row for row in self.rows}
 
-    def plan(self,protected,full,executed,*,success=True):
+    def plan(self,protected,full,executed,*,success=True,admitted='true'):
         import re
         values={'needs.route.outputs.protected_full':protected,'steps.host.outputs.full_host':full,
-                'steps.protected.outputs.protected_executed':executed}
+                'steps.protected.outputs.protected_executed':executed,
+                'steps.protected-source.outputs.admitted':admitted}
         def atom(value):
-            match=re.fullmatch(r"([a-z_.]+) (==|!=) '(true|false)'",value)
+            match=re.fullmatch(r"([a-z_.-]+) (==|!=) '(true|false)'",value)
             self.assertIsNotNone(match,value)
             actual=values[match[1]]
             return (actual==match[3]) if match[2]=='==' else (actual!=match[3])
@@ -858,6 +862,10 @@ class ProtectedSetupTemplateTests(unittest.TestCase):
         self.assertEqual(self.plan('true','false','false'),[select,*quick,execute,*restore,*legacy])
         self.assertEqual(self.plan('true','true','false'),[select,*java,qt,full,execute,*legacy])
         self.assertEqual(self.plan('true','false','',success=False),[])
+        for admitted in ('false','','unknown'):
+            with self.subTest(admitted=admitted):
+                self.assertEqual(self.plan('true','false','',admitted=admitted),[select,*java,*legacy])
+                self.assertEqual(self.plan('true','true','',admitted=admitted),[select,*java,qt,*legacy])
         for name in (*restore,*legacy):
             self.assertNotIn('always()',self.steps[name]['if'])
             self.assertNotIn('continue-on-error',self.steps[name])

@@ -306,6 +306,7 @@ class ProtectedProducerOrderingTests(unittest.TestCase):
         environment = {'SUDO_UID': '1001', 'GITHUB_SHA': 'a'*40, 'ImageOS': 'ubuntu24',
                        'ImageVersion': 'fixture', 'RUNNER_ENVIRONMENT': 'github-hosted'}
         context = {'binding': {'merge_sha': 'a'*40}, 'run_id': 17, 'registry': {'suites': {}},
+                   'refs': {'default': 'd'*40},
                    'profile': producer.FULL_PROFILE, 'profile_binding': None,
                    'selected': {'suites': [], 'full_host': True, 'include_platform': True}}
         snapshot = {'digest': 'snapshot-fixture', 'git_context': {'fixture': True}}
@@ -342,7 +343,8 @@ class ProtectedProducerOrderingTests(unittest.TestCase):
               mock.patch.object(producer,'current_run',side_effect=lambda *_:events.append('native-job')),
               mock.patch.object(producer,'_descriptor',side_effect=lambda *_:events.append('descriptor')),
               mock.patch.object(producer.shared,'sources',return_value=[]),
-              mock.patch.object(producer.shared,'project_policy',return_value={}),
+              mock.patch.object(producer.shared,'project_policy',side_effect=lambda *_a,**kw:
+                  self.assertEqual(kw, {'trusted_source': context['refs']['default']}) or {}),
               mock.patch.object(producer.sandbox,'_write_source'),
               mock.patch.object(producer.sandbox,'_files',return_value={}),
               mock.patch.object(producer.shared,'Batch', side_effect=lambda *args:batches.append(args)),

@@ -1545,7 +1545,8 @@ class PackageChecksTests(unittest.TestCase):
 
     def test_protected_route_accepts_only_actual_complete_flag_bearing_generations(self):
         names={'protected-shared-producer-v1','protected-producer-postmerge-original-e-v1',
-               'protected-producer-ci37-v1','protected-producer-metadata-ci-v1'}
+               'protected-producer-ci37-v1','protected-producer-metadata-ci-v1',
+               'protected-producer-seven-target-ci-v1'}
         self.assertEqual(PACKAGES._PROTECTED_ROUTE_GENERATIONS,names)
         for name in (*sorted(names),'postmerge-original-e-v1','npm-consumers-v1'):
             root,_,_=self.protected_workflow_fixture(name)
