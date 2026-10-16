@@ -164,6 +164,34 @@ def _policy(policy, registry, binding, controller, adapter, root, selected):
     return plan, result
 
 
+def _affected_receipt_selection(profile, registry, target):
+    """Scope receipts only AFTER protected selection_profile rederives the plan.
+
+    This structural check supplies no selection authority. That entrypoint has
+    already checked actual registry bytes, the immutable protected dependency
+    graph, complete B/M/D lookup and the independent legacy preparation gate.
+    """
+    selected=profile['selection']
+    if selected.get('reason')!='protected-affected-dependencies':
+        return False
+    A.require(target=='main' and profile['profile']==producer.FULL_PROFILE
+        and selected['full_host'] is True and selected['include_platform'] is False
+        and selected['suites']==selected['affected']['required']
+        and bool(selected['suites']) and set(selected['suites'])<set(registry['suites']),
+        'affected receipt does not have an independently selected main full-runtime subset')
+    return True
+
+
+def _require_full_reuse_partition(reuse, registry, selected, affected):
+    if affected:
+        A.require(reuse['reused']==selected['suites']
+            and set(reuse['required'])==set(registry['suites'])-set(selected['suites']),
+            'selected affected owner requires actual verification')
+    else:
+        A.require(not reuse['required'] and set(reuse['reused'])==set(registry['suites']),
+            'complete current shared input closure requires actual verification')
+
+
 def verify_main(event, environment, adapter, *, root=ROOT, clock=lambda: datetime.now(timezone.utc)):
     """Verify one independently selected original owner, never rebound PASS."""
     A.require(_source_qualified(),
@@ -215,6 +243,7 @@ def verify_main(event, environment, adapter, *, root=ROOT, clock=lambda: datetim
     read_blob = lambda oid:adapter.api.immutable_blob(oid)
     current_profile = producer.selection_profile(policy, registry, current, previous, selection_context, root=root,target=target,read_blob=read_blob)
     selected = current_profile['selection']
+    affected=_affected_receipt_selection(current_profile,registry,target)
     if documentation:
         A.require(DOCUMENTATION_SUITES <= set(selected['suites']),
             'original shared owner does not contain every documentation command')
@@ -244,7 +273,7 @@ def verify_main(event, environment, adapter, *, root=ROOT, clock=lambda: datetim
     A.require(type(receipt) is dict and receipt.get('schema') == 3, 'original isolated execution receipt unavailable')
     original_git = producer.expected_git_context(adapter, snapshot.binding)
     execution.validate_receipt(receipt, registry, original_tree,
-        require_all=original_profile['profile'] != ci_profile.PROFILE, expected_git_context=original_git)
+        require_all=original_profile['profile'] != ci_profile.PROFILE and not affected, expected_git_context=original_git)
     A.require(receipt['requested_suites'] == selected['suites']
         and receipt['include_platform'] == selected['include_platform'],
         'original receipt differs from independently selected shared owners')
@@ -260,8 +289,7 @@ def verify_main(event, environment, adapter, *, root=ROOT, clock=lambda: datetim
         admission = attested.validate_environment(original_environment, aggregate.get('qualified_at'), aggregate.get('expires_at'),
                                                    clock(), root=root, isolated=True)
         reuse = inputs.plan_reuse(registry, original_tree, current, receipt['results'], original_environment, original_environment)
-        A.require(not reuse['required'] and set(reuse['reused']) == set(registry['suites']),
-                  'complete current shared input closure requires actual verification')
+        _require_full_reuse_partition(reuse,registry,selected,affected)
         reused_suites, runtime_admission = reuse['reused'], admission['policy']
     if documentation:
         A.require(DOCUMENTATION_SUITES <= set(reused_suites), 'documentation owner requires actual verification')
@@ -437,6 +465,7 @@ def verify_metadata(event, environment, adapter, *, root=ROOT, clock=lambda: dat
         root=root, read_blob=adapter.api.immutable_blob)
     selected_profile = owners['selection']
     selected = selected_profile['selection']
+    affected=_affected_receipt_selection(selected_profile,registry,binding['base_ref'])
     plan, api_policy = _policy(policy, registry, binding, controller, adapter, root, selected)
     snapshot = adapter.capture(native['number'], plan, api_policy, now=clock())
     A.require(snapshot.binding == binding and snapshot.references == refs
@@ -454,7 +483,7 @@ def verify_metadata(event, environment, adapter, *, root=ROOT, clock=lambda: dat
     A.require(type(receipt) is dict and receipt.get('schema') == 3, 'original protected receipt unavailable')
     original_git = producer.expected_git_context(adapter, binding)
     execution.validate_receipt(receipt, registry, current,
-        require_all=selected_profile['profile'] != ci_profile.PROFILE, expected_git_context=original_git)
+        require_all=selected_profile['profile'] != ci_profile.PROFILE and not affected, expected_git_context=original_git)
     A.require(receipt['requested_suites'] == selected['suites']
         and receipt['include_platform'] == selected['include_platform'], 'metadata owner inventory differs')
     environment_original = receipt['environment']
@@ -466,8 +495,7 @@ def verify_metadata(event, environment, adapter, *, root=ROOT, clock=lambda: dat
         admitted = attested.validate_environment(environment_original, aggregate.get('qualified_at'),
             aggregate.get('expires_at'), clock(), root=root, isolated=True)
         reused = inputs.plan_reuse(registry, current, current, receipt['results'], environment_original, environment_original)
-        A.require(not reused['required'] and set(reused['reused']) == set(registry['suites']),
-                  'metadata complete shared owner is not reusable')
+        _require_full_reuse_partition(reused,registry,selected,affected)
     outer_before = metadata_outer_jobs(adapter, observation.run.run_id, binding, current, local,
                                        owners['route']['security'], root=root)
     context = P.SharedContext(registry, current, environment_original, binding['merge_sha'], tree_sha, original_git)

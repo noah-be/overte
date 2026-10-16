@@ -2306,5 +2306,135 @@ class DocumentationPushOwnerTests(unittest.TestCase):
         self.assertFalse(self.lookup(clock=lambda:P._time(self.case.aggregate['expires_at']))['reused'])
 
 
+class AffectedPostmergeConsumerTests(unittest.TestCase):
+    """Actual protected pure plan + original native schema3 on bounded fake trees."""
+    @classmethod
+    def setUpClass(cls):
+        spec=importlib.util.spec_from_file_location('postmerge_affected_plan_fixtures',
+            Path(__file__).with_name('ci-integration-test.py'))
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        cls.planner_case=module.AffectedProtectedAdmissionTests
+        cls.planner_case.setUpClass();cls.addClassCleanup(cls.planner_case.doClassCleanups)
+
+    def setUp(self):
+        from types import SimpleNamespace
+        self.planner=self.planner_case('runTest');self.planner.setUp();self.addCleanup(self.planner.doCleanups)
+        self.real_selection=self.planner_case.profile.__globals__['P'].selection_profile
+        f=MainConsumerTests('runTest');f.generation_name='protected-producer-postmerge-original-e-v1'
+        f.setUp();self.addCleanup(f.doCleanups)
+        self.fixture=f;C=f.module;self.module=C;self.case=f.case;self.api=f.api;self.adapter=f.adapter
+        self.original_run=self.adapter.capture_integrated(500,self.case.plan,self.case.policy,now=NOW).observations[0].run
+        # Retain one complete known native generation on all three maps. No
+        # real historical commit, ambient checkout or candidate import is used.
+        enrolled={path:deepcopy(f.tree[path]) for path in self.case.generation}
+        enrolled[C.TEMPLATE]=deepcopy(enrolled['.github/workflows/parent-qualification.yml'])
+        for tree in (self.planner.old,self.planner.candidate,self.planner.base):tree.update(deepcopy(enrolled))
+        f.registry.clear();f.registry.update(deepcopy(self.planner.registry))
+        f.tree.clear();f.tree.update(deepcopy(self.planner.candidate))
+        f.previous.clear();f.previous.update(deepcopy(self.planner.old))
+        package=C.producer._host_policy.return_value.package_policy()
+        router=self.planner.router
+        self.policy=SimpleNamespace(package_policy=lambda:package,select=router.select,
+            _select_legacy=router._select_legacy,ci_owned=router.ci_owned)
+        C.producer._host_policy.return_value=self.policy
+        def select(policy,registry,candidate,base,trusted,**kwargs):
+            return self.real_selection(policy,registry,candidate,base,trusted,
+                root=self.planner.root,target=kwargs.get('target','main'),read_blob=kwargs.get('read_blob'))
+        C.producer.selection_profile.side_effect=select
+        self.profile=select(self.policy,f.registry,f.tree,f.previous,f.previous)
+        self.case.plan['owners']['shared-host'].update(suites=list(self.profile['suites']),include_platform=False)
+        f.receipt.update(requested_suites=list(self.profile['suites']),include_platform=False)
+        f.receipt['results']={name:{'status':'passed','fingerprint':P.inputs.suite_fingerprint(
+            f.registry,name,f.tree,f.receipt['environment'])} for name in f.receipt['requested_suites']}
+        self.publish(f.receipt)
+        item=patch.object(C,'integrated_controller',return_value=self.case.pp.controller_digest)
+        item.start();self.addCleanup(item.stop)
+
+    def publish(self,receipt):
+        self.fixture.receipt=FIXTURES.signed(receipt,'receipt_digest')
+        self.case.aggregate['results']['shared-host']['receipt']=self.fixture.receipt
+        run=replace(self.original_run,final_publisher=replace(self.original_run.final_publisher,
+            receipt_sha256=hashlib.sha256(P.canonical(self.fixture.receipt)).hexdigest()))
+        self.case.add_run(run);self.case.runs[100]['pull_requests']=[]
+
+    def lookup(self,clock=lambda:NOW):
+        return self.module.lookup(self.fixture.event,self.fixture.environment,self.adapter,clock=clock)
+
+    def test_real_protected_subset_reuses_exact_selected_original_native_schema3_results(self):
+        C=self.module
+        with patch.object(C.execution,'validate_receipt',wraps=C.execution.validate_receipt) as validate:
+            result=self.lookup()
+        self.assertTrue(result['reused'],result)
+        self.assertEqual(len(self.fixture.registry['suites']),60)
+        self.assertEqual(self.profile['selection']['reason'],'protected-affected-dependencies')
+        self.assertNotIn('device-control-plane-full',self.profile['suites'])
+        self.assertTrue(set(self.profile['suites'])<set(self.fixture.registry['suites']))
+        proof=result['proof'];self.assertEqual(proof['reused_suites'],self.profile['suites'])
+        self.assertEqual(proof['executed_suites'],[])
+        self.assertEqual(proof['original_commit'],self.case.binding['merge_sha'])
+        self.assertEqual(proof['original_proof']['receipt_sha256'],hashlib.sha256(P.canonical(self.fixture.receipt)).hexdigest())
+        self.assertTrue(any(call.kwargs.get('require_all') is False for call in validate.call_args_list))
+        self.assertGreaterEqual(C.producer.selection_profile.call_count,2)
+
+    def test_claimed_subset_or_graph_cannot_bypass_independent_selection(self):
+        C=self.module;claim=deepcopy(self.profile['selection'])
+        for change in ('names','label','platform','empty','graph'):
+            selected=deepcopy(claim)
+            if change=='names':selected['suites']=selected['suites'][1:]
+            elif change=='label':selected['affected']['required']=[]
+            elif change=='platform':selected['include_platform']=True
+            elif change=='empty':selected['suites']=[]
+            else:selected['affected']['dependency_digest']='sha256:'+'f'*64
+            with self.subTest(change=change),patch.object(self.policy,'select',return_value=selected), \
+                 patch.object(self.adapter,'capture_integrated',side_effect=AssertionError('forged plan reached proof')):
+                self.assertFalse(self.lookup()['reused'])
+
+    def test_selected_result_membership_status_and_fingerprint_are_enforced_even_with_new_native_hash(self):
+        receipt=deepcopy(self.fixture.receipt);selected=self.profile['suites'][0]
+        omitted=self.profile['selection']['affected']['omitted'][0]
+        for change in ('missing','extra','failed','fingerprint','requested'):
+            changed=deepcopy(receipt)
+            if change=='missing':del changed['results'][selected]
+            elif change=='extra':changed['results'][omitted]={'status':'passed','fingerprint':'sha256:'+'a'*64}
+            elif change=='failed':changed['results'][selected]['status']='failed'
+            elif change=='fingerprint':changed['results'][selected]['fingerprint']='sha256:'+'a'*64
+            else:
+                changed['requested_suites'].remove(selected);del changed['results'][selected]
+            self.publish(changed)
+            with self.subTest(change=change):self.assertFalse(self.lookup()['reused'])
+
+    def test_changed_source_controller_child_scope_and_original_publisher_still_decline(self):
+        C=self.module
+        with patch.object(C,'integrated_controller',side_effect=ValueError('changed protected source')):
+            self.assertFalse(self.lookup()['reused'])
+        child=deepcopy(self.profile);child['selection']['include_platform']=True
+        with patch.object(C.producer,'selection_profile',return_value=child):self.assertFalse(self.lookup()['reused'])
+        self.case.jobs[100][-1]['name']=self.case.policy.final_publisher_prefix+'f'*64
+        self.assertFalse(self.lookup()['reused'])
+
+    def test_original_and_current_independent_plans_and_expiry_must_still_match(self):
+        C=self.module;before=deepcopy(self.profile);after=deepcopy(before)
+        after['selection']['affected']['paths'].append('unreviewed-path')
+        with patch.object(C.producer,'selection_profile',side_effect=(before,after)):
+            self.assertFalse(self.lookup()['reused'])
+        self.assertFalse(self.lookup(clock=lambda:P._time(self.case.aggregate['expires_at']))['reused'])
+
+    def test_full_registry_receipt_keeps_original_full60_requirement(self):
+        C=self.module;full={'profile':C.producer.FULL_PROFILE,'binding':None,'suites':list(self.fixture.registry['suites']),
+            'selection':{'suites':list(self.fixture.registry['suites']),'full_host':True,
+                         'include_platform':False,'reason':'fixture-independent-full-owner'}}
+        self.case.plan['owners']['shared-host']['suites']=full['suites']
+        receipt=deepcopy(self.fixture.receipt);receipt['requested_suites']=full['suites']
+        receipt['results']={name:{'status':'passed','fingerprint':P.inputs.suite_fingerprint(
+            self.fixture.registry,name,self.fixture.tree,receipt['environment'])} for name in full['suites']}
+        self.publish(receipt)
+        with patch.object(C.producer,'selection_profile',return_value=full), \
+             patch.object(C.execution,'validate_receipt',wraps=C.execution.validate_receipt) as validate:
+            result=self.lookup()
+        self.assertTrue(result['reused'],result)
+        self.assertEqual(result['proof']['reused_suites'],full['suites'])
+        self.assertTrue(any(call.kwargs.get('require_all') is True for call in validate.call_args_list))
+
+
 if __name__ == "__main__":
     unittest.main()
