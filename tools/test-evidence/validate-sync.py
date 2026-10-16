@@ -292,14 +292,17 @@ def select_sync(args, *, api=None):
     return result
 
 
-def _ci_commands(selection, registry):
-    return {name: registry["suites"][name]["command"] for name in selection["suites"]}
+def _ci_commands(selection, registry, *, suite_names=None):
+    names = selection["suites"] if suite_names is None else suite_names
+    if type(names) is not list or names != [name for name in selection["suites"] if name in names]:
+        raise ValidationError("remaining CI commands must be an exact ordered subset of the trusted selection")
+    return {name: registry["suites"][name]["command"] for name in names}
 
 
-def _execute_ci(candidate, initial, selection, registry, junit, receipt_path):
+def _execute_ci(candidate, initial, selection, registry, junit, receipt_path, *, suite_names=None):
     """Observe every selected invocation without creating reusable fingerprints."""
     controller = execution._runner()
-    commands = _ci_commands(selection, registry)
+    commands = _ci_commands(selection, registry, suite_names=suite_names)
     suites = [controller.Suite(name, registry["suites"][name]["layer"], tuple(
         sys.executable if index == 0 and value == "python" else value
         for index, value in enumerate(command))) for name, command in commands.items()]
@@ -338,13 +341,13 @@ def _execute_ci(candidate, initial, selection, registry, junit, receipt_path):
     return status, receipt
 
 
-def _verify_ci_execution(observed, selection, registry, initial):
+def _verify_ci_execution(observed, selection, registry, initial, *, suite_names=None):
     fields = {"schema", "producer", "reusable", "candidate_commit", "candidate_tree", "selection", "registry",
               "include_platform", "requested_suites", "results", "conclusion", "started_at", "completed_at", "receipt_digest"}
     if not isinstance(observed, dict) or set(observed) != fields:
         raise ValidationError("affected synchronization execution receipt format is invalid")
     unsigned = dict(observed); claimed = unsigned.pop("receipt_digest")
-    commands = _ci_commands(selection, registry)
+    commands = _ci_commands(selection, registry, suite_names=suite_names)
     if type(observed["schema"]) is not int or observed["schema"] != 1 \
             or observed["producer"] != CI_EXECUTION_PRODUCER or observed["reusable"] is not False \
             or observed["include_platform"] is not False or observed["conclusion"] != "success" \
@@ -364,12 +367,59 @@ def _verify_ci_execution(observed, selection, registry, initial):
         raise ValidationError("affected synchronization execution time order is invalid")
 
 
+def _native_ci_reuse(args, gate, api, config, request, registry, local_tree, selection):
+    """Intersect original native proof with independently selected current work.
+
+    No legacy JSON class or preview chooses a suite. The actual native adapter
+    must validate original M/E first; current immutable inputs then determine
+    which of the already selected commands still need execution.
+    """
+    selected = selection["suites"]
+    if args.mode != "reuse" or not callable(getattr(gate, 'native_parent_evidence', None)):
+        return None, [], list(selected)
+    try:
+        evidence = gate.native_parent_evidence(api, config, request)
+    except (gate.EvidenceError, gate.GateError):
+        return None, [], list(selected)
+    if not isinstance(evidence, getattr(gate, 'NativeParentEvidence', ())):
+        return None, [], list(selected)
+    if evidence.get('candidate_inputs') != local_tree:
+        raise ValidationError('local immutable CI candidate differs from verified native API inputs')
+    try:
+        plan = inputs.plan_reuse(registry, evidence['parent_inputs'], local_tree,
+            evidence['results']['suites'], evidence['environment'], evidence['environment'])
+    except (inputs.InputError, KeyError, TypeError):
+        # No candidate command has started. Existing real selected execution
+        # remains required when proof or its input identity is unavailable.
+        return None, [], list(selected)
+    reused = [name for name in selected if name in plan['reused']]
+    if not reused:
+        return None, [], list(selected)
+    return evidence, reused, [name for name in selected if name not in reused]
+
+
+def _recheck_native_ci(gate, api, config, request, evidence, registry, local_tree, reused):
+    try:
+        final = gate.native_parent_evidence(api, config, request)
+    except (gate.EvidenceError, gate.GateError) as error:
+        raise ValidationError('original native CI proof became unavailable after selected validation') from error
+    if not isinstance(final, getattr(gate, 'NativeParentEvidence', ())) or final != evidence:
+        raise ValidationError('original native CI proof changed after selected validation')
+    try:
+        plan = inputs.plan_reuse(registry, final['parent_inputs'], local_tree,
+            final['results']['suites'], final['environment'], final['environment'])
+    except (inputs.InputError, KeyError, TypeError) as error:
+        raise ValidationError('original native CI input identities became unverifiable') from error
+    if set(reused) - set(plan['reused']) or gate.parse_time(final['expires_at'], 'expires_at') <= datetime.now(timezone.utc):
+        raise ValidationError('original native CI proof no longer covers selected current inputs or expired')
+
+
 def validate_sync(args, *, api=None):
     """Validate a synchronization and return an independently checked receipt.
 
     The API adapter performs only trusted reads. The gate's source preview does
-    not authorize skipping: actual installed runtime and the local immutable
-    candidate tree determine the final shared-suite selection.
+    not authorize skipping: authenticated original native M/E or actual current
+    execution and immutable candidate inputs determine the final suite coverage.
     """
     gate = _gate()
     config = gate.load_config()
@@ -384,6 +434,7 @@ def validate_sync(args, *, api=None):
     started = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     evidence, observed, reused, executed, projects = None, None, [], [], []
     native_parent = False
+    ci_required = None
     external_packages = []
     selection = None
     if getattr(args, "expected_selection", ""):
@@ -402,13 +453,24 @@ def validate_sync(args, *, api=None):
         # preparation output never selects the commands or certifies execution.
         if _ci_selection(args, request, candidate, initial, registry, api) != selection:
             raise ValidationError("affected synchronization selection changed before execution")
-        execution_path = Path(args.receipt).with_name(Path(args.receipt).name + ".ci-execution.json")
-        status, returned = _execute_ci(candidate, initial, selection, registry, args.junit, execution_path)
-        observed = _read_execution(execution_path, returned)
-        if status != 0:
-            raise ValidationError("an affected synchronization suite failed")
-        _verify_ci_execution(observed, selection, registry, initial)
-        executed = list(selection["suites"])
+        evidence, reused, ci_required = _native_ci_reuse(args, gate, api, config, request, registry, local_tree, selection)
+        if ci_required:
+            execution_path = Path(args.receipt).with_name(Path(args.receipt).name + ".ci-execution.json")
+            status, returned = _execute_ci(candidate, initial, selection, registry, args.junit, execution_path,
+                suite_names=ci_required)
+            observed = _read_execution(execution_path, returned)
+            if status != 0:
+                raise ValidationError("an affected synchronization suite failed")
+            _verify_ci_execution(observed, selection, registry, initial, suite_names=ci_required)
+            executed = list(ci_required)
+        else:
+            # Differential validation actually ran above. There is no unused
+            # consumer environment or execution receipt to manufacture.
+            _bounded_junit(args.junit, [])
+        if reused:
+            _recheck_native_ci(gate, api, config, request, evidence, registry, local_tree, reused)
+        if set(reused) & set(executed) or set(reused) | set(executed) != set(selection["suites"]):
+            raise ValidationError('selected CI proof and execution do not provide exact disjoint coverage')
         external_packages = list(selection["external_package_set"])
         mode = "affected-ci"
     elif bounded:
@@ -523,7 +585,10 @@ def validate_sync(args, *, api=None):
         if final_selection != selection:
             raise ValidationError("synchronization selection changed during final validation")
         if affected:
-            _verify_ci_execution(observed, final_selection, registry, initial)
+            if observed is not None:
+                _verify_ci_execution(observed, final_selection, registry, initial, suite_names=ci_required)
+            elif ci_required or set(reused) != set(final_selection['suites']):
+                raise ValidationError('selected CI work has neither original native proof nor actual execution')
     final_pending = _sync_platform_owner(args, request, candidate, api) if not affected and not bounded else {}
     if final_pending != pending:
         raise ValidationError("Android sync ownership or source PR labels changed during execution")
@@ -549,6 +614,8 @@ def validate_sync(args, *, api=None):
         result["external_package_set"] = external_packages
     if selection is not None:
         result["ci_selection"] = selection
+        if affected:
+            result['not_selected_suites'] = [name for name in registry['suites'] if name not in selection['suites']]
     result["receipt_digest"] = execution.digest(result)
     execution._write_receipt(args.receipt, result)
     return result

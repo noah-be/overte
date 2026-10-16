@@ -427,9 +427,9 @@ class IsolatedConsumerTests(unittest.TestCase):
             self.assertEqual(os.environ["GH_TOKEN"], "original")
             self.assertEqual(os.environ["GITHUB_OUTPUT"], "command-file")
 
-    def ci_fixture(self, *, npm=False):
+    def ci_fixture(self, *, npm=False, quick_beta=False):
         """Review a tiny immutable reader graph; run only real fixture commands."""
-        self.registry["suites"]["beta"]["layer"] = "host"
+        self.registry["suites"]["beta"]["layer"] = "quick" if quick_beta else "host"
         path = self.candidate / ".github/test-suites.json"
         path.parent.mkdir(); path.write_text(json.dumps(self.registry))
         path = self.candidate / "tools/branch-cleanup/cleanup.py"
@@ -790,6 +790,149 @@ class NativeParentConsumerTests(unittest.TestCase):
         self.assertEqual(result['mode'],'fallback')
         self.assertEqual(set(f.executed()),{'alpha','beta'})
         f.gate.native_parent_evidence.assert_not_called()
+
+
+class NativeSelectedParentConsumerTests(unittest.TestCase):
+    """Real selected fixture commands plus independently supplied typed proof."""
+    def setUp(self):
+        self.fixture = IsolatedConsumerTests()
+        self.fixture.setUp()
+        self.addCleanup(self.fixture.doCleanups)
+        self.native_type = VALIDATION._gate().NativeParentEvidence
+        self.fixture.gate.NativeParentEvidence = self.native_type
+        self.fixture.gate.native_parent_evidence = Mock(side_effect=lambda *args: deepcopy(self.fixture.evidence))
+
+    def prepare(self, *, two_selected=False, npm=False, parent_tree=None):
+        f = self.fixture
+        if two_selected:
+            (f.candidate / 'tests/gamma.py').write_text('raise AssertionError("unselected must never run")\n')
+            (f.candidate / 'libraries/gamma.cpp').write_text('unselected fixture input\n')
+            f.registry['suites']['gamma'] = deepcopy(f.registry['suites']['beta'])
+            f.registry['suites']['gamma'].update(command=['python','tests/gamma.py'], layer='host',
+                closure={'kind':'patterns','inputs':['tests/gamma.py','libraries/gamma.cpp'],
+                    'required':['tests/gamma.py','libraries/gamma.cpp']})
+        # Declare both suites before constructing reviewed immutable B/M;
+        # changing command definitions after review correctly selects fallback.
+        f.ci_fixture(npm=npm, quick_beta=two_selected)
+        f.args.mode = 'reuse'
+        selected = f.ci_prepare()
+        self.bind_native(parent_tree)
+        return selected
+
+    def bind_native(self, parent_tree=None):
+        f = self.fixture
+        f.evidence = self.native_type(f.make_evidence(parent_tree) | {
+            'kind':'original-native-parent-v1','original_commit':'e'*40,
+            'original_git_context':{'fixture':'original immutable M'},
+            'original_proof':{'verified':True,'run_id':100,'attempt':1,'receipt_sha256':'1'*64}})
+
+    def test_exact_selected_native_reuse_does_no_unused_execution_or_consumer_capture(self):
+        f = self.fixture; selected = self.prepare(npm=True)
+        with patch.object(VALIDATION,'_differential') as differential:
+            result = f.validate(runtime_failure=AssertionError('no consumer E'),
+                ci_execute_override=lambda *a,**k: (_ for _ in ()).throw(AssertionError('no remaining command')))
+        differential.assert_called_once()
+        self.assertEqual(selected['suites'], ['alpha'])
+        self.assertEqual(result['reused_suites'], ['alpha'])
+        self.assertEqual(result['executed_suites'], [])
+        self.assertEqual(result['not_selected_suites'], ['beta'])
+        self.assertEqual(result['external_package_set'], ['browser-client'])
+        self.assertIsNone(result['execution'])
+        self.assertFalse(Path(str(f.args.receipt)+'.ci-execution.json').exists())
+        self.assertEqual(result['parent_evidence']['original_commit'], 'e'*40)
+        self.assertFalse(result['parent_evidence']['qualification'])
+        self.assertFalse(result['parent_evidence']['reusable'])
+        self.assertEqual(set(result['parent_evidence']['reused_results']), {'alpha'})
+        self.assertEqual(f.executed(), [])
+        f.ci_packages.run.assert_not_called()
+        self.assertEqual(f.gate.native_parent_evidence.call_count, 2)
+        import xml.etree.ElementTree as ET
+        self.assertEqual([x.attrib['name'] for x in ET.parse(f.args.junit).iter('testcase')], ['sync-differential'])
+
+    def test_historical_child_difference_executes_only_selected_required_intersection(self):
+        f = self.fixture; self.prepare(two_selected=True)
+        parent = deepcopy(f.tree); parent['libraries/alpha.cpp']['sha'] = 'c'*40
+        self.bind_native(parent)
+        result = f.validate(runtime_failure=AssertionError('no unused consumer E'))
+        self.assertEqual(result['reused_suites'], ['beta'])
+        self.assertEqual(result['executed_suites'], ['alpha'])
+        self.assertEqual(result['not_selected_suites'], ['gamma'])
+        self.assertEqual(f.executed(), ['alpha'])
+        self.assertEqual(result['execution']['requested_suites'], ['alpha'])
+        self.assertEqual(result['execution']['selection'], f.args.expected_selection)
+        self.assertFalse(result['execution']['reusable'])
+        self.assertEqual(set(result['parent_evidence']['reused_results']), {'beta'})
+
+    def test_missing_native_proof_executes_existing_selected_work_once(self):
+        f = self.fixture; self.prepare()
+        f.gate.native_parent_evidence.side_effect = EvidenceError('no original publisher')
+        result = f.validate(runtime_failure=AssertionError('CI fallback does not need reusable E'))
+        self.assertEqual(f.executed(), ['alpha'])
+        self.assertEqual(result['reused_suites'], [])
+        self.assertEqual(result['not_selected_suites'], ['beta'])
+        self.assertIsNone(result['parent_evidence'])
+        f.gate.native_parent_evidence.assert_called_once()
+
+    def test_untyped_or_unselected_only_proof_cannot_skip_selected_work(self):
+        f = self.fixture; self.prepare()
+        f.evidence = dict(f.evidence)
+        result = f.validate()
+        self.assertEqual(result['executed_suites'], ['alpha'])
+        self.assertEqual(result['reused_suites'], [])
+        self.assertIsNone(result['parent_evidence'])
+        f.log.unlink(); self.bind_native()
+        # beta is passed but not selected. It cannot compensate for alpha.
+        del f.evidence['results']['suites']['alpha']
+        result = f.validate()
+        self.assertEqual(f.executed(), ['alpha'])
+        self.assertEqual(result['reused_suites'], [])
+        self.assertIsNone(result['parent_evidence'])
+
+    def test_original_proof_or_expiry_change_after_execution_is_hard_failure(self):
+        f = self.fixture; self.prepare(two_selected=True)
+        parent = deepcopy(f.tree); parent['libraries/alpha.cpp']['sha'] = 'c'*40
+        self.bind_native(parent)
+        changed = deepcopy(f.evidence); changed['original_proof']['receipt_sha256'] = '0'*64
+        for final in (EvidenceError('publisher missing'), changed):
+            f.gate.native_parent_evidence.side_effect = [deepcopy(f.evidence), final]
+            with self.subTest(final=type(final).__name__), self.assertRaises(VALIDATION.ValidationError):
+                f.validate()
+            self.assertEqual(f.executed(), ['alpha'])
+            self.assertFalse(f.args.receipt.exists())
+            f.log.unlink()
+        f.gate.native_parent_evidence.side_effect = lambda *args: deepcopy(f.evidence)
+        f.evidence['expires_at'] = '2020-01-01T00:00:00Z'
+        with self.assertRaisesRegex(VALIDATION.ValidationError, 'expired'):
+            f.validate()
+        self.assertEqual(f.executed(), ['alpha'])
+        self.assertFalse(f.args.receipt.exists())
+
+    def test_source_or_expected_selection_mismatch_blocks_before_commands(self):
+        f = self.fixture; self.prepare()
+        f.evidence['candidate_inputs']['libraries/alpha.cpp']['sha'] = 'c'*40
+        with self.assertRaisesRegex(VALIDATION.ValidationError, 'verified native API inputs'): f.validate()
+        self.assertEqual(f.executed(), [])
+        self.bind_native(); f.args.expected_selection = 'sha256:'+'0'*64
+        with self.assertRaisesRegex(VALIDATION.ValidationError, 'prerequisite plan'): f.validate()
+        self.assertEqual(f.executed(), [])
+
+    def test_selected_failure_never_retries_or_borrows_unselected_pass(self):
+        f = self.fixture; self.prepare(two_selected=True)
+        parent = deepcopy(f.tree); parent['libraries/alpha.cpp']['sha'] = 'c'*40
+        self.bind_native(parent)
+        with self.assertRaises(VALIDATION.ValidationError):
+            f.validate(extra_environment={'FIXTURE_FAIL_ALPHA':'1'})
+        self.assertEqual(f.executed(), ['alpha'])
+        self.assertFalse(f.args.receipt.exists())
+        f.gate.native_parent_evidence.assert_called_once()
+
+    def test_internal_remaining_subset_cannot_expand_reorder_or_repeat_selection(self):
+        f = self.fixture; selected = self.prepare(two_selected=True)
+        for names in (['gamma'], ['beta','alpha'], ['alpha','alpha'], 'alpha'):
+            with self.subTest(names=names), self.assertRaises(VALIDATION.ValidationError):
+                VALIDATION._ci_commands(selected, f.registry, suite_names=names)
+        self.assertEqual(VALIDATION._ci_commands(selected, f.registry),
+            {name:f.registry['suites'][name]['command'] for name in ('alpha','beta')})
 
 
 if __name__ == "__main__":
