@@ -184,6 +184,8 @@ def selection_profile(policy, registry, candidate_tree, base_tree, trusted_tree,
         for path in paths for entry in (base_tree.get(path),candidate_tree.get(path)))
     selected = policy.select(candidate_tree, paths, regular, base_tree=base_tree, trusted_tree=trusted_tree,
                              candidate_root=root, trusted_root=root, target=target)
+    if selected.get('reason') == 'protected-affected-dependencies':
+        raise PreExecutionUnavailable('affected subset requires existing nonreusable execution')
     names = execution.select_common(registry, selected['suites'])
     profile = FULL_PROFILE
     binding = None

@@ -51,6 +51,7 @@ _RETARGET_RESULTS_WORKFLOW = "8333afd10d6f32841def51970f59f038b3881d11"
 # reviewed at github/codeql a7057b836bf29767461026718b14d20790b9085f.
 _PINNED_RESULTS_WORKFLOW = "6d55d0fe4e9edc86204c66e1fa3967681793a2cd"
 _PYTHON_POLICY_JSONS = frozenset({
+    ".github/test-suite-dependencies.json",
     ".github/android-orchestration.json", ".github/test-suites.json",
 })
 # Ordinary metadata leaves outside both pinned extractors. This does not admit
@@ -102,7 +103,7 @@ def result_workflow_rollback(base_entry, candidate_entry):
 
 
 def _pinned_policy_json(change, base_tree, candidate_tree):
-    """Only two existing ordinary leaves are outside this exact JS extractor.
+    """Only the fixed ordinary policy leaves are outside this exact JS extractor.
 
     Its TypeScript wrapper parses one selected file with noResolve and a
     compiler host that cannot read dependencies. Generic JSON is not extracted;

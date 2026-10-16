@@ -114,6 +114,7 @@ def prepared_tools(environment, *, profile=FULL_ENVIRONMENT):
             host.require(path == java and path.is_relative_to('/usr/lib/jvm'), 'prepared tool root is outside readonly system inputs')
     host.require((VENV / 'bin/python').resolve(strict=True) == (python / 'bin/python3').resolve(strict=True),
                  'prepared venv does not use the identified Python installation')
+    freeze_prepared_java_parent(java)
     queries=[(node/'bin/node',['--version'],r'v22\.[0-9]+\.[0-9]+')]
     if java is not None:queries.append((java/'bin/java',['--version'],r'(?:openjdk|java) 17[. ].*'))
     for executable, arguments, version in queries:
@@ -121,6 +122,61 @@ def prepared_tools(environment, *, profile=FULL_ENVIRONMENT):
         host.require(result.returncode == 0 and re.fullmatch(version, result.stdout.decode().splitlines()[0]),
                      'prepared shared-host tool version is unsupported')
     return tuple(toolchains), python, node, java
+
+
+def freeze_prepared_java_parent(java):
+    """Protect the one packaged JDK parent before querying or binding Java.
+
+    The reviewed hosted image makes /usr/lib/jvm world-writable. Its selected
+    JDK is already frozen by trusted provisioning; protect its parent as well.
+    Other directories, owners, aliases and prepared profiles are never repaired.
+    """
+    if java != _TEMURIN17_HOME:
+        return
+    host.require(os.geteuid() == 0, 'prepared Java parent requires the root supervisor')
+    original_java = java.lstat()
+    host.require(java.resolve(strict=True) == java and stat.S_ISDIR(original_java.st_mode)
+                 and original_java.st_uid == 0 and not original_java.st_mode & 0o022,
+                 'selected prepared Java root is aliased or mutable')
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    descriptors = []
+    try:
+        current = os.open('/', flags)
+        descriptors.append(current)
+        parts = java.parent.parts[1:]
+        for index, name in enumerate(parts):
+            ancestor = os.fstat(current)
+            host.require(stat.S_ISDIR(ancestor.st_mode) and ancestor.st_uid == 0
+                         and not ancestor.st_mode & 0o022,
+                         'prepared Java parent ancestor is aliased or mutable')
+            child = os.open(name, flags, dir_fd=current)
+            descriptors.append(child)
+            before = os.fstat(child)
+            host.require(stat.S_ISDIR(before.st_mode) and before.st_uid == 0,
+                         'prepared Java parent is not a root-owned directory')
+            if index == len(parts) - 1:
+                entry = os.stat(name, dir_fd=current, follow_symlinks=False)
+                host.require((entry.st_dev, entry.st_ino) == (before.st_dev, before.st_ino),
+                             'prepared Java parent changed before freezing')
+                mode = stat.S_IMODE(before.st_mode) & ~0o022
+                if stat.S_IMODE(before.st_mode) != mode:
+                    os.fchmod(child, mode)
+                after = os.fstat(child)
+                entry = os.stat(name, dir_fd=current, follow_symlinks=False)
+                host.require((after.st_dev, after.st_ino, after.st_uid, after.st_gid)
+                             == (before.st_dev, before.st_ino, before.st_uid, before.st_gid)
+                             and stat.S_ISDIR(after.st_mode) and stat.S_IMODE(after.st_mode) == mode
+                             and (entry.st_dev, entry.st_ino) == (after.st_dev, after.st_ino),
+                             'prepared Java parent changed while freezing')
+            current = child
+        after_java = java.lstat()
+        host.require((after_java.st_dev, after_java.st_ino, after_java.st_mode, after_java.st_uid, after_java.st_gid)
+                     == (original_java.st_dev, original_java.st_ino, original_java.st_mode,
+                         original_java.st_uid, original_java.st_gid),
+                     'selected prepared Java root changed while freezing its parent')
+    finally:
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
 
 
 def identity_roots(prepared):

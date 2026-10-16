@@ -387,3 +387,258 @@ def plan_reuse(
             plan["reused"].append(name)
             plan["reasons"][name] = "successful proof matches complete candidate inputs"
     return plan
+
+
+# Separate protected impact policy. Existing schema-1 evidence and fingerprints
+# deliberately retain their previous meaning and their conservative controls.
+AFFECTED_POLICY = '.github/test-suite-dependencies.json'
+AFFECTED_AUTHORITY = frozenset({
+    AFFECTED_POLICY, '.github/test-suites.json', 'tests/platform-profile.json',
+    'tests/run-project-tests.py', 'tests/run-unittest-suite.py',
+    'tests/requirements-host.txt', 'tools/test-evidence/inputs.py',
+    'tools/test-evidence/execution.py', 'tools/test-evidence/runtime.py',
+    'tools/repository-checks/host_selection.py',
+    'tools/repository-checks/android_handoff.py',
+    'tools/repository-checks/android.py', 'tools/repository-checks/android_gate.py',
+    'tools/repository-checks/package_checks.py', '.github/package-workflow-generations.json',
+    '.github/repository-checks.json', '.github/branch-policy.json', '.github/android-owner-transfer.json',
+    '.github/workflows/project-tests.yml', '.github/workflows/repository-checks.yml',
+    '.github/workflows/parent-qualification.yml',
+})
+_AFFECTED_SETUP = frozenset({'host-full', 'python', 'git', 'qt5-qml', 'qt6-qml'})
+_AFFECTED_PRODUCT_SUITES = frozenset({
+    'web-entity-visibility', 'lod-preferences', 'goto-dialog-script',
+    'recorded-voice-native', 'shared-script-behavior', 'device-result-schema',
+    'device-jenkins', 'performance-contracts',
+    'safe-landing-lifecycle',
+    'embedded-web-policy',
+    'account-auth-dispatch',
+    'snapshot-native',
+    'document-tree-native',
+    'obj-material-native',
+    'codeql-remediation',
+    'javascript-behavior',
+    'desktop-input-protocol',
+    'server-console-behavior',
+})
+_AFFECTED_SUBJECTS = {
+    'producer-proof': ('tools/test-evidence/producer.py', 'tools/test-evidence/producer-test.py', 'tools/test-evidence/execution.py', 'tools/test-evidence/inputs.py', 'tools/test-evidence/runtime.py'),
+    'project-coverage': ('tests/project-coverage-test.py',),
+    'native-registration': ('tests/native-registration-test.py',),
+    'python-test-runner': ('tests/unittest-runner-test.py', 'tests/run-unittest-suite.py'),
+}
+_AFFECTED_SHARED_PROFILE = {'mode': '100644', 'type': 'blob',
+                            'sha': 'd63537504c20204de9d35d9be61da72a56df59c3'}
+_DEVICE_INPUTS = (
+    'tests/device', 'tests/device/**', 'tests/run-unittest-suite.py',
+    'tests/platform-profile.json', 'tests/requirements*.txt',
+    'interface', 'interface/**', 'libraries', 'libraries/**',
+    'scripts', 'scripts/**', 'domain-server', 'domain-server/**',
+    'provenance', 'provenance/**', 'tools/sbom', 'tools/sbom/**',
+    # The source profile can delegate this exact product launcher. Keeping the
+    # complete Android component also binds its subprocess/include membership.
+    'android', 'android/**',
+    'ios', 'ios/**',
+    'tests/javascript', 'tests/javascript/**', 'tests/performance', 'tests/performance/**',
+    'tests/safe-landing', 'tests/safe-landing/**', 'tests/mocha', 'tests/mocha/**',
+    'server-console', 'server-console/**', 'unpublishedScripts', 'unpublishedScripts/**',
+    'tools/jsdoc', 'tools/jsdoc/**',
+)
+
+
+def device_reader_digest(tree, native_independent_paths):
+    """Bind complete native lookup plus actual device components, never E.
+
+    Native fixtures search ROOT itself, including extensionless headers. Every
+    unknown path therefore keeps its bytes, type and mode. Only the protected
+    graph's finite reviewed CI leaves may omit bytes; their membership/modes
+    remain bound and component inputs always override that independence proof.
+    """
+    _validate_tree(tree)
+    components = {item['path'] for item in _selected_entries(tree, list(_DEVICE_INPUTS))}
+    independent = set(native_independent_paths)
+    entries = []
+    for path, entry in sorted(tree.items()):
+        item = {'path': path, **entry}
+        if path in independent and path not in components:
+            item.pop('sha')
+        entries.append(item)
+    return 'sha256:' + hashlib.sha256(_canonical(entries)).hexdigest()
+
+
+def affected_lookup_digest(tree):
+    """Bind possible import names/modes everywhere and root module contents.
+
+    Python lookup/discovery roots inside each component are also fully bound.
+    An added shadow, package, native extension or .pth cannot inherit the graph.
+    Hyphenated scripts outside discovery roots are not importable module names.
+    """
+    _validate_tree(tree)
+    candidates = []
+    root_modules = []
+    for path, entry in sorted(tree.items()):
+        name = path.rsplit('/', 1)[-1]
+        if path.endswith(_PYTHON_IMPORT_SUFFIXES) and (name.split('.')[0].isidentifier() or path.endswith('.pth')):
+            candidates.append({'path': path, 'mode': entry['mode'], 'type': entry['type']})
+            if '/' not in path:
+                root_modules.append({'path': path, **entry})
+    return 'sha256:' + hashlib.sha256(_canonical({'membership': candidates, 'root_modules': root_modules})).hexdigest()
+
+
+def _suite_definition_digest(suite):
+    return 'sha256:' + hashlib.sha256(_canonical(suite)).hexdigest()
+
+
+def _validate_dependencies(value, registry):
+    _validate_registry(registry)
+    if not isinstance(value, dict) or set(value) != {'schema', 'registry_digest', 'lookup_digest', 'suites'} \
+            or type(value['schema']) is not int or value['schema'] != 1 \
+            or value['registry_digest'] != 'sha256:' + hashlib.sha256(_canonical(registry)).hexdigest() \
+            or not isinstance(value['lookup_digest'], str) or not _DIGEST.fullmatch(value['lookup_digest']) \
+            or not isinstance(value['suites'], dict) or set(value['suites']) != set(registry['suites']):
+        raise InputError('incomplete protected suite dependency policy')
+    for name, row in value['suites'].items():
+        suite = registry['suites'][name]
+        if not isinstance(row, dict) or set(row) not in (
+                {'kind', 'definition_digest', 'setup'},
+                {'kind', 'definition_digest', 'setup', 'reviewed_reader_digest', 'native_independent_paths'}) \
+                or type(row['kind']) is not str or row['kind'] not in {'repository', 'reviewed-patterns', 'device-control-plane', 'reviewed-product-inventory', 'reviewed-subject-inventory'} \
+                or row['definition_digest'] != _suite_definition_digest(suite) \
+                or not isinstance(row['setup'], list) or not row['setup'] \
+                or any(type(item) is not str or item not in _AFFECTED_SETUP for item in row['setup']) \
+                or len(row['setup']) != len(set(row['setup'])):
+            raise InputError('unsupported protected suite dependency definition')
+        if row['kind'] == 'reviewed-patterns' and (suite['closure']['kind'] != 'patterns'
+                or 'python_imports' not in suite):
+            raise InputError('finite suite dependency requires its reviewed import closure')
+        if row['kind'] == 'repository' and row['setup'] != ['host-full']:
+            raise InputError('unproved suite must retain complete host preparation')
+        if row['kind'] == 'reviewed-product-inventory' and (name not in _AFFECTED_PRODUCT_SUITES
+                or suite['scope'] != 'content' or row['setup'] != ['host-full']):
+            raise InputError('unsupported reviewed product inventory owner')
+        if row['kind'] == 'reviewed-subject-inventory' and (name not in _AFFECTED_SUBJECTS
+                or suite['scope'] != 'content' or row['setup'] != ['host-full']
+                or tuple(suite['closure']['required']) != _AFFECTED_SUBJECTS[name]):
+            raise InputError('unsupported reviewed fixed-subject owner')
+        if row['kind'] == 'device-control-plane':
+            if name != 'device-control-plane-full' or suite['scope'] != 'content' \
+                    or suite['command'][:5] != ['python', 'tests/device/run_control_plane_tests.py', '--profile', 'full', '--require-qml'] \
+                    or set(row) != {'kind', 'definition_digest', 'setup', 'reviewed_reader_digest', 'native_independent_paths'} \
+                    or row['setup'] != ['host-full'] or not isinstance(row['reviewed_reader_digest'], str) \
+                    or not _DIGEST.fullmatch(row['reviewed_reader_digest']):
+                raise InputError('unsupported reviewed device control-plane dependency')
+            paths = _paths(row['native_independent_paths'], 'reviewed independent native lookup leaves', nonempty=True)
+            if len(paths) > 1000 or AFFECTED_POLICY not in paths or any(
+                    any(character in path for character in '*?[') for path in paths):
+                raise InputError('native lookup independence requires finite exact protected leaves')
+        elif 'reviewed_reader_digest' in row or 'native_independent_paths' in row:
+            raise InputError('reader identity belongs only to the fixed device owner')
+    if any(row['kind'] in {'reviewed-product-inventory', 'reviewed-subject-inventory'}
+           for row in value['suites'].values()) \
+            and value['suites'].get('device-control-plane-full', {}).get('kind') != 'device-control-plane':
+        raise InputError('reviewed product owners require the fixed complete native inventory')
+    return value
+
+
+def load_dependencies(path, registry):
+    """Read only the fixed protected manifest; caller authenticates its blob."""
+    path = Path(path)
+    try:
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > 64_000:
+            raise InputError('protected suite dependency policy is unavailable')
+        raw = path.read_bytes()
+        if len(raw) > 64_000:
+            raise InputError('protected suite dependency policy exceeds its bound')
+        value = json.loads(raw, object_pairs_hook=_unique_object)
+    except (OSError, UnicodeError, ValueError) as error:
+        raise InputError('protected suite dependency policy is invalid') from error
+    _validate_dependencies(value, registry)
+    return raw
+
+
+def plan_affected(registry, dependency_bytes, base_tree, candidate_tree, trusted_tree):
+    """Pure affected-suite selection from complete authenticated immutable trees.
+
+    No candidate program, supplied subset, receipt or runtime query is used.
+    This supplies no passing/reuse proof. A missing or changed protected graph,
+    selector, registry, execution authority or nonregular inventory is unavailable.
+    The caller retains its independently validated legacy gate on InputError.
+    """
+    _validate_registry(registry)
+    if type(dependency_bytes) is not bytes or len(dependency_bytes) > 64_000:
+        raise InputError('protected dependency bytes are unavailable')
+    try:
+        dependencies = _validate_dependencies(json.loads(dependency_bytes, object_pairs_hook=_unique_object), registry)
+    except (UnicodeError, ValueError) as error:
+        raise InputError('protected dependency bytes are invalid') from error
+    for tree in (base_tree, candidate_tree, trusted_tree):
+        _validate_tree(tree)
+        if any(e['mode'] not in {'100644', '100755'} or e['type'] != 'blob' for e in tree.values()):
+            raise InputError('affected selection requires complete ordinary inventories')
+        if affected_lookup_digest(tree) != dependencies['lookup_digest']:
+            raise InputError('affected selection lookup membership is not reviewed')
+        if tree.get('tests/platform-profile.json') != _AFFECTED_SHARED_PROFILE:
+            raise InputError('affected selection retains the exact empty shared platform profile')
+    entry = {'mode': '100644', 'type': 'blob', 'sha': hashlib.sha1(
+        b'blob ' + str(len(dependency_bytes)).encode('ascii') + b'\0' + dependency_bytes).hexdigest()}
+    if any(tree.get(AFFECTED_POLICY) != entry for tree in (base_tree, candidate_tree, trusted_tree)):
+        raise InputError('dependency graph must already be identical protected policy')
+    for path in AFFECTED_AUTHORITY:
+        actual = trusted_tree.get(path)
+        mode = '100755' if path == 'tests/run-project-tests.py' else '100644'
+        if actual is None or actual['mode'] != mode or actual['type'] != 'blob' \
+                or any(tree.get(path) != actual for tree in (base_tree, candidate_tree)):
+            raise InputError('affected selection authority differs from protected source')
+    if trusted_tree['.github/test-suites.json']['mode'] != '100644' \
+            or trusted_tree['.github/test-suites.json']['type'] != 'blob':
+        raise InputError('trusted suite registry must remain ordinary')
+    paths = sorted(p for p in base_tree.keys() | candidate_tree.keys() if base_tree.get(p) != candidate_tree.get(p))
+    if not paths:
+        raise InputError('affected selection requires a real immutable delta')
+    controls = [p for p in registry['control_inputs']
+                if p not in _PYTHON_IMPORT_CONTROLS and p != 'tools/test-evidence/**']
+    required, omitted, reasons, setup = [], [], {}, set()
+    native_row = dependencies['suites'].get('device-control-plane-full', {})
+    native_unchanged = native_row.get('kind') == 'device-control-plane' and all(
+        device_reader_digest(tree, native_row['native_independent_paths']) == native_row['reviewed_reader_digest']
+        for tree in (base_tree, candidate_tree))
+    for name, suite in registry['suites'].items():
+        row = dependencies['suites'][name]
+        reason = 'candidate-scope' if suite['scope'] == 'candidate' else 'unproved-repository-reader'
+        unaffected = False
+        if suite['scope'] == 'content' and row['kind'] == 'reviewed-patterns':
+            closure, imports = suite['closure'], suite['python_imports']
+            complete = all(all(path in tree for path in closure['required'])
+                           and _python_import_digest(tree, imports['roots']) == imports['reviewed']
+                           for tree in (base_tree, candidate_tree))
+            if complete:
+                # Preserve complete import-root bytes and negative membership,
+                # including neighboring data and native/import shadow candidates.
+                patterns = [*closure['inputs'], *_import_patterns(imports['roots']), *controls]
+                unaffected = _selected_entries(base_tree, patterns) == _selected_entries(candidate_tree, patterns)
+                reason = 'unchanged-reviewed-dependencies' if unaffected else 'changed-reviewed-dependencies'
+            else:
+                reason = 'unreviewed-import-or-missing-required-input'
+        elif row['kind'] in {'device-control-plane', 'reviewed-product-inventory'}:
+            unaffected = native_unchanged and all(all(path in tree for path in suite['closure']['required'])
+                                                 for tree in (base_tree, candidate_tree))
+            reason = 'unchanged-reviewed-product-components' if unaffected else 'product-component-or-reader-not-reviewed'
+        elif row['kind'] == 'reviewed-subject-inventory':
+            # Required[] is normally an existence check. These fixed CI readers
+            # also need every actual subject's bytes/mode in all three trees,
+            # since the shared native inventory omits independent CI leaf bytes.
+            unaffected = native_unchanged and all(
+                path in trusted_tree and all(tree.get(path) == trusted_tree[path]
+                    for tree in (base_tree, candidate_tree))
+                for path in _AFFECTED_SUBJECTS[name])
+            reason = 'unchanged-reviewed-fixed-subjects' if unaffected else 'fixed-subject-or-reader-not-reviewed'
+        if unaffected:
+            omitted.append(name)
+        else:
+            required.append(name)
+            setup.update(row['setup'])
+        reasons[name] = reason
+    return {'schema': 1, 'kind': 'affected-suite-selection', 'reusable': False,
+            'required': required, 'omitted': omitted, 'reasons': reasons,
+            'paths': paths, 'dependency_digest': 'sha256:' + hashlib.sha256(dependency_bytes).hexdigest(),
+            'required_setup': ['host-full'] if 'host-full' in setup else sorted(setup)}
