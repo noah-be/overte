@@ -1392,10 +1392,13 @@ The verifier does not reuse SARIF, upload empty results for omitted languages or
 publish private source/alert payloads. Weekly full scans remain unchanged.
 
 The source verifier and exact workflow generation must be protected before
-installing the active workflow. The staged main-only ruleset payload is
-`tools/repository-checks/workflows/codeql-main.json`; apply it only after the new gate has passed
-on a real PR. This adds `codeql-security-results` to the existing required contexts on
-`main`; other branches receive this requirement only after their own deployment.
+installing the active workflow. The staged ruleset payload is
+`tools/repository-checks/workflows/codeql-main.json`. It covers all seven permanent
+branches. Update the existing selected-results ruleset only after the gate has
+been deployed and passed a real current PR on every included branch; preserve
+the existing ruleset identity and its strict GitHub Actions binding. The payload
+adds `codeql-security-results` to the other required contexts, without another
+analysis run. The historical payload filename and ruleset name remain stable.
 The staged workflow runs a selection/result check for documentation-only PRs
 so the required context is present; no language analyzer runs for that case.
 Both aggregate checkout steps and the API verifier execute in a clean job that

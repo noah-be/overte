@@ -961,7 +961,10 @@ class RulesetManifestContracts(unittest.TestCase):
             self.assertEqual(parameters["required_status_checks"], expected_checks)
             if name == "Selected CodeQL security results on main":
                 self.assertEqual(self.manifests[name]["conditions"]["ref_name"],
-                                 {"include": ["refs/heads/main"], "exclude": []})
+                                 {"include": ["refs/heads/" + branch for branch in (
+                                     "main", "apple-main", "apple-ios", "android-main",
+                                     "android-phone", "android-vr", "android-vr-pico")],
+                                  "exclude": []})
                 self.assertEqual(len(self.manifests[name]["rules"]), 1)
 
 
