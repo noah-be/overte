@@ -771,7 +771,7 @@ def main() -> int:
             if android_required or "android" in needs or any(key.startswith("android_") for key in route_outputs):
                 if args.candidate is None or event is None or not args.sha:
                     raise ValueError("Android verification requires exact candidate and event")
-                android.admit(args.candidate, event)
+                android.admit_repository(args.candidate,event,args.sha,needs,os.environ)
                 android_plan = android.candidate_plan(args.candidate, event, args.sha,
                     event_name=os.environ.get("GITHUB_EVENT_NAME", "pull_request"))
             result = verify(needs, native_required(config, event),

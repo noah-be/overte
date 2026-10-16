@@ -15,6 +15,8 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+from datetime import datetime, timezone
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 POLICY = ".github/android-orchestration.json"
@@ -43,6 +45,16 @@ BLOCKERS = {"extended-tier-prerequisite-transfer", "advisory-profile-owner-hando
             "prospective-generation-hosted-qualification"}
 # No policy marker can authorize an unqualified ownership transition.
 ACTIVATION_READY = False
+# A reviewed current-source attempt capability, never historical qualification.
+# Legacy admission/targets remain separate and unchanged.
+SOURCE_CAPABILITY = False
+CURRENT_SOURCE_GENERATION = "protected-producer-original-default-v1"
+CURRENT_SOURCE_TARGETS = frozenset({"android-main", "android-vr", "android-vr-pico", "android-phone"})
+CURRENT_JOBS = {
+    "android / route": "Independently select the complete Android union",
+    "android / execute": "Execute and verify the independently selected Android owners once",
+    "android / verify": "Recompute candidate union and require complete successful ownership",
+}
 
 
 def _module(name, relative):
@@ -347,6 +359,10 @@ def validate_tree_wiring(tree, *, policy_root=ROOT):
     """Require one complete approved package tuple plus its exact Android callee."""
     policy = load_policy(policy_root)
     generation = packages().validate_tree_wiring(tree)
+    if generation == CURRENT_SOURCE_GENERATION:
+        if tree.get(WORKFLOW) != _blob(android()._file(Path(policy_root), OWNED + "/android-required.yml").read_bytes()):
+            raise ValueError("current Android source callee is missing or noncanonical")
+        return generation
     caller, callee = tree.get(".github/workflows/repository-checks.yml"), tree.get(WORKFLOW)
     for approved in policy["workflow_generations"]:
         if _generation_matches(tree, approved, policy_root):
@@ -374,9 +390,9 @@ def handoff():
 
 def validate_owned_generation(candidate, branch, *, policy_root=ROOT, before_sha=None):
     sources = _sources(candidate)
-    validate_tree_wiring(sources.entries, policy_root=policy_root)
+    generation = validate_tree_wiring(sources.entries, policy_root=policy_root)
     approved = load_policy(policy_root)["workflow_generations"]
-    if not any("project" in item and _generation_matches(sources.entries, item, policy_root) for item in approved):
+    if generation != CURRENT_SOURCE_GENERATION and not any("project" in item and _generation_matches(sources.entries, item, policy_root) for item in approved):
         raise ValueError("Android activation requires the complete sole-owner project generation")
     previous = None
     if before_sha is not None:
@@ -439,6 +455,189 @@ def admit(candidate, event, *, policy_root=ROOT):
         raise ValueError("Android required workflow is not activated for this target")
     branch = ((event.get("pull_request") or {}).get("base") or {}).get("ref") or event.get("ref", "").removeprefix("refs/heads/")
     validate_owned_generation(candidate, branch, policy_root=policy_root, before_sha=base.get("sha"))
+
+
+
+def _native_modules():
+    directory=str(ROOT/'tools/test-evidence')
+    sys.path.insert(0,directory)  # Fixed protected directory, never candidate.
+    try:
+        import execution
+        import inputs
+        import producer_api
+        import source_admission
+        if any(Path(module.__file__).resolve()!=Path(directory)/(name+'.py')
+               for name,module in (('execution',execution),('inputs',inputs),
+                                   ('producer_api',producer_api),('source_admission',source_admission))):
+            raise ValueError('current Android helper imported a foreign controller')
+        return execution, inputs, producer_api, source_admission
+    finally:
+        sys.path.remove(directory)
+
+
+def _current_source(candidate, event, sha, environment, adapter, policy_root):
+    """Actual current B/H/M/defaultD; no candidate Python or old B is imported."""
+    execution, inputs, A, source = _native_modules()
+    expected = {'GITHUB_ACTIONS':'true','GITHUB_REPOSITORY':REPOSITORY,
+        'GITHUB_REPOSITORY_ID':str(REPOSITORY_ID),'GITHUB_EVENT_NAME':'pull_request',
+        'GITHUB_RUN_ATTEMPT':'1','GITHUB_JOB':'repository-checks','RUNNER_ENVIRONMENT':'github-hosted','ImageOS':'ubuntu24'}
+    A.require(all(environment.get(key)==value for key,value in expected.items()), 'current Android owner native context differs')
+    ref=environment.get('GITHUB_REF','');match=re.fullmatch(r'refs/pull/([1-9][0-9]*)/merge',ref)
+    A.require(match is not None and re.fullmatch('[1-9][0-9]*',environment.get('GITHUB_RUN_ID',''))
+        and environment.get('GITHUB_SHA')==sha==environment.get('GITHUB_WORKFLOW_SHA')
+        and environment.get('GITHUB_WORKFLOW_REF')==REPOSITORY+'/.github/workflows/repository-checks.yml@'+ref,
+        'current Android workflow source differs')
+    number=int(match[1]);binding,refs=adapter.current(number)
+    repo={'full_name':REPOSITORY,'id':REPOSITORY_ID};pr=event.get('pull_request',{})
+    A.require(event.get('repository',{}).get('full_name')==REPOSITORY
+        and type(event.get('repository',{}).get('id')) is int and event['repository']['id']==REPOSITORY_ID
+        and event.get('number')==pr.get('number')==number and binding['merge_sha']==sha
+        and binding['base_ref'] in CURRENT_SOURCE_TARGETS
+        and environment.get('GITHUB_BASE_REF')==binding['base_ref']
+        and environment.get('GITHUB_HEAD_REF')==binding['head_ref'], 'current Android event source differs')
+    for side in ('base','head'):
+        actual=pr.get(side,{})
+        A.require(actual.get('sha')==binding[side+'_sha'] and actual.get('ref')==binding[side+'_ref']
+            and all(actual.get('repo',{}).get(key)==value for key,value in repo.items()), 'current Android event parents differ')
+    A.require(refs['default_ref']=='main','current Android default is not protected main')
+    for target,revision in ((binding['base_ref'],binding['base_sha']),('main',refs['default'])):
+        branch=adapter._object('branches/'+target)
+        A.require(branch.get('name')==target and branch.get('protected') is True
+            and branch.get('commit',{}).get('sha')==revision,'current Android protected source moved')
+    reader=SimpleNamespace(get=adapter._object)
+    before=source.api_tree(reader,binding['base_sha'],tree_reader=adapter.api.immutable_tree)
+    current=source.api_tree(reader,sha,tree_reader=adapter.api.immutable_tree)
+    default=source.api_tree(reader,refs['default'],tree_reader=adapter.api.immutable_tree)
+    root=Path(policy_root)
+    A.require(execution.checkout_identity(root)[0]==refs['default']
+        and inputs.full_tree(root,'HEAD')==default and _sources(candidate).entries==current
+        and _sources(candidate,binding['base_sha']).entries==before,
+        'current Android actual source differs from immutable B/M/D')
+    admission=source.compatibility(default,default,'main',
+        read_actual=lambda name:source.actual_bytes(root,name),actual_imports=source.actual_import_inventory(root))
+    # B is authenticated data and may be a finite historical recipe on first
+    # install. D alone supplies executable controllers; handoff checks B below.
+    A.require(packages().validate_tree_wiring(before) in {
+        "android-owned-npm5-sync-ci-v1",CURRENT_SOURCE_GENERATION},
+        'current Android predecessor is not a finite protected recipe')
+    A.require(validate_tree_wiring(current,policy_root=root)==CURRENT_SOURCE_GENERATION,
+        'current Android owner requires the exact complete new generation')
+    validate_owned_generation(candidate,binding['base_ref'],policy_root=root,before_sha=binding['base_sha'])
+    return binding,refs,current,default,admission
+
+
+def verify_current_owner(candidate, event, sha, needs, environment, adapter=None, *, policy_root=ROOT,
+                         clock=lambda:datetime.now(timezone.utc)):
+    """Current completed Android jobs only; the outer run remains in progress.
+
+    This grants no reusable runtime/receipt or historical PASS. The actual
+    fixed execute step verifies all selected commands, subcases and runtime
+    before publishing outputs. Native job/check facts authenticate its success.
+    """
+    if SOURCE_CAPABILITY is not True:
+        raise ValueError('current Android source capability is disabled')
+    _,_,A,_=_native_modules();adapter=adapter or A.Adapter()
+    initial=_current_source(candidate,event,sha,environment,adapter,policy_root)
+    binding,refs,current,default,_=initial
+    expected=candidate_plan(candidate,event,sha,event_name='pull_request',policy_root=policy_root)
+    A.require(expected['target'] in CURRENT_SOURCE_TARGETS and type(needs) is dict
+        and 'android' in needs,'current Android owner is missing')
+    verify_outer(needs['android'],expected)
+    identifier=int(environment['GITHUB_RUN_ID'])
+    registration=adapter._object('actions/workflows/repository-checks.yml')
+    A.require(registration.get('path')=='.github/workflows/repository-checks.yml'
+        and registration.get('state')=='active','current Android native caller registration differs')
+    workflow=A.positive(registration.get('id'))
+    ref='refs/pull/'+str(binding['pull_request'])+'/merge'
+    def observation():
+        now=clock();A.P._now(now)
+        listed=adapter._pages('actions/workflows/'+str(workflow)+'/runs?head_sha='+binding['head_sha'],'workflow_runs',search=True)
+        A.require(listed and all(type(row) is dict for row in listed),'current Android run inventory unavailable')
+        times=[A.P._time(row.get('run_started_at')) for row in listed]
+        newest=max(times)
+        A.require(sum(stamp==newest for stamp in times)==1
+            and listed[times.index(newest)].get('id')==identifier,'current Android run is not unique newest authority')
+        run=adapter._object('actions/runs/'+str(identifier))
+        attempt=adapter._object('actions/runs/'+str(identifier)+'/attempts/1')
+        claimed=next(row for row in listed if row.get('id')==identifier)
+        fields=('id','workflow_id','check_suite_id','path','event','head_sha','head_branch',
+                'run_attempt','status','conclusion','run_started_at','updated_at')
+        A.require(all(claimed.get(key)==run.get(key)==attempt.get(key) for key in fields)
+            and run.get('run_attempt')==1 and run.get('workflow_id')==workflow
+            and run.get('path')=='.github/workflows/repository-checks.yml' and run.get('event')=='pull_request'
+            and run.get('head_sha')==binding['head_sha'] and run.get('head_branch')==binding['head_ref']
+            and run.get('repository',{}).get('id')==run.get('head_repository',{}).get('id')==REPOSITORY_ID
+            and run.get('repository',{}).get('full_name')==run.get('head_repository',{}).get('full_name')==REPOSITORY
+            and (run.get('status'),run.get('conclusion'))==('in_progress',None)
+            and sum(type(pr) is dict and pr.get('number')==binding['pull_request'] for pr in run.get('pull_requests',[]))==1,
+            'current Android run/attempt/source identity differs')
+        references=attempt.get('referenced_workflows')
+        A.require(type(references) is list,'current Android reusable source chain unavailable')
+        paths=[]
+        for item in references:
+            A.require(type(item) is dict and item.get('sha')==sha and item.get('ref')==ref
+                and type(item.get('path')) is str and item['path'].startswith(REPOSITORY+'/.github/workflows/')
+                and item['path'].endswith('@'+sha),'current Android reusable source is foreign')
+            path=item['path'][len(REPOSITORY)+1:-(len(sha)+1)]
+            A.require(current.get(path,{}).get('mode')=='100644' and current[path]['type']=='blob'
+                and path not in paths,'current Android reusable source leaf differs')
+            paths.append(path)
+        if expected['required']:
+            A.require(WORKFLOW in paths,'current Android callee source is unavailable')
+        jobs=adapter._pages('actions/runs/'+str(identifier)+'/attempts/1/jobs','jobs')
+        facts={}
+        A.require(all(job.get('name') in CURRENT_JOBS for job in jobs
+            if type(job.get('name')) is str and job['name'].startswith('android / ')),
+            'current Android native owner inventory is unknown')
+        for name,step_name in CURRENT_JOBS.items():
+            matches=[job for job in jobs if job.get('name')==name]
+            if not expected['required']:
+                A.require(not matches or len(matches)==1 and matches[0].get('status')=='completed'
+                    and matches[0].get('conclusion')=='skipped','unselected Android executed or failed')
+                continue
+            A.require(len(matches)==1,'current Android native owner is missing or ambiguous')
+            job=matches[0];fact=adapter._job(job,attempt,15368,final_name=name)
+            A.require((fact.status,fact.conclusion)==('completed','success')
+                and A.P._time(run['run_started_at'])<=A.P._time(fact.started_at)<=A.P._time(fact.completed_at)<=now,
+                'current Android native owner did not succeed')
+            steps=[step for step in job.get('steps',[]) if step.get('name')==step_name]
+            A.require(len(steps)==1 and steps[0].get('status')=='completed' and steps[0].get('conclusion')=='success'
+                and A.P._time(fact.started_at)<=A.P._time(steps[0].get('started_at'))
+                    <=A.P._time(steps[0].get('completed_at'))<=A.P._time(fact.completed_at),
+                'current Android actual execute/verify step did not succeed')
+            facts[name]={'job':job,'check':vars(fact)}
+        if expected['required']:
+            A.require(A.P._time(facts['android / route']['job']['completed_at'])
+                <=A.P._time(facts['android / execute']['job']['started_at'])
+                and A.P._time(facts['android / execute']['job']['completed_at'])
+                <=A.P._time(facts['android / verify']['job']['started_at']), 'current Android owner ordering differs')
+        return {'registration':registration,'listed':listed,'run':run,'attempt':attempt,'jobs':jobs,'facts':facts}
+    first=observation()
+    if expected['required']:
+        # Full current plan is independently derived from protected policy;
+        # no downloaded receipt or suite-count output supplies authority.
+        owner_plan=android().plan(candidate,binding['base_ref'],views=expected['views'],policy_root=policy_root)
+        normal=android().plan(candidate,binding['base_ref'],
+            views=event_views({'pull_request':{'labels':[]}},'pull_request',True),policy_root=policy_root)
+        A.require(owner_plan['plan']==expected['owner_plan'] and set(normal['executions'])<=set(owner_plan['executions'])
+            and len(normal['executions'])==40,'current Android union omits mandatory ordinary owners')
+    A.require(_current_source(candidate,event,sha,environment,adapter,policy_root)==initial
+        and candidate_plan(candidate,event,sha,event_name='pull_request',policy_root=policy_root)==expected
+        and observation()==first and SOURCE_CAPABILITY is True,'current Android source/native owner changed')
+    return {'kind':'current-original-android-owner','qualification':False,'verified':True,
+        'run_id':identifier,'attempt':1,'candidate':sha,'plan':expected['plan'],
+        'inventory':expected['inventory'],'executed':expected['required']}
+
+
+def admit_repository(candidate,event,sha,needs,environment,adapter=None,*,policy_root=ROOT):
+    """Select only the exact new source generation; preserve legacy admission."""
+    generation=packages().validate_tree_wiring(_sources(candidate).entries)
+    if generation!=CURRENT_SOURCE_GENERATION:
+        return admit(candidate,event,policy_root=policy_root)
+    _,branch,_=_execution_target(candidate,event,policy_root=policy_root)
+    if branch not in CURRENT_SOURCE_TARGETS:
+        return  # Existing complete non-Android absence proof was checked above.
+    return verify_current_owner(candidate,event,sha,needs,environment,adapter,policy_root=policy_root)
 
 
 def verify_inner(needs, expected):

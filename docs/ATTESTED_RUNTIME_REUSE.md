@@ -213,3 +213,23 @@ final authority/ref changes and policy mutation during the real differential.
 It executes no product build, installation, dispatch or network request. Its
 initial repository closure is conservative because fixtures read the complete
 trusted controller, registry, sync policy and recursive requirement graph.
+
+The Android40 current-source owner is separate from common-host reuse. Its
+`SOURCE_CAPABILITY` is default off and applies only to the four fixed Android
+targets under the complete `protected-producer-original-default-v1` generation.
+It describes reviewed current execution code, not a previous hosted PASS. The
+legacy Android activation flag and required-branch policy retain their existing
+meaning. Protected D supplies every controller; an authenticated old14 B may be
+the predecessor of the first exact22 installation, subject to the existing
+immutable handoff checks. Candidate controller code is never imported.
+
+For selected work, the final outer job independently authenticates its current
+attempt-1 Android route, execute and verify jobs and their fixed successful
+steps through native GitHub job/check facts. It rederives the complete ordinary
+40-command union, including real runtime and subcase verification in the execute
+step, and repeats source, plan, ref and native-job observations. Its outer run
+remains in progress; this entrypoint creates no reusable E, receipt or historical
+qualification. Failed, missing or skipped owners remain merge failures. An
+independently proved unselected plan requires exact skipped/no-output behavior.
+No actual Android workload or hosted qualification is asserted by this source
+implementation; activation and complete workflow enrollment remain separate.

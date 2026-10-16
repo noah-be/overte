@@ -18,6 +18,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import zlib
+from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import yaml
 
@@ -97,6 +99,50 @@ def legacy_metadata_fixture():
     return source
 
 
+# Exact old14 source bytes remain available after the future sync recipe is
+# installed; shallow CI must not fetch a historical Git object for this fixture.
+LEGACY_SYNC_BLOB = "55d08b65a987224ce576459cede693cfd49375f6"
+LEGACY_SYNC_ZLIB = (
+    'eNrtGWtz27jxu34FqvNckpuCelikHo07zuXUxD3HdmQ7bSd1NSAISrApkgZAObok/e1dAJRE6mEracaXD+cvFoDdxWLfu/wBnSsy'
+    'YgGSSSYoQ0kczf6CApZGycwsEAkVE4gmkzRiiiElMqkA/i4RN2GU3OERi5kgiicxIsGESwm/nEpMJqyHzmcxRVMS8cAAVEQW440n'
+    'aO/jR8TjNFPSoYkQLLLbnz9XKkncq6DFfcOAy5QoOtabKMexvxEqoPbQR8FuMy5Y0NNMsz8jNUvhZqkEj0efc4xJErCtoHSccAqr'
+    'JNUUZQ+9FyyTsBGSKPIJvbmak0lFEvKI7XhpmkXRUAMyqXZEYR9SRkHuQ59INpRj8qV4Y0aCr8GbMDHa7cJKykSuf6MQQnOpCbi6'
+    'opUTKxar5YYWA87FMN+tABTNQIsxnWkiI5FkKdwB5oKX5oIL5lIUprYXuIjElEWYxxjUMhJMSstwpXKd+Ia1nBKzdmMt8l2+B08H'
+    'zs2NY5HE/DdruhoQzFdibVqZn8Uqw82WU2+ZE8UnLMkUnvA4Uwzua7pmn8XTuW2evusPLvrDt2+Ohxf984vh4PLkpD/ooVomRS3i'
+    'fu1WeTWfx7XbSQQkgOEYHMsgg8OlCxvHOb8vx4zeILh04ZL5qxKRQyIExgq85IqoUY0BCIf7wT5tNZlLCHV90qm7naYbkLbXatRp'
+    'o9Notvd90q37DfQDmradutNYELzjatxbrEAiLOyhCeFxYQ+8c9ybM1XcZ0JyqTAFCwI74CQC3sCTJFt52YAZTlHEpwydDRA34Gq2'
+    'oFWQqv77+cV5f3j++kWvGEXWHMbaxvzv1evhxemv/ROLM4JnZb6jkhsWl+Fe91/8sp323KnKOG/6g1f3MLTwqDLW2eXx8XDQf3sJ'
+    'xlFCXDfwXPYZWOKnAgXJFMIsS1DKUxYSHhXO3r9H1b25oKro4L/oP+/ruEtwePWxVf+8h66uVqHnT98NevHo3cCLr80xGrh7pdGu'
+    'flpBAPvNSHSw93Q0RiTlqCpYmsja3quji9eXPwOVs9Pzo4vTwb9qWlRwUCL+bPXqp9e3CAvkaMNwtBqeP38O2/aW6jPg5qAkq3Xm'
+    '5xS0+rdTWMpvOwVrC5BcJ1wNt1IqyHZBakMYGDPEJ5NMET9iOggGNp6ZO4znaqiC9z1ymPgCX7AhZPGEwknIIPVjqE80QPNrostR'
+    'DNgs1kBQ3UgWASdQ5ISGodWwD4mdmawnOcTkxXUcUqDF3BaTdo0vb05/6ZdEowuSlcAwOP3b0XEZKq83yoBfEwe/9/j2V1zU8Qxs'
+    'ON6f55aaShJwd50sMZvqLEFZbZ7asdakk84K6BhbnWFT12IMNg4MgH/lgeT08uLs8qJawli60fIXxiYAcci0syX2MgxVAaJY26yG'
+    'u9IFRt/g4mAHBi9XLKBYtetNrTqsBVoMSxhr7eTby1gDFLX88/1l5Chdep3FXCE/41FgxQdFUhYpWTN1lpUSC5wPk8g8ljKebgdf'
+    'lmXOtUziFXc7h6SUpQXpnRklLl0p7Nn6xrHXOlYr0olIzNCfDtCTiI0InWE/ycBpgyfo06dVL9BQQUKzCfi0YeTJltAGGTJLsTWj'
+    'Q3hWm/p1jxJIlm4Yhu1Wo9sJOl6r24HdltfuUK9BTHjznH2nvjW8WYJ4qkOQLg+r+06jWX1IECegeZDY7ymJGFg4bLa63Xa93eyC'
+    'MFi473a6XqvFmvDPa7nMDXTw79L9jpWDe48cNLmCFJoPy+DvZEoeFkCoI8Q4AU+CdPhEl/L3P+saqB76HgtDv+6yltvym2697nqg'
+    '3W7D8+qeH1AvDKkfdj2jXtdp3/Ms6DihxfEz21YqNslEqeDV1xWe3WhX11KOVNAxFt5tHrMlt3yNFNZrwSxIoFhS0J5DUZigF9S0'
+    'br3egMFbmDxogSJWcusOODx/CQbTwflCBwgoYCClSoRn6N8FighBM6NDXBYxfKt07EC3KmA0InpkMGUupPIpNnEcDjwb6WCrtMjP'
+    '05sRhu4w5CPoDPxRNDGAK9etES9zAA+iN80Ne5qyEnDNxsOIzEALctPRHY+D5K65xoeHC5wsnrSyV3j5HfPpmEDLFxlgeOGtcpeb'
+    '7qbHFrkBHn2JwyQKmIjAYHVeiTSI9xDMGtECBqzWd0zOiuSGAz2kAT+gQueLe+lq2W3aW+hh4+FcDw+SxuClKQyC2GY6Vmn3krGy'
+    'gniiYLixmUoARWaydqaNvJgbllarszuPoVYRIhHgK5h9ACVI9Fa5b4084Mc/mP/SalyvTpjSIoWf3hzCK0F4OcRKwDmDAoUIaAdk'
+    'ooUAZe0YlgGC+KNHVUEGJa/Nw8uhwf+RiB4ugqvF+iMvmNaP1qKYstWTHZUM+yfvjganJ2/6J7plzItqrCNiac5gwpicSaogTt0h'
+    'MEiQlUNSkMgkEVBp6mhO1TCLQR1TyJow/hxCGhGxPKgX6MCwR0sN9KQPdWFFUiySRM3XMVN2rrReoeIJmoIw8ppJs4j1WySGzQL4'
+    'pmMzA7J0NBno5QtRF1KR7u4w7M4zDrbDEugmF2WxJlXLh3W6EpBGSI76oFbs5B0TPJyhXI9rzc+8Z5ybjMmuO5rJwe5m0v/nWf/l'
+    'RR8K2P4x/Dg6zbumjcTtMp8Nf3m/9Ucz9c2aqcdpjczE/dEao7nc8dLMqnvr9vm7dVO5w9oR9VLsMtMlpAnviw81oHE9lV6fnn6z'
+    '8P6YfvvHnOQLXPuhtPKdu/xjT0O+d6e/hI+xJCh+LTV1kRa7UOWyjUR3ZCafPkM//oiefvthwrMtbXdmOMREKB7C3qHfpq7nkXa7'
+    'yTzf80Pf7bCgHlBow939Jmm1u0G73emGdqRQv2+kYCSw+vkvfzouxAzwgiEPwC9WN4nSvYDaNGD+VKr/NyindL4w+doGyJ+0pncH'
+    'h2YOvixrMwmtixb1bpWpO2ytBt2wgYp66I6IuDRT119TtTQCUHkPtSv/A0Na1lg='
+)
+
+
+def legacy_sync_fixture():
+    raw=zlib.decompress(base64.b64decode(LEGACY_SYNC_ZLIB,validate=True))
+    if gate._blob(raw)['sha']!=LEGACY_SYNC_BLOB:
+        raise AssertionError('legacy sync fixture differs from its actual reviewed Git blob')
+    return raw
+
+
 class RequiredAndroidTests(unittest.TestCase):
     def setUp(self):
         # Every test supplies its own runner context, never the enclosing CI job's.
@@ -142,6 +188,7 @@ class RequiredAndroidTests(unittest.TestCase):
         generation = next(item for item in packages.workflow_generations() if item["name"] == name)
         paths = list((ROOT / "tools/repository-checks/workflows").rglob("*.yml"))
         contents = {gate._blob(path.read_bytes())["sha"]: path.read_bytes() for path in paths}
+        contents[LEGACY_SYNC_BLOB]=legacy_sync_fixture()
         for relative, entry in generation["workflows"].items():
             target = self.candidate / relative
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -732,6 +779,253 @@ class RequiredAndroidTests(unittest.TestCase):
         self.assertIn("--require-hashes", prepare)
         self.assertIn("sha256sum --check --status", prepare)
         self.assertNotIn("candidate", "\n".join(line for line in prepare.splitlines() if not line.startswith("#")))
+
+
+
+
+class CurrentAndroidNativeOwnerTests(unittest.TestCase):
+    """Fake native API; no Android commands, tool capture or host qualification."""
+    def setUp(self):
+        _,_,A,_=gate._native_modules()
+        self.A=A
+        self.sha='3'*40;self.head='2'*40;self.base='1'*40;self.default='4'*40
+        self.now=datetime(2026,10,16,20,0,tzinfo=timezone.utc)
+        repo={'full_name':gate.REPOSITORY,'id':gate.REPOSITORY_ID}
+        self.binding={'repository':gate.REPOSITORY,'repository_id':gate.REPOSITORY_ID,'pull_request':17,
+            'head_repository_id':gate.REPOSITORY_ID,'base_ref':'android-phone','base_sha':self.base,
+            'head_ref':'fix/android/fixture','head_sha':self.head,'merge_sha':self.sha,
+            'merge_tree':'5'*40,'merge_parents':[self.base,self.head]}
+        self.event={'number':17,'repository':repo,'pull_request':{'number':17,'labels':[],
+            'base':{'ref':'android-phone','sha':self.base,'repo':repo},
+            'head':{'ref':'fix/android/fixture','sha':self.head,'repo':repo}}}
+        self.environment={'GITHUB_RUN_ID':'100','GITHUB_RUN_ATTEMPT':'1'}
+        self.expected={'required':True,'candidate':self.sha,'target':'android-phone',
+            'views':['fast','contracts','coverage','android-vr','pico','mutation'],
+            'plan':'sha256:'+'a'*64,'inventory':'sha256:'+'b'*64,'owner_plan':'sha256:'+'c'*64}
+        self.needs={'android':{'result':'success','outputs':gate.receipt(self.expected)}}
+        self.current={gate.WORKFLOW:{'mode':'100644','type':'blob','sha':'a'*40}}
+        self.source=(self.binding,{'default':self.default},self.current,{}, {'trusted':'D source boundary'})
+        self.run={'id':100,'workflow_id':99,'check_suite_id':200,'path':'.github/workflows/repository-checks.yml',
+            'event':'pull_request','head_sha':self.head,'head_branch':self.binding['head_ref'],
+            'run_attempt':1,'status':'in_progress','conclusion':None,
+            'run_started_at':'2026-10-16T19:00:00Z','updated_at':'2026-10-16T19:30:00Z',
+            'repository':repo,'head_repository':repo,'pull_requests':[{'number':17}],
+            'referenced_workflows':[{'path':gate.REPOSITORY+'/'+gate.WORKFLOW+'@'+self.sha,
+                'sha':self.sha,'ref':'refs/pull/17/merge'}]}
+        self.listed=[deepcopy(self.run)];self.attempt=deepcopy(self.run)
+        self.jobs=[];self.checks={}
+        for index,(name,step) in enumerate(gate.CURRENT_JOBS.items()):
+            start='2026-10-16T19:'+str(index*5+1).zfill(2)+':00Z'
+            end='2026-10-16T19:'+str(index*5+3).zfill(2)+':00Z'
+            identity=300+index
+            job={'id':identity,'run_id':100,'run_attempt':1,'head_sha':self.head,
+                'name':name,'status':'completed','conclusion':'success','started_at':start,'completed_at':end,
+                'check_run_url':f'https://api.github.com/repos/{gate.REPOSITORY}/check-runs/{identity}',
+                'steps':[{'name':step,'status':'completed','conclusion':'success','started_at':start,'completed_at':end}]}
+            self.jobs.append(job)
+            self.checks[identity]={'id':identity,'head_sha':self.head,'check_suite':{'id':200},'app':{'id':15368},
+                **{key:job[key] for key in ('name','status','conclusion','started_at','completed_at')}}
+        self.registration={'id':99,'path':'.github/workflows/repository-checks.yml','state':'active'}
+        def get(endpoint):
+            if endpoint.startswith(A.PREFIX+'/'):endpoint=endpoint[len(A.PREFIX)+1:]
+            return deepcopy(self.object(endpoint))
+        self.adapter=A.Adapter(SimpleNamespace(json=get))
+        self.adapter._pages=lambda endpoint,field,**kwargs:deepcopy(self.listed if field=='workflow_runs' else self.jobs)
+        self.owner=gate.android()
+        self.normal=self.owner.load_policy()['views']
+        names=dict.fromkeys(proof['execution'] for view in self.expected['views'] for proof in self.normal[view].values())
+        self.assertEqual(len(names),40)
+        self.owner_plan={'plan':self.expected['owner_plan'],'executions':{name:{} for name in names}}
+        self.stack=self.enterContext(__import__('contextlib').ExitStack())
+        self.stack.enter_context(patch.object(gate,'SOURCE_CAPABILITY',True))
+        self.actual_source=gate._current_source
+        self.source_reader=self.stack.enter_context(patch.object(gate,'_current_source',side_effect=lambda *a,**kw:deepcopy(self.source)))
+        self.plan_reader=self.stack.enter_context(patch.object(gate,'candidate_plan',side_effect=lambda *a,**kw:deepcopy(self.expected)))
+        self.stack.enter_context(patch.object(gate,'android',return_value=self.owner))
+        self.stack.enter_context(patch.object(self.owner,'plan',side_effect=lambda *a,**kw:deepcopy(self.owner_plan)))
+
+    def object(self,endpoint):
+        if endpoint=='actions/workflows/repository-checks.yml':return self.registration
+        if endpoint=='actions/runs/100':return self.run
+        if endpoint=='actions/runs/100/attempts/1':return self.attempt
+        if endpoint.startswith('check-runs/'):return self.checks[int(endpoint.rsplit('/',1)[-1])]
+        raise AssertionError('unexpected native GET '+endpoint)
+
+    def verify(self):
+        return gate.verify_current_owner(Path('/candidate'),self.event,self.sha,self.needs,self.environment,
+            self.adapter,clock=lambda:self.now)
+
+    def test_current_completed40_owner_does_not_relabel_outer_pending_or_use_commonE(self):
+        before=deepcopy(self.run)
+        value=self.verify()
+        self.assertEqual(value['kind'],'current-original-android-owner')
+        self.assertTrue(value['verified']);self.assertFalse(value['qualification']);self.assertTrue(value['executed'])
+        self.assertEqual(self.run,before);self.assertEqual(self.run['status'],'in_progress')
+        self.assertNotIn('environment',value);self.assertNotIn('receipt',value)
+        self.assertEqual(self.source_reader.call_count,2)
+
+    def test_default_capability_cannot_be_claimed_by_legacy_flags_or_outputs(self):
+        with patch.object(gate,'SOURCE_CAPABILITY',False),patch.object(gate,'ACTIVATION_READY',True),self.assertRaises(ValueError):self.verify()
+        self.source_reader.assert_not_called()
+
+    def test_missing39_failed_skipped_runtime_and_verify_steps_remain_red(self):
+        for change in ('39','missing','failed','skipped','runtime','verify','missing-step','wrong-app','suite','hash-output'):
+            jobs,checks,owner,needs=deepcopy(self.jobs),deepcopy(self.checks),deepcopy(self.owner_plan),deepcopy(self.needs)
+            if change=='39':self.owner_plan['executions'].pop(next(iter(self.owner_plan['executions'])))
+            elif change=='missing':self.jobs.pop(1)
+            elif change in ('failed','skipped'):
+                self.jobs[1]['conclusion']='failure' if change=='failed' else 'skipped'
+                self.checks[301]['conclusion']=self.jobs[1]['conclusion']
+            elif change in ('runtime','verify'):
+                self.jobs[1 if change=='runtime' else 2]['steps'][0]['conclusion']='failure'
+            elif change=='missing-step':self.jobs[1]['steps']=[]
+            elif change=='wrong-app':self.checks[301]['app']['id']=123
+            elif change=='suite':self.checks[301]['check_suite']['id']=999
+            else:self.needs['android']['outputs']['inventory']='sha256:'+'f'*64
+            with self.subTest(change=change),self.assertRaises(ValueError):self.verify()
+            self.jobs,self.checks,self.owner_plan,self.needs=jobs,checks,owner,needs
+
+    def test_current_attempt_run_source_and_newest_all_status_authority_are_fixed(self):
+        for change in ('attempt','completed','foreign','head','callee','ref','registration','newer-pending','newer-failed','tie'):
+            saved=deepcopy((self.run,self.attempt,self.listed,self.registration))
+            if change=='attempt':self.run['run_attempt']=2
+            elif change=='completed':self.run.update(status='completed',conclusion='success')
+            elif change=='foreign':self.run['repository']['id']=123
+            elif change=='head':self.run['head_sha']='f'*40
+            elif change=='callee':self.attempt['referenced_workflows']=[]
+            elif change=='ref':self.attempt['referenced_workflows'][0]['sha']='f'*40
+            elif change=='registration':self.registration['id']=987
+            else:
+                other=deepcopy(self.run);other['id']=101
+                if change!='tie':other['run_started_at']='2026-10-16T19:10:00Z'
+                if change=='newer-failed':other.update(status='completed',conclusion='failure')
+                self.listed.append(other)
+            with self.subTest(change=change),self.assertRaises(ValueError):self.verify()
+            self.run,self.attempt,self.listed,self.registration=saved
+
+    def test_duplicate_native_owner_ordering_and_command_window_fail(self):
+        for change in ('duplicate','unknown','ordering','step-window','future'):
+            saved=deepcopy(self.jobs)
+            if change=='duplicate':self.jobs.append(deepcopy(self.jobs[1]))
+            elif change=='unknown':self.jobs.append({'name':'android / unknown-owner'})
+            elif change=='ordering':self.jobs[2]['started_at']='2026-10-16T19:02:00Z'
+            elif change=='step-window':self.jobs[1]['steps'][0]['started_at']='2026-10-16T18:00:00Z'
+            else:self.jobs[1]['completed_at']='2026-10-16T21:00:00Z'
+            with self.subTest(change=change),self.assertRaises(ValueError):self.verify()
+            self.jobs=saved
+
+    def test_source_plan_and_native_bookends_are_fresh(self):
+        original=self.source_reader.side_effect
+        for change in ('source','plan','jobs'):
+            count=0
+            def source(*a,**kw):
+                nonlocal count
+                count+=1;value=deepcopy(self.source)
+                if count==2 and change=='source':value[1]['default']='f'*40
+                if count==2 and change=='jobs':self.jobs[1]['steps'][0]['name']='changed step'
+                return value
+            self.source_reader.side_effect=source
+            if change=='plan':self.plan_reader.side_effect=[deepcopy(self.expected),{**self.expected,'plan':'sha256:'+'f'*64}]
+            with self.subTest(change=change),self.assertRaises(ValueError):self.verify()
+            self.jobs[1]['steps'][0]['name']=gate.CURRENT_JOBS['android / execute']
+            self.plan_reader.side_effect=lambda *a,**kw:deepcopy(self.expected)
+        self.source_reader.side_effect=original
+
+    def test_independently_unselected_owner_requires_exact_skip_and_no_execution(self):
+        self.expected['required']=False;self.needs={'android':{'result':'skipped','outputs':{}}}
+        self.jobs=[];self.attempt['referenced_workflows']=[]
+        value=self.verify();self.assertFalse(value['executed'])
+        for job in ({'name':'android / execute','status':'completed','conclusion':'success'},
+                    {'name':'android / execute','status':'completed','conclusion':'failure'}):
+            self.jobs=[job]
+            with self.assertRaises(ValueError):self.verify()
+        self.jobs=[];self.needs['android']['outputs']={'verified':'true'}
+        with self.assertRaises(ValueError):self.verify()
+
+    def test_actual_source_helper_checks_API_B_M_D_and_all_four_native_targets(self):
+        execution,inputs,A,S=gate._native_modules()
+        packages=gate.packages()
+        manifest=json.loads((ROOT/'.github/package-workflow-generations.json').read_bytes())['generations']
+        old=next(row for row in manifest if row['name']=='android-owned-npm5-sync-ci-v1')
+        future=deepcopy(manifest[-1]);future['name']=gate.CURRENT_SOURCE_GENERATION
+        future['workflows']['.github/workflows/repository-checks.yml']={'mode':'100644','type':'blob','sha':'e'*40}
+        before=deepcopy(old['workflows']);current=deepcopy(future['workflows'])
+        current[gate.WORKFLOW]=gate._blob((ROOT/(gate.OWNED+'/android-required.yml')).read_bytes())
+        default={'trusted-D.py':{'mode':'100644','type':'blob','sha':'f'*40}}
+        maps={self.base:before,self.sha:current,self.default:default}
+        trees={revision:str(index+6)*40 for index,revision in enumerate(maps)}
+        def get(endpoint):
+            if endpoint.startswith('branches/'):
+                name=endpoint.split('/')[-1]
+                return {'name':name,'protected':True,'commit':{'sha':self.default if name=='main' else self.base}}
+            if endpoint.startswith('git/commits/'):
+                revision=endpoint.split('/')[-1];return {'sha':revision,'tree':{'sha':trees[revision]}}
+            raise AssertionError(endpoint)
+        def tree(oid):
+            revision=next(revision for revision,item in trees.items() if item==oid)
+            return {'sha':oid,'truncated':False,'tree':[{'path':path,**item} for path,item in maps[revision].items()]}
+        refs={'default':self.default,'default_ref':'main'}
+        adapter=SimpleNamespace(current=lambda _: (deepcopy(self.binding),deepcopy(refs)),
+            _object=get,api=SimpleNamespace(immutable_tree=tree))
+        env={'GITHUB_ACTIONS':'true','GITHUB_REPOSITORY':gate.REPOSITORY,'GITHUB_REPOSITORY_ID':str(gate.REPOSITORY_ID),
+            'GITHUB_EVENT_NAME':'pull_request','GITHUB_RUN_ATTEMPT':'1','GITHUB_JOB':'repository-checks',
+            'RUNNER_ENVIRONMENT':'github-hosted','ImageOS':'ubuntu24','GITHUB_REF':'refs/pull/17/merge',
+            'GITHUB_RUN_ID':'100','GITHUB_SHA':self.sha,'GITHUB_WORKFLOW_SHA':self.sha,
+            'GITHUB_WORKFLOW_REF':gate.REPOSITORY+'/.github/workflows/repository-checks.yml@refs/pull/17/merge',
+            'GITHUB_BASE_REF':'android-phone','GITHUB_HEAD_REF':self.binding['head_ref']}
+        # Existing strict controller and handoff validators have their own real
+        # source tests. These spies isolate this new caller's actual API/local
+        # source binding and require D alone to supply executable authority.
+        with patch.object(gate,'packages',return_value=packages), \
+             patch.object(packages,'workflow_generations',return_value=[old,future]), \
+             patch.object(execution,'checkout_identity',return_value=(self.default,trees[self.default])), \
+             patch.object(inputs,'full_tree',return_value=default), \
+             patch.object(gate,'_sources',side_effect=lambda candidate,commit=None:SimpleNamespace(entries=before if commit else current)), \
+             patch.object(S,'compatibility',return_value={'trusted':'actual D'}) as compatibility, \
+             patch.object(S,'actual_import_inventory',return_value={}), \
+             patch.object(gate,'validate_owned_generation') as handoff:
+            def source():return self.actual_source('/candidate',self.event,self.sha,env,adapter,ROOT)
+            for target in gate.CURRENT_SOURCE_TARGETS:
+                self.binding['base_ref']=target;self.event['pull_request']['base']['ref']=target;env['GITHUB_BASE_REF']=target
+                self.assertEqual(source()[2:4],(current,default))
+                self.assertEqual(compatibility.call_args.args,(default,default,'main'))
+                self.assertEqual(handoff.call_args.kwargs['before_sha'],self.base)
+            for change in ('job','target','default','root','B','M','branch','mode','mixed'):
+                with self.subTest(change=change):
+                    if change=='job':
+                        with patch.dict(env,{'GITHUB_JOB':'android'}),self.assertRaises(ValueError):source()
+                    elif change=='target':
+                        original=self.binding['base_ref'];self.binding['base_ref']='unknown'
+                        with self.assertRaises(ValueError):source()
+                        self.binding['base_ref']=original
+                    elif change=='default':
+                        refs['default_ref']='other'
+                        with self.assertRaises(ValueError):source()
+                        refs['default_ref']='main'
+                    elif change=='root':
+                        with patch.object(execution,'checkout_identity',return_value=('a'*40,trees[self.default])),self.assertRaises(ValueError):source()
+                    elif change in ('B','M'):
+                        side=self.base if change=='B' else self.sha
+                        saved=maps[side];maps[side]={'unknown':{'mode':'100644','type':'blob','sha':'f'*40}}
+                        with self.assertRaises(ValueError):source()
+                        maps[side]=saved
+                    elif change=='branch':
+                        with patch.object(adapter,'_object',side_effect=lambda endpoint:{'name':endpoint.split('/')[-1],'protected':False}),self.assertRaises(ValueError):source()
+                    else:
+                        saved=deepcopy(current)
+                        if change=='mode':current[gate.WORKFLOW]['mode']='120000'
+                        else:current['.github/workflows/repository-checks.yml']['sha']='f'*40
+                        with self.assertRaises(ValueError):source()
+                        current.clear();current.update(saved)
+
+    def test_dispatch_preserves_old14_admission_and_cannot_enable_current40(self):
+        source=SimpleNamespace(entries={})
+        package=SimpleNamespace(validate_tree_wiring=lambda tree:'android-owned-npm5-sync-ci-v1')
+        with patch.object(gate,'packages',return_value=package),patch.object(gate,'_sources',return_value=source), \
+             patch.object(gate,'admit',return_value='legacy') as legacy, \
+             patch.object(gate,'verify_current_owner',side_effect=AssertionError('no unrequested40')):
+            self.assertEqual(gate.admit_repository('/candidate',self.event,self.sha,self.needs,self.environment),'legacy')
+        legacy.assert_called_once()
 
 
 if __name__ == "__main__":
