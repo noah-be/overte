@@ -805,15 +805,31 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
             previous, current = dict(old_steps[name]), dict(actual)
             previous.pop('if'); current.pop('if')
             self.assertEqual(previous, current)
+            self.assertIn("&& !(steps.select.outputs.lane == 'verified-empty' && steps.select.outputs.consumer_setup == 'none' && steps.select.outputs.empty_setup != '')", actual['if'])
         for name in ('Set up candidate Java', 'Install candidate host prerequisites'):
             self.assertEqual(next(step for step in steps if step['name'] == name)['if'],
-                             "(steps.select.outputs.consumer_setup != 'none' || steps.select.outputs.native_setup == '') && steps.select.outputs.full_host == 'true'")
+                             "(steps.select.outputs.consumer_setup != 'none' || steps.select.outputs.native_setup == '') && steps.select.outputs.full_host == 'true' && !(steps.select.outputs.lane == 'verified-empty' && steps.select.outputs.consumer_setup == 'none' && steps.select.outputs.empty_setup != '')")
         executions = [step for step in steps if 'trusted/tools/test-evidence/validate-sync.py' in step.get('run', '')
                       and step.get('id') != 'select']
-        self.assertEqual(len(executions), 2)
+        self.assertEqual(len(executions), 3)
+        self.assertEqual({step['name'] for step in executions}, {
+            'Verify bounded synchronization without product setup',
+            'Verify exact candidate suites and complete runtime identity',
+            'Validate the exact unchanged synchronization without test execution'})
         for step in executions:
             self.assertIn('--expected-selection "$EXPECTED_SELECTION"', step['run'])
             self.assertEqual(step['env']['EXPECTED_SELECTION'], '${{ steps.select.outputs.selection }}')
+            if step['name'] == 'Validate the exact unchanged synchronization without test execution':
+                self.assertEqual(step['if'], "steps.select.outputs.lane == 'verified-empty'")
+                self.assertEqual(step['env']['EXPECTED_EMPTY_SETUP'], '${{ steps.select.outputs.empty_setup }}')
+                self.assertTrue(step['run'].startswith('python3 -B '))
+                self.assertIn('--expected-empty-setup "$EXPECTED_EMPTY_SETUP"', step['run'])
+                self.assertNotIn('--expected-native-setup', step['run'])
+                self.assertNotIn('SYNC_VALIDATOR_PYTHON', step['env'])
+            elif step['name'] == 'Verify exact candidate suites and complete runtime identity':
+                self.assertIn("steps.select.outputs.lane != 'verified-empty'", step['if'])
+                self.assertEqual(step['env']['EXPECTED_NATIVE_SETUP'], '${{ steps.select.outputs.native_setup }}')
+                self.assertIn('--expected-native-setup "$EXPECTED_NATIVE_SETUP"', step['run'])
         self.assertNotIn('candidate/tests/run-project-tests.py', source)
 
     def test_selected_sync_contract_rejects_foreign_mode_and_alias_recipes(self):
