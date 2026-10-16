@@ -35,7 +35,7 @@ LEGACY_HELPER_BLOB = '9c531c34ba559d17255768d8cae3129496fac55d'
 # Authenticate the only executable bootstrap BEFORE it can read API facts.
 # A guard upgrade requires a reviewed helper upgrade; local Git equality alone
 # cannot let an arbitrary historical/candidate guard authenticate itself.
-SOURCE_GUARD_BLOB = '71bb88f704e3f96444c3dbf94916f9f871c08720'
+SOURCE_GUARD_BLOB = 'f6cbc9c022beb3283925a7289acb893eef1a883b'
 TARGETS = frozenset({'main', 'apple-main', 'apple-ios', 'android-main',
                      'android-phone', 'android-vr', 'android-vr-pico'})
 _READERS = ('inputs', 'runtime', 'execution', 'producer', 'producer_api', 'source_admission')
@@ -216,10 +216,14 @@ def _protected_readers(event, environment, native_value, root):
     def actual(relative):
         raw = _git(root, 'show', 'HEAD:' + relative)
         entry = default.get(relative)
-        require(type(entry) is dict and (relative == source.PROFILE or entry == base.get(relative))
+        require(type(entry) is dict and (relative == source.PROFILE or relative in source.REUSE_LOOKUP_DATA
+            or entry == base.get(relative))
             and source.blob_id(raw) == entry['sha'], 'scheduling actual protected controller changed')
         return raw, entry
-    context = source.compatibility(base, default, target,
+    require(event_only(event, environment.get('GITHUB_EVENT_NAME'))
+        and environment.get('GITHUB_JOB') in {'recognize','route','select'},
+        'source precheck requires the one-way metadata scheduling role')
+    context = source.reuse_compatibility(base, default, target,
         read_actual=actual, actual_imports=source.actual_import_inventory(root))
     import importlib
     directory = root / 'tools/test-evidence'

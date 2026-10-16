@@ -296,6 +296,34 @@ def compatibility(base, default, target, *, read_actual, actual_imports):
             'target_profile':base[PROFILE],'controller_digest':digest(identity),
             'lookup_digest':digest(current)}
 
+# These exact lookup files are never imported by production controllers. Their
+# original bytes remain mandatory in source4; this precheck grants no result.
+REUSE_LOOKUP_DATA = tuple('tools/test-evidence/'+name for name in (
+    'AFFECTED_SELECTION.md', 'affected-test.py', 'attested-test.py', 'ci-integration-test.py',
+    'ci-profile-test.py', 'execution-test.py', 'producer-api-test.py', 'producer-test.py',
+    'qualification-producer-test.py', 'registry-test.py', 'runtime-ci-test.py', 'runtime-test.py',
+    'sandbox-host-test.py', 'sandbox-test.py', 'source-admission-test.py', 'test.py', 'validate-sync-test.py'))
+_REUSE_PUSH_ROLES = frozenset({'common-parent','qualify-parent','route','project-results','documentation-source'})
+
+
+def reuse_compatibility(base, default, target, *, read_actual, actual_imports):
+    """Authenticate current executable imports only; no original-source/PASS claim.
+
+    Exact original seventeen bytes must subsequently be reconstructed from the
+    native source4 receipt. Strict capture compatibility remains unchanged.
+    """
+    validate_tree(base);validate_tree(default)
+    require(set(IMPORT_MEMBERS)-set(CONTROLLERS)==set(REUSE_LOOKUP_DATA),
+            'nonproduction reuse lookup set is not reviewed')
+    for name in REUSE_LOOKUP_DATA:
+        require(all(tree.get(name,{}).get('mode')=='100644'
+                    and tree[name]['type']=='blob' for tree in (base,default)),
+                'reuse lookup membership, mode or type changed')
+    provisional={**base,**{name:default[name] for name in REUSE_LOOKUP_DATA}}
+    current=compatibility(provisional,default,target,read_actual=read_actual,actual_imports=actual_imports)
+    return {**current,'kind':'protected-default-reuse-controller-precheck-v1'}
+
+
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, request, response, code, message, headers, target):
         raise SourceUnavailable('protected source API redirects are forbidden')
@@ -398,7 +426,12 @@ def authenticate(event, environment, api, root):
     context=native(event,environment,api)
     default=api_tree(api,context['default']);base=api_tree(api,context['base'])
     # Fixed native bootstrap has already committed this very stdlib-only file to B.
-    result=compatibility(base,default,context['target'],read_actual=lambda name:actual_bytes(root,name),actual_imports=actual_import_inventory(root))
+    # Native push consumers may import CURRENT protected controllers before
+    # authenticating original source4 data. PR execution/publication and other
+    # push roles retain strict original B/D admission. This grants no PASS.
+    validator=(reuse_compatibility if environment.get('GITHUB_EVENT_NAME')=='push'
+        and environment.get('GITHUB_JOB') in _REUSE_PUSH_ROLES else compatibility)
+    result=validator(base,default,context['target'],read_actual=lambda name:actual_bytes(root,name),actual_imports=actual_import_inventory(root))
     clean_env={'PATH':'/usr/bin:/bin','HOME':'/nonexistent','GIT_CONFIG_NOSYSTEM':'1','GIT_CONFIG_GLOBAL':'/dev/null','GIT_TERMINAL_PROMPT':'0'}
     actual=subprocess.run(['/usr/bin/git','--no-replace-objects','-c','safe.directory='+str(root),'-c','core.hooksPath=/dev/null','rev-parse','--verify','HEAD'],cwd=root,env=clean_env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=True,timeout=10).stdout.decode().strip()
     require(actual==context['default'],'actual controller checkout is not current defaultD')

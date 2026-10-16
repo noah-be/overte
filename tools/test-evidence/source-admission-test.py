@@ -78,11 +78,95 @@ class SourceFixture:
         return Api()
 
 class SourceAdmissionTests(SourceFixture,unittest.TestCase):
+    def test_reuse_precheck_preserves_all_original_data_without_relaxing_capture(self):
+        for name in S.REUSE_LOOKUP_DATA:
+            self.base[name]=S.ordinary('a'*40)
+        before=deepcopy(self.base);default=deepcopy(self.default)
+        with self.assertRaises(S.SourceUnavailable):self.admit()
+        value=S.reuse_compatibility(self.base,self.default,self.target,
+            read_actual=self.read,actual_imports=self.imports())
+        self.assertEqual(value['kind'],'protected-default-reuse-controller-precheck-v1')
+        self.assertEqual(self.base,before);self.assertEqual(self.default,default)
+        self.assertEqual(set(S.REUSE_LOOKUP_DATA),set(S.IMPORT_MEMBERS)-set(S.CONTROLLERS))
+        for field in ('verified','results','environment','receipt','qualification','expires_at'):
+            self.assertNotIn(field,value)
+
+    def test_reuse_precheck_rejects_changed_executables_and_lookup_shapes(self):
+        original=deepcopy(self.base)
+        for name in S.CONTROLLERS:
+            self.base=deepcopy(original);self.base[name]['sha']='a'*40
+            with self.subTest(controller=name),self.assertRaises(S.SourceUnavailable):
+                S.reuse_compatibility(self.base,self.default,self.target,
+                    read_actual=self.read,actual_imports=self.imports())
+        self.base=deepcopy(original)
+        for side in ('base','default'):
+            for change in ('mode','alias','gitlink','missing','new-member','local-drift'):
+                base,default=deepcopy(self.base),deepcopy(self.default)
+                tree=base if side=='base' else default;name=S.REUSE_LOOKUP_DATA[0]
+                observed=deepcopy(self.imports())
+                if change=='mode':tree[name]['mode']='100755'
+                elif change=='alias':tree[name]['mode']='120000'
+                elif change=='gitlink':tree[name].update(mode='160000',type='commit')
+                elif change=='missing':tree.pop(name)
+                elif change=='new-member':tree['tools/test-evidence/shadow.py']=S.ordinary('a'*40)
+                else:observed['files'][name]['sha']='b'*40
+                with self.subTest(side=side,change=change),self.assertRaises(S.SourceUnavailable):
+                    S.reuse_compatibility(base,default,self.target,
+                        read_actual=self.read,actual_imports=observed)
+
+    def test_only_native_push_consumer_roles_select_reuse_precheck(self):
+        context={'default':self.default_id,'base':self.base_id,'source':self.merge_id,'target':self.target}
+        process=SimpleNamespace(stdout=(self.default_id+'\n').encode())
+        for event in ('pull_request','push'):
+            for job in (*sorted(S._REUSE_PUSH_ROLES),'project-tests','producer-publication','platform-tests','unknown'):
+                env={**self.env,'GITHUB_EVENT_NAME':event,'GITHUB_JOB':job}
+                with self.subTest(event=event,job=job),patch.object(S,'native',return_value=context), \
+                     patch.object(S,'api_tree',side_effect=[self.default,self.base]), \
+                     patch.object(S,'compatibility',return_value={'kind':'strict'}) as strict, \
+                     patch.object(S,'reuse_compatibility',return_value={'kind':'precheck'}) as reuse, \
+                     patch.object(S.subprocess,'run',return_value=process):
+                    value=S.authenticate(self.event,env,self.api(),ROOT)
+                    selected=event=='push' and job in S._REUSE_PUSH_ROLES
+                    self.assertEqual(value['kind'],'precheck' if selected else 'strict')
+                    self.assertEqual(reuse.call_count,int(selected));self.assertEqual(strict.call_count,int(not selected))
+
     def test_fixed_graph_matches_actual_complete_producer_controller(self):
         import producer_workflow as P
         self.assertEqual(set(S.CONTROLLERS),set(P.controller_sources(P._host_policy())))
         self.assertEqual(len(S.TARGET_PROFILES),7)
         self.assertEqual(len(set(S.TARGET_PROFILES.values())),3)
+
+    def test_actual_native_push_preimport_admits_only_current_controllers_before_source4_lookup(self):
+        for name in S.REUSE_LOOKUP_DATA:self.base[name]=S.ordinary('a'*40)
+        env={**self.env,'GITHUB_EVENT_NAME':'push','GITHUB_JOB':'route',
+            'GITHUB_REF':'refs/heads/'+self.target,
+            'GITHUB_WORKFLOW_REF':S.REPOSITORY+'/.github/workflows/project-tests.yml@refs/heads/'+self.target}
+        event={'repository':self.event['repository'],'ref':env['GITHUB_REF'],'before':self.base_id,
+            'after':self.merge_id,'forced':False,'deleted':False}
+        api=self.api();get=api.get
+        def native_get(endpoint):
+            if endpoint=='git/commits/'+self.merge_id:
+                return {'sha':self.merge_id,'tree':{'sha':'3'*40},
+                    'parents':[{'sha':self.base_id},{'sha':self.head_id}]}
+            value=get(endpoint)
+            if endpoint=='branches/'+self.target:value['commit']['sha']=self.merge_id
+            return value
+        api.get=native_get
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            for name,raw in self.bodies.items():
+                path=root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(raw)
+                path.chmod(0o755 if self.default[name]['mode']=='100755' else 0o644)
+            process=SimpleNamespace(stdout=(self.default_id+'\n').encode())
+            with patch.object(S.subprocess,'run',return_value=process):
+                value=S.authenticate(event,env,api,root)
+                self.assertEqual(value['kind'],'protected-default-reuse-controller-precheck-v1')
+                self.assertEqual(value['source'],self.merge_id)
+                for role in ('project-tests','producer-publication','platform-tests'):
+                    with self.subTest(role=role),self.assertRaises(S.SourceUnavailable):
+                        S.authenticate(event,{**env,'GITHUB_JOB':role},api,root)
+                path=root/'tools/test-evidence/runtime.py';path.write_bytes(b'changed current controller\n')
+                with self.assertRaises(S.SourceUnavailable):S.authenticate(event,env,api,root)
     def test_controller_identity_excludes_only_fixed_import_projection_members(self):
         import producer_workflow as P
         import postmerge
