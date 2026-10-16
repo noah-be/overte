@@ -1240,5 +1240,42 @@ class SevenTargetProfileTests(unittest.TestCase):
         self.assertTrue(C.controller_policy(self.policy))
 
 
+class OriginalSourcePreselectionTests(unittest.TestCase):
+    """Original dependency derivation is data, never current runtime authority."""
+    def setUp(self):
+        self.f=SevenTargetProfileTests();self.f.setUp();self.addCleanup(self.f.doCleanups)
+
+    def test_original_fixed_subject_subset_is_rederived_even_when_current_D_subject_changes(self):
+        f=self.f
+        base,candidate,selected=f.subset('apple-ios')
+        self.assertNotIn('producer-proof',selected['suites'])
+        old=deepcopy(f.trusted)
+        path=f.root/'tools/test-evidence/producer-test.py'
+        path.write_bytes(path.read_bytes()+b'\n# current protected unit-test body only\n')
+        f.f.git('add','--all');f.f.git('-c','user.name=Fixture','-c','user.email=fixture@example.invalid',
+            'commit','--quiet','-m','Current protected fixed-subject update')
+        manifest=C.capture_controller_manifest(f.root,f.f.git('rev-parse','HEAD').decode().strip())
+        current_plan=inputs.plan_affected(f.registry,f.raw,base,candidate,manifest['entries'],target='apple-ios')
+        self.assertIn('producer-proof',current_plan['required'])
+        kwargs=dict(target='apple-ios',base_tree=base,root=f.root,read_blob=f.blobs.__getitem__,controller_manifest=manifest)
+        provisional=C.preliminary_reuse_selection(selected,candidate,old,f.registry,**kwargs)
+        self.assertEqual(provisional['generation_digest'],C.controller_generation(manifest['entries'],f.registry))
+        self.assertNotEqual(provisional['generation_digest'],C.controller_generation(old,f.registry))
+        with self.assertRaises(ValueError):C.validate_selection(selected,candidate,old,f.registry,**kwargs)
+        import runtime_ci
+        with self.assertRaises(runtime_ci.CIEnvironmentError):runtime_ci.validate_original_environment(
+            provisional,{},None,None,None,selected,candidate,old,f.registry,root=f.root)
+
+    def test_preselection_cannot_ignore_import_mode_new_members_or_executable_controller_changes(self):
+        f=self.f;base,candidate,selected=f.subset('apple-ios')
+        for change in ('mode','member','controller'):
+            tree=deepcopy(f.trusted)
+            if change=='mode':tree['tools/test-evidence/producer-test.py']['mode']='100755'
+            elif change=='member':tree['tools/test-evidence/new.py']=f.f.blob(b'new import')
+            else:tree['tools/test-evidence/producer.py']=f.f.blob(b'changed production controller')
+            with self.subTest(change=change),self.assertRaises(ValueError):C.reuse_controller_precheck(
+                base,tree,'apple-ios',root=f.root)
+
+
 if __name__ == "__main__":
     unittest.main()

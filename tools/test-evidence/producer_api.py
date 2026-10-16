@@ -250,6 +250,38 @@ class GitHubReadOnly:
         require(actual == identity, 'immutable blob content differs from its Git object identity')
         return content
 
+    def immutable_source_blob(self, blob_sha):
+        """Fixed bounded original-source transport, not a policy-size override.
+
+        Only retained source reconstruction chooses the fixed seventeen object
+        identities from an authenticated complete original Git tree.
+        """
+        identity = sha(blob_sha)
+        endpoint = PREFIX + '/git/blobs/' + identity
+        raw = self._request(endpoint, 1_500_000)
+        require(type(raw) is bytes and len(raw) <= 1_500_000, 'source blob JSON exceeds its bound')
+        value = self._json(raw)
+        fields = {'sha', 'size', 'encoding', 'content'}
+        require(type(value) is dict and fields <= value.keys() <= fields | {'url', 'node_id'}
+            and value['sha'] == identity and value['encoding'] == 'base64'
+            and type(value['size']) is int and 0 <= value['size'] <= 1_000_000
+            and type(value['content']) is str and len(value['content']) <= 1_500_000,
+            'source blob identity, encoding, size or fields differ')
+        require('url' not in value or value['url'] == 'https://api.github.com/' + endpoint,
+            'source blob URL differs from its immutable fork identity')
+        require('node_id' not in value or type(value['node_id']) is str and 0 < len(value['node_id']) <= 512,
+            'source blob metadata is unsupported')
+        encoded = value['content'].replace('\n', '')
+        require(len(encoded) <= 4 * ((1_000_000 + 2) // 3), 'source blob exceeds decoded bound')
+        try:
+            content = base64.b64decode(encoded.encode('ascii'), validate=True)
+        except (UnicodeError, binascii.Error, ValueError):
+            raise ApiError('source blob content is not strict base64') from None
+        require(len(content) == value['size'] and base64.b64encode(content).decode('ascii') == encoded
+            and hashlib.sha1(b'blob ' + str(len(content)).encode('ascii') + b'\0' + content).hexdigest() == identity,
+            'source blob content differs from its exact Git object identity')
+        return content
+
 
 @dataclass(frozen=True)
 class MetadataPolicy:

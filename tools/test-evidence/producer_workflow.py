@@ -141,10 +141,69 @@ def retained_receipt_source(receipt, binding, adapter, registry, selected, run_i
     base=source_admission.api_tree(api,binding['base_sha'],tree_reader=adapter.api.immutable_tree)
     default=source_admission.api_tree(api,value['default_commit'],tree_reader=adapter.api.immutable_tree)
     expected=ci_profile.validate_retained_source(value,base,default,native_binding=binding,
-        run_id=run_id,registry=registry,selection=selected,environment=receipt['environment'],root=root)
+        run_id=run_id,registry=registry,selection=selected,environment=receipt['environment'],root=root,
+        read_source_blob=getattr(adapter.api,'immutable_source_blob',None))
     host.require(expected['binding']['git_context']==expected_git_context(adapter,binding),
                  'retained original projection Git context differs from independent native source')
     return expected
+
+
+def verify_original_source(adapter, invocation, plan, api_policy, context, receipt, binding, *, integrated, root=ROOT, clock):
+    """Actual native verification is the sole mint for original runtime authority.
+
+    There is no serialized token, optional proof callback or supplied verification
+    result. Legacy schema3 callers retain their existing verification path.
+    """
+    verified,token=ci_profile.authenticate_original_source(adapter,invocation,plan,api_policy,context,
+        receipt,binding,integrated=integrated,root=root,clock=clock)
+    host.require(clock()<protocol._time(verified['expires_at']), 'original proof expired during source reconstruction')
+    return verified,token
+
+
+def reuse_source_profile(snapshot, adapter, api_policy, policy, registry, candidate, base,
+                         *, root=ROOT, target, read_blob, now):
+    """Two-phase source lookup, never evidence/runtime admission or a PASS.
+
+    The native newest run is located without choosing its plan from current D.
+    Claimed descriptor data permits only reading source4, after which the owner
+    is independently rederived from complete immutable ORIGINAL B/D inputs.
+    Actual Adapter.verify and original runtime admission remain mandatory later.
+    """
+    host.require(snapshot.inventory_complete is True and bool(snapshot.observations),
+        'original source lookup inventory is incomplete')
+    seen=set();ordered=[]
+    for item in snapshot.observations:
+        protocol._run(item.run,api_policy.producer,require_latest=False)
+        key=(item.run.run_id,item.run.attempt)
+        host.require(key not in seen and item.run.attempt==item.run.latest_attempt==1,
+            'original source lookup has mixed or duplicate attempts')
+        seen.add(key);ordered.append((protocol._time(item.run.attempt_started_at),item))
+    newest=max(stamp for stamp,_ in ordered)
+    matches=[item for stamp,item in ordered if stamp==newest]
+    host.require(len(matches)==1,'original source lookup has tied newest runs')
+    item=matches[0]
+    descriptor=protocol.read_artifact(item.descriptor_archive,'descriptor',item.descriptor_artifact,item.run,now=now)
+    claim=descriptor.get('plan')
+    authority=protocol.select_authority(snapshot.observations,snapshot.binding,claim,api_policy.producer,
+        inventory_complete=snapshot.inventory_complete,now=now)
+    host.require(authority['state']=='proof-required' and authority['run_id']==item.run.run_id,
+        'newest original source is failed, pending or unclassified')
+    raw,facts=adapter._artifact(item.run,'aggregate',snapshot.artifact_inventories[item.run.run_id],now,snapshot.binding['head_sha'])
+    aggregate=protocol.read_artifact(raw,'aggregate',facts,item.run,now=now)
+    receipt=aggregate.get('results',{}).get('shared-host',{}).get('receipt')
+    host.require(type(receipt) is dict and receipt.get('schema')==4,
+        'complete original source4 data is unavailable')
+    source=ci_profile.retained_source_shape(receipt.get('protected_source'))
+    # This bounded full reconstruction still supplies no native whole-hash
+    # authority; it only closes original-data dependency/selection derivation.
+    retained_receipt_source(receipt,snapshot.binding,adapter,registry,source['binding']['selection'],item.run.run_id,root=root)
+    from types import SimpleNamespace
+    default=source_admission.api_tree(SimpleNamespace(get=adapter._object),source['default_commit'],
+        tree_reader=adapter.api.immutable_tree)
+    profile=selection_profile_for_reuse(policy,registry,candidate,base,default,root=root,target=target,read_blob=read_blob)
+    host.require(profile['selection']==source['binding']['selection'],
+        'original immutable source does not derive the claimed selected owners')
+    return profile,default
 
 
 def _event_binding(event, binding):
@@ -262,7 +321,7 @@ def source_blob(repository, oid):
 
 
 def _affected_full_selection(policy, registry, selected, candidate_tree, base_tree, trusted_tree, paths,
-                             regular, *, root, target):
+                             regular, *, root, target, _reuse_only=False):
     """Admit a finite source-proved subset without changing the full runtime.
 
     The selector's label or supplied names are insufficient. Reconstruct the
@@ -284,9 +343,12 @@ def _affected_full_selection(policy, registry, selected, candidate_tree, base_tr
         if target != 'main':
             host.require(dependencies['schema'] == 2 and execution_schema(policy,candidate_tree,target) == 4,
                 'child affected proof requires the retained-source seven-target generation')
-            source_admission.compatibility(base_tree,trusted_tree,target,
-                read_actual=lambda name:source_admission.actual_bytes(root,name),
-                actual_imports=source_admission.actual_import_inventory(root))
+            if _reuse_only:
+                ci_profile.reuse_controller_precheck(base_tree,trusted_tree,target,root=root)
+            else:
+                source_admission.compatibility(base_tree,trusted_tree,target,
+                    read_actual=lambda name:source_admission.actual_bytes(root,name),
+                    actual_imports=source_admission.actual_import_inventory(root))
         native = dependencies['suites'].get('device-control-plane-full', {})
         host.require(all(policy.ci_owned(path) for path in native.get('native_independent_paths', ())),
                      'affected native lookup has an unreviewed independence exception')
@@ -311,7 +373,8 @@ def _affected_full_selection(policy, registry, selected, candidate_tree, base_tr
         raise PreExecutionUnavailable('affected subset has no independent protected full admission') from error
 
 
-def selection_profile(policy, registry, candidate_tree, base_tree, trusted_tree, *, root=ROOT, target='main', read_blob=None):
+def _selection_profile(policy, registry, candidate_tree, base_tree, trusted_tree, *, root=ROOT, target='main', read_blob=None,
+                       _reuse_only=False):
     """Derive the owner from complete immutable inputs, never receipt claims."""
     inputs._validate_registry(registry)
     host.require(type(base_tree) is dict and type(trusted_tree) is dict, 'protected selection needs complete base and trusted inputs')
@@ -324,7 +387,7 @@ def selection_profile(policy, registry, candidate_tree, base_tree, trusted_tree,
                              candidate_root=root, trusted_root=root, target=target)
     if selected.get('reason') == 'protected-affected-dependencies':
         _affected_full_selection(policy, registry, selected, candidate_tree, base_tree, trusted_tree,
-                                 paths, regular, root=root, target=target)
+                                 paths, regular, root=root, target=target,_reuse_only=_reuse_only)
     names = execution.select_common(registry, selected['suites'])
     profile = FULL_PROFILE
     binding = None
@@ -345,13 +408,27 @@ def selection_profile(policy, registry, candidate_tree, base_tree, trusted_tree,
                     'CI subset has no independently established Qt-free upper bound')
                 if selected['reason'] != 'protected-ci-dependencies':
                     host.require(selected == legacy,'exact CI37 selection differs from its independent legacy plan')
-            binding = ci_profile.validate_selection(selected,candidate_tree,trusted_tree,registry,target=target,
+            validator=ci_profile.preliminary_reuse_selection if _reuse_only else ci_profile.validate_selection
+            binding = validator(selected,candidate_tree,trusted_tree,registry,target=target,
                 regular=regular,unknown=False,policy=runtime_policy,root=root,read_blob=read_blob,base_tree=base_tree)
         except (ci_profile.CIProfileError, OSError, ValueError) as error:
             raise PreExecutionUnavailable('selected CI37 profile has no qualified source admission') from error
         profile = ci_profile.PROFILE
     host.require(bool(names), 'protected shared owner has no selected suites')
     return {'selection':selected,'profile':profile,'suites':names,'binding':binding}
+
+
+def selection_profile(policy, registry, candidate_tree, base_tree, trusted_tree, *, root=ROOT, target='main', read_blob=None):
+    return _selection_profile(policy,registry,candidate_tree,base_tree,trusted_tree,
+        root=root,target=target,read_blob=read_blob)
+
+
+def selection_profile_for_reuse(policy, registry, candidate_tree, base_tree, trusted_tree, **kwargs):
+    """Non-authoritative plan for source4 lookup; never a capture/execute input."""
+    target=kwargs.get('target','main')
+    if execution_schema(policy,candidate_tree,target)!=4:
+        return selection_profile(policy,registry,candidate_tree,base_tree,trusted_tree,**kwargs)
+    return _selection_profile(policy,registry,candidate_tree,base_tree,trusted_tree,**kwargs,_reuse_only=True)
 
 
 def _ci_runtime_context(context, candidate):
@@ -640,7 +717,7 @@ def _completed_platform_job(adapter, attempt, jobs, name, now):
     return {'job_id': job.job_id, 'job': raw}
 
 
-def protected_source_context(adapter, binding, references, policy):
+def _protected_source_context(adapter, binding, references, policy, *, _reuse_only=False):
     """Exact B commitment to current defaultD; no historical D commit assertion."""
     target=binding['base_ref']
     try:
@@ -658,14 +735,25 @@ def protected_source_context(adapter, binding, references, policy):
         api=SimpleNamespace(get=adapter._object)
         base=source_admission.api_tree(api,binding['base_sha'],tree_reader=adapter.api.immutable_tree)
         default=source_admission.api_tree(api,references['default'],tree_reader=adapter.api.immutable_tree)
-        admitted=source_admission.compatibility(base,default,target,
-            read_actual=lambda name:source_admission.actual_bytes(ROOT,name),
-            actual_imports=source_admission.actual_import_inventory(ROOT))
+        admitted=(ci_profile.reuse_controller_precheck(base,default,target,root=ROOT) if _reuse_only else
+            source_admission.compatibility(base,default,target,
+                read_actual=lambda name:source_admission.actual_bytes(ROOT,name),
+                actual_imports=source_admission.actual_import_inventory(ROOT)))
         source_admission.require(admitted['controller_digest']==_controller_identity(policy),
             'source admission differs from actual default controller identity')
-        return {**admitted,'base':binding['base_sha'],'default':references['default']}
+        return {**admitted,**({'kind':'reuse-current-controller-precheck-v1'} if _reuse_only else {}),
+            'base':binding['base_sha'],'default':references['default']}
     except (source_admission.SourceUnavailable,host.Unavailable,OSError,ValueError,KeyError,TypeError) as error:
         raise PreExecutionUnavailable('protected base/default source is not enrolled') from error
+
+
+def protected_source_context(adapter, binding, references, policy):
+    return _protected_source_context(adapter,binding,references,policy)
+
+
+def reuse_source_context(adapter, binding, references, policy):
+    """Metadata lookup bookend only, never original producer/source authority."""
+    return _protected_source_context(adapter,binding,references,policy,_reuse_only=True)
 
 
 def prepare(candidate, event, environment, adapter):

@@ -2053,8 +2053,15 @@ class NativeRetainedParentEvidenceTests(unittest.TestCase):
         # immutable source repository, not a narrowed two-suite toy registry.
         for item in f.patches:
             if item.attribute=='load_registry': C.inputs.load_registry.side_effect=item.temp_original
-        source=self.sources.ControllerGenerationTests();source.setUp();self.addCleanup(source.doCleanups)
+        holder=(self.sources.SevenTargetProfileTests() if getattr(self,'ci_original',False)
+            else self.sources.ControllerGenerationTests())
+        holder.setUp();self.addCleanup(holder.doCleanups)
+        source=holder.f if getattr(self,'ci_original',False) else holder
         self.source=source;self.root=source.root;self.registry=source.registry
+        if getattr(self,'ci_original',False):
+            policy=json.loads((self.root/C.ci_profile.POLICY).read_bytes())
+            policy['not_before']='2026-10-15T00:00:00Z'
+            (self.root/C.ci_profile.POLICY).write_bytes(C.inputs._canonical(policy))
         for suite in self.registry['suites'].values():
             for name in suite['closure']['required']:
                 original=C.ROOT/name;target=self.root/name
@@ -2092,17 +2099,20 @@ class NativeRetainedParentEvidenceTests(unittest.TestCase):
             source.git('rev-parse','HEAD').decode().strip())
         native.default=self.manifest['source_commit'];native.default_tree=self.manifest['source_tree']
         native.local=deepcopy(self.manifest['entries'])
+        apple=getattr(self,'ci_original',False) and not getattr(self,'ci_android',False)
+        parent_target='apple-main' if apple else 'android-main'
+        child_target='apple-ios' if apple else 'android-phone'
         parent=deepcopy(native.local);parent.update(deepcopy(self.generation))
-        parent[C.source_admission.PROFILE]=C.source_admission.ordinary(C.source_admission.TARGET_PROFILES['android-main'])
+        parent[C.source_admission.PROFILE]=C.source_admission.ordinary(C.source_admission.TARGET_PROFILES[parent_target])
         previous=deepcopy(parent);previous['retained-fixture-data.txt']=source.blob(b'previous product value\n')
         candidate=deepcopy(parent)
-        candidate[C.source_admission.PROFILE]=C.source_admission.ordinary(C.source_admission.TARGET_PROFILES['android-phone'])
+        candidate[C.source_admission.PROFILE]=C.source_admission.ordinary(C.source_admission.TARGET_PROFILES[child_target])
         f.registry=self.registry;f.tree=parent;f.previous=previous;native.candidate=candidate
         self.parent,self.previous,self.candidate=parent,previous,candidate
-        case.binding.update(base_ref='android-main',merge_tree=C.ci_profile._controller_tree_identity(parent))
+        case.binding.update(base_ref=parent_target,merge_tree=C.ci_profile._controller_tree_identity(parent))
         native.child_tree=C.ci_profile._controller_tree_identity(candidate)
-        native.request=replace(native.request,base='android-phone',head='android-main',parent='android-main',profile='android-phone')
-        case.push['head_branch']='android-main';native.push_rows=[deepcopy(case.push)]
+        native.request=replace(native.request,base=child_target,head=parent_target,parent=parent_target,profile=child_target)
+        case.push['head_branch']=parent_target;native.push_rows=[deepcopy(case.push)]
         base_tree=C.ci_profile._controller_tree_identity(previous)
         self.records={case.binding['base_sha']:(base_tree,[]),case.binding['head_sha']:(case.binding['merge_tree'],[]),
             case.binding['merge_sha']:(case.binding['merge_tree'],case.binding['merge_parents']),
@@ -2128,6 +2138,7 @@ class NativeRetainedParentEvidenceTests(unittest.TestCase):
                 self.trees[oid]={'sha':oid,'truncated':False,'tree':rows};return oid
             return visit(nodes)
         for oid,tree in self.maps.items():self.assertEqual(encode_tree(tree),oid)
+        self.encode_tree=encode_tree
         original_json=native.api.json
         def json_api(endpoint):
             path=endpoint[len(C.A.PREFIX):].lstrip('/').split('?',1)[0]
@@ -2143,6 +2154,7 @@ class NativeRetainedParentEvidenceTests(unittest.TestCase):
             'tree':[{'path':name,**entry} for name,entry in self.maps[oid].items()]}
         native.api.immutable_blob=lambda oid,**kw:next(raw for raw,_ in self.platforms.values()
             if C.source_admission.blob_id(raw)==oid)
+        native.api.immutable_source_blob=lambda oid:C.ci_profile._controller_git(self.root,'cat-file','blob',oid)
         # Root and independent selector seams are explicit. Actual native source
         # compatibility and retained projection are checked again below.
         for item in (mock.patch.object(gate,'ROOT',self.root),
@@ -2154,31 +2166,63 @@ class NativeRetainedParentEvidenceTests(unittest.TestCase):
             workflow_generations=lambda:[{'name':C.producer.PLATFORM_GENERATION,'workflows':self.generation}])
         self.policy=SimpleNamespace(package_policy=lambda:package)
         C.producer._host_policy.return_value=self.policy
+        members=mock.patch.object(C.producer,'controller_sources',return_value=sorted(C.source_admission.CONTROLLERS))
+        members.start();self.addCleanup(members.stop)
         self.profile={'profile':C.producer.FULL_PROFILE,'binding':None,'suites':list(self.registry['suites']),
             'selection':{'suites':list(self.registry['suites']),'full_host':True,'include_platform':True,'reason':'fixture-full-owner'}}
+        if getattr(self,'ci_original',False):
+            selected=deepcopy(holder.selection)
+            raw_blobs={C.source_admission.blob_id((self.root/name).read_bytes()):(self.root/name).read_bytes()
+                for name in (C.ci_profile.DATA_PATH,)}
+            old_blob=native.api.immutable_blob
+            native.api.immutable_blob=lambda oid,**kw:raw_blobs[oid] if oid in raw_blobs else old_blob(oid,**kw)
+            binding=C.ci_profile.validate_selection(selected,parent,native.local,self.registry,
+                target=parent_target,base_tree=previous,root=self.root,
+                read_blob=native.api.immutable_blob,controller_manifest=self.manifest)
+            self.profile={'profile':C.ci_profile.PROFILE,'binding':binding,
+                'suites':list(C.ci_profile.SUITES),'selection':selected}
         C.producer.selection_profile.return_value=self.profile
+        mocked=mock.patch.object(C.producer,'selection_profile_for_reuse',return_value=self.profile)
+        mocked.start();self.addCleanup(mocked.stop)
         # Actual policy construction selects schema4, actual canonical Android
         # recipe and native complete workflow tuple. It is not a mocked policy.
         for item in f.patches:
             if item.attribute=='_policy':C._policy.side_effect=item.temp_original
-        admission={**C.source_admission.compatibility(previous,native.local,'android-main',
+        admission={**C.source_admission.compatibility(previous,native.local,parent_target,
             read_actual=lambda name:C.source_admission.actual_bytes(self.root,name),
             actual_imports=C.source_admission.actual_import_inventory(self.root)),
             'base':case.binding['base_sha'],'default':native.default}
         C.integrated_controller.return_value=admission['controller_digest']
         adapter=C.A.Adapter(native.api)
         self.partition=C.producer.platform_partition(self.policy,self.profile,self.registry,parent,previous,native.local,
-            target='android-main',root=self.root,read_blob=native.api.immutable_blob)
+            target=parent_target,root=self.root,read_blob=native.api.immutable_blob)
         case.plan,case.policy=C._policy(self.policy,self.registry,case.binding,admission['controller_digest'],adapter,
-            self.root,self.profile['selection'],common_owner=self.partition['common_owner'],template=C.producer.PLATFORM_TEMPLATE)
+            self.root,self.profile['selection'],common_owner=C.producer.common_owner(self.profile,self.partition),
+            template=C.producer.PLATFORM_TEMPLATE)
         case.pp=case.policy.producer
         self.git=C.producer.expected_git_context(adapter,case.binding)
         self.environment=self.fixtures.FIXTURES.isolated_codec_environment()
+        if getattr(self,'ci_original',False):
+            spec=importlib.util.spec_from_file_location('original_lookup_runtime_fixture',
+                HERE.parent/'test-evidence/runtime-ci-test.py')
+            runtime_fixture=importlib.util.module_from_spec(spec);spec.loader.exec_module(runtime_fixture)
+            sample=runtime_fixture.OriginalCIEnvironmentTests();sample.setUp()
+            try:self.environment=deepcopy(sample.environment)
+            finally:sample.doCleanups()
+            R=C.runtime_ci
+            self.environment['selection']=self.profile['binding']
+            _,manifests=R.runtime._requirement_inventory(self.root)
+            self.environment['trusted_execution']={**R.runtime._controller_file_hashes(manifests,self.root),
+                **{name:R.runtime._file_digest(self.root/name) for name in R._FILES}}
         context={'source':case.binding['merge_sha'],'run_id':100,'run_attempt':1,
             'profile':'manual-shared-host-compatibility-v1','snapshot':'sha256:'+'1'*64,'git_context':self.git,
             'runtime_profile':C.producer.FULL_PROFILE,'selection':self.profile['selection'],'profile_binding':None,
-            'registry':C.ci_profile._digest(self.registry),'prepared':self.environment['prepared']['roots'],
+            'registry':C.ci_profile._digest(self.registry),'prepared':self.environment['prepared'].get('roots',{}),
             'outside_namespaces':{name:100+i for i,name in enumerate(('user','mnt','pid','net','ipc','uts'))}}
+        if getattr(self,'ci_original',False):
+            context.update(runtime_profile=C.ci_profile.PROFILE,profile_binding=self.profile['binding'],
+                prepared={name:entry['digest'] for name,entry in self.environment['prepared'].items()},
+                selection_target=parent_target,selection_base=case.binding['base_sha'])
         projection=self.root.parent/'native-sync-projection';projection.mkdir()
         for name in C.ci_profile.controller_paths():
             C.sandbox._write_source(projection,name,(self.root/name).read_bytes(),executable=name=='tests/run-project-tests.py')
@@ -2188,10 +2232,10 @@ class NativeRetainedParentEvidenceTests(unittest.TestCase):
         self.retained=C.ci_profile.capture_retained_source(self.manifest,C.sandbox._files(projection),context,admission,root=self.root)
         receipt=deepcopy(f.receipt)
         receipt.update(schema=4,candidate_tree=case.binding['merge_tree'],git_context=self.git,
-            environment=self.environment,protected_source=self.retained,requested_suites=list(self.registry['suites']),
+            environment=self.environment,protected_source=self.retained,requested_suites=self.profile['suites'],
             include_platform=False,platform_results={})
         receipt['results']={name:{'status':'passed','fingerprint':C.inputs.suite_fingerprint(
-            self.registry,name,parent,self.environment)} for name in self.registry['suites']}
+            self.registry,name,parent,self.environment)} for name in self.profile['suites']}
         self.receipt=self.fixtures.FIXTURES.signed(receipt,'receipt_digest')
         case.aggregate['results']['shared-host']['receipt']=self.receipt
         run=replace(native.original_run,workflow_blob=case.pp.workflow_blob,
@@ -2202,7 +2246,7 @@ class NativeRetainedParentEvidenceTests(unittest.TestCase):
             check_run_url=f'https://api.github.com/{C.A.PREFIX}/check-runs/140')
         platform['steps']=[{'name':'Execute and verify the complete Android platform inventory',
             **{key:platform[key] for key in ('status','conclusion','started_at','completed_at')}}]
-        case.jobs[100].append(platform)
+        if self.partition is not None:case.jobs[100].append(platform)
 
     def verify(self):return self.native.verify()
 
@@ -2335,6 +2379,140 @@ class NativeRetainedParentEvidenceTests(unittest.TestCase):
         # selection: the authenticated original include-platform decision stays.
         self.profile['selection']['include_platform']=False
         with self.assertRaises(gate.EvidenceError):self.verify()
+
+
+class NativeOriginalLookupCompatibilityTests(unittest.TestCase):
+    """Real immutable original88 + actual native Adapter + complete fake CI2 E.
+
+    Current selector/local source startup are explicit fixture seams inherited
+    from the native parent fixture. No identity probe or workload is executed.
+    """
+    @classmethod
+    def setUpClass(cls):
+        NativeRetainedParentEvidenceTests.setUpClass()
+
+    def setUp(self):
+        self.f=NativeRetainedParentEvidenceTests();self.f.ci_original=True
+        self.f.ci_android=self._testMethodName=='test_android_CI2_original_source_is_reused_without_claiming_platform_execution'
+        self.f.setUp();self.addCleanup(self.f.doCleanups)
+        self.C=self.f.controller;self.original=deepcopy(self.f.retained)
+        self.environment=deepcopy(self.f.environment)
+
+    def advance(self,names):
+        C=self.C;f=self.f;n=f.native
+        for name in names:
+            path=f.root/name;path.write_bytes(path.read_bytes()+b'\n# reviewed protected test-only update\n')
+        f.source.git('add','--all');f.source.git('-c','user.name=Fixture','-c','user.email=fixture@example.invalid',
+            'commit','--quiet','-m','Protected nonproduction source update')
+        manifest=C.ci_profile.capture_controller_manifest(f.root,f.source.git('rev-parse','HEAD').decode().strip())
+        n.default,n.default_tree=manifest['source_commit'],manifest['source_tree']
+        n.local=deepcopy(manifest['entries'])
+        f.records[n.default]=(n.default_tree,[]);f.maps[n.default_tree]=n.local
+        self.assertEqual(f.encode_tree(n.local),n.default_tree)
+        return manifest
+
+    def verify(self):return self.f.verify()
+
+    def test_all_seventeen_original_inputs_remain_bound_while_current_bodies_advance(self):
+        C=self.C;f=self.f
+        current=self.advance(C.ci_profile._ORIGINAL_LOOKUP_DATA)
+        self.assertNotEqual(current['source_commit'],self.original['default_commit'])
+        self.assertNotEqual(C.ci_profile.controller_generation(current['entries'],f.registry),
+            self.environment['selection']['generation_digest'])
+        value=self.verify()
+        self.assertEqual(value['environment'],self.environment)
+        self.assertEqual(value['original_protected_source'],self.original)
+        self.assertEqual(value['runtime_admission']['selection'],self.environment['selection'])
+        self.assertEqual(value['original_proof']['receipt_sha256'],
+            hashlib.sha256(C.P.canonical(f.receipt)).hexdigest())
+        self.assertEqual(value['expires_at'],f.case.aggregate['expires_at'])
+        self.assertFalse(value['platform_reused'])
+        self.assertEqual(set(value['results']['suites']),set(C.ci_profile.SUITES))
+        self.assertIn('tests/run-project-tests.py',value['candidate_inputs'])
+
+    def test_doc_only_body_change_keeps_complete_original_projection_and_E(self):
+        self.advance(['tools/test-evidence/AFFECTED_SELECTION.md'])
+        value=self.verify()
+        self.assertEqual(value['original_protected_source']['projection_digest'],self.original['projection_digest'])
+        self.assertEqual(value['environment'],self.environment)
+
+    def test_android_CI2_original_source_is_reused_without_claiming_platform_execution(self):
+        self.advance(['tools/test-evidence/producer-api-test.py'])
+        value=self.verify()
+        self.assertEqual(value['parent_branch'],'android-main')
+        self.assertEqual(value['child_platform_profile']['sha'],self.C.source_admission.TARGET_PROFILES['android-phone'])
+        self.assertEqual(value['environment'],self.environment)
+        self.assertIsNone(value['original_platform_observation'])
+        self.assertFalse(value['platform_reused'])
+        self.assertEqual(value['original_protected_source'],self.original)
+
+    def test_controller_policy_mode_alias_new_lookup_or_corrupt_original_blob_declines(self):
+        C=self.C;f=self.f
+        self.advance(['tools/test-evidence/ci-profile-test.py'])
+        for change in ('controller','policy','mode','alias','new-member','raw'):
+            path=f.root/('tools/test-evidence/runtime_ci.py' if change=='controller' else
+                C.ci_profile.POLICY if change=='policy' else 'tools/test-evidence/test.py')
+            raw=path.read_bytes();mode=path.stat().st_mode&0o777
+            original_reader=f.native.api.immutable_source_blob
+            extra=f.root/'tools/test-evidence/unreviewed.so'
+            try:
+                if change in {'controller','policy'}:path.write_bytes(raw+b'\n# changed actual source\n')
+                elif change=='mode':path.chmod(0o755)
+                elif change=='alias':path.unlink();path.symlink_to(f.root/'tools/test-evidence/producer.py')
+                elif change=='new-member':extra.write_bytes(b'new native import lookup')
+                else:f.native.api.immutable_source_blob=lambda oid:b'corrupted original source'
+                with self.subTest(change=change),self.assertRaises(gate.EvidenceError):self.verify()
+            finally:
+                if path.is_symlink():path.unlink()
+                path.write_bytes(raw);path.chmod(mode)
+                if extra.exists():extra.unlink()
+                f.native.api.immutable_source_blob=original_reader
+
+    def test_native_whole_hash_failure_pending_or_expiry_cannot_mint_original_authority(self):
+        self.advance(['tools/test-evidence/producer-api-test.py'])
+        for change in ('native-hash','pending','expiry'):
+            jobs=deepcopy(self.f.case.jobs);runs=deepcopy(self.f.case.runs)
+            aggregate=deepcopy(self.f.case.aggregate)
+            try:
+                if change=='native-hash':
+                    for job in self.f.case.jobs[100]:
+                        if job['name'].startswith(self.C.producer.PUBLISH_PREFIX):
+                            job['name']=self.C.producer.PUBLISH_PREFIX+'0'*64
+                elif change=='pending':self.f.case.runs[100].update(status='in_progress',conclusion=None)
+                with self.subTest(change=change),self.assertRaises(gate.EvidenceError):
+                    if change=='expiry':gate.native_parent_evidence(self.f.native.transport,config(),self.f.native.request,
+                        now=self.f.fixtures.NOW+timedelta(hours=2))
+                    else:self.verify()
+            finally:
+                self.f.case.jobs,self.f.case.runs,self.f.case.aggregate=jobs,runs,aggregate
+
+    def test_envelope_dict_or_raw_callback_is_not_original_runtime_authority(self):
+        R=self.C.runtime_ci
+        for supplied in (self.original,{'verified':True},object()):
+            with self.subTest(supplied=type(supplied).__name__),self.assertRaises(R.CIEnvironmentError):
+                R.validate_original_environment(supplied,self.environment,None,None,None,{}, {}, {}, {})
+        with self.assertRaises(TypeError):self.C.ci_profile.authenticate_original_source(
+            read_source_blob=lambda oid:b'',verified={'verified':True})
+
+    def test_actual_native_token_admits_original_plan_only_until_original_expiry(self):
+        C=self.C;f=self.f;n=f.native
+        self.advance(['tools/test-evidence/producer-test.py'])
+        adapter=C.A.Adapter(n.api)
+        context=C.P.SharedContext(f.registry,f.parent,f.environment,f.case.binding['merge_sha'],
+            f.case.binding['merge_tree'],f.git,f.retained)
+        verified,token=C.producer.verify_original_source(adapter,500,f.case.plan,f.case.policy,context,
+            f.receipt,f.case.binding,integrated=True,root=f.root,clock=lambda:f.fixtures.NOW)
+        args=(f.environment,f.case.aggregate['qualified_at'],f.case.aggregate['expires_at'],f.fixtures.NOW,
+            f.profile['selection'],f.profile['selection'],f.parent,f.parent,n.local,f.registry,f.receipt['results'])
+        kwargs=dict(root=f.root,target=n.request.parent,base_tree=f.previous,read_blob=n.api.immutable_blob)
+        with self.assertRaises(C.runtime_ci.CIEnvironmentError):C.runtime_ci.plan_original_reuse(*args,**kwargs)
+        value=C.runtime_ci.plan_original_reuse(*args,**kwargs,original_source=token)
+        self.assertEqual(value['reused_suites'],list(C.ci_profile.SUITES))
+        self.assertEqual(value['original_expires_at'],verified['expires_at'])
+        self.assertEqual(f.environment,self.environment)
+        expired=list(args);expired[3]=C.P._time(verified['expires_at'])+timedelta(seconds=1)
+        with self.assertRaises(C.runtime_ci.CIEnvironmentError):C.runtime_ci.plan_original_reuse(
+            *expired,**kwargs,original_source=token)
 
 
 class NativeParentSourceGuardTests(unittest.TestCase):

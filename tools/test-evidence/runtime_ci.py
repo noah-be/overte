@@ -477,7 +477,8 @@ def _recorded_path(value, *, prepared=False):
 
 
 def _validate_environment(environment, qualified_at, expires_at, now, selection,
-                         candidate_tree, trusted_tree, registry, *, root=ROOT, target='main', read_blob=None, base_tree=None):
+                         candidate_tree, trusted_tree, registry, *, root=ROOT, target='main', read_blob=None, base_tree=None,
+                         _original_source=None):
     """Admit ORIGINAL CI37 E only; provenance and before/after proof are external.
 
     No tool probe, installation or consumer environment capture occurs here.
@@ -487,8 +488,14 @@ def _validate_environment(environment, qualified_at, expires_at, now, selection,
         or environment['selection'].get('kind') != ci_profile.DIAGNOSTIC_KIND,
         'manual diagnostic source binding cannot enter production admission')
     policy = ci_profile.load_policy(root)
-    binding = ci_profile.validate_selection(selection, candidate_tree, trusted_tree, registry,target=target,policy=policy,root=root,
-                                            read_blob=read_blob,base_tree=base_tree)
+    if _original_source is None:
+        binding = ci_profile.validate_selection(selection, candidate_tree, trusted_tree, registry,target=target,policy=policy,root=root,
+                                                read_blob=read_blob,base_tree=base_tree)
+    else:
+        require(type(_original_source) is ci_profile._AuthenticatedOriginalSource
+            and _original_source.expires_at==expires_at, 'original source lifetime differs from native proof')
+        binding = ci_profile.original_selection(_original_source,selection,candidate_tree,trusted_tree,registry,
+            environment=environment,target=target,base_tree=base_tree,root=root,read_blob=read_blob)
     require(type(now) is datetime and now.tzinfo is not None and now.utcoffset().total_seconds() == 0,
             'CI37 admission requires an independent UTC clock')
     def stamp(value):
@@ -674,6 +681,7 @@ def capture_ci_environment_diagnostic(selection, candidate_tree, trusted_tree, r
 def validate_environment(*args, **kwargs):
     """Pure original-E admission, with malformed/unknown inputs failing closed."""
     try:
+        require('_original_source' not in kwargs, 'original source needs the native-verifier entrypoint')
         return _validate_environment(*args, **kwargs)
     except CIEnvironmentError:
         raise
@@ -681,19 +689,34 @@ def validate_environment(*args, **kwargs):
         raise CIEnvironmentError('CI37 original environment is not admitted') from error
 
 
+def validate_original_environment(original_source, *args, **kwargs):
+    """Reuse-only entrypoint requiring the actual native source4 verifier token."""
+    try:
+        require(type(original_source) is ci_profile._AuthenticatedOriginalSource,
+            'original source has not been authenticated by the native verifier')
+        return _validate_environment(*args,**kwargs,_original_source=original_source)
+    except CIEnvironmentError:
+        raise
+    except (ValueError,KeyError,TypeError,AttributeError,RuntimeError,OSError) as error:
+        raise CIEnvironmentError('authenticated original environment is not admitted') from error
+
+
 def plan_original_reuse(environment, qualified_at, expires_at, now, original_selection,
                         current_selection, original_tree, current_tree, trusted_tree,
-                        registry, results, *, root=ROOT, read_blob=None, target='main', base_tree=None):
+                        registry, results, *, root=ROOT, read_blob=None, target='main', base_tree=None, original_source=None):
     """Pure same-profile plan, never authentication or a renewed PASS receipt.
 
     The native adapter must authenticate the ORIGINAL schema3 receipt, owner,
     environment and final whole-receipt hash separately. No full/quick profile
     conversion and no consumer environment measurement occur in this helper.
     """
-    admission = validate_environment(environment, qualified_at, expires_at, now,
+    validator=validate_environment if original_source is None else lambda *args,**kwargs:validate_original_environment(original_source,*args,**kwargs)
+    admission = validator(environment, qualified_at, expires_at, now,
         current_selection, current_tree, trusted_tree, registry, root=root,read_blob=read_blob,target=target,base_tree=base_tree)
-    original = ci_profile.validate_selection(original_selection, original_tree, trusted_tree, registry,
-                                             policy=ci_profile.load_policy(root),root=root,read_blob=read_blob,target=target,base_tree=base_tree)
+    original = (ci_profile.validate_selection(original_selection, original_tree, trusted_tree, registry,
+        policy=ci_profile.load_policy(root),root=root,read_blob=read_blob,target=target,base_tree=base_tree)
+        if original_source is None else ci_profile.original_selection(original_source,original_selection,
+            original_tree,trusted_tree,registry,environment=environment,root=root,read_blob=read_blob,target=target,base_tree=base_tree))
     seven=original.get('generation_kind')==ci_profile.SEVEN_CONTROLLER_KIND
     names=current_selection['suites'] if seven else list(ci_profile.SUITES)
     require(original == admission['selection'] and type(results) is dict

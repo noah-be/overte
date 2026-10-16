@@ -141,6 +141,54 @@ def controller_paths():
     return sorted(set(source_admission.CONTROLLERS)|set(source_admission.IMPORT_MEMBERS))
 
 
+# These are lookup data in the protected process, never production imports.
+# Their ORIGINAL bytes remain in the complete source4 projection commitment.
+_ORIGINAL_LOOKUP_DATA = tuple('tools/test-evidence/'+name for name in (
+    'AFFECTED_SELECTION.md', 'affected-test.py', 'attested-test.py', 'ci-integration-test.py',
+    'ci-profile-test.py', 'execution-test.py', 'producer-api-test.py', 'producer-test.py',
+    'qualification-producer-test.py', 'registry-test.py', 'runtime-ci-test.py', 'runtime-test.py',
+    'sandbox-host-test.py', 'sandbox-test.py', 'source-admission-test.py', 'test.py', 'validate-sync-test.py'))
+
+
+def _lookup_inventory(entries):
+    import source_admission
+    files={name:entry for name,entry in entries.items() if any(
+        name==prefix or name.startswith(prefix+'/') for prefix in source_admission.IMPORT_ROOTS)}
+    _require(set(files)==set(source_admission.IMPORT_MEMBERS), 'protected import membership is unknown')
+    directories={str(parent) for name in files for parent in Path(name).parents if any(
+        str(parent)==prefix or str(parent).startswith(prefix+'/') for prefix in source_admission.IMPORT_ROOTS)}
+    return {'files':files,'directories':sorted(directories)}
+
+
+def reuse_controller_precheck(base, default, target, *, root=ROOT):
+    """Provisional current-controller derivation: grants no runtime/PASS authority.
+
+    Original seventeen bytes are deliberately not reconstructed by this step.
+    Only a subsequent complete native source4 verification may admit original E.
+    Capture and pre-import admission continue to use strict compatibility().
+    """
+    import source_admission
+    _require(set(source_admission.IMPORT_MEMBERS)-set(source_admission.CONTROLLERS)==set(_ORIGINAL_LOOKUP_DATA),
+        'protected nonproduction lookup set changed')
+    source_admission.validate_tree(base);source_admission.validate_tree(default)
+    _lookup_inventory(base);_lookup_inventory(default)
+    observed=source_admission.actual_import_inventory(root)
+    for name in _ORIGINAL_LOOKUP_DATA:
+        _require(base.get(name,{}).get('mode')=='100644' and base[name]['type']=='blob'
+            and default.get(name,{}).get('mode')=='100644' and default[name]['type']=='blob',
+            'nonproduction lookup membership, mode or type changed')
+    # This temporary map is solely a current executable precheck. It is never
+    # used as original D, included in an envelope, or passed to runtime admission.
+    for name in _ORIGINAL_LOOKUP_DATA:
+        _require(observed['files'].get(name,{}).get('mode')=='100644'
+            and observed['files'][name]['type']=='blob', 'current nonproduction lookup is nonordinary')
+    executable_default={**default,**{name:observed['files'][name] for name in _ORIGINAL_LOOKUP_DATA}}
+    executable_base={**base,**{name:observed['files'][name] for name in _ORIGINAL_LOOKUP_DATA}}
+    return source_admission.compatibility(executable_base,executable_default,target,
+        read_actual=lambda name:source_admission.actual_bytes(root,name),
+        actual_imports=observed)
+
+
 def controller_policy(value):
     """Recognize only the two reviewed namespaces; manifest transport stays v1."""
     return type(value) is dict and type(value.get('generation_kind')) is str \
@@ -187,7 +235,7 @@ def capture_controller_manifest(root, trusted_source):
     return value
 
 
-def _validate_controller_manifest(value, root):
+def _validate_controller_manifest(value, root, *, _source_files=None):
     """Authenticate the fixed projected files and complete import lookup.
 
     Manifest ownership/native D provenance is supplied by the root supervisor;
@@ -217,7 +265,7 @@ def _validate_controller_manifest(value, root):
         mode='100755' if name=='tests/run-project-tests.py' else '100644'
         _require(type(expected) is dict and expected.get('type')=='blob' and expected.get('mode')==mode,
                  'controller source closure is missing or nonordinary')
-        raw,actual=source_admission.actual_bytes(root,name)
+        raw,actual=(source_admission.actual_bytes(root,name) if _source_files is None else _source_files[name])
         _require(actual==expected, 'actual projected controller source differs from immutable D')
         files[name]=actual
     imports={path:entry for path,entry in entries.items()
@@ -225,7 +273,8 @@ def _validate_controller_manifest(value, root):
     _require(set(imports)==set(source_admission.IMPORT_MEMBERS), 'controller import membership is not reviewed')
     directories={str(parent) for path in imports for parent in Path(path).parents
         if any(str(parent)==prefix or str(parent).startswith(prefix+'/') for prefix in source_admission.IMPORT_ROOTS)}
-    _require(source_admission.actual_import_inventory(root)=={'files':imports,'directories':sorted(directories)},
+    observed=(source_admission.actual_import_inventory(root) if _source_files is None else _lookup_inventory(entries))
+    _require(observed=={'files':imports,'directories':sorted(directories)},
              'actual projected import lookup differs from immutable D')
     return entries
 
@@ -346,10 +395,10 @@ def retained_source_shape(value):
     return value
 
 
-def _retained_projection(manifest, binding, root):
+def _retained_projection(manifest, binding, root, *, _source_files=None):
     """Reconstruct every source/manifest/context file and directory, no exclusions."""
     import source_admission
-    _validate_controller_manifest(manifest,root)
+    _validate_controller_manifest(manifest,root,_source_files=_source_files)
     result={}
     def add(name, raw, executable=False):
         for parent in Path(name).parents:
@@ -357,7 +406,7 @@ def _retained_projection(manifest, binding, root):
         result[name]={'mode':0o555 if executable else 0o444,'size':len(raw),
             'sha256':hashlib.sha256(raw).hexdigest()}
     for name in controller_paths():
-        raw,entry=source_admission.actual_bytes(root,name)
+        raw,entry=(source_admission.actual_bytes(root,name) if _source_files is None else _source_files[name])
         _require(entry==manifest['entries'].get(name),'retained projected source differs from immutable original D')
         add(name,raw,name=='tests/run-project-tests.py')
     add(CONTROLLER_MANIFEST,inputs._canonical(manifest))
@@ -388,7 +437,7 @@ def capture_retained_source(manifest, projection, binding, admission, *, root=RO
 
 
 def validate_retained_source(value, base, default, *, native_binding, run_id, registry,
-                             selection, environment, root=ROOT):
+                             selection, environment, root=ROOT, read_source_blob=None):
     """Revalidate original immutable B/D, never substitute consumer current D.
 
     The envelope itself is data until the ORIGINAL native whole-receipt hash is
@@ -404,10 +453,13 @@ def validate_retained_source(value, base, default, *, native_binding, run_id, re
     manifest={'schema':1,'kind':CONTROLLER_KIND,'source_commit':value['default_commit'],
         'source_tree':value['default_tree'],'commit_object':value['commit_object'],'entries':default}
     _require(_digest(manifest)==value['manifest_digest'],'retained complete manifest differs from immutable original D')
-    _validate_controller_manifest(manifest,root)
+    files=None
+    if read_source_blob is not None:
+        files=_original_source_files(manifest,root,read_source_blob)
+    _validate_controller_manifest(manifest,root,_source_files=files)
     expected=source_admission.compatibility(base,default,native_binding['base_ref'],
-        read_actual=lambda name:source_admission.actual_bytes(root,name),
-        actual_imports=source_admission.actual_import_inventory(root))
+        read_actual=lambda name:source_admission.actual_bytes(root,name) if files is None else files[name],
+        actual_imports=source_admission.actual_import_inventory(root) if files is None else _lookup_inventory(default))
     expected={**expected,'base':native_binding['base_sha'],'default':value['default_commit']}
     _require(expected==value['admission'],'original B/D admission differs from retained source')
     binding=value['binding']
@@ -437,9 +489,100 @@ def validate_retained_source(value, base, default, *, native_binding, run_id, re
             and binding['profile_binding'] is None
             and binding['prepared']==inputs.isolated_full_environment(environment)['roots'],
             'retained full prepared environment differs')
-    projection=_retained_projection(manifest,binding,root)
+    projection=_retained_projection(manifest,binding,root,_source_files=files)
     _require(_digest(projection)==value['projection_digest'],'retained complete projection identity differs')
     return value
+
+
+def _original_source_files(manifest, root, read_blob):
+    """Reconstruct complete ORIGINAL projection, retaining all seventeen bytes."""
+    import source_admission
+    _require(callable(read_blob), 'original source transport is unavailable')
+    entries=manifest['entries'];inputs._validate_tree(entries)
+    _require(set(source_admission.IMPORT_MEMBERS)-set(source_admission.CONTROLLERS)==set(_ORIGINAL_LOOKUP_DATA),
+        'original lookup data set is not reviewed')
+    original=_lookup_inventory(entries)
+    current=source_admission.actual_import_inventory(root)
+    _require(set(current['files'])==set(original['files']) and current['directories']==original['directories'],
+        'current import membership or directories changed')
+    files={};total=0
+    for name in controller_paths():
+        expected=entries.get(name)
+        mode='100755' if name=='tests/run-project-tests.py' else '100644'
+        _require(type(expected) is dict and expected.get('mode')==mode and expected.get('type')=='blob',
+            'original projected source is nonordinary')
+        raw,actual=source_admission.actual_bytes(root,name)
+        if name in _ORIGINAL_LOOKUP_DATA:
+            _require(actual['mode']==mode and current['files'].get(name)==actual,
+                'current nonproduction lookup mode or bytes changed')
+            raw=read_blob(expected['sha'])
+            _require(type(raw) is bytes and len(raw)<=1_000_000,
+                'original lookup blob exceeds its bound')
+            total+=len(raw)
+            _require(total<=8_000_000 and source_admission.blob_id(raw)==expected['sha'],
+                'original lookup content differs from immutable D')
+            actual=source_admission.ordinary(source_admission.blob_id(raw),mode)
+        _require(actual==expected, 'current executable controller differs from original D')
+        files[name]=(raw,actual)
+    return files
+
+
+_ORIGINAL_AUTHORITY=object()
+
+
+class _AuthenticatedOriginalSource:
+    """Internal native-verifier output; JSON, callbacks and envelopes are not tokens."""
+    def __init__(self, authority, manifest, files, envelope, binding, base, environment, receipt_digest, expires_at):
+        _require(authority is _ORIGINAL_AUTHORITY, 'original native source authority is unavailable')
+        self.manifest=manifest;self.files=files;self.envelope=envelope;self.binding=binding
+        self.base=base;self.environment_digest=_digest(environment)
+        self.receipt_digest=receipt_digest;self.expires_at=expires_at
+
+
+def authenticate_original_source(adapter, invocation, plan, api_policy, context, receipt, binding,
+                                 *, integrated, root=ROOT, clock):
+    """Mint original-runtime authority only by executing the native API verifier.
+
+    No supplied verification result, raw reader or JSON context can select the
+    permissive original-source path. The original whole receipt is mandatory.
+    """
+    import producer_api as A
+    import producer as P
+    import source_admission
+    from types import SimpleNamespace
+    _require(type(adapter) is A.Adapter and type(integrated) is bool and receipt.get('schema')==4
+        and api_policy.producer.required_execution_schema==4
+        and context.protected_source==receipt.get('protected_source'),
+        'original runtime authority requires complete source4 native proof')
+    P.validate_binding(binding)
+    _require(api_policy.producer.workflow_ref==f"refs/pull/{binding['pull_request']}/merge",
+        'original source invocation differs from the fixed native policy')
+    value=retained_source_shape(context.protected_source)
+    api=SimpleNamespace(get=adapter._object)
+    base=source_admission.api_tree(api,binding['base_sha'],tree_reader=adapter.api.immutable_tree)
+    default=source_admission.api_tree(api,value['default_commit'],tree_reader=adapter.api.immutable_tree)
+    # Cache only content-addressed immutable raw bytes within this one admission;
+    # no policy/selection/negative validation result is cached or skipped.
+    blobs={}
+    def read(oid):
+        if oid not in blobs:blobs[oid]=adapter.api.immutable_source_blob(oid)
+        return blobs[oid]
+    validate_retained_source(value,base,default,native_binding=binding,run_id=value['binding']['run_id'],
+        registry=context.registry,selection=value['binding']['selection'],environment=receipt['environment'],
+        root=root,read_source_blob=read)
+    method=A.Adapter.verify_integrated if integrated else A.Adapter.verify
+    verified=method(adapter,invocation,plan,api_policy,{'shared-host':context},clock=clock)
+    receipt_digest=hashlib.sha256(P.canonical(receipt)).hexdigest()
+    _require(verified.get('verified') is True and verified['receipt_sha256']==receipt_digest
+        and verified['source_chain']['producer_commit']==binding['merge_sha']
+        and verified['source_chain']['candidate']=={name:binding[name] for name in ('merge_sha','merge_tree','merge_parents')}
+        and verified['run_id']==value['binding']['run_id']
+        and clock()<P._time(verified['expires_at']), 'native original source4 authority changed')
+    manifest={'schema':1,'kind':CONTROLLER_KIND,'source_commit':value['default_commit'],
+        'source_tree':value['default_tree'],'commit_object':value['commit_object'],'entries':default}
+    files=_original_source_files(manifest,root,read)
+    return verified,_AuthenticatedOriginalSource(_ORIGINAL_AUTHORITY,manifest,files,value,binding,base,
+        receipt['environment'],receipt_digest,verified['expires_at'])
 
 
 def load_policy(root=ROOT):
@@ -588,9 +731,9 @@ def generation(tree, registry):
                     "definition_digest": definition_digest(registry)})
 
 
-def validate_selection(selection, candidate_tree, trusted_tree, registry, *, target="main",
+def _validate_selection(selection, candidate_tree, trusted_tree, registry, *, target="main",
                        regular=True, unknown=False, policy=None, require_enabled=True, root=ROOT, read_blob=None,
-                       controller_manifest=None, base_tree=None):
+                       controller_manifest=None, base_tree=None, _reuse_derivation=False, _original=None):
     """Admit only a versioned independently derived CI owner and controller class.
 
     Production callers leave require_enabled at its default. False is for pure
@@ -638,8 +781,10 @@ def validate_selection(selection, candidate_tree, trusted_tree, registry, *, tar
             _require(all(tree.get(path,{}).get('mode') in {'100644','100755'}
                 and tree[path]['type']=='blob' for name in SUITES for path in registry['suites'][name]['closure']['required']),
                 'controller CI37 selected owner implementation is missing')
-        manifest=_actual_controller_manifest(root) if controller_manifest is None else controller_manifest
-        actual=_validate_controller_manifest(manifest,root)
+        manifest=(_original.manifest if _original is not None else
+            _actual_controller_manifest(root) if controller_manifest is None else controller_manifest)
+        files=None if _original is None else _original.files
+        actual=_validate_controller_manifest(manifest,root,_source_files=files)
         raw,actual_policy=_diagnostic_file(root,POLICY)
         _require(_validate_policy(json.loads(raw,object_pairs_hook=inputs._unique_object))==value,
                  'controller policy differs from actual protected bytes')
@@ -659,13 +804,17 @@ def validate_selection(selection, candidate_tree, trusted_tree, registry, *, tar
                 and base_tree.get(POLICY) == actual_policy
                 and base_tree.get('.github/test-suites.json') == registry_entry,
                 'seven-target CI source declarations differ from their exact target')
-            source_admission.compatibility(base_tree,actual,target,
-                read_actual=lambda name:source_admission.actual_bytes(root,name),
-                actual_imports=source_admission.actual_import_inventory(root))
+            if _reuse_derivation:
+                reuse_controller_precheck(base_tree,actual,target,root=root)
+            else:
+                source_admission.compatibility(base_tree,actual,target,
+                    read_actual=lambda name:source_admission.actual_bytes(root,name) if files is None else files[name],
+                    actual_imports=source_admission.actual_import_inventory(root) if files is None else _lookup_inventory(actual))
             if subset:
                 dependency_raw = inputs.load_dependencies(Path(root)/inputs.AFFECTED_POLICY, registry)
                 _require(json.loads(dependency_raw)['schema'] == 2, 'CI subset requires seven-target protected dependencies')
-                affected = inputs.plan_affected(registry,dependency_raw,base_tree,candidate_tree,actual,target=target)
+                affected = inputs.plan_affected(registry,dependency_raw,base_tree,candidate_tree,
+                    trusted_tree if _reuse_derivation else actual,target=target)
                 _require(selection['affected'] == affected
                     and selection['suites'] == [name for name in SUITES if name in affected['required']],
                     'CI subset differs from independently derived protected dependencies')
@@ -673,7 +822,7 @@ def validate_selection(selection, candidate_tree, trusted_tree, registry, *, tar
             _require(all(tree.get('tests/platform-profile.json')==actual.get('tests/platform-profile.json')
                 for tree in (candidate_tree,trusted_tree)), 'controller candidate declarations differ from actual D')
         candidate_generation=controller_generation(actual,registry)
-        _require(controller_generation(trusted_tree,registry)==candidate_generation,
+        _require(_reuse_derivation or controller_generation(trusted_tree,registry)==candidate_generation,
                  'supplied trusted context differs from actual D controllers')
     else:
         _require(controller_manifest is None, 'legacy whole-tree profile does not accept controller manifests')
@@ -702,6 +851,39 @@ def validate_selection(selection, candidate_tree, trusted_tree, registry, *, tar
             "pinned_source": {"path": PINNED_SOURCE, **pinned}}
     if controller:binding['generation_kind']=value['generation_kind']
     return binding
+
+
+def validate_selection(selection, candidate_tree, trusted_tree, registry, *, target='main',
+        regular=True, unknown=False, policy=None, require_enabled=True, root=ROOT, read_blob=None,
+        controller_manifest=None, base_tree=None):
+    """Current capture admission remains strict over the complete actual source."""
+    return _validate_selection(selection,candidate_tree,trusted_tree,registry,target=target,
+        regular=regular,unknown=unknown,policy=policy,require_enabled=require_enabled,root=root,
+        read_blob=read_blob,controller_manifest=controller_manifest,base_tree=base_tree)
+
+
+def preliminary_reuse_selection(*args, **kwargs):
+    """Current executable precheck only; cannot admit any recorded environment."""
+    value=load_policy(kwargs.get('root',ROOT))
+    _require(value.get('generation_kind')==SEVEN_CONTROLLER_KIND,
+        'original-source derivation requires the versioned seven-target namespace')
+    return _validate_selection(*args,**kwargs,_reuse_derivation=True)
+
+
+def original_selection(original, selection, candidate_tree, trusted_tree, registry, *, environment,
+                       target, base_tree, root=ROOT, read_blob=None):
+    """Admit retained original G only after native source4 whole-hash authority."""
+    _require(type(original) is _AuthenticatedOriginalSource
+        and original.environment_digest==_digest(environment)
+        and original.envelope['binding']['selection']==selection
+        and original.binding['base_ref']==target and original.base==base_tree
+        and original.envelope['binding']['registry']==_digest(registry),
+        'original environment lacks authenticated complete source4 context')
+    # Independently recheck the current executable/lookup compatibility. The
+    # complete ORIGINAL data is retained in manifest/projection/G, never replaced.
+    _original_source_files(original.manifest,root,lambda oid:next(raw for raw,entry in original.files.values() if entry['sha']==oid))
+    return _validate_selection(selection,candidate_tree,original.manifest['entries'],registry,
+        target=target,base_tree=base_tree,root=root,read_blob=read_blob,_original=original)
 
 
 def _diagnostic_source(source_root, source):

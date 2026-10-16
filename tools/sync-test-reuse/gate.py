@@ -925,14 +925,16 @@ def native_parent_evidence(api, config, request, now=None):
         A.require(generation in controller.GENERATIONS
             and parent.get('.github/workflows/parent-qualification.yml') == local.get(parent_template),
             'native parent workflow is not a complete trusted consumer recipe')
-        source = controller.integrated_controller(policy, previous, parent, local, request.parent, ROOT)
+        controller_check=controller.integrated_controller_for_reuse if future else controller.integrated_controller
+        source = controller_check(policy, previous, parent, local, request.parent, ROOT)
         registry = controller.inputs.load_registry(ROOT / '.github/test-suites.json')
         A.require(all(suite['scope'] == 'content' for suite in registry['suites'].values())
             and all(tree.get('.github/test-suites.json') == local.get('.github/test-suites.json')
                     for tree in (previous, parent)), 'native parent command registry differs from protected source')
         context = previous if request.parent == 'main' else local
         read_blob = adapter.api.immutable_blob
-        profile = controller.producer.selection_profile(policy, registry, parent, previous, context,
+        selector=controller.producer.selection_profile_for_reuse if future else controller.producer.selection_profile
+        profile = selector(policy, registry, parent, previous, context,
             root=ROOT, target=request.parent, read_blob=read_blob)
         selected = profile['selection']
         affected = controller._affected_receipt_selection(profile, registry, request.parent)
@@ -946,9 +948,18 @@ def native_parent_evidence(api, config, request, now=None):
             common_owner=owner,template=project_template)
         snapshot = adapter.capture_integrated(push_id, plan, api_policy, now=now)
         A.require(snapshot.references == references, 'native parent integration changed before proof selection')
+        if future:
+            profile,context=controller.producer.reuse_source_profile(snapshot,adapter,api_policy,policy,registry,
+                parent,previous,root=ROOT,target=request.parent,read_blob=read_blob,now=clock())
+            selected=profile['selection'];affected=controller._affected_receipt_selection(profile,registry,request.parent)
+            partition=controller.producer.platform_partition(policy,profile,registry,parent,previous,local,
+                target=request.parent,root=ROOT,read_blob=read_blob)
+            owner=controller.producer.common_owner(profile,partition)
+            plan,api_policy=controller._policy(policy,registry,binding,source,adapter,ROOT,selected,
+                common_owner=owner,template=project_template)
         original_tree, original = controller.full_tree(adapter, snapshot.binding['merge_sha'])
         A.require(original_tree == tree_sha == snapshot.binding['merge_tree'] and original == parent
-            and controller.producer.selection_profile(policy, registry, original, previous, context,
+            and selector(policy, registry, original, previous, context,
                 root=ROOT, target=request.parent, read_blob=read_blob) == profile,
             'native original source differs from exact parent inputs')
         A.require(controller.producer.platform_partition(policy,profile,registry,original,previous,local,
@@ -974,19 +985,29 @@ def native_parent_evidence(api, config, request, now=None):
             and receipt['include_platform'] == owner['include_platform']
             and (partition is None or receipt['platform_results']=={}), 'native parent selected owner differs')
         environment = receipt['environment']
+        retained=controller.producer.retained_receipt_source(receipt,snapshot.binding,adapter,registry,selected,
+            authority['run_id'],root=ROOT)
+        shared = P.SharedContext(registry, original, environment, snapshot.binding['merge_sha'], tree_sha, git_context,retained)
+        original_source=None
+        if receipt['schema']==4:
+            verified,original_source=controller.producer.verify_original_source(adapter,push_id,plan,api_policy,
+                shared,receipt,snapshot.binding,integrated=True,root=ROOT,clock=clock)
         if profile['profile'] == controller.ci_profile.PROFILE:
             ci_context = ({'base_tree': previous}
                 if profile['binding'].get('generation_kind') == controller.ci_profile.SEVEN_CONTROLLER_KIND else {})
-            admission = controller.runtime_ci.validate_environment(environment, aggregate.get('qualified_at'),
+            validator=(controller.runtime_ci.validate_environment if original_source is None else
+                lambda *args,**kwargs:controller.runtime_ci.validate_original_environment(original_source,*args,**kwargs))
+            admission = validator(environment, aggregate.get('qualified_at'),
                 aggregate.get('expires_at'), now, selected, original, context, registry,
                 root=ROOT, target=request.parent, read_blob=read_blob, **ci_context)
         else:
             admission = controller.attested.validate_environment(environment, aggregate.get('qualified_at'),
                 aggregate.get('expires_at'), now, root=ROOT, isolated=True)
-        retained=controller.producer.retained_receipt_source(receipt,snapshot.binding,adapter,registry,selected,
-            authority['run_id'],root=ROOT)
-        shared = P.SharedContext(registry, original, environment, snapshot.binding['merge_sha'], tree_sha, git_context,retained)
-        verified = adapter.verify_integrated(push_id, plan, api_policy, {'shared-host': shared}, clock=clock)
+        if original_source is None:
+            verified=adapter.verify_integrated(push_id,plan,api_policy,{'shared-host':shared},clock=clock)
+        else:
+            A.require(A.Adapter.verify_integrated(adapter,push_id,plan,api_policy,{'shared-host':shared},clock=clock)==verified,
+                'native parent original proof changed during runtime/source admission')
         if partition is not None:
             A.require(controller.original_platform_owner(adapter,observation.run,partition,now=clock())==platform_observation,
                 'native original Android platform job changed during common proof verification')
@@ -1006,7 +1027,7 @@ def native_parent_evidence(api, config, request, now=None):
         final = _native_sync_context(controller, adapter, request)
         A.require(final == (child_binding, child_refs, local)
             and _native_parent_run(controller, adapter, request, clock()) == (push_id, push_inventory)
-            and controller.integrated_controller(policy, previous, parent, local, request.parent, ROOT) == source
+            and controller_check(policy, previous, parent, local, request.parent, ROOT) == source
             and controller.producer.retained_receipt_source(receipt,snapshot.binding,adapter,registry,selected,authority['run_id'],root=ROOT)==retained
             and controller.producer.platform_partition(policy,profile,registry,parent,previous,local,
                 target=request.parent,root=ROOT,read_blob=read_blob)==partition

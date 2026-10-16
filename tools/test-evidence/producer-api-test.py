@@ -3086,5 +3086,50 @@ class RetainedSourceNativeAPITests(unittest.TestCase):
         with self.assertRaises(P.ProtocolError):self.verify(replace(self.context,protected_source=changed['protected_source']))
 
 
+class ImmutableOriginalSourceTransportTests(unittest.TestCase):
+    """Bounded fake source blobs; no API request or source execution."""
+    def fixture(self,raw=b'# immutable original source\n'):
+        oid=hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
+        value={'sha':oid,'size':len(raw),'encoding':'base64','content':base64.b64encode(raw).decode('ascii')}
+        return oid,value
+
+    def read(self,oid,value):
+        raw=value if type(value) is bytes else json.dumps(value).encode()
+        with patch.object(A.GitHubReadOnly,'_request',return_value=raw) as request:
+            result=A.GitHubReadOnly().immutable_source_blob(oid)
+        request.assert_called_once_with(A.PREFIX+'/git/blobs/'+oid,1_500_000)
+        return result
+
+    def test_source_transport_accepts_realistic_large_source_without_widening_policy_reader(self):
+        raw=b'# original test source\n'*4000
+        oid,value=self.fixture(raw)
+        self.assertEqual(self.read(oid,value),raw)
+        with patch.object(A.GitHubReadOnly,'_request',return_value=json.dumps(value).encode()):
+            with self.assertRaises(A.ApiError):A.GitHubReadOnly().immutable_blob(oid)
+        with self.assertRaises(TypeError):A.GitHubReadOnly().immutable_source_blob(oid,maximum=2_000_000)
+        with patch.object(A.GitHubReadOnly,'_request',side_effect=AssertionError('invalid source identity reached API')):
+            for supplied in ('main','../HEAD','0'*40,'A'*40):
+                with self.subTest(supplied=supplied),self.assertRaises(A.ApiError):A.GitHubReadOnly().immutable_source_blob(supplied)
+
+    def test_source_transport_rejects_rebound_corrupt_noncanonical_oversize_or_duplicate_data(self):
+        oid,original=self.fixture()
+        for change in ('sha','size','negative','oversize','base64','padding','content','url','node','extra'):
+            value=deepcopy(original)
+            if change=='sha':value['sha']='f'*40
+            elif change=='size':value['size']+=1
+            elif change=='negative':value['size']=-1
+            elif change=='oversize':value['size']=1_000_001
+            elif change=='base64':value['content']='!!!'
+            elif change=='padding':value['content']+='='
+            elif change=='content':value['content']=base64.b64encode(b'X'*value['size']).decode()
+            elif change=='url':value['url']='https://api.github.com/repos/other/fork/git/blobs/'+oid
+            elif change=='node':value['node_id']='x'*513
+            else:value['extra']=True
+            with self.subTest(change=change),self.assertRaises(A.ApiError):self.read(oid,value)
+        raw=json.dumps(original).encode()
+        with self.assertRaises(A.ApiError):self.read(oid,raw[:-1]+b',"size":1}')
+        with self.assertRaises(A.ApiError):self.read(oid,b' ' *1_500_001)
+
+
 if __name__ == "__main__":
     unittest.main()
