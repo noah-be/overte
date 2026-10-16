@@ -43,6 +43,22 @@ REVIEWED_BOUNDARY = "sha256:cba03775542c32affcfe172b66b80b23cab31abd9f61293abd3f
 # its device-control-plane-full and project-runner owners remain independently required.
 # Independent required CI must still validate these files before any app waiver.
 INDEPENDENT_HOST_PATHS = frozenset({
+    ".github/workflows/android-required.yml",
+    ".github/android-owner-transfer.json",
+    "tests/android-owner-transfer-test.py",
+    "tools/repository-checks/android_handoff.py",
+    "tools/repository-checks/workflows/android-owned/android-required.yml",
+    "tools/repository-checks/workflows/android-owned/handoff/.github/workflows/android-tests.yml",
+    "tools/repository-checks/workflows/android-owned/handoff/.github/workflows/android-vr-tests.yml",
+    "tools/repository-checks/workflows/android-owned/handoff/android/common/tests/android-workflow-contract-test.py",
+    "tools/repository-checks/workflows/android-owned/handoff/android/common/tests/ci/test_ci_contract.py",
+    "tools/repository-checks/workflows/android-owned/handoff/android/common/tests/ci/validate_ci_contract.py",
+    "tools/repository-checks/workflows/android-owned/project-tests.yml",
+    "tools/repository-checks/workflows/android-owned/repository-checks.yml",
+    "tools/repository-checks/workflows/android-owned/handoff/android/phone/tests/phone-release-metadata-test.py",
+    "tools/repository-checks/workflows/metadata-edits/codeql.yml",
+    "tools/repository-checks/workflows/metadata-edits/repository-checks.yml",
+    "tools/repository-checks/workflows/metadata-edits/sync-test-reuse.yml",
     "tools/repository-checks/workflows/sync-ci-selection.yml",
     "tools/repository-checks/npm_consumers.py",
     "tools/repository-checks/npm-source-map-tests.cjs",

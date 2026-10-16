@@ -151,6 +151,14 @@ class HostSelectionTests(unittest.TestCase):
         del tree['tests/device/contracts/tablet/pages.json']
         self.assertNotEqual(HOST.program_digest(tree), HOST.REVIEWED_PROGRAMS)
 
+    def test_actual_android_reporter_is_not_admitted_as_ci_only(self):
+        path = 'android/common/tests/reporting/test_granular_reporters.py'
+        self.assertFalse(HOST.ci_owned(path))
+        selected = self.selected([path])
+        self.assertTrue(selected['full_host'])
+        self.assertTrue(selected['include_platform'])
+        self.assertEqual(set(selected['suites']), self.all_names)
+
     def test_finite_ci_executables_have_separate_complete_ordinary_inventory(self):
         previous = deepcopy(self.tree)
         paths = sorted(HOST.CI_EXECUTABLE_PATHS)
@@ -388,7 +396,7 @@ class HostSelectionTests(unittest.TestCase):
         self.assertTrue(selected['full_host'])
 
     def test_exact_ci_admissions_do_not_waive_neighboring_tests_or_runtime_readers(self):
-        self.assertEqual(len(HOST.CI_ROLLOUT_PATHS),32)
+        self.assertEqual(len(HOST.CI_ROLLOUT_PATHS),33)
         for path in ('tools/test-evidence/new-reader.py','tests/project-suite-self-test-extra.py',
                      '.github/workflows/repository-checks-extra.yml'):
             self.assertTrue(self.selected([path])['include_platform'],path)

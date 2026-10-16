@@ -2,7 +2,7 @@
 """Dormant exact-candidate Android orchestration; no artifact authority or builds.
 
 The CLI always uses trusted default-branch policy. Activation remains blocked
-until the separately reviewed advisory/profile and extended-tier handoffs land.
+until the complete prospective generation receives separate hosted qualification.
 """
 from __future__ import annotations
 
@@ -21,6 +21,8 @@ POLICY = ".github/android-orchestration.json"
 CALLERS = ("tools/repository-checks/workflows/android/repository-checks.yml",
            "tools/repository-checks/workflows/android/repository-checks-direct-browser.yml")
 CALLEE = "tools/repository-checks/workflows/android-required.yml"
+OWNED = "tools/repository-checks/workflows/android-owned"
+OWNED_CALLERS = (OWNED + "/repository-checks.yml",)
 WORKFLOW = ".github/workflows/android-required.yml"
 REPOSITORY = "noah-l-frank/overte"
 REPOSITORY_ID = 1319052603
@@ -28,8 +30,13 @@ INDEPENDENT_ROOTS = (
     "browser-client/", "browser-direct-client/", "tools/branch-policy/", "tools/issue-intake/",
     "tools/repository-health/", "tools/repository-maintenance/", "tools/workflow-security/",
 )
-BLOCKERS = {"extended-tier-prerequisite-transfer", "advisory-profile-owner-handoff"}
-# No policy marker can authorize the still-unimplemented ownership transition.
+FOREIGN_LOCKS = frozenset({"browser-client/package-lock.json",
+                          "script-archive/marketplace/S3Server/package-lock.json"})
+HERMETIC_METADATA_TEST = "android/phone/tests/phone-release-metadata-test.py"
+HERMETIC_METADATA_BLOB = "8f0968ab4af834577b894971af09244cb9c82316"
+BLOCKERS = {"extended-tier-prerequisite-transfer", "advisory-profile-owner-handoff",
+            "prospective-generation-hosted-qualification"}
+# No policy marker can authorize an unqualified ownership transition.
 ACTIVATION_READY = False
 
 
@@ -66,11 +73,13 @@ def load_policy(policy_root=ROOT):
     owner = android()
     value = owner._json(owner._file(Path(policy_root), POLICY))
     fields = {"schema", "repository", "repository_id", "required_branches", "activation_blockers",
-              "independent_roots", "reviewed_sources", "workflow_generations"}
+              "independent_roots", "reviewed_sources", "reviewed_lock_sources",
+              "workflow_generations", "handoff_manifest"}
     if not isinstance(value, dict) or set(value) != fields or type(value["schema"]) is not int \
             or value["schema"] != 1 or value["repository"] != REPOSITORY \
             or type(value["repository_id"]) is not int or value["repository_id"] != REPOSITORY_ID \
-            or value["independent_roots"] != list(INDEPENDENT_ROOTS):
+            or value["independent_roots"] != list(INDEPENDENT_ROOTS) \
+            or value["handoff_manifest"] != ".github/android-owner-transfer.json":
         raise ValueError("invalid trusted Android orchestration policy")
     branches = set(owner.load_policy(policy_root)["branches"])
     targets, blockers = value["required_branches"], value["activation_blockers"]
@@ -78,26 +87,31 @@ def load_policy(policy_root=ROOT):
             or len(set(targets)) != len(targets) or not isinstance(blockers, list) \
             or any(name not in BLOCKERS for name in blockers) or len(set(blockers)) != len(blockers):
         raise ValueError("invalid Android activation settings")
-    if set(value["reviewed_sources"]) != branches:
-        raise ValueError("incomplete Android reader review")
-    for review in value["reviewed_sources"].values():
-        if not isinstance(review, dict) or set(review) != {"commit", "tree", "readers", "entries"} \
-                or any(not isinstance(review[key], str) or not re.fullmatch(r"[0-9a-f]{40}", review[key])
-                       for key in ("commit", "tree")) \
-                or not isinstance(review["readers"], str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", review["readers"]) \
-                or type(review["entries"]) is not int or review["entries"] <= 0:
-            raise ValueError("invalid Android reader anchor")
+    for field in ("reviewed_sources", "reviewed_lock_sources"):
+        if not isinstance(value[field], dict) or set(value[field]) != branches:
+            raise ValueError("incomplete Android reader review")
+        for review in value[field].values():
+            if not isinstance(review, dict) or set(review) != {"commit", "tree", "readers", "entries"} \
+                    or any(not isinstance(review[key], str) or not re.fullmatch(r"[0-9a-f]{40}", review[key])
+                           for key in ("commit", "tree")) \
+                    or not isinstance(review["readers"], str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", review["readers"]) \
+                    or type(review["entries"]) is not int or review["entries"] < (1 if field == "reviewed_sources" else 0):
+                raise ValueError("invalid Android reader anchor")
     generations = value["workflow_generations"]
     if not isinstance(generations, list) or not 1 <= len(generations) <= 8:
         raise ValueError("invalid Android workflow-generation inventory")
     seen, identities = set(), set()
     for item in generations:
-        if not isinstance(item, dict) or set(item) != {"name", "caller", "callee"} \
-                or item["caller"] not in CALLERS or item["callee"] != CALLEE \
-                or not isinstance(item["name"], str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]*", item["name"]) \
-                or item["name"] in seen:
+        ordinary = isinstance(item, dict) and set(item) == {"name", "caller", "callee"} \
+            and item["caller"] in CALLERS and item["callee"] == CALLEE
+        owned = isinstance(item, dict) and set(item) == {"name", "caller", "callee", "project", "browser"} \
+            and item["caller"] in OWNED_CALLERS and item["callee"] == OWNED + "/android-required.yml" \
+            and item["project"] == OWNED + "/project-tests.yml" \
+            and item["browser"] == "tools/repository-checks/workflows/npm-consumers/browser-client.yml"
+        if not (ordinary or owned) or not isinstance(item["name"], str) \
+                or not re.fullmatch(r"[a-z0-9][a-z0-9-]*", item["name"]) or item["name"] in seen:
             raise ValueError("invalid Android workflow-generation declaration")
-        identity = (item["caller"], item["callee"])
+        identity = canonical({key: value for key, value in item.items() if key != "name"})
         if identity in identities:
             raise ValueError("duplicate Android workflow-generation tuple")
         identities.add(identity)
@@ -123,18 +137,80 @@ def reader_identity(entries):
                    if not path.startswith(INDEPENDENT_ROOTS)])
 
 
+def lock_reader_identity(entries):
+    """Bind the full consumer inventory; only two lock payloads are independent.
+
+    The exact owner policy retains its path, type and mode. Its contents are
+    separately bound by _policy_identity; including its anchor bytes here would
+    make publishing a new anchor self-referential. This is not path admission.
+    """
+    if entries.get(POLICY, {}).get("mode") != "100644" or entries.get(POLICY, {}).get("type") != "blob":
+        raise ValueError("Android lock review requires a regular owner policy")
+    return digest([[path, item["mode"], item["type"],
+                    "separately-bound-owner-policy" if path == POLICY else item["sha"]]
+                   for path, item in sorted(entries.items()) if path not in FOREIGN_LOCKS])
+
+
+def _reviewed_lock_delta(candidate, event, sha, source, before, paths, anchor, *, event_name, base, head):
+    """A fresh mandatory package plan can own only the reviewed lock-only delta."""
+    if event_name != "pull_request" or not paths or not set(paths).issubset(FOREIGN_LOCKS) \
+            or anchor["entries"] <= 0:
+        return None
+    labels = event["pull_request"].get("labels", [])
+    if not isinstance(labels, list) or any(not isinstance(label, dict) or
+            not isinstance(label.get("name"), str) for label in labels) \
+            or any(label["name"] == "android-long-diagnostics" for label in labels):
+        return None
+    for tree in (before, source):
+        if tree.entries.get(HERMETIC_METADATA_TEST) != {
+                "mode": "100755", "type": "blob", "sha": HERMETIC_METADATA_BLOB}:
+            return None
+        if any(tree.entries.get(path, {}).get("mode") != "100644" or
+               tree.entries.get(path, {}).get("type") != "blob" for path in FOREIGN_LOCKS):
+            return None
+        if len(tree.entries) - len(FOREIGN_LOCKS) != anchor["entries"]:
+            return None
+        try:
+            if lock_reader_identity(tree.entries) != anchor["readers"]:
+                return None
+        except ValueError:
+            return None
+    try:
+        package_policy = packages()
+        package_policy.validate_tree_wiring(before.entries)
+        package_policy.validate_tree_wiring(source.entries)
+        package_plan = package_policy.candidate_plan(candidate, event, sha)
+        if not isinstance(package_plan, dict) or package_plan.get("candidate") != sha or package_plan.get("base") != base \
+                or package_plan.get("head") != head or package_plan.get("paths") != paths \
+                or package_plan.get("regular") is not True or package_plan.get("unknown") is not False \
+                or package_plan.get("tree") != source._git("rev-parse", sha + "^{tree}").decode().strip():
+            return None
+        selection = _module("android_lock_package_ownership", "tools/repository-checks/host_selection.py")
+        if not set(paths).issubset(selection.package_owned_paths(package_plan)):
+            return None
+        return package_plan["plan"]
+    except (ValueError, KeyError, TypeError, OSError, subprocess.SubprocessError):
+        return None
+
+
 def _policy_identity(policy_root):
     owner = android()
     names = [POLICY, ".github/android-checks.json", ".github/package-workflow-generations.json",
              ".github/branch-policy.json",
              "tools/repository-checks/android_gate.py", "tools/repository-checks/check.py",
              "tools/repository-checks/package_checks.py",
-             CALLEE, *CALLERS, *owner.EXECUTION_FILES]
+             "tools/repository-checks/host_selection.py",
+             CALLEE, *CALLERS, *OWNED_CALLERS, OWNED + "/project-tests.yml", OWNED + "/android-required.yml",
+             "tools/repository-checks/android_handoff.py", ".github/android-owner-transfer.json", *owner.EXECUTION_FILES]
+    transfer = handoff().policy(policy_root)
+    names += [item["source"] for group in ("legacy_workflows", "source_contracts")
+              for item in transfer[group].values()]
     def content(name):
         if Path(policy_root).resolve() == ROOT.resolve():
             return packages()._trusted_bytes(name, git_fallback=True)
         return owner._file(Path(policy_root), name).read_bytes()
-    return digest({name: hashlib.sha256(content(name)).hexdigest() for name in sorted(set(names))})
+    return digest({"android": {name: hashlib.sha256(content(name)).hexdigest() for name in sorted(set(names))},
+                   "packages": packages()._policy_inputs()})
 
 
 def _context(candidate, event, sha, event_name, policy):
@@ -167,6 +243,45 @@ def _context(candidate, event, sha, event_name, policy):
     return current, None, ref.removeprefix("refs/heads/"), "", sha
 
 
+def event_views(event, event_name, selected):
+    """The authenticated runner event alone selects optional long diagnostics."""
+    if not selected:
+        return []
+    owner = android()
+    if event_name == "pull_request":
+        labels = event["pull_request"].get("labels", [])
+        if not isinstance(labels, list) or any(not isinstance(label, dict) or
+                not isinstance(label.get("name"), str) for label in labels):
+            raise ValueError("invalid Android diagnostic label inventory")
+        return list(owner.VIEWS) + (list(owner.DIAGNOSTIC_VIEWS[:3]) if
+            any(label["name"] == "android-long-diagnostics" for label in labels) else [])
+    inputs = event.get("inputs", {})
+    regression_value = inputs.get("run_regression", True) if isinstance(inputs, dict) else None
+    if not isinstance(inputs, dict) or not (type(regression_value) is bool or
+            type(regression_value) is str and regression_value in {"true", "false"}):
+        raise ValueError("invalid Android manual regression selection")
+    regression = inputs.get("run_regression", True) in (True, "true")
+    return list(owner.DEFAULT_VIEWS) + list(owner.DIAGNOSTIC_VIEWS[:3]) + (["regression"] if regression else [])
+
+
+def validate_non_android_absence(source, before=None):
+    """Bootstrap outside Android only when neither immutable tree owns it."""
+    legacy = {".github/workflows/android-tests.yml", ".github/workflows/android-vr-tests.yml"}
+    profile_path = "tests/platform-profile.json"
+    for tree in (source, before):
+        if tree is None:
+            continue  # A manual event has no predecessor tree.
+        if any(path == "android" or path.startswith("android/") or path in legacy for path in tree.entries):
+            raise ValueError("unexpected Android ownership source on a non-Android target")
+        entry = tree.entries.get(profile_path)
+        if entry is None or entry["mode"] != "100644" or entry["type"] != "blob":
+            raise ValueError("non-Android bootstrap requires a regular shared platform profile")
+        profile = tree.json(profile_path)
+        if not isinstance(profile, dict) or type(profile.get("schema")) is not int \
+                or profile != {"schema": 1, "platform": "shared", "suites": []}:
+            raise ValueError("unexpected Android or unreviewed platform profile on a non-Android target")
+
+
 def candidate_plan(candidate, event, sha, *, event_name="pull_request", policy_root=ROOT):
     """No caller-supplied branch, views, omitted cases or parent-name waivers."""
     policy = load_policy(policy_root)
@@ -178,17 +293,27 @@ def candidate_plan(candidate, event, sha, *, event_name="pull_request", policy_r
                    if before is None or source.entries.get(path) != before.entries.get(path))
     known = branch in policy["reviewed_sources"]
     selected, reason = False, "outside-Android-target"
-    if known:
+    lock_package_plan = None
+    if not known:
+        validate_non_android_absence(source, before)
+    else:
         selected, reason = True, "conservative-complete-union"
         if before is not None and not paths:
             selected, reason = False, "verified-empty-tree-delta"
+        elif before is not None and set(paths).intersection(FOREIGN_LOCKS):
+            # Unsupported lock changes must not fall through the older broad
+            # Browser-root route, whose reader anchors are deliberately frozen.
+            lock_package_plan = _reviewed_lock_delta(candidate, event, sha, source, before, paths,
+                policy["reviewed_lock_sources"][branch], event_name=event_name, base=base, head=head)
+            if lock_package_plan is not None:
+                selected, reason = False, "reviewed-package-lock-inputs"
         elif before is not None and all(path.startswith(INDEPENDENT_ROOTS) for path in paths):
             regular = all(item is None or item["mode"] in {"100644", "100755"} and item["type"] == "blob"
                           for path in paths for item in (before.entries.get(path), source.entries.get(path)))
             anchor = policy["reviewed_sources"][branch]["readers"]
             if regular and reader_identity(before.entries) == anchor == reader_identity(source.entries):
                 selected, reason = False, "reviewed-independent-inputs"
-    views = list(android().VIEWS if event_name == "pull_request" else android().DEFAULT_VIEWS) if selected else []
+    views = event_views(event, event_name, selected)
     owner_plan = android().plan(candidate, branch, views=views, policy_root=policy_root) if known else None
     inventory = {name: {"command": item["command"], "variant": item["variant"], "cases": item["cases"]}
                  for name, item in (owner_plan["executions"].items() if owner_plan else [])}
@@ -197,6 +322,7 @@ def candidate_plan(candidate, event, sha, *, event_name="pull_request", policy_r
               "base": base, "head": head, "target": branch, "event": event_name,
               "required": selected, "reason": reason, "paths": paths, "views": views,
               "owner_plan": owner_plan["plan"] if owner_plan else None, "inventory": digest(inventory),
+              "lock_package_plan": lock_package_plan,
               "policy": _policy_identity(policy_root)}
     result["plan"] = digest(result)
     return result
@@ -218,34 +344,41 @@ def validate_tree_wiring(tree, *, policy_root=ROOT):
     generation = packages().validate_tree_wiring(tree)
     caller, callee = tree.get(".github/workflows/repository-checks.yml"), tree.get(WORKFLOW)
     for approved in policy["workflow_generations"]:
-        def expected(relative):
-            return _blob(android()._file(Path(policy_root), relative).read_bytes())
-        if caller == expected(approved["caller"]) and callee == expected(approved["callee"]):
+        if _generation_matches(tree, approved, policy_root):
             return generation
     raise ValueError("Android caller/callee differ from a complete trusted generation")
 
 
+def _generation_matches(tree, approved, policy_root):
+    paths = {"caller": ".github/workflows/repository-checks.yml", "callee": WORKFLOW,
+             "project": ".github/workflows/project-tests.yml", "browser": ".github/workflows/browser-client.yml",
+             "direct": ".github/workflows/browser-direct-client.yml"}
+    return all(tree.get(paths[key]) == _blob(android()._file(Path(policy_root), relative).read_bytes())
+               for key, relative in approved.items() if key != "name")
+
+
 def has_staged_caller(candidate, *, policy_root=ROOT):
-    # Legacy non-Android routers omit the execution runtime from their trusted
-    # sparse checkout. Detect ownership from immutable Git metadata before
-    # loading that runtime; admission still validates the complete generation.
-    relative = '.github/workflows/repository-checks.yml'
-    try:
-        raw = subprocess.check_output(['git', '--no-replace-objects', 'ls-tree', '-z', '--full-tree',
-                                       'HEAD', '--', ':(literal)' + relative],
-                                      cwd=candidate, stderr=subprocess.PIPE, timeout=30)
-        if not raw:
-            return False
-        if len(raw) > 1024 or not raw.endswith(b'\0') or raw.count(b'\0') != 1:
-            raise ValueError('invalid immutable Android caller inventory')
-        metadata, path = raw[:-1].split(b'\t')
-        mode, kind, sha = metadata.decode('ascii').split()
-        if path != relative.encode() or not re.fullmatch(r'[0-9a-f]{40}', sha):
-            raise ValueError('invalid immutable Android caller identity')
-        caller = {'mode': mode, 'type': kind, 'sha': sha}
-    except (OSError, subprocess.SubprocessError, UnicodeError) as error:
-        raise ValueError('immutable Android caller is unavailable') from error
-    return any(caller == _blob(android()._file(Path(policy_root), path).read_bytes()) for path in CALLERS)
+    tree = _sources(candidate).entries
+    caller = tree.get(".github/workflows/repository-checks.yml")
+    return any(caller == _blob(android()._file(Path(policy_root), path).read_bytes()) for path in CALLERS + OWNED_CALLERS)
+
+
+def handoff():
+    return _module("required_android_handoff", "tools/repository-checks/android_handoff.py")
+
+
+def validate_owned_generation(candidate, branch, *, policy_root=ROOT, before_sha=None):
+    sources = _sources(candidate)
+    validate_tree_wiring(sources.entries, policy_root=policy_root)
+    approved = load_policy(policy_root)["workflow_generations"]
+    if not any("project" in item and _generation_matches(sources.entries, item, policy_root) for item in approved):
+        raise ValueError("Android activation requires the complete sole-owner project generation")
+    previous = None
+    if before_sha is not None:
+        if not isinstance(before_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", before_sha):
+            raise ValueError("invalid Android predecessor identity")
+        previous = _sources(candidate, before_sha)
+    handoff().validate_sources(sources, branch, policy_root=policy_root, previous=previous)
 
 
 def activated(event, *, policy_root=ROOT):
@@ -253,19 +386,54 @@ def activated(event, *, policy_root=ROOT):
     targets = policy["required_branches"]
     if not targets:
         return False
-    branch = ((event.get("pull_request") or {}).get("base") or {}).get("ref")
-    return branch in targets or event.get("pull_request") is None
+    branch = ((event.get("pull_request") or {}).get("base") or {}).get("ref") or event.get("ref", "").removeprefix("refs/heads/")
+    return branch in targets
+
+
+def _execution_target(candidate, event, *, policy_root=ROOT):
+    source = _sources(candidate)
+    validate_tree_wiring(source.entries, policy_root=policy_root)
+    policy = load_policy(policy_root)
+    repository = event.get("repository", {})
+    base = ((event.get("pull_request") or {}).get("base") or {})
+    branch = base.get("ref") or event.get("ref", "").removeprefix("refs/heads/")
+    branches = android()._json(android()._file(Path(policy_root), ".github/branch-policy.json"))["branches"]
+    if repository.get("full_name") != REPOSITORY or repository.get("id") != REPOSITORY_ID \
+            or branch not in branches or (base and any(base.get("repo", {}).get(key) != repository.get(key) for key in ("full_name", "id"))):
+        raise ValueError("Android admission requires an exact reviewed event target")
+    if branch not in policy["reviewed_sources"]:
+        source, before, *_ = _context(candidate, event,
+            source._git("rev-parse", "HEAD").decode().strip(),
+            "pull_request" if "pull_request" in event else "workflow_dispatch", policy)
+        validate_non_android_absence(source, before)
+    return policy, branch, base
+
+
+def validate_execution_generation(candidate, event, *, policy_root=ROOT):
+    """Allow qualification of a complete prospective owner, never its merge.
+
+    The required outer repository verifier separately calls admit(). Keeping
+    activation there lets real candidate producers be qualified while protected
+    branches retain the enforced old owner. A diagnostic is not merge authority.
+    """
+    policy, branch, base = _execution_target(candidate, event, policy_root=policy_root)
+    if branch in policy["reviewed_sources"]:
+        validate_owned_generation(candidate, branch, policy_root=policy_root, before_sha=base.get("sha"))
 
 
 def admit(candidate, event, *, policy_root=ROOT):
-    validate_tree_wiring(_sources(candidate).entries, policy_root=policy_root)
-    policy = load_policy(policy_root)
+    """Merge authority still requires the trusted completed activation policy."""
+    policy, branch, base = _execution_target(candidate, event, policy_root=policy_root)
+    if branch not in policy["reviewed_sources"]:
+        return
     if policy["activation_blockers"]:
         raise ValueError("Android activation blocked: " + ", ".join(policy["activation_blockers"]))
     if not ACTIVATION_READY:
-        raise ValueError("Android activation blocked: complete ownership handoff is not implemented")
+        raise ValueError("Android activation blocked: complete ownership handoff is not qualified")
     if not activated(event, policy_root=policy_root):
         raise ValueError("Android required workflow is not activated for this target")
+    branch = ((event.get("pull_request") or {}).get("base") or {}).get("ref") or event.get("ref", "").removeprefix("refs/heads/")
+    validate_owned_generation(candidate, branch, policy_root=policy_root, before_sha=base.get("sha"))
 
 
 def verify_inner(needs, expected):
@@ -290,7 +458,7 @@ def verify_outer(job, expected):
 
 def run(candidate, event, sha, *, event_name, policy_root=ROOT, receipt_path, reports,
         expected_outputs, run_command=None, capture=None):
-    admit(candidate, event, policy_root=policy_root)
+    validate_execution_generation(candidate, event, policy_root=policy_root)
     expected = candidate_plan(candidate, event, sha, event_name=event_name, policy_root=policy_root)
     if outputs(expected) != expected_outputs or not expected["required"]:
         raise ValueError("Android execution caller differs from independently selected union")
@@ -325,7 +493,7 @@ def main():
         if args.event is None:
             raise ValueError("Android orchestration requires a trusted event")
         event = json.loads(args.event.read_text())
-        admit(args.candidate, event)
+        validate_execution_generation(args.candidate, event)
         expected = candidate_plan(args.candidate, event, args.sha, event_name=args.event_name)
         if args.action == "plan":
             result = outputs(expected)

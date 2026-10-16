@@ -23,6 +23,23 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 
 
+REVIEWED_ANDROID_CI_PATHS = (
+    ".github/workflows/android-required.yml",
+    ".github/android-owner-transfer.json",
+    "tests/android-owner-transfer-test.py",
+    "tools/repository-checks/android_handoff.py",
+    "tools/repository-checks/workflows/android-owned/android-required.yml",
+    "tools/repository-checks/workflows/android-owned/handoff/.github/workflows/android-tests.yml",
+    "tools/repository-checks/workflows/android-owned/handoff/.github/workflows/android-vr-tests.yml",
+    "tools/repository-checks/workflows/android-owned/handoff/android/common/tests/android-workflow-contract-test.py",
+    "tools/repository-checks/workflows/android-owned/handoff/android/common/tests/ci/test_ci_contract.py",
+    "tools/repository-checks/workflows/android-owned/handoff/android/common/tests/ci/validate_ci_contract.py",
+    "tools/repository-checks/workflows/android-owned/project-tests.yml",
+    "tools/repository-checks/workflows/android-owned/repository-checks.yml",
+    "tools/repository-checks/workflows/android-owned/handoff/android/phone/tests/phone-release-metadata-test.py",
+)
+
+
 def load(name):
     spec = importlib.util.spec_from_file_location(name, ROOT / f"tools/ios-build-qualification/{name}.py")
     module = importlib.util.module_from_spec(spec)
@@ -1056,6 +1073,7 @@ class HostGenerationTests(unittest.TestCase):
                 "# Independent CI fixture\n") for path in self.host.CI_HOST_INDEPENDENT_PATHS})
             selected = self.host.ci_host_omission(previous, inputs.read_snapshot(self.root, all_ci))
             self.assertEqual(set(selected["changedPaths"]), self.host.CI_HOST_INDEPENDENT_PATHS)
+            self.assertTrue(set(REVIEWED_ANDROID_CI_PATHS).issubset(selected["changedPaths"]))
             mode_change = self.commit(all_ci, {ci: ("100755", "# Changed independent executable mode\n")})
             self.assertIsNone(self.host.ci_host_omission(inputs.read_snapshot(self.root, all_ci),
                                                        inputs.read_snapshot(self.root, mode_change)))
@@ -1072,11 +1090,23 @@ class HostGenerationTests(unittest.TestCase):
                      {"unknown/ci-helper.py": "# Unreviewed input\n"},
                      {"tools/repository-checks/workflows/unreviewed-sync.yml": "# Unreviewed sibling\n"},
                      {"tools/repository-checks/workflows/sync-ci-selection.yml": ("100755", "# Unreviewed executable YAML\n")},
+                     {"tools/repository-checks/workflows/metadata-edits/repository-checks.yml": ("100755", "# Unreviewed executable YAML\n")},
+                     {"tools/repository-checks/workflows/metadata-edits/codeql.yml": ("100755", "# Unreviewed executable YAML\n")},
+                     {"tools/repository-checks/workflows/metadata-edits/sync-test-reuse.yml": ("100755", "# Unreviewed executable YAML\n")},
+                     {"tools/repository-checks/workflows/metadata-edits/unreviewed.yml": "# Unreviewed sibling\n"},
                      {"ios/tests/port-contract-test.py": ("100755", "# Changed mode\n")},
                      {ci: ("120000", "outside")},
                      {ci: ("100755", "# Unreviewed executable CI addition\n")},
                      {"unknown-link": ("120000", "outside")},
                      {"unknown-gitlink": ("160000", "")})
+            cases += tuple({path: (mode, "# Nonordinary Android CI fixture\n")}
+                           for path in REVIEWED_ANDROID_CI_PATHS for mode in ("100755", "120000"))
+            cases += tuple({path: "# Unknown sibling or real product target\n"} for path in (
+                ".github/android-owner-transfer-unreviewed.json",
+                "tests/android-owner-transfer-unreviewed-test.py",
+                "tools/repository-checks/android_handoff_unreviewed.py",
+                "tools/repository-checks/workflows/android-owned/handoff/android/phone/tests/unreviewed.py",
+                "android/phone/tests/phone-release-metadata-test.py"))
             for changes in cases:
                 with self.subTest(changes=changes):
                     revision = self.commit(self.base, {ci: "# Independent CI edit\n", **changes})

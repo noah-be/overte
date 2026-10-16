@@ -245,7 +245,9 @@ class Verifier:
             trees = [codeql.inputs.full_tree(self.root, x) for x in (self.base, self.source)]
         except (OSError, subprocess.SubprocessError, codeql.inputs.InputError):
             raise ResultError('complete immutable candidate and base unavailable') from None
-        workflows = {codeql._SELECTIVE_WORKFLOW, getattr(codeql, '_RESULTS_WORKFLOW', codeql._SELECTIVE_WORKFLOW)}
+        require(not codeql.result_workflow_rollback(trees[0].get(WORKFLOW), trees[1].get(WORKFLOW)),
+                'deployed CodeQL retarget workflow cannot be reverted')
+        workflows = {codeql._SELECTIVE_WORKFLOW, *codeql.result_workflow_blobs()}
         for side, tree in enumerate(trees):
             for path, old in codeql._REVIEWED_CONTROLS.items():
                 allowed = set(workflows) if path == WORKFLOW else {old}

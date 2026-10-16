@@ -41,9 +41,12 @@ _REVIEWED_CONTROLS = {
 _SELECTIVE_WORKFLOW = "bdfd6e98d59ab787babcc94ba45c129f8cd899bd"
 # Exact staged selected-result workflow; install only after this policy is protected.
 _RESULTS_WORKFLOW = "b5789e4b0928ef34cc3d80e8f2fa1813422b6436"
+# Dormant retarget successor. The exact source must be protected before its
+# workflow is deployed; a deployed successor cannot be reverted to b578.
+_RETARGET_RESULTS_WORKFLOW = "8333afd10d6f32841def51970f59f038b3881d11"
 _GLOBAL_PATHS = {
     "AGENTS.md", ".gitattributes", ".gitignore", ".gitmodules", ".codeqlignore", ".tool-versions",
-    "tools/repository-checks/codeql.py", "tools/test-evidence/inputs.py",
+    "tools/repository-checks/codeql.py", "tools/repository-checks/check.py", "tools/test-evidence/inputs.py",
 }
 _PYTHON_EXTENSIONS = {".py", ".pyw", ".pyi", ".thrift"}
 _JAVASCRIPT_EXTENSIONS = {
@@ -59,6 +62,16 @@ _PYTHON_MANIFESTS = {
 _QUERY_EXTENSIONS = {".ql", ".qll", ".qls", ".dbscheme", ".dbscheme.stats"}
 _PACK_MANIFESTS = {"qlpack.yml", "qlpack.yaml", "codeql-pack.yml", "codeql-pack.yaml", "codeql-pack.lock.yml"}
 _OBJECT = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
+
+
+def result_workflow_blobs():
+    """Finite trusted selected-result generations; never candidate anchors."""
+    return (_RESULTS_WORKFLOW, _RETARGET_RESULTS_WORKFLOW)
+
+
+def result_workflow_rollback(base_entry, candidate_entry):
+    successor = {"mode": "100644", "type": "blob", "sha": _RETARGET_RESULTS_WORKFLOW}
+    return base_entry == successor and candidate_entry != successor
 
 
 def _global_input(path: str, pack_roots=()) -> bool:
@@ -132,10 +145,13 @@ def select_languages(base_tree: dict | None, candidate_tree: dict | None, *, eve
                for path in sorted(base_tree.keys() | candidate_tree.keys())
                if base_tree.get(path) != candidate_tree.get(path)]
     for path, sha in _REVIEWED_CONTROLS.items():
-        hashes = {sha, _SELECTIVE_WORKFLOW, _RESULTS_WORKFLOW} if path == '.github/workflows/codeql.yml' else {sha}
+        hashes = {sha, _SELECTIVE_WORKFLOW, *result_workflow_blobs()} if path == '.github/workflows/codeql.yml' else {sha}
         expected = [{"mode": "100644", "type": "blob", "sha": digest} for digest in hashes]
         if base_tree.get(path) not in expected or candidate_tree.get(path) not in expected:
             return _result(LANGUAGES, [{"code": "unreviewed-analysis-configuration", "path": path}], changes)
+    workflow = '.github/workflows/codeql.yml'
+    if result_workflow_rollback(base_tree.get(workflow), candidate_tree.get(workflow)):
+        return _result(LANGUAGES, [{"code": "analysis-workflow-rollback", "path": workflow}], changes)
     if not changes:
         return _result((), [{"code": "identical-immutable-inputs"}], [])
     # Even an unchanged alias can connect, for example, source.js to source.py.
