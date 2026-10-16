@@ -3270,6 +3270,21 @@ class UnchangedParentTests(unittest.TestCase):
         self.assertEqual(proof['executed_suites'],[]);self.assertEqual(proof['reused_suites'],[])
         self.assertNotIn('environment',proof);self.assertNotIn('receipt_digest',proof)
 
+    def test_actual_cli_empty_verification_emits_only_validation_and_scheduling_outputs(self):
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory(prefix='overte-empty-parent-report-') as directory:
+            directory=Path(directory); event=directory/'event.json'; output=directory/'output'
+            report=directory/'result.json';event.write_text(json.dumps(self.event))
+            with patch.dict(os.environ,{**self.native,'GITHUB_EVENT_PATH':str(event),'GITHUB_OUTPUT':str(output)},clear=True), \
+                 patch.object(self.C.A,'Adapter',return_value=self.adapter):
+                self.assertEqual(self.C.main(['--verify-empty','--candidate',str(self.candidate),
+                    '--report',str(report)]),0)
+            self.assertEqual(output.read_text(),'shared_reused=false\npackage_work=false\nno_execution=true\n')
+            result=json.loads(report.read_bytes())
+            self.assertFalse(result['reused']);self.assertTrue(result['no_execution'])
+            self.assertIsNone(result['proof']['execution']);self.assertFalse(result['proof']['qualification'])
+
     def test_raw_nonempty_or_native_context_drift_cannot_use_scheduling_observation(self):
         before=self.C.no_execution_context(self.event,self.native,self.adapter)
         for mutation in ({'GITHUB_SHA':self.base},{'GITHUB_JOB':'foreign'},
