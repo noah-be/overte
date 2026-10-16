@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import replace
 from types import SimpleNamespace
@@ -44,6 +45,11 @@ HEAD = "3" * 40
 MERGE = "4" * 40
 TREE = "5" * 40
 WORKFLOW_BLOB = "6" * 40
+CODEQL_BASE_TREE = "7" * 40
+RETARGET_WORKFLOW_BLOB = "8" * 40
+PINNED_WORKFLOW_BLOB = "9" * 40
+METADATA_WORKFLOW_BLOB = "a" * 40
+METADATA_SOURCE_BLOB = "b" * 40
 
 
 class GitHubApiDiagnosticsTests(unittest.TestCase):
@@ -124,6 +130,45 @@ def entry(path, sha=WORKFLOW_BLOB):
     return {"path": path, "mode": "100644", "type": "blob", "sha": sha}
 
 
+@contextmanager
+def trusted_codeql_policy(targets):
+    """Inject explicit trusted policy data; keep the real validator executable."""
+    with tempfile.TemporaryDirectory(prefix='overte-sync-codeql-policy-') as directory:
+        root = Path(directory)
+        (root / '.github').mkdir()
+        (root / '.github/repository-checks.json').write_text(json.dumps({
+            'schema': 1, 'repository': REPOSITORY, 'repository_id': REPOSITORY_ID,
+            'codeql_results_required_branches': targets,
+        }))
+        validator = gate.validate_required_codeql_workflow
+        previous = validator.__defaults__
+        validator.__defaults__ = (root,)
+        try:
+            yield root
+        finally:
+            validator.__defaults__ = previous
+
+
+def test_registry():
+    return {"schema": 1, "control_inputs": ["tests/run-project-tests.py"], "suites": {
+        "fixture-host": {
+            "command": ["python", "tests/run-project-tests.py"], "layer": "host",
+            "scope": "content", "environment": "fixture-host",
+            "closure": {"kind": "repository", "inputs": [], "required": []},
+        },
+    }}
+
+
+def bind_suite_proofs(document, tree, registry=None):
+    registry = registry or test_registry()
+    document["environment"] = {"schema": 1, "runtime": "fixture-host"}
+    document["reusable"] = True
+    document["results"] = {"conclusion": "success", "suites": {
+        name: {"status": "passed", "fingerprint": gate.suite_inputs.suite_fingerprint(
+            registry, name, gate.input_tree(tree), document["environment"])}
+        for name in registry["suites"]}}
+
+
 def evidence_fixture(now=None):
     now = now or datetime.now(timezone.utc).replace(microsecond=0)
     entries = sorted(
@@ -132,12 +177,13 @@ def evidence_fixture(now=None):
     )
     workflow_entry = next(item for item in entries if item["path"] == config()["qualification_workflow"])
     document = {
-        "schema": 1,
+        "schema": 2,
         "repository": REPOSITORY,
         "repository_id": REPOSITORY_ID,
         "parent_branch": "main",
         "parent_commit": PARENT,
         "parent_tree": TREE,
+        "execution_receipt_digest": "sha256:" + "a" * 64,
         "qualified_inputs": entries,
         "qualified_inputs_digest": gate.digest_entries(entries),
         "workflow": {
@@ -149,12 +195,12 @@ def evidence_fixture(now=None):
             "event": "push",
             "trusted_app_id": 15368,
         },
-        "results": {"conclusion": "success", "suites": ["project-quick", "device-control-plane-full"]},
         "qualified_at": now.isoformat().replace("+00:00", "Z"),
         "expires_at": (now + timedelta(hours=72)).isoformat().replace("+00:00", "Z"),
     }
-    document["evidence_digest"] = "sha256:" + hashlib.sha256(gate.canonical_json(document)).hexdigest()
     tree = {item["path"]: item for item in entries}
+    bind_suite_proofs(document, tree)
+    document["evidence_digest"] = "sha256:" + hashlib.sha256(gate.canonical_json(document)).hexdigest()
     return document, tree
 
 
@@ -172,6 +218,11 @@ def request(parent="main", parent_sha=PARENT, base="android-main", parent_change
 
 
 class QualificationContracts(unittest.TestCase):
+    def setUp(self):
+        patch = mock.patch.object(gate, "input_registry", side_effect=test_registry)
+        patch.start()
+        self.addCleanup(patch.stop)
+
     def test_manifest_digest_is_order_and_content_addressed(self):
         one = [entry("a"), entry("b")]
         self.assertEqual(qualification.entries_digest(one), qualification.entries_digest(list(one)))
@@ -239,6 +290,7 @@ class QualificationContracts(unittest.TestCase):
             document["qualified_inputs"] = entries
             document["qualified_inputs_digest"] = qualification.entries_digest(entries)
             document["workflow"]["blob_sha"] = parent_tree[settings["qualification_workflow"]]["sha"]
+            bind_suite_proofs(document, parent_tree)
             document.pop("evidence_digest")
             document["evidence_digest"] = "sha256:" + hashlib.sha256(gate.canonical_json(document)).hexdigest()
 
@@ -261,12 +313,17 @@ class QualificationContracts(unittest.TestCase):
                                      qualification.entries_digest(changed))
                     with mock.patch.object(gate, "artifact_evidence", return_value=({"id": 99, "run_attempt": 1}, document)), \
                          mock.patch.object(gate, "recursive_tree", side_effect=[(TREE, parent_tree), ("7" * 40, merge_tree)]):
-                        with self.assertRaisesRegex(gate.EvidenceError, "qualified parent-delta input changed"):
+                        with self.assertRaisesRegex(gate.EvidenceError, "complete candidate inputs"):
                             gate.verify_evidence(object(), settings, request(parent_changed_paths=(relative,)))
                     unchanged = changed
 
 
 class EvidenceContracts(unittest.TestCase):
+    def setUp(self):
+        patch = mock.patch.object(gate, "input_registry", side_effect=test_registry)
+        patch.start()
+        self.addCleanup(patch.stop)
+
     def verify(self, document=None, parent_tree=None, merge_tree=None, now=None, sync_request=None):
         evidence, tree = evidence_fixture(now)
         if document:
@@ -307,18 +364,45 @@ class EvidenceContracts(unittest.TestCase):
             with self.subTest(path=path), self.assertRaises(gate.EvidenceError):
                 self.verify(merge_tree=changed)
 
-    def test_historical_target_input_outside_parent_delta_does_not_invalidate_reuse(self):
+    def test_historical_target_input_outside_parent_delta_requires_candidate_execution(self):
         _, tree = evidence_fixture()
         path = "tests/run-project-tests.py"
         changed = dict(tree)
         changed[path] = dict(changed[path], sha="f" * 40)
-        self.assertEqual(
+        with self.assertRaisesRegex(gate.EvidenceError, "complete candidate inputs"):
             self.verify(
                 merge_tree=changed,
                 sync_request=request(parent_changed_paths=("interface/example.cpp",)),
-            )["parent_commit"],
-            PARENT,
-        )
+            )
+
+    def test_historical_child_difference_selects_only_affected_complete_suite_inputs(self):
+        registry = test_registry()
+        definition = registry["suites"].pop("fixture-host")
+        for name in ("alpha", "beta"):
+            registry["suites"][name] = deepcopy(definition)
+            registry["suites"][name]["closure"] = {
+                "kind": "patterns", "inputs": [f"libraries/{name}/**"],
+                "required": [f"libraries/{name}/Source.cpp"],
+            }
+        document, tree = evidence_fixture()
+        for name in registry["suites"]:
+            path = f"libraries/{name}/Source.cpp"
+            tree[path] = entry(path)
+        bind_suite_proofs(document, tree, registry)
+        changed = deepcopy(tree)
+        changed["libraries/alpha/Source.cpp"]["sha"] = "f" * 40
+        with mock.patch.object(gate, "input_registry", return_value=registry):
+            verified = self.verify(document, tree, changed,
+                                   sync_request=request(parent_changed_paths=("interface/unrelated.cpp",)))
+        self.assertEqual(verified["candidate_plan"]["reused"], ["beta"])
+        self.assertEqual(verified["candidate_plan"]["required"], ["alpha"])
+        self.assertEqual(verified["candidate_inputs"]["libraries/alpha/Source.cpp"]["sha"], "f" * 40)
+
+    def test_legacy_and_unidentified_runtime_evidence_cannot_authorize_reuse(self):
+        for mutation in ({"schema": 1}, {"reusable": False}, {"environment": None},
+                         {"results": {"conclusion": "success", "suites": {}}}):
+            with self.subTest(mutation=mutation), self.assertRaises(gate.EvidenceError):
+                self.verify(mutation)
 
     def test_parent_delta_deletion_must_be_absent_from_candidate(self):
         _, tree = evidence_fixture()
@@ -384,7 +468,8 @@ class TopologyContracts(unittest.TestCase):
             "repository": {"full_name": REPOSITORY, "id": REPOSITORY_ID},
             "pull_request": {
                 "number": 610,
-                "base": {"ref": base, "sha": base_sha},
+                "base": {"ref": base, "sha": base_sha,
+                         "repo": {"full_name": REPOSITORY, "id": REPOSITORY_ID}},
                 "head": {"ref": head, "sha": head_sha, "repo": {"id": repo_id}},
             },
         }
@@ -444,6 +529,38 @@ class TopologyContracts(unittest.TestCase):
                 api = MappingApi({f'repos/{REPOSITORY}/pulls/610': {'state': 'open', 'mergeable': True, 'merge_commit_sha': MERGE}})
                 result = gate.classify_event(self.event('android-main', 'main'), config(), api)
                 self.assertEqual(result.profile, profile)
+
+    def test_s3_bounded_sync_requires_trusted_activation_and_both_exact_workflow_trees(self):
+        package = gate.package_checks
+        filename = package.S3 + '/package-lock.json'
+        approved = {filename: entry(filename)}
+        for name in ('project-tests.yml', 'parent-qualification.yml', 'sync-validation.yml', 'repository-checks.yml'):
+            data = (package.TEMPLATES / name).read_bytes()
+            approved['.github/workflows/' + name] = {'mode': '100644', 'type': 'blob',
+                'sha': hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest()}
+        for enabled, invalid_side, mode in ((False, None, '100644'), (True, None, '100644'),
+                                           (True, 0, '100644'), (True, 1, '100644'),
+                                           (True, None, '120000')):
+            trees = [deepcopy(approved), deepcopy(approved)]
+            for tree in trees: tree[filename]['mode'] = mode
+            if invalid_side is not None:
+                trees[invalid_side]['.github/workflows/project-tests.yml']['sha'] = '0' * 40
+            with self.subTest(enabled=enabled, invalid_side=invalid_side, mode=mode), \
+                 mock.patch.object(package, 'activated', return_value=enabled), \
+                 mock.patch.object(gate, 'branch_sha', side_effect=[BASE, PARENT] * 3), \
+                 mock.patch.object(gate, 'commit', side_effect=[{'sha': PARENT}, {'sha': MERGE, 'parents': [{'sha': BASE}, {'sha': PARENT}]}]), \
+                 mock.patch.object(gate, 'compare_merge_base', return_value=HEAD), \
+                 mock.patch.object(gate, 'compare_files', return_value=(HEAD, {filename})), \
+                 mock.patch.object(gate, 'paginate_pull_files', return_value=[{'filename': filename}]), \
+                 mock.patch.object(gate, 'recursive_tree', side_effect=[(TREE, tree) for tree in trees]) as reads:
+                api = MappingApi({f'repos/{REPOSITORY}/pulls/610': {'state': 'open', 'mergeable': True, 'merge_commit_sha': MERGE}})
+                if invalid_side is not None:
+                    with self.assertRaises(gate.GateError):
+                        gate.classify_event(self.event('android-main', 'main'), config(), api)
+                else:
+                    result = gate.classify_event(self.event('android-main', 'main'), config(), api)
+                    self.assertEqual(result.profile, 'tool-dependencies' if enabled and mode == '100644' else 'android-family')
+                    self.assertEqual(reads.call_count, 2 if enabled else 0)
 
     def test_executable_docs_and_code_renames_keep_full_qualification(self):
         for change in ({"filename": "docs/helper.py"},
@@ -551,6 +668,7 @@ class ProductRepairContracts(unittest.TestCase):
         source.read_text.return_value = json.dumps(event)
         with mock.patch.object(gate, "load_config", return_value=settings), \
              mock.patch.object(gate, "GitHubApi", return_value=api), \
+             trusted_codeql_policy([]), \
              mock.patch.object(gate, "verify_evidence", side_effect=AssertionError("repair must never reuse evidence")), \
              mock.patch.object(gate, "write_outputs") as output:
             self.assertEqual(gate.inspect(SimpleNamespace(config=None, event=source, output=None)), 0)
@@ -583,6 +701,51 @@ class ProductRepairContracts(unittest.TestCase):
             with self.subTest(path=path):
                 self.inspect(*self.fixture([{"filename": path, "status": "modified"}],
                                           target="android-phone"))
+
+    def test_android_owner_handoff_repairs_require_full_fallback(self):
+        transfer = json.loads((HERE.parents[1] / ".github/android-owner-transfer.json").read_text())
+        paths = set(transfer["legacy_workflows"]) | set(transfer["source_contracts"])
+        self.assertEqual(len(paths), 6)
+        self.assertEqual(gate.allowed_repair_paths(config(), "android-main"), paths)
+        event, settings, api = self.fixture(target="android-main")
+        request = self.classify(event, settings, api)
+        self.assertEqual(set(request.repair_paths), paths)
+        self.assertTrue(paths - set(request.parent_changed_paths))
+        self.inspect(event, settings, api)
+        # Even one registered path inherited from the parent keeps full fallback.
+        for path in sorted(paths):
+            with self.subTest(path=path):
+                self.inspect(*self.fixture([{"filename": path, "status": "modified"}],
+                                          target="android-main"))
+
+    def test_android_owner_handoff_does_not_admit_neighbors_or_other_targets(self):
+        paths = config()["reconciliation_repair_paths"]["android-main"]
+        repairs = [{"filename": path, "status": "modified"} for path in paths]
+        for path in ("android/common/tests/ci/extra.py", "android/phone/tests/extra.py",
+                     ".github/workflows/android-required.yml", ".github/workflows/project-tests.yml",
+                     "tools/repository-checks/android_gate.py", "libraries/audio-client/src/AudioClient.cpp"):
+            with self.subTest(path=path), self.assertRaises(gate.GateError):
+                self.classify(*self.fixture(repairs + [{"filename": path, "status": "modified"}],
+                                            target="android-main"))
+        for target in ("android-phone", "android-vr", "android-vr-pico", "apple-main", "apple-ios"):
+            with self.subTest(target=target), self.assertRaises(gate.GateError):
+                self.classify(*self.fixture(repairs, target=target))
+
+    def test_android_owner_handoff_preserves_exact_reconciliation_attestation(self):
+        for mutation in ("parents", "head-tree", "merge-tree", "parent-ref", "foreign-head"):
+            event, settings, api = self.fixture(target="android-main")
+            if mutation == "parents":
+                api.documents[f"repos/{REPOSITORY}/git/commits/{HEAD}"]["parents"].reverse()
+            elif mutation in ("head-tree", "merge-tree"):
+                sha = HEAD if mutation == "head-tree" else MERGE
+                api.documents[f"repos/{REPOSITORY}/git/trees/{sha}?recursive=1"]["tree"][0]["sha"] = "9" * 40
+            elif mutation == "parent-ref":
+                api.documents[f"repos/{REPOSITORY}/git/ref/heads/main"]["object"]["sha"] = "9" * 40
+            else:
+                for pr in (event["pull_request"], api.documents[f"repos/{REPOSITORY}/pulls/610"]):
+                    pr["head"]["repo"]["id"] = REPOSITORY_ID + 1
+            with self.subTest(mutation=mutation), self.assertRaises(gate.GateError):
+                self.classify(event, settings, api)
 
     def test_phone_clock_repairs_cannot_carry_neighbor_or_shared_changes(self):
         for path in (
@@ -874,9 +1037,12 @@ class ProductRepairContracts(unittest.TestCase):
 
 
 class InspectionContracts(unittest.TestCase):
+    # Legacy topology/evidence fixtures isolate the orthogonal CodeQL policy;
+    # RequiredCodeQLInvocationTests exercises its real ordinary-PR hook below.
     def inspect_request(self, sync_request, evidence_error=None):
         with mock.patch.object(gate, "load_config", return_value=config()), \
              mock.patch.object(gate, "GitHubApi"), \
+             trusted_codeql_policy([]), \
              mock.patch.object(gate, "classify_event", return_value=sync_request), \
              mock.patch.object(gate, "verify_evidence", side_effect=evidence_error) as verify, \
              mock.patch.object(gate, "write_outputs") as output:
@@ -930,10 +1096,30 @@ class DifferentialContracts(unittest.TestCase):
     def test_tool_profile_rejects_mixed_changes_and_empty_tool_inventory(self):
         valid = ['tools/jsdoc/package-lock.json']
         differential.required_roots(Path('.'), 'tool-dependencies', valid)
+        differential.required_roots(Path('.'), 'tool-dependencies',
+                                    ['script-archive/marketplace/S3Server/package-lock.json'])
         for paths in ([], ['docs/a.md'], valid + ['libraries/shared/src/AABox.cpp'],
                       valid + ['tools/jsdoc/CMakeLists.txt']):
             with self.assertRaises(ValueError):
                 differential.required_roots(Path('.'), 'tool-dependencies', paths)
+
+
+class RetiredCancellationContracts(unittest.TestCase):
+    def test_legacy_command_returns_immediately_without_api_or_polling(self):
+        self.assertEqual(config()["redundant_pull_request_workflows"], [])
+        legacy = ["cancel-redundant", "--repository", REPOSITORY, "--pull-request", "7", "--head-sha", HEAD]
+        for window in ([], ["--window", "60"]):
+            with self.subTest(arguments=window), \
+                    mock.patch.object(sys, "argv", ["gate.py", *legacy, *window]), \
+                    mock.patch.object(gate, "GitHubApi", side_effect=AssertionError("unexpected API access")) as api, \
+                    mock.patch.object(gate.time, "monotonic", side_effect=AssertionError("unexpected polling")) as clock, \
+                    mock.patch.object(gate.time, "sleep", side_effect=AssertionError("unexpected wait")) as sleep, \
+                    mock.patch.object(sys, "stdout", new_callable=io.StringIO) as output:
+                self.assertEqual(gate.main(), 0)
+                self.assertEqual(output.getvalue(), "cancelled_redundant_runs=0\n")
+                api.assert_not_called()
+                clock.assert_not_called()
+                sleep.assert_not_called()
 
 
 class DispatchContracts(unittest.TestCase):
@@ -1302,6 +1488,1090 @@ class LargeComparisonTests(unittest.TestCase):
                     else:
                         with self.assertRaises(gate.GateError):
                             gate.authorize_retired_paths(MappingApi(), REPOSITORY, cfg, [path], changes, BASE, PARENT, MERGE)
+
+
+class RequiredCodeQLInvocationTests(unittest.TestCase):
+    """Actual trusted gate hook and immutable API tree; no caller job facts."""
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix='overte-required-codeql-fixture-')
+        self.addCleanup(temporary.cleanup)
+        self.policy_root = Path(temporary.name)
+        self.policy = {'schema': 1, 'repository': REPOSITORY, 'repository_id': REPOSITORY_ID,
+                       'codeql_results_required_branches': ['main']}
+        (self.policy_root / '.github').mkdir()
+        source = self.policy_root / 'tools/repository-checks/codeql.py'
+        source.parent.mkdir(parents=True)
+        source.write_text(f"_RESULTS_WORKFLOW = '{WORKFLOW_BLOB}'\n_SELECTIVE_WORKFLOW = '{PARENT}'\n"
+                          f"_RETARGET_RESULTS_WORKFLOW = '{RETARGET_WORKFLOW_BLOB}'\n"
+                          f"_PINNED_RESULTS_WORKFLOW = '{PINNED_WORKFLOW_BLOB}'\n"
+                          f"_METADATA_RESULTS_WORKFLOW = '{METADATA_WORKFLOW_BLOB}'\n"
+                          f"_METADATA_SOURCE_WORKFLOW = '{METADATA_SOURCE_BLOB}'\n"
+                          "_SCHEDULING_RESULTS_WORKFLOW = '" + "e9aaaed9693efc5ffb4701697ac2a4d51f5f5ba1" + "'\n"
+                          "_SCHEDULING_SOURCE_WORKFLOW = '" + "b76ade9fd7a76da21bf2cb2161deae7a262163e8" + "'\n"
+                          "def result_workflow_blobs():\n"
+                          "    return (_RESULTS_WORKFLOW, _RETARGET_RESULTS_WORKFLOW, "
+                          "_PINNED_RESULTS_WORKFLOW, _METADATA_RESULTS_WORKFLOW, _SCHEDULING_RESULTS_WORKFLOW)\n"
+                          "def result_workflow_sources():\n"
+                          "    return ((_RESULTS_WORKFLOW, None), (_RETARGET_RESULTS_WORKFLOW, None), "
+                          "(_PINNED_RESULTS_WORKFLOW, None), (_METADATA_RESULTS_WORKFLOW, _METADATA_SOURCE_WORKFLOW), "
+                          "(_SCHEDULING_RESULTS_WORKFLOW, _SCHEDULING_SOURCE_WORKFLOW))\n")
+        self.write_policy()
+        side = lambda ref, sha: {'ref': ref, 'sha': sha, 'repo': {'full_name': REPOSITORY, 'id': REPOSITORY_ID}}
+        self.pr = {'number': 610, 'state': 'open', 'mergeable': True, 'merge_commit_sha': MERGE,
+                   'base': side('main', BASE), 'head': side('fix/main/ordinary', HEAD)}
+        self.event = {'number': 610, 'repository': {'full_name': REPOSITORY, 'id': REPOSITORY_ID},
+                      'pull_request': deepcopy(self.pr)}
+        self.documents = {
+            f'repos/{REPOSITORY}/pulls/610': self.pr,
+            f'repos/{REPOSITORY}/git/ref/heads/main': {'ref': 'refs/heads/main', 'object': {'type': 'commit', 'sha': BASE}},
+            f'repos/{REPOSITORY}/git/ref/heads/fix%2Fmain%2Fordinary': {
+                'ref': 'refs/heads/fix/main/ordinary', 'object': {'type': 'commit', 'sha': HEAD}},
+            f'repos/{REPOSITORY}/git/commits/{MERGE}': {'sha': MERGE, 'tree': {'sha': TREE},
+                                                     'parents': [{'sha': BASE}, {'sha': HEAD}]},
+            f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1': {
+                'sha': TREE, 'truncated': False, 'tree': [entry('.github/workflows/codeql.yml')]},
+            f'repos/{REPOSITORY}/git/commits/{BASE}': {'sha': BASE, 'tree': {'sha': CODEQL_BASE_TREE},
+                                                    'parents': []},
+            f'repos/{REPOSITORY}/git/trees/{CODEQL_BASE_TREE}?recursive=1': {
+                'sha': CODEQL_BASE_TREE, 'truncated': False, 'tree': [entry('.github/workflows/codeql.yml')]},
+        }
+        self.api = MappingApi(self.documents)
+
+    def write_policy(self):
+        (self.policy_root / '.github/repository-checks.json').write_text(json.dumps(self.policy))
+
+    def validate(self):
+        return gate.validate_required_codeql_workflow(self.event, self.api, self.policy_root)
+
+    def test_default_disabled_or_inactive_child_adds_no_api_or_event_requirements(self):
+        for targets, event in (([], {}), (['main'], {'pull_request': {'base': {'ref': 'apple-ios'}}})):
+            self.policy['codeql_results_required_branches'] = targets
+            self.write_policy()
+            with mock.patch.object(self.api, 'json', side_effect=AssertionError('inactive must not read API')):
+                self.assertFalse(gate.validate_required_codeql_workflow(event, self.api, self.policy_root))
+        del self.policy['codeql_results_required_branches']
+        self.write_policy()
+        (self.policy_root / 'tools/repository-checks/codeql.py').unlink()
+        self.assertFalse(gate.validate_required_codeql_workflow({}, self.api, self.policy_root))
+
+    def test_legacy_inspection_uses_explicit_inactive_policy_even_when_default_is_active(self):
+        validator = gate.validate_required_codeql_workflow
+        with trusted_codeql_policy(['main']):
+            self.assertIs(gate.validate_required_codeql_workflow, validator)
+            with self.assertRaises(gate.GateError):
+                validator({}, MappingApi())
+            calls, result = InspectionContracts().inspect_request(
+                request(), gate.EvidenceError('missing parent evidence'))
+            self.assertEqual(calls, 1)
+            self.assertEqual(result['mode'], 'fallback')
+            self.assertIs(gate.validate_required_codeql_workflow, validator)
+            with self.assertRaises(gate.GateError):
+                validator({}, MappingApi())
+
+    def test_current_exact_approved_candidate_is_valid_without_job_or_candidate_policy_facts(self):
+        calls = []
+        original = self.api.json
+        def read(endpoint):
+            calls.append(endpoint)
+            return deepcopy(original(endpoint))
+        with mock.patch.object(self.api, 'json', side_effect=read):
+            self.assertTrue(self.validate())
+        self.assertEqual(calls.count(f'repos/{REPOSITORY}/pulls/610'), 2)
+        self.assertFalse(any('/actions/' in call or '/git/ref/pull/' in call for call in calls))
+        self.assertFalse(any('/contents/' in call for call in calls), 'candidate activation policy is never read')
+
+    def test_each_permanent_target_is_enabled_only_by_its_trusted_policy(self):
+        for target in ('main', 'apple-main', 'apple-ios', 'android-main', 'android-phone', 'android-vr', 'android-vr-pico'):
+            self.policy['codeql_results_required_branches'] = [target]
+            self.write_policy()
+            self.pr['base']['ref'] = target
+            self.event['pull_request']['base']['ref'] = target
+            self.documents[f'repos/{REPOSITORY}/git/ref/heads/{target}'] = {
+                'ref': 'refs/heads/' + target, 'object': {'type': 'commit', 'sha': BASE}}
+            with self.subTest(target=target): self.assertTrue(self.validate())
+
+    def test_exact_retarget_generation_can_deploy_but_cannot_be_reverted(self):
+        current = self.documents[f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1']['tree'][0]
+        previous = self.documents[f'repos/{REPOSITORY}/git/trees/{CODEQL_BASE_TREE}?recursive=1']['tree'][0]
+        current['sha'] = RETARGET_WORKFLOW_BLOB
+        self.assertTrue(self.validate())
+        previous['sha'] = RETARGET_WORKFLOW_BLOB
+        self.assertTrue(self.validate())
+        current['sha'] = WORKFLOW_BLOB
+        with self.assertRaisesRegex(gate.GateError, 'cannot be reverted'):
+            self.validate()
+        previous['sha'] = WORKFLOW_BLOB
+        self.assertTrue(self.validate())
+
+    def test_retarget_rollback_proof_requires_complete_authenticated_base_tree(self):
+        endpoint = f'repos/{REPOSITORY}/git/trees/{CODEQL_BASE_TREE}?recursive=1'
+        original = self.documents[endpoint]
+        self.documents[endpoint] = gate.GateError('authenticated base tree unavailable')
+        with self.assertRaises(gate.GateError): self.validate()
+        self.documents[endpoint] = original
+        original['truncated'] = True
+        with self.assertRaises(gate.GateError): self.validate()
+        original['truncated'] = False
+        original['sha'] = TREE
+        with self.assertRaises(gate.GateError): self.validate()
+        original['sha'] = CODEQL_BASE_TREE
+        original['tree'] = []
+        with self.assertRaises(gate.GateError): self.validate()
+        for mode, kind in (('100755', 'blob'), ('120000', 'blob'), ('160000', 'commit')):
+            original['tree'] = [{**entry('.github/workflows/codeql.yml'), 'mode': mode, 'type': kind}]
+            with self.subTest(mode=mode), self.assertRaises(gate.GateError): self.validate()
+
+    def test_pinned_workflow_admits_only_forward_exact_result_generations(self):
+        current = self.documents[f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1']['tree'][0]
+        previous = self.documents[f'repos/{REPOSITORY}/git/trees/{CODEQL_BASE_TREE}?recursive=1']['tree'][0]
+        self.documents[f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1']['tree'].append(
+            entry('.github/workflows/pr-metadata-context.yml', METADATA_SOURCE_BLOB))
+        generations = (WORKFLOW_BLOB, RETARGET_WORKFLOW_BLOB, PINNED_WORKFLOW_BLOB, METADATA_WORKFLOW_BLOB)
+        for old_index, old in enumerate(generations):
+            for new_index, new in enumerate(generations):
+                previous['sha'], current['sha'] = old, new
+                with self.subTest(old=old, new=new):
+                    if new_index < old_index:
+                        with self.assertRaisesRegex(gate.GateError, 'cannot be reverted'): self.validate()
+                    else:
+                        self.assertTrue(self.validate())
+        previous['sha'] = current['sha'] = PINNED_WORKFLOW_BLOB
+        for mode, kind in (('100755', 'blob'), ('120000', 'blob'), ('160000', 'commit')):
+            current.update(mode=mode, type=kind)
+            with self.subTest(mode=mode), self.assertRaises(gate.GateError): self.validate()
+
+    def test_metadata_successor_requires_exact_ordinary_relative_source(self):
+        tree = self.documents[f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1']['tree']
+        tree[0]['sha'] = METADATA_WORKFLOW_BLOB
+        with self.assertRaisesRegex(gate.GateError, 'metadata source workflow'):
+            self.validate()
+        helper = entry('.github/workflows/pr-metadata-context.yml', METADATA_SOURCE_BLOB)
+        tree.append(helper)
+        self.assertTrue(self.validate())
+        for changes in ({'sha': HEAD}, {'mode': '100755'}, {'mode': '120000'},
+                        {'mode': '160000', 'type': 'commit'}):
+            tree[1] = {**helper, **changes}
+            with self.subTest(changes=changes), self.assertRaisesRegex(gate.GateError, 'metadata source workflow'):
+                self.validate()
+        tree[1] = helper
+        self.assertTrue(self.validate())
+
+    def test_fifth_caller_binds_its_own_helper_and_preserves_the_fourth_pair(self):
+        current = self.documents[f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1']['tree']
+        current[:] = [entry('.github/workflows/codeql.yml', 'e9aaaed9693efc5ffb4701697ac2a4d51f5f5ba1'),
+            entry('.github/workflows/pr-metadata-context.yml', 'b76ade9fd7a76da21bf2cb2161deae7a262163e8')]
+        self.assertTrue(self.validate())
+        current[1]['sha'] = METADATA_SOURCE_BLOB
+        with self.assertRaisesRegex(gate.GateError, 'metadata source workflow'): self.validate()
+        current[0]['sha'] = METADATA_WORKFLOW_BLOB
+        self.assertTrue(self.validate())
+        current[1]['sha'] = 'b76ade9fd7a76da21bf2cb2161deae7a262163e8'
+        with self.assertRaisesRegex(gate.GateError, 'metadata source workflow'): self.validate()
+        current[0]['sha'] = 'e9aaaed9693efc5ffb4701697ac2a4d51f5f5ba1'
+        for malformed in ({'mode':'100755'}, {'mode':'120000'}, {'type':'commit','mode':'160000'}):
+            current[1].update(malformed)
+            with self.subTest(malformed=malformed), self.assertRaises(gate.GateError): self.validate()
+            current[1] = entry('.github/workflows/pr-metadata-context.yml', 'b76ade9fd7a76da21bf2cb2161deae7a262163e8')
+
+    def test_trusted_metadata_generation_inventory_must_be_complete_and_ordered(self):
+        source = self.policy_root / 'tools/repository-checks/codeql.py'
+        original = source.read_text()
+        for mutation in (original.replace(METADATA_WORKFLOW_BLOB, WORKFLOW_BLOB),
+                         original.replace(METADATA_WORKFLOW_BLOB, '0' * 40),
+                         original.replace(METADATA_SOURCE_BLOB, '0' * 40),
+                         original.replace('_PINNED_RESULTS_WORKFLOW, _METADATA_RESULTS_WORKFLOW, _SCHEDULING_RESULTS_WORKFLOW)',
+                                          '_METADATA_RESULTS_WORKFLOW, _PINNED_RESULTS_WORKFLOW, _SCHEDULING_RESULTS_WORKFLOW)')):
+            source.write_text(mutation)
+            with self.subTest(mutation=mutation), self.assertRaises(gate.GateError):
+                self.validate()
+        source.write_text(original)
+        self.assertTrue(self.validate())
+
+    def test_old_workflow_fake_named_job_missing_and_nonregular_cannot_pass(self):
+        tree = self.documents[f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1']
+        for variant in ('old', 'fabricated', 'missing', 'executable', 'symlink', 'gitlink'):
+            item = entry('.github/workflows/codeql.yml')
+            if variant == 'old': item['sha'] = PARENT
+            if variant == 'fabricated': item['sha'] = HEAD
+            if variant == 'executable': item['mode'] = '100755'
+            if variant == 'symlink': item['mode'] = '120000'
+            if variant == 'gitlink': item.update(mode='160000', type='commit')
+            tree['tree'] = [] if variant == 'missing' else [item]
+            self.event['jobs'] = {'codeql-security-results': 'success'}
+            self.event['codeql_results_required_branches'] = []
+            with self.subTest(variant=variant), self.assertRaises(gate.GateError): self.validate()
+
+    def test_untrusted_or_malformed_activation_and_foreign_event_never_authorize(self):
+        (self.policy_root / '.github/repository-checks.json').write_text('[]')
+        with self.assertRaises(gate.GateError): self.validate()
+        for targets in (True, ['main', 'main'], ['topic'], [None]):
+            self.policy['codeql_results_required_branches'] = targets
+            self.write_policy()
+            with self.subTest(targets=targets), self.assertRaises(gate.GateError): self.validate()
+        self.policy['codeql_results_required_branches'] = ['main']; self.write_policy()
+        for identity in (self.event['repository'], self.event['pull_request']['base']['repo'],
+                         self.event['pull_request']['head']['repo']):
+            identity['full_name'] = 'overte-org/overte'
+            with self.assertRaises(gate.GateError): self.validate()
+            identity['full_name'] = REPOSITORY
+
+    def test_foreign_current_pr_changed_heads_refs_closed_or_conflicting_fail(self):
+        for target, key, value in ((self.pr['head']['repo'], 'id', 1), (self.pr['base'], 'sha', HEAD),
+                                   (self.pr['head'], 'ref', 'different'), (self.pr, 'state', 'closed'),
+                                   (self.pr, 'mergeable', False),
+                                   (self.documents[f'repos/{REPOSITORY}/git/ref/heads/main']['object'], 'sha', HEAD)):
+            old = target[key]; target[key] = value
+            with self.subTest(key=key), self.assertRaises(gate.GateError): self.validate()
+            target[key] = old
+        current_ref = self.documents[f'repos/{REPOSITORY}/git/ref/heads/main']
+        current_ref['ref'] = 'refs/heads/foreign'
+        with self.assertRaises(gate.GateError): self.validate()
+
+    def test_ordered_parent_and_complete_tree_binding_cannot_be_spoofed(self):
+        commit = self.documents[f'repos/{REPOSITORY}/git/commits/{MERGE}']
+        commit['parents'].reverse()
+        with self.assertRaises(gate.GateError): self.validate()
+        commit['parents'].reverse()
+        tree = self.documents[f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1']
+        for key, value in (('sha', BASE), ('truncated', True), ('tree', [entry('../codeql.yml')]),
+                           ('tree', [entry('.github/workflows/codeql.yml')] * 2)):
+            old = tree[key]; tree[key] = value
+            with self.subTest(key=key), self.assertRaises(gate.GateError): self.validate()
+            tree[key] = old
+
+    def test_merge_computation_wait_is_bounded_and_never_retries_api_failures(self):
+        sequence = [dict(self.pr, mergeable=None, merge_commit_sha=None), deepcopy(self.pr), deepcopy(self.pr)]
+        original = self.api.json
+        def read(endpoint):
+            return sequence.pop(0) if endpoint.endswith('/pulls/610') else original(endpoint)
+        with mock.patch.object(self.api, 'json', side_effect=read), mock.patch.object(gate.time, 'sleep') as sleep:
+            self.assertTrue(self.validate())
+            sleep.assert_called_once_with(3)
+        self.pr.update(mergeable=None, merge_commit_sha=None)
+        with mock.patch.object(gate.time, 'sleep') as sleep, self.assertRaisesRegex(gate.GateError, 'did not complete'):
+            self.validate()
+        self.assertEqual(sleep.call_count, 5)
+        with mock.patch.object(self.api, 'json', side_effect=gate.GateError('API unavailable')), \
+                mock.patch.object(gate.time, 'sleep') as sleep, self.assertRaises(gate.GateError):
+            self.validate()
+        sleep.assert_not_called()
+
+    def test_candidate_and_branch_bookends_reject_changes_after_tree_read(self):
+        original = self.api.json
+        for mutation in ('candidate', 'branch'):
+            count = [0]
+            def read(endpoint):
+                if endpoint.endswith('/pulls/610'):
+                    count[0] += 1
+                    if count[0] == 2:
+                        if mutation == 'candidate': return dict(self.pr, merge_commit_sha=HEAD)
+                        return dict(self.pr, head={**self.pr['head'], 'sha': BASE})
+                return original(endpoint)
+            with self.subTest(mutation=mutation), mock.patch.object(self.api, 'json', side_effect=read), \
+                    self.assertRaises(gate.GateError): self.validate()
+
+    def test_actual_inspect_ordinary_hook_validates_before_classification_or_outputs(self):
+        actual = gate.validate_required_codeql_workflow
+        source = mock.Mock()
+        source.read_text.return_value = json.dumps(self.event)
+        def validate(event, api): return actual(event, api, self.policy_root)
+        with mock.patch.object(gate, 'GitHubApi', return_value=self.api), \
+                mock.patch.object(gate, 'validate_required_codeql_workflow', side_effect=validate) as invoked, \
+                mock.patch.object(gate, 'load_config', return_value=config()), \
+                mock.patch.object(gate, 'write_outputs') as output:
+            self.assertEqual(gate.inspect(SimpleNamespace(config=None, event=source, output=None)), 0)
+            invoked.assert_called_once()
+            self.assertEqual(output.call_args.args[1], {'classification': 'ordinary', 'mode': 'ordinary'})
+        self.documents[f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1']['tree'][0]['sha'] = PARENT
+        with mock.patch.object(gate, 'GitHubApi', return_value=self.api), \
+                mock.patch.object(gate, 'validate_required_codeql_workflow', side_effect=validate), \
+                mock.patch.object(gate, 'load_config', return_value=config()), \
+                mock.patch.object(gate, 'classify_event') as classify, \
+                mock.patch.object(gate, 'write_outputs') as output, self.assertRaises(gate.GateError):
+            gate.inspect(SimpleNamespace(config=None, event=source, output=None))
+        classify.assert_not_called()
+        output.assert_not_called()
+
+
+class NativeParentEvidenceTests(unittest.TestCase):
+    """Real schema3/API proof with explicit local source/runtime primitives.
+
+    The tiny receipt fixture is not actual protected-source or hosted-E proof.
+    Native jobs, source chains, original artifacts and whole receipt hashes use
+    the actual producer Adapter verifier. No execution/environment query occurs.
+    """
+    @classmethod
+    def setUpClass(cls):
+        directory = str(HERE.parent / 'test-evidence')
+        sys.path.insert(0, directory)
+        try:
+            spec = importlib.util.spec_from_file_location('sync_native_api_fixtures',
+                HERE.parent / 'test-evidence/producer-api-test.py')
+            cls.fixtures = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(cls.fixtures)
+        finally:
+            sys.path.remove(directory)
+
+    def setUp(self):
+        self.fixture = self.fixtures.MainConsumerTests()
+        self.fixture.generation_name = 'protected-producer-postmerge-original-e-v1'
+        self.addCleanup(self.fixture.doCleanups)
+        self.fixture.setUp()
+        self.controller = self.fixture.module
+        self.case = self.fixture.case
+        self.case.push.update(status='completed', conclusion='success')
+        self.original_run = self.fixture.adapter.capture_integrated(500,
+            self.case.plan,self.case.policy,now=self.fixtures.NOW).observations[0].run
+        self.child_base = hashlib.sha1(b'native child base').hexdigest()
+        self.child_merge = hashlib.sha1(b'native child merge').hexdigest()
+        self.child_tree = hashlib.sha1(b'native child tree').hexdigest()
+        self.default = self.case.integrated
+        self.default_tree = self.case.binding['merge_tree']
+        self.local = deepcopy(self.fixture.tree)
+        self.candidate = deepcopy(self.fixture.tree)
+        self.request = gate.SyncRequest(repository=REPOSITORY, repository_id=REPOSITORY_ID,
+            number=42, base='apple-main', base_sha=self.child_base, head='main',
+            head_sha=self.case.integrated, head_repository_id=REPOSITORY_ID,
+            merge_sha=self.child_merge, parent='main', parent_sha=self.case.integrated,
+            profile='apple-family', classification='direct', changed_paths=(), parent_changed_paths=(), repair_paths=())
+        self.push_rows = [deepcopy(self.case.push)]
+        self.extra_mutation = lambda endpoint, value: value
+        outer = self
+        class Api:
+            def json(self, endpoint):
+                A = outer.fixtures.A
+                path = endpoint[len(A.PREFIX):].lstrip('/').split('?', 1)[0]
+                q = outer.request
+                if path == 'pulls/42':
+                    value = {'number':42,'state':'open', **{
+                        side:{'ref':ref,'sha':sha,'repo':{'id':REPOSITORY_ID,'full_name':REPOSITORY}}
+                        for side,ref,sha in (('base',q.base,q.base_sha),('head',q.head,q.head_sha))}}
+                elif path == 'commits/refs/pull/42/merge':
+                    value = {'sha':q.merge_sha,'commit':{'tree':{'sha':outer.child_tree}},
+                        'parents':[{'sha':q.base_sha},{'sha':q.head_sha}]}
+                elif path == 'git/commits/'+q.merge_sha:
+                    value = {'sha':q.merge_sha,'tree':{'sha':outer.child_tree},
+                        'parents':[{'sha':q.base_sha},{'sha':q.head_sha}]}
+                elif path == 'git/commits/'+outer.default and outer.default != outer.case.integrated:
+                    value = {'sha':outer.default,'tree':{'sha':outer.default_tree},'parents':[]}
+                elif path.startswith('branches/'):
+                    branch = path[len('branches/'):]
+                    sha = q.base_sha if branch == q.base else outer.default if branch == 'main' else q.parent_sha
+                    value = {'name':branch,'protected':True,'commit':{'sha':sha}}
+                elif path.startswith('git/ref/heads/'):
+                    branch=path[len('git/ref/heads/'):]
+                    sha = q.base_sha if branch == q.base else outer.default if branch == 'main' else q.parent_sha
+                    value = {'ref':'refs/heads/'+branch,'object':{'type':'commit','sha':sha}}
+                elif path == 'actions/workflows/350930890/runs':
+                    value = {'total_count':len(outer.push_rows),'workflow_runs':deepcopy(outer.push_rows)}
+                else:
+                    return outer.extra_mutation(endpoint, outer.fixture.api.json(endpoint))
+                outer.fixture.api.calls.append(endpoint)
+                return outer.extra_mutation(endpoint, deepcopy(value))
+            def bytes(self, endpoint): return outer.fixture.api.bytes(endpoint)
+            def integrated_pr(self, number): return outer.fixture.api.integrated_pr(number)
+            def immutable_blob(self, oid, **kwargs):
+                raise AssertionError('full-profile fixture has no immutable data reader')
+            def immutable_tree(self, oid):
+                tree = outer.candidate if oid == outer.child_tree else outer.local if oid == outer.default_tree else None
+                return ({'sha':oid,'truncated':False,'tree':[{'path':name,**entry} for name,entry in tree.items()]}
+                    if tree is not None else outer.fixture.api.immutable_tree(oid))
+        self.api = Api()
+        self.transport = SimpleNamespace(native_producer_api=lambda controller:self.api)
+        for item in (mock.patch.object(gate,'_native_parent_controller',return_value=self.controller),
+            mock.patch.object(self.controller.execution,'checkout_identity',side_effect=lambda root:(self.default,self.default_tree)),
+            mock.patch.object(self.controller.inputs,'full_tree',side_effect=lambda *args:self.local)):
+            item.start(); self.addCleanup(item.stop)
+
+    def verify(self):
+        return gate.native_parent_evidence(self.transport, config(), self.request, now=self.fixtures.NOW)
+
+    def test_native_whole_proof_keeps_original_m_e_lifetime_and_child_input_comparison(self):
+        value = self.verify()
+        self.assertIsInstance(value, gate.NativeParentEvidence)
+        self.assertEqual(value['original_commit'],self.case.binding['merge_sha'])
+        self.assertNotEqual(value['original_commit'],value['parent_commit'])
+        self.assertNotEqual(value['original_commit'],self.request.merge_sha)
+        self.assertEqual(value['environment'],self.fixture.receipt['environment'])
+        self.assertEqual(value['expires_at'],self.case.aggregate['expires_at'])
+        self.assertEqual(value['candidate_plan']['reused'],list(self.fixture.registry['suites']))
+        self.assertEqual(value['candidate_plan']['required'],[])
+        self.assertEqual(value['original_proof']['receipt_sha256'],
+            hashlib.sha256(self.fixtures.P.canonical(self.fixture.receipt)).hexdigest())
+        self.assertTrue(any('/check-runs/' in endpoint for endpoint in self.fixture.api.calls))
+        self.assertTrue(any('/attempts/1/jobs' in endpoint for endpoint in self.fixture.api.calls))
+        self.assertFalse(any('/dispatches' in endpoint for endpoint in self.fixture.api.calls))
+        self.controller.execution.capture_execution_environment.assert_not_called()
+        self.controller.execution.execute.assert_not_called()
+
+    def test_every_exact_direct_edge_retains_actual_original_native_source_and_target_profile(self):
+        # Protocol source facts are synthetic, independently selected platform
+        # omission is explicit. This does not qualify Android platform owners.
+        for child, edge in config()['edges'].items():
+            parent=edge['parent']
+            self.case.binding['base_ref']=parent
+            self.case.push['head_branch']=parent
+            self.push_rows=[deepcopy(self.case.push)]
+            self.default=self.case.integrated if parent=='main' else hashlib.sha1(b'protected default D').hexdigest()
+            self.default_tree=self.case.binding['merge_tree'] if parent=='main' else hashlib.sha1(b'protected default tree').hexdigest()
+            for tree in (self.fixture.tree,self.fixture.previous,self.candidate):
+                tree['tests/platform-profile.json']=self.controller.source_admission.ordinary(
+                    self.controller.source_admission.TARGET_PROFILES[parent])
+            self.local=deepcopy(self.fixture.tree)
+            self.local['tests/platform-profile.json']=self.controller.source_admission.ordinary(
+                self.controller.source_admission.SHARED_PROFILE)
+            self.candidate['tests/platform-profile.json']=self.controller.source_admission.ordinary(
+                self.controller.source_admission.TARGET_PROFILES[child])
+            self.request=replace(self.request,base=child,head=parent,parent=parent,profile=edge['differential'])
+            # Re-sign exact synthetic source fingerprints; native API publisher
+            # is regenerated, never patched away or inferred from success.
+            profile={'profile':'ubuntu24-host-qt5-qt6-v1','suites':list(self.fixture.registry['suites']),
+                'selection':{'suites':list(self.fixture.registry['suites']),'full_host':True,
+                    'include_platform':False,'reason':'fixture-selected-platform-omission'}}
+            self.controller.producer.selection_profile.return_value=profile
+            self.case.plan['owners']['shared-host']['include_platform']=False
+            receipt=deepcopy(self.fixture.receipt)
+            receipt['include_platform']=False
+            receipt['results']={name:{'status':'passed','fingerprint':self.fixtures.P.inputs.suite_fingerprint(
+                self.fixture.registry,name,self.fixture.tree,receipt['environment'])} for name in self.fixture.registry['suites']}
+            receipt=self.fixtures.FIXTURES.signed(receipt,'receipt_digest')
+            self.case.aggregate['results']['shared-host']['receipt']=receipt
+            run=self.original_run
+            run=replace(run,final_publisher=replace(run.final_publisher,receipt_sha256=hashlib.sha256(self.fixtures.P.canonical(receipt)).hexdigest()))
+            self.case.add_run(run)
+            self.case.runs[100]['pull_requests']=[]
+            with self.subTest(child=child,parent=parent):
+                # Original main schema3 has B==D. Child-origin legacy3 lacks
+                # retainedD and must decline even when all controller bytes match.
+                if parent!='main':
+                    with self.assertRaises(gate.EvidenceError):self.verify()
+                    continue
+                value=self.verify()
+                self.assertEqual(value['parent_branch'],parent)
+                self.assertEqual(value['candidate_plan']['reused'],list(self.fixture.registry['suites']))
+                self.assertEqual(value['original_proof']['integration']['target'],parent)
+
+    def test_changed_historical_child_content_cannot_match_repository_scoped_proof(self):
+        path=next(name for name in self.candidate if name not in self.controller.A.WORKFLOWS
+            and name not in {'tests/platform-profile.json','.github/test-suites.json',self.controller.TEMPLATE})
+        self.candidate[path]={**self.candidate[path],'sha':'e'*40}
+        expected=self.controller.inputs.plan_reuse(self.fixture.registry,self.fixture.tree,self.candidate,
+            self.fixture.receipt['results'],self.fixture.receipt['environment'],self.fixture.receipt['environment'])
+        self.assertEqual(expected['reused'],[])
+        self.assertEqual(expected['required'],list(self.fixture.registry['suites']))
+        with self.assertRaises(gate.EvidenceError):self.verify()
+
+    def test_pending_failed_tied_or_retried_latest_parent_never_uses_old_success(self):
+        for status,conclusion,attempt in (('queued',None,1),('in_progress',None,1),('completed','failure',1),('completed','success',2)):
+            row={**deepcopy(self.case.push),'id':501,'run_started_at':'2026-10-15T10:05:00Z',
+                'status':status,'conclusion':conclusion,'run_attempt':attempt}
+            self.push_rows=[deepcopy(self.case.push),row]
+            with self.subTest(status=status,conclusion=conclusion,attempt=attempt),self.assertRaises(gate.EvidenceError):self.verify()
+        self.push_rows=[deepcopy(self.case.push),{**deepcopy(self.case.push),'id':501}]
+        with self.assertRaises(gate.EvidenceError):self.verify()
+
+    def test_current_refs_protection_default_and_original_native_whole_hash_are_mandatory(self):
+        def mismatch(mode,endpoint,value):
+            value=deepcopy(value)
+            if mode=='child-parent' and endpoint.endswith('/git/commits/'+self.child_merge): value['parents'].reverse()
+            elif mode=='protection' and endpoint.endswith('/branches/'+self.request.base): value['protected']=False
+            elif mode=='default' and endpoint.endswith('/git/ref/heads/main'): value['object']['sha']='f'*40
+            elif mode=='app' and '/check-runs/' in endpoint: value['app']['id']=42
+            elif mode=='publisher' and '/attempts/1/jobs?' in endpoint:
+                for job in value['jobs']:
+                    if job.get('name','').startswith(self.case.policy.final_publisher_prefix):
+                        job['name']=self.case.policy.final_publisher_prefix+'0'*64
+            elif mode=='mixed-attempt' and '/attempts/1/jobs?' in endpoint:
+                value['jobs'][0]['run_attempt']=2
+            elif mode=='push-status' and endpoint.endswith('/actions/runs/500/attempts/1'): value['status']='in_progress';value['conclusion']=None
+            return value
+        for mode in ('child-parent','protection','default','app','publisher','mixed-attempt','push-status'):
+            self.extra_mutation=lambda endpoint,value:mismatch(mode,endpoint,value)
+            with self.subTest(mode=mode),self.assertRaises(gate.EvidenceError):self.verify()
+
+    def test_final_context_inventory_source_and_expiry_are_bookended(self):
+        for mode in ('child','parent-run','controller','expiry'):
+            counts={'child':0,'rows':0,'source':0}
+            def mutate(endpoint,value):
+                if endpoint.endswith('/pulls/42'):
+                    counts['child']+=1
+                    if mode=='child' and counts['child']>1:value['head']['sha']='f'*40
+                if '/actions/workflows/350930890/runs?' in endpoint:
+                    counts['rows']+=1
+                    if mode=='parent-run' and counts['rows']>1:value['workflow_runs'][0]['status']='queued'
+                return value
+            self.extra_mutation=mutate
+            def source(*args):
+                counts['source']+=1
+                return self.case.pp.controller_digest if mode!='controller' or counts['source']==1 else 'sha256:'+'0'*64
+            with self.subTest(mode=mode),mock.patch.object(self.controller,'integrated_controller',side_effect=source):
+                if mode=='expiry':
+                    values=iter([self.fixtures.NOW,self.fixtures.NOW,self.fixtures.NOW,self.fixtures.NOW+timedelta(days=5)])
+                    class Clock:
+                        @staticmethod
+                        def now(tz):return next(values)
+                    with mock.patch.object(gate,'datetime',Clock),self.assertRaises(gate.EvidenceError):
+                        gate.native_parent_evidence(self.transport,config(),self.request)
+                else:
+                    with self.assertRaises(gate.EvidenceError):self.verify()
+
+    def test_legacy_success_and_unknown_transport_keep_existing_behavior(self):
+        legacy={'schema':2,'kind':gate.NATIVE_PARENT_KIND}
+        with mock.patch.object(gate,'_verify_legacy_evidence',return_value=legacy),mock.patch.object(gate,'native_parent_evidence') as native:
+            result=gate.verify_evidence(self.transport,config(),self.request)
+            self.assertIs(result,legacy)
+            self.assertNotIsInstance(result,gate.NativeParentEvidence)
+            native.assert_not_called()
+        with mock.patch.object(gate,'_verify_legacy_evidence',side_effect=gate.EvidenceError('missing')), \
+                mock.patch.object(gate,'native_parent_evidence',return_value=gate.NativeParentEvidence(native=True)) as native:
+            self.assertEqual(gate.verify_evidence(self.transport,config(),self.request),{'native':True})
+            native.assert_called_once()
+            with self.assertRaises(gate.EvidenceError):gate.verify_evidence(MappingApi(),config(),self.request)
+
+
+class NativeRetainedParentEvidenceTests(unittest.TestCase):
+    """Real immutable D/projection + real native Adapter; no host/platform run.
+
+    Native API documents and protected generation enrollment are fixture data.
+    Local module loading, selection and host admission are explicit seams; the
+    complete source4 envelope, partition, native platform job, artifact hashes
+    and Adapter verification use their actual implementations.
+    """
+    @classmethod
+    def setUpClass(cls):
+        NativeParentEvidenceTests.setUpClass()
+        cls.fixtures=NativeParentEvidenceTests.fixtures
+        spec=importlib.util.spec_from_file_location('sync_retained_source_fixtures',
+            HERE.parent/'test-evidence/ci-profile-test.py')
+        cls.sources=importlib.util.module_from_spec(spec);spec.loader.exec_module(cls.sources)
+
+    def setUp(self):
+        native=NativeParentEvidenceTests();self.addCleanup(native.doCleanups);native.setUp()
+        self.native=native;self.controller=C=native.controller
+        self.fixture=f=native.fixture;self.case=case=native.case
+        # Restore actual registry parsing before creating the sealed small
+        # immutable source repository, not a narrowed two-suite toy registry.
+        for item in f.patches:
+            if item.attribute=='load_registry': C.inputs.load_registry.side_effect=item.temp_original
+        holder=(self.sources.SevenTargetProfileTests() if getattr(self,'ci_original',False)
+            else self.sources.ControllerGenerationTests())
+        self.addCleanup(holder.doCleanups);holder.setUp()
+        source=holder.f if getattr(self,'ci_original',False) else holder
+        self.source=source;self.root=source.root;self.registry=source.registry
+        # The real immutable fixture below is original protected default D,
+        # even when this suite runs from an Android child checkout. Its parent
+        # and current-child maps receive their independently pinned profiles.
+        self.assertEqual(C.source_admission.blob_id(
+            (self.root/C.source_admission.PROFILE).read_bytes()),C.source_admission.SHARED_PROFILE)
+        if getattr(self,'ci_original',False):
+            policy=json.loads((self.root/C.ci_profile.POLICY).read_bytes())
+            policy['not_before']='2026-10-15T00:00:00Z'
+            (self.root/C.ci_profile.POLICY).write_bytes(C.inputs._canonical(policy))
+        for suite in self.registry['suites'].values():
+            for name in suite['closure']['required']:
+                original=C.ROOT/name;target=self.root/name
+                if not target.exists():
+                    target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(original.read_bytes())
+                    target.chmod(original.stat().st_mode&0o777)
+        # The future row is deliberately unenrolled in shipping source. Supply
+        # one complete reviewed unit generation, with no production catalog edit.
+        paths={'.github/workflows/project-tests.yml':C.producer.PLATFORM_TEMPLATE,
+            '.github/workflows/parent-qualification.yml':C.producer.PLATFORM_PARENT_TEMPLATE,
+            '.github/workflows/repository-checks.yml':'tools/repository-checks/workflows/producers/repository-checks.yml',
+            '.github/workflows/sync-validation.yml':'.github/workflows/sync-validation.yml',
+            '.github/workflows/browser-client.yml':'.github/workflows/browser-client.yml',
+            C.A.METADATA_WORKFLOW:'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml'}
+        self.generation={name:source.blob((self.root/relative).read_bytes()) for name,relative in paths.items()}
+        document=json.loads((self.root/'.github/package-workflow-generations.json').read_bytes())
+        document['generations'].append({'name':C.producer.PLATFORM_GENERATION,'workflows':self.generation})
+        (self.root/'.github/package-workflow-generations.json').write_bytes(C.inputs._canonical(document))
+        self.platforms={}
+        # Hosted PR checkouts contain only the merge candidate and its parents.
+        # Recover the exact reviewed profile bytes from the current handoff
+        # policy instead of requiring unrelated historical Git objects.
+        profiles=json.loads((C.ROOT/'.github/android-owner-transfer.json').read_bytes())['profiles']
+        for branch in ('android-main','android-phone'):
+            oid=C.source_admission.TARGET_PROFILES[branch]
+            raw=(json.dumps({'schema':1,'platform':'android',
+                'suites':profiles[branch]['required_suites']},indent=2)+'\n').encode()
+            self.assertEqual(C.source_admission.blob_id(raw),oid)
+            self.platforms[branch]=(raw,json.loads(raw)['suites'])
+            for item in self.platforms[branch][1]:
+                path=self.root/item['entrypoint']
+                if not path.exists():
+                    path.parent.mkdir(parents=True,exist_ok=True)
+                    path.write_bytes(b'# unit platform entrypoint; never executed\n')
+                path.chmod(0o755 if item['interpreter']=='bash' else 0o644)
+        (self.root/'retained-fixture-data.txt').write_bytes(b'complete original default source member\n')
+        source.git('add','--all');source.git('-c','user.name=Fixture','-c','user.email=fixture@example.invalid',
+            'commit','--quiet','-m','Complete immutable source4 native sync fixture')
+        self.manifest=C.ci_profile.capture_controller_manifest(self.root,
+            source.git('rev-parse','HEAD').decode().strip())
+        native.default=self.manifest['source_commit'];native.default_tree=self.manifest['source_tree']
+        native.local=deepcopy(self.manifest['entries'])
+        apple=getattr(self,'ci_original',False) and not getattr(self,'ci_android',False)
+        parent_target='apple-main' if apple else 'android-main'
+        child_target='apple-ios' if apple else 'android-phone'
+        parent=deepcopy(native.local);parent.update(deepcopy(self.generation))
+        parent[C.source_admission.PROFILE]=C.source_admission.ordinary(C.source_admission.TARGET_PROFILES[parent_target])
+        previous=deepcopy(parent);previous['retained-fixture-data.txt']=source.blob(b'previous product value\n')
+        candidate=deepcopy(parent)
+        candidate[C.source_admission.PROFILE]=C.source_admission.ordinary(C.source_admission.TARGET_PROFILES[child_target])
+        f.registry=self.registry;f.tree=parent;f.previous=previous;native.candidate=candidate
+        self.parent,self.previous,self.candidate=parent,previous,candidate
+        case.binding.update(base_ref=parent_target,merge_tree=C.ci_profile._controller_tree_identity(parent))
+        native.child_tree=C.ci_profile._controller_tree_identity(candidate)
+        native.request=replace(native.request,base=child_target,head=parent_target,parent=parent_target,profile=child_target)
+        case.push['head_branch']=parent_target;native.push_rows=[deepcopy(case.push)]
+        base_tree=C.ci_profile._controller_tree_identity(previous)
+        self.records={case.binding['base_sha']:(base_tree,[]),case.binding['head_sha']:(case.binding['merge_tree'],[]),
+            case.binding['merge_sha']:(case.binding['merge_tree'],case.binding['merge_parents']),
+            case.integrated:(case.binding['merge_tree'],case.binding['merge_parents']),
+            native.default:(native.default_tree,[]),native.child_base:(native.child_tree,[]),
+            native.child_merge:(native.child_tree,[native.child_base,case.integrated])}
+        self.maps={base_tree:previous,case.binding['merge_tree']:parent,native.default_tree:native.local,
+            native.child_tree:candidate}
+        self.trees={}
+        def encode_tree(entries):
+            nodes={}
+            for name,entry in entries.items():
+                node=nodes
+                for part in name.split('/')[:-1]:node=node.setdefault(part,{})
+                node[name.split('/')[-1]]=entry
+            def visit(node):
+                rows=[];raw=b''
+                for name,item in sorted(node.items(),key=lambda row:row[0]+('/' if 'sha' not in row[1] else '')):
+                    entry=item if 'sha' in item else {'mode':'040000','type':'tree','sha':visit(item)}
+                    rows.append({'path':name,**entry})
+                    raw+=entry['mode'].lstrip('0').encode()+b' '+name.encode()+b'\0'+bytes.fromhex(entry['sha'])
+                oid=hashlib.sha1(b'tree '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
+                self.trees[oid]={'sha':oid,'truncated':False,'tree':rows};return oid
+            return visit(nodes)
+        for oid,tree in self.maps.items():self.assertEqual(encode_tree(tree),oid)
+        self.encode_tree=encode_tree
+        original_json=native.api.json
+        def json_api(endpoint):
+            path=endpoint[len(C.A.PREFIX):].lstrip('/').split('?',1)[0]
+            if path.startswith('git/commits/'):
+                oid=path.rsplit('/',1)[1];tree,parents=self.records[oid]
+                value={'sha':oid,'tree':{'sha':tree},'parents':[{'sha':item} for item in parents]}
+            elif path.startswith('git/trees/'):value=deepcopy(self.trees[path.rsplit('/',1)[1]])
+            elif path=='actions/workflows/repository-checks.yml':value={'id':99,'path':'.github/workflows/repository-checks.yml'}
+            else:return original_json(endpoint)
+            f.api.calls.append(endpoint);return native.extra_mutation(endpoint,deepcopy(value))
+        native.api.json=json_api
+        native.api.immutable_tree=lambda oid:{'sha':oid,'truncated':False,
+            'tree':[{'path':name,**entry} for name,entry in self.maps[oid].items()]}
+        native.api.immutable_blob=lambda oid,**kw:next(raw for raw,_ in self.platforms.values()
+            if C.source_admission.blob_id(raw)==oid)
+        native.api.immutable_source_blob=lambda oid:C.ci_profile._controller_git(self.root,'cat-file','blob',oid)
+        # Root and independent selector seams are explicit. Actual native source
+        # compatibility and retained projection are checked again below.
+        for item in (mock.patch.object(gate,'ROOT',self.root),
+            mock.patch.object(C.inputs,'full_tree',side_effect=lambda *args:native.local),
+            mock.patch.object(C.execution,'checkout_identity',side_effect=lambda *args:(native.default,native.default_tree))):
+            item.start();self.addCleanup(item.stop)
+        package=SimpleNamespace(validate_tree_wiring=lambda tree:C.producer.PLATFORM_GENERATION
+            if all(tree.get(name)==entry for name,entry in self.generation.items()) else 'unreviewed',
+            workflow_generations=lambda:[{'name':C.producer.PLATFORM_GENERATION,'workflows':self.generation}])
+        self.policy=SimpleNamespace(package_policy=lambda:package)
+        C.producer._host_policy.return_value=self.policy
+        members=mock.patch.object(C.producer,'controller_sources',return_value=sorted(C.source_admission.CONTROLLERS))
+        members.start();self.addCleanup(members.stop)
+        self.profile={'profile':C.producer.FULL_PROFILE,'binding':None,'suites':list(self.registry['suites']),
+            'selection':{'suites':list(self.registry['suites']),'full_host':True,'include_platform':True,'reason':'fixture-full-owner'}}
+        if getattr(self,'ci_original',False):
+            selected=deepcopy(holder.selection)
+            raw_blobs={C.source_admission.blob_id((self.root/name).read_bytes()):(self.root/name).read_bytes()
+                for name in (C.ci_profile.DATA_PATH,)}
+            old_blob=native.api.immutable_blob
+            native.api.immutable_blob=lambda oid,**kw:raw_blobs[oid] if oid in raw_blobs else old_blob(oid,**kw)
+            binding=C.ci_profile.validate_selection(selected,parent,native.local,self.registry,
+                target=parent_target,base_tree=previous,root=self.root,
+                read_blob=native.api.immutable_blob,controller_manifest=self.manifest)
+            self.profile={'profile':C.ci_profile.PROFILE,'binding':binding,
+                'suites':list(C.ci_profile.SUITES),'selection':selected}
+        C.producer.selection_profile.return_value=self.profile
+        mocked=mock.patch.object(C.producer,'selection_profile_for_reuse',return_value=self.profile)
+        mocked.start();self.addCleanup(mocked.stop)
+        # Actual policy construction selects schema4, actual canonical Android
+        # recipe and native complete workflow tuple. It is not a mocked policy.
+        for item in f.patches:
+            if item.attribute=='_policy':C._policy.side_effect=item.temp_original
+        admission={**C.source_admission.compatibility(previous,native.local,parent_target,
+            read_actual=lambda name:C.source_admission.actual_bytes(self.root,name),
+            actual_imports=C.source_admission.actual_import_inventory(self.root)),
+            'base':case.binding['base_sha'],'default':native.default}
+        C.integrated_controller.return_value=admission['controller_digest']
+        adapter=C.A.Adapter(native.api)
+        self.partition=C.producer.platform_partition(self.policy,self.profile,self.registry,parent,previous,native.local,
+            target=parent_target,root=self.root,read_blob=native.api.immutable_blob)
+        case.plan,case.policy=C._policy(self.policy,self.registry,case.binding,admission['controller_digest'],adapter,
+            self.root,self.profile['selection'],common_owner=C.producer.common_owner(self.profile,self.partition),
+            template=C.producer.PLATFORM_TEMPLATE)
+        case.pp=case.policy.producer
+        self.git=C.producer.expected_git_context(adapter,case.binding)
+        self.environment=self.fixtures.FIXTURES.isolated_codec_environment()
+        if getattr(self,'ci_original',False):
+            spec=importlib.util.spec_from_file_location('original_lookup_runtime_fixture',
+                HERE.parent/'test-evidence/runtime-ci-test.py')
+            runtime_fixture=importlib.util.module_from_spec(spec);spec.loader.exec_module(runtime_fixture)
+            sample=runtime_fixture.OriginalCIEnvironmentTests();sample.setUp()
+            try:self.environment=deepcopy(sample.environment)
+            finally:sample.doCleanups()
+            R=C.runtime_ci
+            self.environment['selection']=self.profile['binding']
+            _,manifests=R.runtime._requirement_inventory(self.root)
+            self.environment['trusted_execution']={**R.runtime._controller_file_hashes(manifests,self.root),
+                **{name:R.runtime._file_digest(self.root/name) for name in R._FILES}}
+        context={'source':case.binding['merge_sha'],'run_id':100,'run_attempt':1,
+            'profile':'manual-shared-host-compatibility-v1','snapshot':'sha256:'+'1'*64,'git_context':self.git,
+            'runtime_profile':C.producer.FULL_PROFILE,'selection':self.profile['selection'],'profile_binding':None,
+            'registry':C.ci_profile._digest(self.registry),'prepared':self.environment['prepared'].get('roots',{}),
+            'outside_namespaces':{name:100+i for i,name in enumerate(('user','mnt','pid','net','ipc','uts'))}}
+        if getattr(self,'ci_original',False):
+            context.update(runtime_profile=C.ci_profile.PROFILE,profile_binding=self.profile['binding'],
+                prepared={name:entry['digest'] for name,entry in self.environment['prepared'].items()},
+                selection_target=parent_target,selection_base=case.binding['base_sha'])
+        projection=self.root.parent/'native-sync-projection';projection.mkdir()
+        for name in C.ci_profile.controller_paths():
+            C.sandbox._write_source(projection,name,(self.root/name).read_bytes(),executable=name=='tests/run-project-tests.py')
+        C.sandbox._write_source(projection,C.ci_profile.CONTROLLER_MANIFEST,C.inputs._canonical(self.manifest))
+        context['projection']=C.ci_profile._digest(C.sandbox._files(projection))
+        C.sandbox._write_source(projection,'context.json',C.inputs._canonical({'shared_host':context}))
+        self.retained=C.ci_profile.capture_retained_source(self.manifest,C.sandbox._files(projection),context,admission,root=self.root)
+        receipt=deepcopy(f.receipt)
+        receipt.update(schema=4,candidate_tree=case.binding['merge_tree'],git_context=self.git,
+            environment=self.environment,protected_source=self.retained,requested_suites=self.profile['suites'],
+            include_platform=False,platform_results={})
+        receipt['results']={name:{'status':'passed','fingerprint':C.inputs.suite_fingerprint(
+            self.registry,name,parent,self.environment)} for name in self.profile['suites']}
+        self.receipt=self.fixtures.FIXTURES.signed(receipt,'receipt_digest')
+        case.aggregate['results']['shared-host']['receipt']=self.receipt
+        run=replace(native.original_run,workflow_blob=case.pp.workflow_blob,
+            final_publisher=replace(native.original_run.final_publisher,
+                receipt_sha256=hashlib.sha256(C.P.canonical(self.receipt)).hexdigest()))
+        case.add_run(run);case.runs[100]['pull_requests']=[]
+        case.runs[100]['display_title']=C.A.ORDINARY_RUN_NAME
+        platform=deepcopy(case.jobs[100][1]);platform.update(id=140,name=C.producer.PLATFORM_JOB,
+            check_run_url=f'https://api.github.com/{C.A.PREFIX}/check-runs/140')
+        platform['steps']=[{'name':'Execute and verify the complete Android platform inventory',
+            **{key:platform[key] for key in ('status','conclusion','started_at','completed_at')}}]
+        if self.partition is not None:case.jobs[100].append(platform)
+
+    def verify(self):return self.native.verify()
+
+    def test_complete_original_D_schema4_and_native_android_job_preserve_common_only_reuse(self):
+        value=self.verify()
+        self.assertIsInstance(value,gate.NativeParentEvidence)
+        self.assertEqual(value['original_protected_source'],self.retained)
+        self.assertEqual(value['original_protected_source']['default_commit'],self.native.default)
+        self.assertNotEqual(self.native.default,self.case.binding['base_sha'])
+        self.assertEqual(value['original_commit'],self.case.binding['merge_sha'])
+        self.assertNotEqual(value['original_commit'],value['parent_commit'])
+        self.assertNotEqual(value['original_commit'],self.native.request.merge_sha)
+        self.assertEqual(value['environment'],self.environment)
+        self.assertEqual(value['expires_at'],self.case.aggregate['expires_at'])
+        self.assertEqual(value['original_platform_observation']['job_id'],140)
+        self.assertFalse(value['original_platform_observation']['reusable'])
+        self.assertFalse(value['platform_reused'])
+        self.assertEqual(value['child_platform_profile'],self.controller.source_admission.ordinary(
+            self.controller.source_admission.TARGET_PROFILES['android-phone']))
+        self.assertFalse(self.receipt['include_platform']);self.assertEqual(self.receipt['platform_results'],{})
+        self.assertTrue(value['candidate_plan']['reused'])
+        self.assertTrue(value['candidate_plan']['required'],'different child inventory retains actual unmatched suites')
+        self.controller.execution.execute.assert_not_called()
+        self.controller.execution.capture_execution_environment.assert_not_called()
+
+    def test_missing_failed_ambiguous_or_foreign_original_platform_job_is_not_reused(self):
+        original=deepcopy(self.case.jobs[100])
+        for mutation in ('missing','failed','duplicate','step','step-failed','attempt','app'):
+            self.case.jobs[100]=deepcopy(original)
+            job=self.case.jobs[100][-1]
+            if mutation=='missing':self.case.jobs[100].pop()
+            elif mutation=='failed':job['conclusion']='failure'
+            elif mutation=='duplicate':self.case.jobs[100].append({**deepcopy(job),'id':141})
+            elif mutation=='step':job['steps']=[]
+            elif mutation=='step-failed':job['steps'][0]['conclusion']='failure'
+            elif mutation=='attempt':job['run_attempt']=2
+            self.native.extra_mutation=lambda endpoint,value:({**value,'app':{'id':42}}
+                if mutation=='app' and endpoint.endswith('/check-runs/140') else value)
+            with self.subTest(mutation=mutation),self.assertRaises(gate.EvidenceError):self.verify()
+
+    def test_whole_original_source_projection_and_native_hash_are_required(self):
+        original=deepcopy(self.retained)
+        # Re-sign both artifact levels: neither local checksum can replace the
+        # original native whole-receipt publisher or immutable source proof.
+        for mutation in ('missing','default','manifest','projection','publisher'):
+            receipt=deepcopy(self.receipt)
+            if mutation=='missing':receipt.pop('protected_source')
+            elif mutation=='default':receipt['protected_source']['default_commit']='f'*40
+            elif mutation=='manifest':receipt['protected_source']['manifest_digest']='sha256:'+'0'*64
+            elif mutation=='projection':receipt['protected_source']['projection_digest']='sha256:'+'0'*64
+            else:receipt['protected_source']['binding']['snapshot']='sha256:'+'0'*64
+            self.case.aggregate['results']['shared-host']['receipt']=self.fixtures.FIXTURES.signed(receipt,'receipt_digest')
+            aggregate=self.fixtures.FIXTURES.signed(self.case.aggregate,'aggregate_digest')
+            run=self.native.original_run
+            self.case.artifacts[100]=self.case.artifacts[100][:1]
+            self.case.artifact(run,'aggregate',aggregate)
+            with self.subTest(mutation=mutation),self.assertRaises(gate.EvidenceError):self.verify()
+        self.assertEqual(self.retained,original)
+
+    def test_current_child_platform_is_separate_and_unknown_or_missing_owner_never_claims_pass(self):
+        # Actual current child declaration includes nineteen real commands. No
+        # command is launched and no parent common proof changes that inventory.
+        with tempfile.TemporaryDirectory(prefix='native-child-platform-') as temporary:
+            candidate=Path(temporary)
+            raw,items=self.platforms['android-phone']
+            path=candidate/self.controller.source_admission.PROFILE;path.parent.mkdir();path.write_bytes(raw)
+            for item in items:
+                path=candidate/item['entrypoint'];path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(b'# not executed\n')
+            actual=self.controller.execution.platform_suites(candidate,self.registry['suites'])
+            self.assertEqual(len(actual),19)
+            value=self.verify();self.assertFalse(value['platform_reused'])
+            (candidate/items[0]['entrypoint']).unlink()
+            with self.assertRaises(self.controller.execution.ExecutionError):
+                self.controller.execution.platform_suites(candidate,self.registry['suites'])
+        profile=self.controller.source_admission.PROFILE
+        for changed in ({'mode':'100644','type':'blob','sha':'f'*40},
+                {**self.candidate[profile],'mode':'100755'}):
+            self.candidate[profile]=changed
+            with self.subTest(profile=changed),self.assertRaises(gate.EvidenceError):self.verify()
+
+    def test_original_platform_source_and_expiry_bookends_reject_late_changes(self):
+        count=0
+        def mutate(endpoint,value):
+            nonlocal count
+            if '/attempts/1/jobs?' in endpoint and '/actions/runs/100/' in endpoint:
+                count+=1
+                if count>2:
+                    for job in value['jobs']:
+                        if job.get('id')==140:job['steps'][0]['conclusion']='failure'
+            return value
+        self.native.extra_mutation=mutate
+        with self.assertRaises(gate.EvidenceError):self.verify()
+        self.assertGreater(count,2)
+        self.native.extra_mutation=lambda endpoint,value:value
+        original=self.controller.producer.retained_receipt_source
+        path=self.root/'tools/test-evidence/execution.py';raw=path.read_bytes();reads=0
+        def source(*args,**kwargs):
+            nonlocal reads
+            reads+=1
+            if reads>1:path.write_bytes(raw+b'\n# changed after first retained-source check\n')
+            return original(*args,**kwargs)
+        try:
+            with mock.patch.object(self.controller.producer,'retained_receipt_source',side_effect=source), \
+                    self.assertRaises(gate.EvidenceError):self.verify()
+            self.assertEqual(reads,2)
+        finally:path.write_bytes(raw)
+        expired=False;parent_reads=0;parent_run=gate._native_parent_run
+        def final_parent(*args,**kwargs):
+            nonlocal expired,parent_reads
+            value=parent_run(*args,**kwargs);parent_reads+=1
+            if parent_reads>1:expired=True
+            return value
+        fixtures=self.fixtures
+        class Clock:
+            @staticmethod
+            def now(tz):return fixtures.NOW+timedelta(days=5) if expired else fixtures.NOW
+        with mock.patch.object(gate,'datetime',Clock), \
+                mock.patch.object(gate,'_native_parent_run',side_effect=final_parent),self.assertRaises(gate.EvidenceError):
+            gate.native_parent_evidence(self.native.transport,config(),self.native.request)
+        self.assertEqual(parent_reads,2)
+
+    def test_complete_recipe_and_original_partition_cannot_be_relabelled(self):
+        for path in ('.github/workflows/parent-qualification.yml','.github/workflows/project-tests.yml',
+                     self.controller.source_admission.PROFILE):
+            original=deepcopy(self.parent[path]);self.parent[path]={**original,'sha':'f'*40}
+            try:
+                with self.subTest(path=path),self.assertRaises(gate.EvidenceError):self.verify()
+            finally:self.parent[path]=original
+        # Native owner omission cannot be repaired by declaring a shared/common
+        # selection: the authenticated original include-platform decision stays.
+        self.profile['selection']['include_platform']=False
+        with self.assertRaises(gate.EvidenceError):self.verify()
+
+
+class NativeOriginalLookupCompatibilityTests(unittest.TestCase):
+    """Real immutable original88 + actual native Adapter + complete fake CI2 E.
+
+    Current selector/local source startup are explicit fixture seams inherited
+    from the native parent fixture. No identity probe or workload is executed.
+    """
+    @classmethod
+    def setUpClass(cls):
+        NativeRetainedParentEvidenceTests.setUpClass()
+
+    def setUp(self):
+        self.f=NativeRetainedParentEvidenceTests();self.f.ci_original=True
+        self.f.ci_android=self._testMethodName=='test_android_CI2_original_source_is_reused_without_claiming_platform_execution'
+        self.addCleanup(self.f.doCleanups);self.f.setUp()
+        self.C=self.f.controller;self.original=deepcopy(self.f.retained)
+        self.environment=deepcopy(self.f.environment)
+
+    def advance(self,names):
+        C=self.C;f=self.f;n=f.native
+        for name in names:
+            path=f.root/name;path.write_bytes(path.read_bytes()+b'\n# reviewed protected test-only update\n')
+        f.source.git('add','--all');f.source.git('-c','user.name=Fixture','-c','user.email=fixture@example.invalid',
+            'commit','--quiet','-m','Protected nonproduction source update')
+        manifest=C.ci_profile.capture_controller_manifest(f.root,f.source.git('rev-parse','HEAD').decode().strip())
+        n.default,n.default_tree=manifest['source_commit'],manifest['source_tree']
+        n.local=deepcopy(manifest['entries'])
+        f.records[n.default]=(n.default_tree,[]);f.maps[n.default_tree]=n.local
+        self.assertEqual(f.encode_tree(n.local),n.default_tree)
+        return manifest
+
+    def verify(self):return self.f.verify()
+
+    def test_all_seventeen_original_inputs_remain_bound_while_current_bodies_advance(self):
+        C=self.C;f=self.f
+        current=self.advance(C.ci_profile._ORIGINAL_LOOKUP_DATA)
+        self.assertNotEqual(current['source_commit'],self.original['default_commit'])
+        self.assertNotEqual(C.ci_profile.controller_generation(current['entries'],f.registry),
+            self.environment['selection']['generation_digest'])
+        value=self.verify()
+        self.assertEqual(value['environment'],self.environment)
+        self.assertEqual(value['original_protected_source'],self.original)
+        self.assertEqual(value['runtime_admission']['selection'],self.environment['selection'])
+        self.assertEqual(value['original_proof']['receipt_sha256'],
+            hashlib.sha256(C.P.canonical(f.receipt)).hexdigest())
+        self.assertEqual(value['expires_at'],f.case.aggregate['expires_at'])
+        self.assertFalse(value['platform_reused'])
+        self.assertEqual(set(value['results']['suites']),set(C.ci_profile.SUITES))
+        self.assertIn('tests/run-project-tests.py',value['candidate_inputs'])
+
+    def test_doc_only_body_change_keeps_complete_original_projection_and_E(self):
+        self.advance(['tools/test-evidence/AFFECTED_SELECTION.md'])
+        value=self.verify()
+        self.assertEqual(value['original_protected_source']['projection_digest'],self.original['projection_digest'])
+        self.assertEqual(value['environment'],self.environment)
+
+    def test_android_CI2_original_source_is_reused_without_claiming_platform_execution(self):
+        self.advance(['tools/test-evidence/producer-api-test.py'])
+        value=self.verify()
+        self.assertEqual(value['parent_branch'],'android-main')
+        self.assertEqual(value['child_platform_profile']['sha'],self.C.source_admission.TARGET_PROFILES['android-phone'])
+        self.assertEqual(value['environment'],self.environment)
+        self.assertIsNone(value['original_platform_observation'])
+        self.assertFalse(value['platform_reused'])
+        self.assertEqual(value['original_protected_source'],self.original)
+
+    def test_controller_policy_mode_alias_new_lookup_or_corrupt_original_blob_declines(self):
+        C=self.C;f=self.f
+        self.advance(['tools/test-evidence/ci-profile-test.py'])
+        for change in ('controller','policy','mode','alias','new-member','raw'):
+            path=f.root/('tools/test-evidence/runtime_ci.py' if change=='controller' else
+                C.ci_profile.POLICY if change=='policy' else 'tools/test-evidence/test.py')
+            raw=path.read_bytes();mode=path.stat().st_mode&0o777
+            original_reader=f.native.api.immutable_source_blob
+            extra=f.root/'tools/test-evidence/unreviewed.so'
+            try:
+                if change in {'controller','policy'}:path.write_bytes(raw+b'\n# changed actual source\n')
+                elif change=='mode':path.chmod(0o755)
+                elif change=='alias':path.unlink();path.symlink_to(f.root/'tools/test-evidence/producer.py')
+                elif change=='new-member':extra.write_bytes(b'new native import lookup')
+                else:f.native.api.immutable_source_blob=lambda oid:b'corrupted original source'
+                with self.subTest(change=change),self.assertRaises(gate.EvidenceError):self.verify()
+            finally:
+                if path.is_symlink():path.unlink()
+                path.write_bytes(raw);path.chmod(mode)
+                if extra.exists():extra.unlink()
+                f.native.api.immutable_source_blob=original_reader
+
+    def test_native_whole_hash_failure_pending_or_expiry_cannot_mint_original_authority(self):
+        self.advance(['tools/test-evidence/producer-api-test.py'])
+        for change in ('native-hash','pending','expiry'):
+            jobs=deepcopy(self.f.case.jobs);runs=deepcopy(self.f.case.runs)
+            aggregate=deepcopy(self.f.case.aggregate)
+            try:
+                if change=='native-hash':
+                    for job in self.f.case.jobs[100]:
+                        if job['name'].startswith(self.C.producer.PUBLISH_PREFIX):
+                            job['name']=self.C.producer.PUBLISH_PREFIX+'0'*64
+                elif change=='pending':self.f.case.runs[100].update(status='in_progress',conclusion=None)
+                with self.subTest(change=change),self.assertRaises(gate.EvidenceError):
+                    if change=='expiry':gate.native_parent_evidence(self.f.native.transport,config(),self.f.native.request,
+                        now=self.f.fixtures.NOW+timedelta(hours=2))
+                    else:self.verify()
+            finally:
+                self.f.case.jobs,self.f.case.runs,self.f.case.aggregate=jobs,runs,aggregate
+
+    def test_envelope_dict_or_raw_callback_is_not_original_runtime_authority(self):
+        R=self.C.runtime_ci
+        for supplied in (self.original,{'verified':True},object()):
+            with self.subTest(supplied=type(supplied).__name__),self.assertRaises(R.CIEnvironmentError):
+                R.validate_original_environment(supplied,self.environment,None,None,None,{}, {}, {}, {})
+        with self.assertRaises(TypeError):self.C.ci_profile.authenticate_original_source(
+            read_source_blob=lambda oid:b'',verified={'verified':True})
+
+    def test_actual_native_token_admits_original_plan_only_until_original_expiry(self):
+        C=self.C;f=self.f;n=f.native
+        self.advance(['tools/test-evidence/producer-test.py'])
+        adapter=C.A.Adapter(n.api)
+        context=C.P.SharedContext(f.registry,f.parent,f.environment,f.case.binding['merge_sha'],
+            f.case.binding['merge_tree'],f.git,f.retained)
+        verified,token=C.producer.verify_original_source(adapter,500,f.case.plan,f.case.policy,context,
+            f.receipt,f.case.binding,integrated=True,root=f.root,clock=lambda:f.fixtures.NOW)
+        args=(f.environment,f.case.aggregate['qualified_at'],f.case.aggregate['expires_at'],f.fixtures.NOW,
+            f.profile['selection'],f.profile['selection'],f.parent,f.parent,n.local,f.registry,f.receipt['results'])
+        kwargs=dict(root=f.root,target=n.request.parent,base_tree=f.previous,read_blob=n.api.immutable_blob)
+        with self.assertRaises(C.runtime_ci.CIEnvironmentError):C.runtime_ci.plan_original_reuse(*args,**kwargs)
+        value=C.runtime_ci.plan_original_reuse(*args,**kwargs,original_source=token)
+        self.assertEqual(value['reused_suites'],list(C.ci_profile.SUITES))
+        self.assertEqual(value['original_expires_at'],verified['expires_at'])
+        self.assertEqual(f.environment,self.environment)
+        expired=list(args);expired[3]=C.P._time(verified['expires_at'])+timedelta(seconds=1)
+        with self.assertRaises(C.runtime_ci.CIEnvironmentError):C.runtime_ci.plan_original_reuse(
+            *expired,**kwargs,original_source=token)
+
+
+class NativeParentSourceGuardTests(unittest.TestCase):
+    def test_immutable_complete_import_lookup_precedes_any_proof_import(self):
+        # Real immutable Git metadata + real materialized lookup. The only
+        # mocked boundary is entering the proof modules after the guard passes.
+        with tempfile.TemporaryDirectory(prefix='overte-native-sync-source-') as temporary:
+            root=Path(temporary)
+            raw=(gate.ROOT/'tools/test-evidence/source_admission.py').read_bytes()
+            guard=type(sys)('native_sync_guard_fixture')
+            exec(compile(raw,'reviewed source guard','exec'),guard.__dict__)
+            for name in guard.IMPORT_MEMBERS:
+                path=root/name;path.parent.mkdir(parents=True,exist_ok=True)
+                path.write_bytes(raw if name==guard.SELF else b'# immutable fixture lookup\n')
+            def git(*args):
+                subprocess.run(['git','-c','commit.gpgsign=false',*args],cwd=root,check=True,
+                    stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+            git('init','-q','--initial-branch=main')
+            git('config','user.name','Native source fixture')
+            git('config','user.email','fixture@example.invalid')
+            git('add','.');git('commit','-qm','Commit complete fixture lookup')
+            subject=root/'tools/test-evidence/inputs.py'
+            class ReachedProofImport(Exception):pass
+            with mock.patch.object(gate,'ROOT',root),mock.patch.object(gate.importlib.util,
+                    'spec_from_file_location',side_effect=ReachedProofImport) as imported:
+                with self.assertRaises(ReachedProofImport):gate._native_parent_controller()
+                self.assertEqual(imported.call_count,1)
+                for mode in ('content','executable','untracked','bytecode','missing','alias','helper'):
+                    with self.subTest(mode=mode):
+                        extra=None
+                        if mode=='content':subject.write_bytes(b'# changed after immutable Git\n')
+                        elif mode=='executable':subject.chmod(0o755)
+                        elif mode=='untracked':extra=subject.with_name('unreviewed.py');extra.write_bytes(b'# negative import lookup\n')
+                        elif mode=='bytecode':
+                            extra=subject.parent/'__pycache__'/'inputs.cpython-312.pyc'
+                            extra.parent.mkdir();extra.write_bytes(b'not an admitted source member')
+                        elif mode=='missing':subject.unlink()
+                        elif mode=='alias':subject.unlink();subject.symlink_to('execution.py')
+                        else:(root/guard.SELF).write_bytes(raw+b'\n# uncommitted helper\n')
+                        before=imported.call_count
+                        with self.assertRaises(ValueError):gate._native_parent_controller()
+                        self.assertEqual(imported.call_count,before,'invalid source must fail before proof import')
+                        if subject.is_symlink():subject.unlink()
+                        subject.write_bytes(b'# immutable fixture lookup\n');subject.chmod(0o644)
+                        (root/guard.SELF).write_bytes(raw)
+                        if extra:
+                            extra.unlink()
+                            if mode=='bytecode':extra.parent.rmdir()
 
 
 if __name__ == "__main__":

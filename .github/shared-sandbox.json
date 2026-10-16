@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "profile": "ubuntu24-shared-bwrap-v1",
+  "enabled": false,
+  "qualified_hosts": [],
+  "requirements": [
+    "separate-host-uid-without-sudo",
+    "mandatory-user-mount-pid-ipc-uts-network-namespaces",
+    "private-proc-without-host-processes",
+    "no-new-privileges-and-no-capabilities",
+    "readonly-source-git-policy-and-toolchains",
+    "private-home-temp-and-build-output",
+    "closed-inherited-descriptors-and-host-sockets",
+    "loopback-only-network-with-nested-user-network-namespaces",
+    "parent-owned-kernel-scope-and-confirmed-empty-descendants",
+    "protected-before-after-runtime-probes-in-effective-sandbox",
+    "complete-shared-host-suite-compatibility"
+  ]
+}
