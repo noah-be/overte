@@ -247,6 +247,36 @@ def regular_ci_inventory(plan, base_tree, candidate_tree):
         candidate_tree, base_tree, plan.get('paths', ()), package_owned_paths(plan))
 
 
+def _protected_producer_transition(tree, paths, base_tree, trusted_tree, target):
+    """Widen only the complete reviewed legacy-to-producer installation once.
+
+    This is selection, never activation or execution evidence. The ordinary
+    complete-tuple wiring check still runs independently before selection.
+    """
+    endpoints = {'.github/workflows/repository-checks.yml', '.github/workflows/project-tests.yml'}
+    if target != 'main' or not isinstance(paths, (tuple, list)) or len(paths) != len(endpoints) \
+            or set(paths) != endpoints or not isinstance(base_tree, dict) \
+            or not isinstance(trusted_tree, dict) or trusted_tree != base_tree:
+        return False
+    # No path hint may conceal a source/controller/profile/registry change.
+    changed = {path for path in base_tree.keys() | tree.keys() if base_tree.get(path) != tree.get(path)}
+    if changed != endpoints:
+        return False
+    policy = package_policy()
+    generations = {generation['name']: generation['workflows'] for generation in policy.workflow_generations()}
+    previous = generations.get('android-owned-npm5-sync-ci-v1', {})
+    producer = generations.get('protected-shared-producer-v1', {})
+    required = set(policy.CONSUMER_WORKFLOW_PATHS)
+    if set(previous) != required or set(producer) != required \
+            or {path for path in required if previous[path] != producer[path]} != endpoints:
+        return False
+    # Trusted policy validates ordinary entries and complete tuple identities;
+    # individual known files, mixtures and candidate policy cannot qualify.
+    return all(snapshot.get(path) == entry
+               for snapshot, workflows in ((trusted_tree, previous), (base_tree, previous), (tree, producer))
+               for path, entry in workflows.items())
+
+
 def select(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_root=ROOT,
            trusted_root=ROOT, target='main', base_tree=None, package_paths=()):
     registry = inputs.load_registry(ROOT / '.github/test-suites.json')
@@ -280,6 +310,9 @@ def select(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_
         except (ValueError, OSError, subprocess.SubprocessError):
             reviewed = False
         if reviewed:
+            if _protected_producer_transition(tree, paths, base_tree, trusted_tree, target):
+                return {'suites': names, 'reason': 'reviewed-protected-producer-transition',
+                        'full_host': True, 'include_platform': True}
             affected = CONTROL_PLANE in paths or (base_tree is not None and base_tree.get(CONTROL_PLANE) != tree.get(CONTROL_PLANE))
             result = {'suites': [name for name in names if (
                         registry['suites'][name]['layer'] == 'quick' and name not in PRODUCT_QUICK_SUITES

@@ -545,6 +545,17 @@ Android generations bind the complete pair, preserving every older generation.
 Caller and callee must be installed together after hosted qualification; neither
 an individual approved file nor a matching job name authorizes publication.
 
+The exact ordinary two-file installation from `android-owned-npm5-sync-ci-v1`
+to this complete five-workflow tuple selects all 60 trusted suites once on
+`main`, with reason `reviewed-protected-producer-transition`. The current
+trusted tree must equal the PR base, and the complete candidate delta must
+contain only the approved caller and callee; source, controller, registry and
+platform profile remain unchanged. Existing candidate and trusted reader review
+remains a prerequisite. This finite widening makes the eventual
+installation PR eligible for the existing protected owner after its separate
+activation prerequisites pass. It supplies no execution or publication proof.
+Subsequent CI-only changes retain the existing 37-suite selection.
+
 New isolated publication requires execution schema 3 and an independently
 reconstructed source context: the original commit, its ordered immediate
 parents, their tree identities and the actual shallow boundary. Legacy schema
