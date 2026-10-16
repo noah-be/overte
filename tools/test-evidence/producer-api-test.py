@@ -2174,5 +2174,128 @@ class MetadataRetentionConsumerTests(unittest.TestCase):
             self.assertEqual(reads, 2)
 
 
+class DocumentationPushOwnerTests(unittest.TestCase):
+    """Real original schema3/native aggregate; local source primitives are fixtures.
+
+    The separate source guard tests authenticate the real finite controller and
+    lookup graph. These fake API facts cannot qualify a production runtime.
+    """
+    def setUp(self):
+        self.fixture=MainConsumerTests('runTest')
+        self.fixture.generation_name='protected-producer-postmerge-original-e-v1'
+        self.fixture.setUp();self.addCleanup(self.fixture.doCleanups)
+        f=self.fixture;self.module=f.module;self.case=f.case;self.api=f.api;self.adapter=f.adapter
+        self.original_run=self.adapter.capture_integrated(500,self.case.plan,self.case.policy,now=NOW).observations[0].run
+        C=self.module
+        f.tree['tests/platform-profile.json']=C.source_admission.ordinary(C.source_admission.SHARED_PROFILE)
+        raw=(C.ROOT/A.DOCUMENTATION_PUSH_WORKFLOW).read_bytes()
+        f.tree[A.DOCUMENTATION_PUSH_WORKFLOW]=C.source_admission.ordinary(C.source_admission.blob_id(raw))
+        shipping=json.loads((C.ROOT/'.github/test-suites.json').read_bytes())
+        for name in C.DOCUMENTATION_SUITES:
+            f.registry['suites'][name]=deepcopy(shipping['suites'][name])
+            for path in f.registry['suites'][name]['closure']['required']:
+                body=(C.ROOT/path).read_bytes()
+                f.tree[path]=C.source_admission.ordinary(C.source_admission.blob_id(body))
+        f.previous.clear();f.previous.update(deepcopy(f.tree))
+        self.case.plan['owners']['shared-host']['suites']=list(f.registry['suites'])
+        C.producer.selection_profile.return_value={
+            'profile':C.producer.FULL_PROFILE,'suites':list(f.registry['suites']),
+            'selection':{'suites':list(f.registry['suites']),'full_host':True,'include_platform':True,'reason':'fixture-full-owner'}}
+        f.receipt.update(requested_suites=list(f.registry['suites']))
+        self.refresh_receipt()
+        self.case.push.update(workflow_id=7654321,path=A.DOCUMENTATION_PUSH_WORKFLOW)
+        base_json=self.api.json
+        def json_api(endpoint):
+            if endpoint==A.PREFIX+'/actions/workflows/documentation-push-owner.yml':
+                self.api.calls.append(endpoint)
+                return self.api.mutate(endpoint,{'id':7654321,'path':A.DOCUMENTATION_PUSH_WORKFLOW,'state':'active'})
+            return base_json(endpoint)
+        self.api.json=json_api
+        f.environment.update(GITHUB_JOB='documentation-source',GITHUB_WORKFLOW_REF=
+            A.REPOSITORY+'/'+A.DOCUMENTATION_PUSH_WORKFLOW+'@refs/heads/main')
+        item=patch.object(C,'integrated_controller',return_value=self.case.pp.controller_digest)
+        item.start();self.addCleanup(item.stop)
+
+    def refresh_receipt(self):
+        f=self.fixture
+        f.receipt['results']={name:{'status':'passed','fingerprint':P.inputs.suite_fingerprint(
+            f.registry,name,f.tree,f.receipt['environment'])} for name in f.receipt['requested_suites']}
+        f.receipt=FIXTURES.signed(f.receipt,'receipt_digest')
+        self.case.aggregate['results']['shared-host']['receipt']=f.receipt
+        run=replace(self.original_run,final_publisher=replace(self.original_run.final_publisher,
+            receipt_sha256=hashlib.sha256(P.canonical(f.receipt)).hexdigest()))
+        self.case.add_run(run);self.case.runs[100]['pull_requests']=[]
+
+    def lookup(self,clock=lambda:NOW):
+        return self.module.lookup(self.fixture.event,self.fixture.environment,self.adapter,clock=clock)
+
+    def test_actual_original_schema3_and_every_documentation_suite_are_verified_without_consumer_E(self):
+        value=self.lookup();self.assertTrue(value['reused'],value)
+        proof=value['proof'];self.assertEqual(proof['original_commit'],self.case.binding['merge_sha'])
+        self.assertNotEqual(proof['original_commit'],proof['current_commit'])
+        self.assertEqual(proof['original_proof']['receipt_sha256'],hashlib.sha256(P.canonical(self.fixture.receipt)).hexdigest())
+        self.assertLessEqual(self.module.DOCUMENTATION_SUITES,set(proof['reused_suites']))
+        self.assertEqual(proof['executed_suites'],[])
+        self.assertTrue(any(endpoint.endswith('/actions/workflows/documentation-push-owner.yml') for endpoint in self.api.calls))
+        self.assertEqual(self.case.pp.actions_app_id,15368)
+
+    def test_each_missing_selected_documentation_suite_declines_before_original_proof(self):
+        C=self.module;selected=C.producer.selection_profile.return_value['selection']
+        complete=list(selected['suites'])
+        for name in C.DOCUMENTATION_SUITES:
+            selected['suites']=[item for item in complete if item!=name]
+            with self.subTest(name=name),patch.object(self.adapter,'capture_integrated',side_effect=AssertionError('missing owner reached proof')):
+                self.assertFalse(self.lookup()['reused'])
+        selected['suites']=complete
+
+    def test_fixed_filename_registration_unknown_id_path_state_and_bookend_drift_decline(self):
+        for kind in ('id','path','state','late-id'):
+            reads=0
+            def mutate(endpoint,value):
+                nonlocal reads
+                if endpoint.endswith('/actions/workflows/documentation-push-owner.yml'):
+                    reads+=1
+                    if kind=='id' or kind=='late-id' and reads>1:value['id']=7654322
+                    elif kind=='path':value['path']='.github/workflows/other.yml'
+                    elif kind=='state':value['state']='disabled_manually'
+                return value
+            self.api.mutate=mutate
+            with self.subTest(kind=kind):self.assertFalse(self.lookup()['reused'])
+        self.api.mutate=lambda endpoint,value:value
+        self.case.push['workflow_id']=350930890
+        self.assertFalse(self.lookup()['reused'])
+
+    def test_missing_pending_failed_foreign_and_wrong_native_whole_hash_use_actual_fallback(self):
+        runs,jobs,artifacts=deepcopy((self.case.runs,self.case.jobs,self.case.artifacts))
+        for kind in ('missing','pending','failed','foreign','wholehash'):
+            self.case.runs,self.case.jobs,self.case.artifacts=deepcopy((runs,jobs,artifacts))
+            if kind=='missing':self.case.runs.clear()
+            elif kind=='pending':self.case.runs[100].update(status='in_progress',conclusion=None)
+            elif kind=='failed':self.case.runs[100].update(status='completed',conclusion='failure')
+            elif kind=='foreign':self.case.runs[100]['repository']['id']=42
+            else:self.case.jobs[100][-1]['name']=self.case.policy.final_publisher_prefix+'f'*64
+            with self.subTest(kind=kind):self.assertFalse(self.lookup()['reused'])
+
+    def test_changed_wrapper_or_environment_and_final_expiry_cannot_retain_original_proof(self):
+        f=self.fixture;before=deepcopy(f.tree[A.DOCUMENTATION_PUSH_WORKFLOW])
+        # Independently read current S differs from actual trusted D.
+        raw_tree=self.api.immutable_tree
+        def changed(oid):
+            value=raw_tree(oid)
+            if oid==self.case.binding['merge_tree']:
+                next(row for row in value['tree'] if row['path']==A.DOCUMENTATION_PUSH_WORKFLOW)['sha']='f'*40
+            return value
+        self.api.immutable_tree=changed
+        self.assertFalse(self.lookup()['reused']);self.api.immutable_tree=raw_tree
+        self.assertEqual(f.tree[A.DOCUMENTATION_PUSH_WORKFLOW],before)
+        f.receipt['environment']['prepared']['roots'][self.module.inputs.ISOLATED_VENV]='sha256:'+'b'*64
+        self.case.aggregate['results']['shared-host']['receipt']=FIXTURES.signed(f.receipt,'receipt_digest')
+        self.case.aggregate=FIXTURES.signed(self.case.aggregate,'aggregate_digest')
+        self.case.artifacts[100]=self.case.artifacts[100][:1]
+        self.case.artifact(self.original_run,'aggregate',self.case.aggregate)
+        self.assertFalse(self.lookup()['reused'])
+        self.assertFalse(self.lookup(clock=lambda:P._time(self.case.aggregate['expires_at']))['reused'])
+
+
 if __name__ == "__main__":
     unittest.main()

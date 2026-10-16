@@ -22,6 +22,8 @@ REPOSITORY = 'noah-l-frank/overte'
 REPOSITORY_ID = 1319052603
 SELF = 'tools/test-evidence/source_admission.py'
 PROFILE = 'tests/platform-profile.json'
+DOCUMENTATION_WORKFLOW = '.github/workflows/documentation-push-owner.yml'
+DOCUMENTATION_TARGETS = frozenset({'main','android-phone','android-vr-pico','apple-ios'})
 SHARED_PROFILE = 'd63537504c20204de9d35d9be61da72a56df59c3'
 TARGET_PROFILES = {
     'main': SHARED_PROFILE,
@@ -45,6 +47,7 @@ CONTROLLERS = (
     '.github/test-suite-dependencies.json',
     '.github/test-suites.json',
     '.github/workflows/documentation-checks.yml',
+    '.github/workflows/documentation-push-owner.yml',
     '.github/workflows/shared-sandbox-host-diagnostic.yml',
     '.github/workflows/workflow-security.yml',
     'tests/platform-profile.json',
@@ -366,6 +369,10 @@ def native(event, environment, api):
             and len(commit['parents'])==2 and commit['parents'][0].get('sha')==base,
             'protected push is not the exact normal integration of original B')
         workflow='parent-qualification' if target in {'main','android-main','android-vr','apple-main'} else 'project-tests'
+        if environment.get('GITHUB_WORKFLOW_REF')==REPOSITORY+'/'+DOCUMENTATION_WORKFLOW+'@'+ref:
+            require(target in DOCUMENTATION_TARGETS and environment.get('GITHUB_JOB')=='documentation-source',
+                    'unreviewed documentation source role')
+            workflow='documentation-push-owner'
         require(environment.get('GITHUB_WORKFLOW_REF')==REPOSITORY+'/.github/workflows/'+workflow+'.yml@'+ref,'native push workflow changed')
     require(target in TARGET_PROFILES,'unknown protected target')
     branch=api.get('branches/'+target)

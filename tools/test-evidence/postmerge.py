@@ -35,6 +35,7 @@ SOURCE_READY = True
 GENERATIONS = {'postmerge-original-e-v1', 'protected-producer-postmerge-original-e-v1',
                'protected-producer-ci37-v1', 'protected-producer-metadata-ci-v1',
                'protected-producer-seven-target-ci-v1'}
+DOCUMENTATION_SUITES = frozenset({'documentation-contracts','documentation','policy-consistency'})
 
 
 def _source_qualified():
@@ -47,6 +48,9 @@ def _native(event, environment):
     A.require(target in source_admission.TARGET_PROFILES, 'unknown protected consumer target')
     workflow='parent-qualification' if target in {'main','android-main','android-vr','apple-main'} else 'project-tests'
     job='qualify-parent' if workflow=='parent-qualification' else 'route'
+    if environment.get('GITHUB_WORKFLOW_REF')==A.REPOSITORY+'/'+A.DOCUMENTATION_PUSH_WORKFLOW+'@refs/heads/'+target:
+        A.require(target in A.DOCUMENTATION_PUSH_BRANCHES, 'unreviewed documentation push target')
+        workflow='documentation-push-owner';job='documentation-source'
     expected = {'GITHUB_ACTIONS': 'true', 'GITHUB_REPOSITORY': A.REPOSITORY,
         'GITHUB_REPOSITORY_ID': '1319052603', 'GITHUB_EVENT_NAME': 'push',
         'GITHUB_REF': 'refs/heads/'+target, 'GITHUB_RUN_ATTEMPT': '1',
@@ -183,8 +187,10 @@ def verify_main(event, environment, adapter, *, root=ROOT, clock=lambda: datetim
     A.require(package.validate_tree_wiring(current) in GENERATIONS,
               'current target does not contain the exact complete consumer generation')
     workflow=references['integration']['workflow_path']
-    template=TEMPLATE if workflow=='.github/workflows/parent-qualification.yml' else producer.TEMPLATE
-    A.require(workflow in {'.github/workflows/parent-qualification.yml','.github/workflows/project-tests.yml'}
+    documentation=workflow==A.DOCUMENTATION_PUSH_WORKFLOW
+    template=workflow if documentation else TEMPLATE if workflow=='.github/workflows/parent-qualification.yml' else producer.TEMPLATE
+    A.require(workflow in {'.github/workflows/parent-qualification.yml','.github/workflows/project-tests.yml',A.DOCUMENTATION_PUSH_WORKFLOW}
+        and environment.get('GITHUB_WORKFLOW_REF')==A.REPOSITORY+'/'+workflow+'@refs/heads/'+target
         and current.get(workflow)==local.get(template) and local.get(template,{}).get('mode')=='100644',
         'actual protected push workflow differs from trusted canonical source')
     _, previous = full_tree(adapter, binding['base_sha'])
@@ -209,6 +215,9 @@ def verify_main(event, environment, adapter, *, root=ROOT, clock=lambda: datetim
     read_blob = lambda oid:adapter.api.immutable_blob(oid)
     current_profile = producer.selection_profile(policy, registry, current, previous, selection_context, root=root,target=target,read_blob=read_blob)
     selected = current_profile['selection']
+    if documentation:
+        A.require(DOCUMENTATION_SUITES <= set(selected['suites']),
+            'original shared owner does not contain every documentation command')
     if target!='main':
         A.require(current_profile['profile']==producer.FULL_PROFILE and selected['full_host'] is True
             and set(selected['suites'])==set(registry['suites']),
@@ -254,6 +263,8 @@ def verify_main(event, environment, adapter, *, root=ROOT, clock=lambda: datetim
         A.require(not reuse['required'] and set(reuse['reused']) == set(registry['suites']),
                   'complete current shared input closure requires actual verification')
         reused_suites, runtime_admission = reuse['reused'], admission['policy']
+    if documentation:
+        A.require(DOCUMENTATION_SUITES <= set(reused_suites), 'documentation owner requires actual verification')
     context = P.SharedContext(registry, original_tree, original_environment,
                              snapshot.binding['merge_sha'], original_tree_sha, original_git)
     # The original data above supplies no authority. Only these fresh complete

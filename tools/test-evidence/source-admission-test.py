@@ -291,7 +291,11 @@ class BootstrapTests(SourceFixture,unittest.TestCase):
                     if step.get('id')=='protected-source':
                         lines=step['run'].splitlines();self.assertIn('-I -S -B',lines[0])
                         scripts.append('\n'.join(lines[1:-1])+'\n')
-        self.assertEqual(len(scripts),4)
+        value=yaml.safe_load((ROOT/S.DOCUMENTATION_WORKFLOW).read_text())
+        step=next(item for item in value['jobs']['documentation-source']['steps'] if item.get('id')=='protected-source')
+        lines=step['run'].splitlines();self.assertIn('-I -S -B',lines[0])
+        scripts.append('\n'.join(lines[1:-1])+'\n')
+        self.assertEqual(len(scripts),5)
         self.assertEqual(len(set(scripts)),1)
         return scripts[0]
     def execute_bootstrap(self, *, changed_helper=False, changed_controller=False, drift=False):
@@ -337,11 +341,81 @@ class BootstrapTests(SourceFixture,unittest.TestCase):
         self.assertEqual(self.execute_bootstrap(changed_helper=True),'admitted=false\n')
         self.assertEqual(self.execute_bootstrap(changed_controller=True),'admitted=false\n')
 
+class DocumentationSourceTests(SourceFixture,unittest.TestCase):
+    def test_fixed_documentation_native_role_rejects_unknown_target_job_or_source(self):
+        import postmerge
+        self.assertEqual(set(S.DOCUMENTATION_TARGETS),set(postmerge.A.DOCUMENTATION_PUSH_BRANCHES))
+        self.assertEqual(S.DOCUMENTATION_WORKFLOW,postmerge.A.DOCUMENTATION_PUSH_WORKFLOW)
+        for target in S.DOCUMENTATION_TARGETS:
+            event={'repository':self.event['repository'],'ref':'refs/heads/'+target,
+                'before':self.base_id,'after':self.merge_id,'forced':False,'deleted':False}
+            env={**self.env,'GITHUB_EVENT_NAME':'push','GITHUB_JOB':'documentation-source','GITHUB_RUN_ID':'500',
+                'GITHUB_REF':event['ref'],'GITHUB_WORKFLOW_REF':S.REPOSITORY+'/'+S.DOCUMENTATION_WORKFLOW+'@'+event['ref']}
+            api=self.api();get=api.get
+            def read(endpoint):
+                value=get(endpoint)
+                if endpoint=='branches/'+target: value['commit']['sha']=self.merge_id
+                if target=='main' and endpoint=='git/ref/heads/main': value['object']['sha']=self.merge_id
+                if endpoint=='git/commits/'+self.merge_id:
+                    value['parents']=[{'sha':self.base_id},{'sha':self.head_id}]
+                return value
+            api.get=read
+            with self.subTest(target=target):
+                self.assertEqual(S.native(event,env,api)['source'],self.merge_id)
+                self.assertEqual(postmerge._native(event,env),(self.merge_id,500))
+                for changed in ({'GITHUB_JOB':'documentation'}, {'GITHUB_WORKFLOW_SHA':'f'*40},
+                                {'GITHUB_WORKFLOW_REF':env['GITHUB_WORKFLOW_REF'].replace('owner.yml','other.yml')}):
+                    with self.subTest(changed=changed),self.assertRaises(Exception):
+                        postmerge._native(event,{**env,**changed})
+        env={**env,'GITHUB_REF':'refs/heads/android-main','GITHUB_WORKFLOW_REF':
+            S.REPOSITORY+'/'+S.DOCUMENTATION_WORKFLOW+'@refs/heads/android-main'}
+        with self.assertRaises(Exception): postmerge._native({**event,'ref':'refs/heads/android-main'},env)
+
+    def test_documentation_wrapper_is_mandatory_source_before_any_import(self):
+        self.assertEqual(self.admit()['target'],self.target)
+        for kind in ('missing','changed','executable','alias'):
+            tree=deepcopy(self.base)
+            if kind=='missing': del tree[S.DOCUMENTATION_WORKFLOW]
+            elif kind=='changed': tree[S.DOCUMENTATION_WORKFLOW]['sha']='f'*40
+            else: tree[S.DOCUMENTATION_WORKFLOW]['mode']='100755' if kind=='executable' else '120000'
+            with self.subTest(kind=kind),self.assertRaises(S.SourceUnavailable): self.admit(base=tree)
+
+    def test_push_wrapper_keeps_reusable_contents_only_and_requires_explicit_fallback(self):
+        import yaml
+        old=yaml.safe_load((ROOT/'.github/workflows/documentation-checks.yml').read_text())
+        wrapper=yaml.safe_load((ROOT/S.DOCUMENTATION_WORKFLOW).read_text())
+        events=lambda value:value.get('on',value.get(True))
+        self.assertNotIn('push',events(old));self.assertIn('workflow_call',events(old))
+        self.assertEqual(old['permissions'],{'contents':'read'})
+        self.assertEqual([step['run'] for step in old['jobs']['documentation']['steps'] if 'run' in step],
+            ['python3 tests/documentation-test.py','python3 tests/check-documentation.py --all',
+             'python3 tools/repository-policy/check.py'])
+        self.assertEqual(set(events(wrapper)),{'push'})
+        self.assertEqual(set(events(wrapper)['push']['branches']),S.DOCUMENTATION_TARGETS)
+        jobs=wrapper['jobs'];source=jobs['documentation-source'];fallback=jobs['documentation']
+        self.assertEqual(source['permissions'],dict.fromkeys(('contents','actions','pull-requests','checks'),'read'))
+        self.assertEqual(fallback['permissions'],{'contents':'read'})
+        self.assertEqual(fallback['uses'],'./.github/workflows/documentation-checks.yml')
+        self.assertEqual(fallback['if'],"needs.documentation-source.outputs.documentation_reused != 'true'")
+        checkout=source['steps'][0]
+        self.assertEqual(checkout['with']['ref'],'${{ github.event.repository.default_branch }}')
+        self.assertFalse(checkout['with']['persist-credentials'])
+        self.assertFalse(any(item.get('with',{}).get('path')=='candidate' for item in source['steps']))
+        self.assertLess(next(i for i,item in enumerate(source['steps']) if item.get('id')=='protected-source'),
+                        next(i for i,item in enumerate(source['steps']) if item.get('id')=='reuse'))
+        route=source['steps'][-1]['run']
+        for value in ('true','false','','1','TRUE'):
+            run=subprocess.run(['/usr/bin/bash','-e','-o','pipefail','-c',route],
+                env={'SHARED_REUSED':value},capture_output=True,timeout=5)
+            self.assertEqual(run.returncode==0,value in {'true','false'})
+
+
 if __name__=='__main__':
     suite=unittest.defaultTestLoader.loadTestsFromTestCase(SourceAdmissionTests)
     suite.addTests(BootstrapTests(name) for name in (
         'test_bootstrap_validates_all_source_without_importing_any_controller',
         'test_bootstrap_rejects_changed_helper_before_exec_and_changed_controller_before_import',
         'test_bootstrap_default_source_drift_cannot_admit_after_the_initial_snapshot'))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(DocumentationSourceTests))
     result=unittest.TextTestRunner(verbosity=2).run(suite)
     raise SystemExit(not result.wasSuccessful())

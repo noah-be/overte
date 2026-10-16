@@ -139,6 +139,7 @@ def controller_sources(policy):
         'tools/repository-checks/metadata_context.py',
         'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml',
         '.github/workflows/documentation-checks.yml', '.github/workflows/workflow-security.yml',
+        source_admission.DOCUMENTATION_WORKFLOW,
         'tools/native-tests/check.py',
         ci_profile.POLICY, 'tools/test-evidence/ci_profile.py', 'tools/test-evidence/runtime_ci.py',
         *('tools/test-evidence/' + name + '.py' for name in (
