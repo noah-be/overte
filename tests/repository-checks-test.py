@@ -2698,6 +2698,7 @@ class VerifiedEmptyCandidateTests(unittest.TestCase):
         merge=git(*args,'-m','Actual candidate merge')
         git('checkout','-q','--detach',merge)
         payload=event();payload.update(number=23,action='opened')
+        payload['pull_request']['labels']=[]
         payload['pull_request']['base']['sha']=base;payload['pull_request']['head']['sha']=head
         environment={'GITHUB_EVENT_NAME':'pull_request','GITHUB_REPOSITORY':CONFIG['repository'],
             'GITHUB_REPOSITORY_ID':str(CONFIG['repository_id']),'GITHUB_SHA':merge,'GITHUB_REF_TYPE':'branch',
@@ -2805,11 +2806,15 @@ class VerifiedEmptyCandidateTests(unittest.TestCase):
 
     def test_explicit_diagnostics_and_unverified_labels_preserve_the_full_route(self):
         root,git,base,head,merge,payload,native=self.fixture()
-        for labels in ([{'name':'android-long-diagnostics'}],[{'name':None}],{'name':'unknown'}):
+        for labels in (None,[{'name':'android-long-diagnostics'}],[{'name':None}],{'name':'unknown'}):
             changed=deepcopy(payload);changed['pull_request']['labels']=labels
             with self.subTest(labels=labels),patch.dict(os.environ,native,clear=True):
                 self.assertIsNone(CHECKS.verified_empty_candidate(root,changed,merge))
                 self.assertEqual(PACKAGES.candidate_plan(root,changed,merge)['host_mode'],'full')
+        missing=deepcopy(payload);missing['pull_request'].pop('labels')
+        with patch.dict(os.environ,native,clear=True):
+            self.assertIsNone(CHECKS.verified_empty_candidate(root,missing,merge))
+            self.assertEqual(PACKAGES.candidate_plan(root,missing,merge)['host_mode'],'full')
 
     def test_forged_proof_changed_event_or_selected_job_cannot_pass_aggregate(self):
         root,git,base,head,merge,payload,native=self.fixture()

@@ -495,7 +495,7 @@ def verified_empty_candidate(candidate: Path, event: dict, expected_sha: str) ->
         # Diagnostic requests can demand real work without a code delta.
         if event.get('action') not in {'opened','reopened','synchronize','edited'}:
             return None
-        labels = pr.get('labels',[])
+        labels = pr.get('labels')
         if (not isinstance(labels,list) or any(not isinstance(label,dict) or type(label.get('name')) is not str
                 for label in labels) or any(label['name']=='android-long-diagnostics' for label in labels)):
             return None
@@ -539,7 +539,7 @@ def immutable_empty_candidate(candidate: Path, *, base_sha: str, head_sha: str,
         'GIT_GRAFT_FILE':'/dev/null'}
     def git(*arguments, maximum=16*1024**2):
         raw = subprocess.check_output(['/usr/bin/git','--no-replace-objects','-c','core.fsmonitor=false',
-            '-c','core.hooksPath=/dev/null',*arguments],cwd=candidate,env=environment,
+            *arguments],cwd=candidate,env=environment,
             stderr=subprocess.PIPE,timeout=30)
         if len(raw)>maximum: raise ValueError('empty-delta immutable inventory is oversized')
         return raw
