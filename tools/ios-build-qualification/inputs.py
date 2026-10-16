@@ -43,6 +43,12 @@ REVIEWED_BOUNDARY = "sha256:48d5394647900717f6d69de0c0059b935e6e2c6a2efc085c76da
 # its device-control-plane-full and project-runner owners remain independently required.
 # Independent required CI must still validate these files before any app waiver.
 INDEPENDENT_HOST_PATHS = frozenset({
+    '.github/workflows/documentation-push-owner.yml',
+    'tools/test-evidence/source_admission.py',
+    'tools/test-evidence/source-admission-test.py',
+    'tools/repository-checks/workflows/producers/legacy/parent-qualification-metadata-v1.yml',
+    'tools/repository-checks/workflows/producers/legacy/protected-project-tests-metadata-v1.yml',
+    'tools/repository-checks/workflows/producers/legacy/repository-checks-metadata-v1.yml',
     ".github/dependency-security.md",
     ".github/test-suite-dependencies.json",
     "tools/test-evidence/affected-test.py",

@@ -59,6 +59,9 @@ CI_POLICY = frozenset({
 # import/read these controls or unit tests. Do not extend this to tools/** or
 # tests/**: those roots also contain real product readers and import candidates.
 CI_ROLLOUT_PATHS = frozenset({
+    '.github/workflows/documentation-push-owner.yml',
+    'tools/test-evidence/source_admission.py',
+    'tools/test-evidence/source-admission-test.py',
     'tools/test-evidence/affected-test.py',
     ".github/workflows/pr-metadata-context.yml",
     '.github/android-checks.json', '.github/android-orchestration.json', '.github/android-owner-transfer.json',
@@ -116,6 +119,7 @@ PROGRAM_INPUTS = (
     'tools/test-evidence/sandbox_shared.py',
     'tools/test-evidence/producer_workflow.py',
     'tools/test-evidence/postmerge.py',
+    'tools/test-evidence/source_admission.py',
     # The CI37 policy is independently CI-owned data: protected admission binds
     # its exact ordinary entry and bytes. Including its generation here would
     # cycle through this file's REVIEWED_PROGRAMS and the complete CI37 tree.
