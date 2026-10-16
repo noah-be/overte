@@ -15,6 +15,7 @@ from unittest.mock import patch
 
 import sandbox
 import sandbox_host as H
+import sandbox_host_fixture as FIXTURE
 import sandbox_shared as SHARED
 
 
@@ -838,6 +839,45 @@ class GuardianTests(unittest.TestCase):
                     self.assertEqual(events[-1], "close")
 
 
+class ProtectionFixtureTests(unittest.TestCase):
+    def test_readonly_requires_a_failed_write_and_exact_path_kernel_mount_evidence(self):
+        path = "/fixed-canary"
+        # The four actual unprivileged kernel observations: DAC may return
+        # EACCES before a read-only mount returns EROFS for a writable canary.
+        matrix = ((0o444, True, FIXTURE.errno.EACCES, True),
+                  (0o666, True, FIXTURE.errno.EROFS, True),
+                  (0o444, False, FIXTURE.errno.EACCES, False),
+                  (0o666, False, None, False))
+        for mode, readonly_mount, error, expected in matrix:
+            flags = FIXTURE.os.ST_RDONLY if readonly_mount else 0
+            failure = OSError(error, "fixed failure") if error is not None else None
+            with (self.subTest(mode=oct(mode), readonly_mount=readonly_mount),
+                  patch.object(FIXTURE.os, "open", return_value=17, side_effect=failure) as opening,
+                  patch.object(FIXTURE.os, "statvfs", return_value=SimpleNamespace(f_flag=flags)) as mount,
+                  patch.object(FIXTURE.os, "close") as closing):
+                self.assertIs(FIXTURE.readonly(path), expected)
+                opening.assert_called_once_with(path, FIXTURE.os.O_WRONLY | FIXTURE.os.O_CLOEXEC)
+                if error is None:
+                    mount.assert_not_called()
+                    closing.assert_called_once_with(17)
+                else:
+                    mount.assert_called_once_with(path)
+                    closing.assert_not_called()
+
+    def test_readonly_rejects_other_write_errors_and_unavailable_kernel_evidence(self):
+        path = "/fixed-canary"
+        for error in (FIXTURE.errno.EPERM, FIXTURE.errno.ENOENT, FIXTURE.errno.EIO, FIXTURE.errno.ELOOP):
+            with (self.subTest(error=error), patch.object(FIXTURE.os, "open", side_effect=OSError(error, "fixed failure")),
+                  patch.object(FIXTURE.os, "statvfs") as mount):
+                self.assertIs(FIXTURE.readonly(path), False)
+                mount.assert_not_called()
+        for error in (FIXTURE.errno.EACCES, FIXTURE.errno.EROFS):
+            with (self.subTest(error=error), patch.object(FIXTURE.os, "open", side_effect=OSError(error, "fixed failure")),
+                  patch.object(FIXTURE.os, "statvfs", side_effect=OSError(FIXTURE.errno.EIO, "unavailable")) as mount):
+                self.assertIs(FIXTURE.readonly(path), False)
+                mount.assert_called_once_with(path)
+
+
 class FixedResultTests(unittest.TestCase):
     def test_manual_workflow_matches_template_without_pr_trigger_or_success_skip(self):
         template = (H.ROOT / "tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml").read_text()
@@ -879,6 +919,33 @@ class FixedResultTests(unittest.TestCase):
         failed["observation"]["namespaces"]["pid"] = outside()["pid"]
         with self.assertRaises(H.Unavailable):
             H.validate_case("protections", failed, outside())
+
+    def test_boundary_flag_diagnostics_report_only_fixed_names_and_shape(self):
+        prefix = "one or more real boundary attacks succeeded or prerequisites failed: "
+        untrusted = "private-observation-token::error::/unexpected/path"
+        cases = []
+        for value in (False, 1, untrusted):
+            observation = protection_result()["observation"]
+            observation["git_pristine"] = value
+            cases.append((observation, {"failed": ["git_pristine"], "missing": [], "extra": False}))
+        observation = protection_result()["observation"]
+        del observation["readonly_mount_flags"]
+        cases.append((observation, {"failed": [], "missing": ["readonly_mount_flags"], "extra": False}))
+        observation = protection_result()["observation"]
+        observation[untrusted] = {untrusted: untrusted}
+        cases.append((observation, {"failed": [], "missing": [], "extra": True}))
+        observation = protection_result()["observation"]
+        observation["git_readonly"] = False
+        del observation["venv_aliases"]
+        observation[untrusted] = untrusted
+        cases.append((observation, {"failed": ["git_readonly"], "missing": ["venv_aliases"], "extra": True}))
+        for observation, expected in cases:
+            failed = protection_result()
+            failed["observation"] = observation
+            with self.subTest(expected=expected), self.assertRaises(H.Unavailable) as caught:
+                H.validate_case("protections", failed, outside())
+            self.assertEqual(str(caught.exception), prefix + json.dumps(expected, sort_keys=True))
+            self.assertNotIn(untrusted, str(caught.exception))
 
     def test_daemon_exit_or_forged_scope_claim_does_not_replace_kernel_cleanup(self):
         for cleanup in ({}, {"kernel_populated": 1, "subtree_kill": True}, {"descendants_empty": True}):

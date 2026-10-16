@@ -31,7 +31,14 @@ def readonly(path):
     try:
         descriptor = os.open(path, os.O_WRONLY | os.O_CLOEXEC)
     except OSError as error:
-        return error.errno == errno.EROFS
+        if error.errno not in {errno.EROFS, errno.EACCES}:
+            return False
+        # A protected canary can fail DAC before the read-only mount check.
+        # Require the kernel's read-only flag at this exact path as well.
+        try:
+            return bool(os.statvfs(path).f_flag & os.ST_RDONLY)
+        except OSError:
+            return False
     os.close(descriptor)
     return False
 

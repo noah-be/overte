@@ -658,7 +658,12 @@ def validate_case(name, result, outside):
                         "source_readonly", "git_readonly", "venv_readonly", "policy_readonly", "loopback", "only_loopback_interface",
                         "no_ipv4_default_route", "credential_environment_absent", "path_socket_hidden", "abstract_socket_hidden",
                         "home_writable", "temp_writable", "build_writable", "sudo_denied", "venv_aliases", "protected_descriptors_absent", "readonly_mount_flags", "git_pristine"}
-            require(flags == expected and all(observed[key] is True for key in expected), "one or more real boundary attacks succeeded or prerequisites failed")
+            # Report only fixed reviewed names, never unexpected keys or values.
+            diagnostics = {"failed": sorted(key for key in expected & flags if observed[key] is not True),
+                           "missing": sorted(expected - flags), "extra": bool(flags - expected)}
+            require(flags == expected and all(observed[key] is True for key in expected),
+                    "one or more real boundary attacks succeeded or prerequisites failed: "
+                    + json.dumps(diagnostics, sort_keys=True))
 
 
 def _module():
