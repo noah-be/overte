@@ -337,7 +337,7 @@ def select(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_
         return legacy
     registry = inputs.load_registry(ROOT / '.github/test-suites.json')
     affected = affected_selection(registry, tree, base_tree, trusted_tree, paths,
-                                  allow_full_host=legacy['full_host'])
+                                  allow_full_host=legacy['full_host'], legacy_selection=legacy, target=target)
     if affected is None:
         return legacy
     if affected['reason'] == 'protected-dependencies-unavailable':
@@ -404,35 +404,66 @@ def _select_legacy(tree, paths, regular, *, unknown=False, trusted_tree=None, ca
     return {'suites': names, 'reason': reason, 'full_host': True, 'include_platform': True}
 
 
-def affected_selection(registry, tree, base_tree, trusted_tree, paths, *, allow_full_host=True):
+def _qt_free_dependency_namespace():
+    """Only the new protected namespace may narrow the existing CI37 route."""
+    try:
+        import ci_profile
+        return ci_profile.load_policy(ROOT).get('generation_kind') == ci_profile.SEVEN_CONTROLLER_KIND
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
+def affected_selection(registry, tree, base_tree, trusted_tree, paths, *, allow_full_host=True,
+                       legacy_selection=None, target='main'):
     """Use only an already protected graph; missing legacy graphs retain legacy routing.
 
     A graph/source rollout cannot certify itself. Every unavailable or changed
     protected authority keeps the complete existing gate, before any execution.
     """
-    # Every currently supported graph subset needs complete host preparation.
-    # It cannot improve an independently proved Qt-free route, so do not read
-    # or hash that graph merely to reject its broader setup afterwards.
-    if allow_full_host is False:
+    # Preserve the old namespace's setup dominance and cheap early return.
+    # Only the new finite source/profile policy may narrow an independently
+    # established CI37 route without adding Qt or Java preparation.
+    qt_free = allow_full_host is False
+    if qt_free and not _qt_free_dependency_namespace():
         return None
     snapshots = (tree, base_tree, trusted_tree)
     if all(isinstance(snapshot, dict) and inputs.AFFECTED_POLICY not in snapshot for snapshot in snapshots):
         return None
     try:
         raw = inputs.load_dependencies(ROOT / inputs.AFFECTED_POLICY, registry)
-        device = json.loads(raw)['suites'].get('device-control-plane-full', {})
+        document = json.loads(raw)
+        if qt_free and document['schema'] != 2:
+            return None
+        device = document['suites'].get('device-control-plane-full', {})
         if any(not ci_owned(path) for path in device.get('native_independent_paths', ())):
             raise ValueError('device native lookup may exempt only reviewed CI-owned leaves')
-        plan = inputs.plan_affected(registry, raw, base_tree, tree, trusted_tree)
+        plan = inputs.plan_affected(registry, raw, base_tree, tree, trusted_tree, target=target)
         if plan['paths'] != sorted(paths) or len(paths) != len(set(paths)):
             raise ValueError('affected suite paths differ from complete immutable delta')
     except (inputs.InputError, ValueError, OSError, KeyError, TypeError):
         return {'suites': list(registry['suites']), 'reason': 'protected-dependencies-unavailable',
                 'full_host': True, 'include_platform': True}
+    if qt_free:
+        import ci_profile
+        if type(legacy_selection) is not dict or legacy_selection.get('suites') != list(ci_profile.SUITES) \
+                or legacy_selection.get('full_host') is not False or legacy_selection.get('include_platform') is not False \
+                or legacy_selection.get('reason') not in {'reviewed-ci-only-inputs', 'reviewed-ci-and-package-owners'}:
+            return None
+        names = [name for name in ci_profile.SUITES if name in plan['required']]
+        if not names or names == list(ci_profile.SUITES):
+            return None
+        value = {'suites': names, 'reason': 'protected-ci-dependencies',
+            'full_host': False, 'include_platform': False, 'affected': plan}
+        if legacy_selection.get('package_owned_paths'):
+            value['package_owned_paths'] = legacy_selection['package_owned_paths']
+        return value
+    include_platform = bool(document['schema'] == 2
+        and document['targets'][target]['profile'] != inputs._AFFECTED_SHARED_PROFILE
+        and (legacy_selection is None or legacy_selection.get('include_platform') is not False))
     return {'suites': plan['required'], 'reason': 'protected-affected-dependencies',
             # This legacy flag also controls prerequisite preparation. Until
             # setup ownership is qualified, retain complete host provisioning.
-            'full_host': True, 'include_platform': False, 'affected': plan}
+            'full_host': True, 'include_platform': include_platform, 'affected': plan}
 
 
 def target_branch(event):

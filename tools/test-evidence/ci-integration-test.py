@@ -659,6 +659,7 @@ class ExecutionIntegrationTests(unittest.TestCase):
         tree={path:{'mode':'100644','type':'blob','sha':'a'*40}
               for definition in registry['suites'].values() for path in definition['closure']['required']}
         context={'profile':C.PROFILE,'selected':{'suites':list(C.SUITES)},'registry':registry,
+            'policy':SimpleNamespace(producer=SimpleNamespace(required_execution_schema=3)),
             'refs':{'default':'b'*40},'binding':{'merge_sha':'a'*40,'merge_tree':'c'*40},'git_context':{},
             'plan':{'owners':{'shared-host':{'suites':list(C.SUITES),'include_platform':False}}}}
         batch=SimpleNamespace(candidate=Path('/candidate'),snapshot={})

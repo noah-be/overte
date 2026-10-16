@@ -103,6 +103,30 @@ class OriginalCIEnvironmentTests(unittest.TestCase):
             else:changed['selection']['generation_kind']='unknown-controller-generation'
             with self.subTest(change=change),self.assertRaises(C.CIEnvironmentError):self.admit(changed)
 
+    def test_seven_target_subset_reuses_only_actual_requested_original_results(self):
+        self.binding.update(generation_kind=C.ci_profile.SEVEN_CONTROLLER_KIND,
+                            epoch=C.ci_profile.SEVEN_CONTROLLER_EPOCH,generation_digest=HASH)
+        self.environment['selection']=deepcopy(self.binding)
+        names=list(C.ci_profile.SUITES[:2])
+        selection={'suites':names,'full_host':False,'include_platform':False,'reason':'protected-ci-dependencies'}
+        tree={'fixture.txt':{'mode':'100644','type':'blob','sha':'a'*40}}
+        registry={'schema':1,'control_inputs':['fixture.txt'],'suites':{name:{'command':['python','fixture.py'],
+            'layer':'quick','scope':'content','environment':'host-qt5-qt6',
+            'closure':{'kind':'repository','inputs':[],'required':[]}} for name in C.ci_profile.SUITES}}
+        results={name:{'status':'passed','fingerprint':C.inputs.suite_fingerprint(registry,name,tree,self.environment)}
+                 for name in names}
+        def plan(proof=results,current=tree):
+            return C.plan_original_reuse(self.environment,QUALIFIED,EXPIRES,NOW,selection,selection,
+                tree,current,tree,registry,proof,target='apple-ios',base_tree=tree)
+        value=plan()
+        self.assertEqual(value['reused_suites'],names);self.assertEqual(value['executed_suites'],[])
+        self.assertEqual(value['original_environment_digest'],C.digest(self.environment))
+        for proof in ({}, {**results,names[-1]:{'status':'failed'}},
+                      {**results,C.ci_profile.SUITES[2]:{'status':'passed'}}):
+            with self.subTest(proof=proof),self.assertRaises(C.CIEnvironmentError):plan(proof)
+        changed=deepcopy(tree);changed['fixture.txt']['sha']='b'*40
+        with self.assertRaises(C.CIEnvironmentError):plan(current=changed)
+
     def test_each_complete_identity_component_is_mandatory(self):
         for key in self.environment:
             changed=deepcopy(self.environment); del changed[key]

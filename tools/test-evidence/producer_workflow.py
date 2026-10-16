@@ -259,15 +259,15 @@ def source_blob(repository, oid):
 
 def _affected_full_selection(policy, registry, selected, candidate_tree, base_tree, trusted_tree, paths,
                              regular, *, root, target):
-    """Admit a main-only subset without changing the isolated full runtime.
+    """Admit a finite source-proved subset without changing the full runtime.
 
     The selector's label or supplied names are insufficient. Reconstruct the
     protected dependency plan and its legacy preparation boundary independently;
     neither the candidate graph nor a future receipt can select its own work.
     """
     try:
-        host.require(target == 'main' and regular is True,
-                     'affected producer requires ordinary main inputs')
+        host.require(target in source_admission.TARGET_PROFILES and regular is True,
+                     'affected producer requires ordinary finite-target inputs')
         raw_registry = sandbox._source(root, '.github/test-suites.json')
         actual_registry = inputs._validate_registry(json.loads(raw_registry, object_pairs_hook=inputs._unique_object))
         registry_entry = {'mode': '100644', 'type': 'blob', 'sha': hashlib.sha1(
@@ -276,19 +276,29 @@ def _affected_full_selection(policy, registry, selected, candidate_tree, base_tr
             tree.get('.github/test-suites.json') == registry_entry for tree in (base_tree, candidate_tree, trusted_tree)),
             'affected command definitions differ from protected registry bytes')
         raw = inputs.load_dependencies(root / inputs.AFFECTED_POLICY, registry)
-        native = json.loads(raw)['suites'].get('device-control-plane-full', {})
+        dependencies = json.loads(raw)
+        if target != 'main':
+            host.require(dependencies['schema'] == 2 and execution_schema(policy,candidate_tree,target) == 4,
+                'child affected proof requires the retained-source seven-target generation')
+            source_admission.compatibility(base_tree,trusted_tree,target,
+                read_actual=lambda name:source_admission.actual_bytes(root,name),
+                actual_imports=source_admission.actual_import_inventory(root))
+        native = dependencies['suites'].get('device-control-plane-full', {})
         host.require(all(policy.ci_owned(path) for path in native.get('native_independent_paths', ())),
                      'affected native lookup has an unreviewed independence exception')
-        plan = inputs.plan_affected(registry, raw, base_tree, candidate_tree, trusted_tree)
+        plan = inputs.plan_affected(registry, raw, base_tree, candidate_tree, trusted_tree,target=target)
+        legacy = policy._select_legacy(candidate_tree, paths, regular, base_tree=base_tree,
+            trusted_tree=trusted_tree, candidate_root=root, trusted_root=root, target=target)
+        platform = bool(dependencies['schema'] == 2
+            and dependencies['targets'][target]['profile'] != inputs._AFFECTED_SHARED_PROFILE
+            and legacy['include_platform'] is not False)
         expected = {'suites': plan['required'], 'reason': 'protected-affected-dependencies',
-                    'full_host': True, 'include_platform': False, 'affected': plan}
+                    'full_host': True, 'include_platform': platform, 'affected': plan}
         host.require(selected == expected and selected['full_host'] is True
-                     and selected['include_platform'] is False and plan['paths'] == paths,
+                     and plan['paths'] == paths,
                      'affected owner differs from independently derived protected dependencies')
         names = execution.select_common(registry, plan['required'])
         host.require(names == plan['required'] and bool(names), 'affected owner is empty or noncanonical')
-        legacy = policy._select_legacy(candidate_tree, paths, regular, base_tree=base_tree,
-            trusted_tree=trusted_tree, candidate_root=root, trusted_root=root, target=target)
         host.require(legacy['full_host'] is True and legacy['reason'] not in {
             'unknown-or-nonregular-inventory', 'unowned-inputs', 'reviewed-protected-producer-transition'}
             and set(names) < set(execution.select_common(registry, legacy['suites'])),
@@ -318,13 +328,35 @@ def selection_profile(policy, registry, candidate_tree, base_tree, trusted_tree,
         try:
             host.require(all(snapshot.get('.github/test-suites.json') == trusted_tree.get('.github/test-suites.json')
                 for snapshot in (candidate_tree,base_tree)), 'CI37 command registry differs from original trusted policy')
+            runtime_policy = ci_profile.load_policy(root)
+            if runtime_policy.get('generation_kind') == ci_profile.SEVEN_CONTROLLER_KIND:
+                host.require(execution_schema(policy,candidate_tree,target) == 4,
+                    'seven-target CI execution requires retained original default source')
+                legacy = policy._select_legacy(candidate_tree,paths,regular,base_tree=base_tree,
+                    trusted_tree=trusted_tree,candidate_root=root,trusted_root=root,target=target,
+                    package_paths=selected.get('package_owned_paths',()))
+                host.require(legacy['suites'] == list(ci_profile.SUITES) and legacy['full_host'] is False
+                    and legacy['include_platform'] is False and legacy['reason'] in {
+                        'reviewed-ci-only-inputs','reviewed-ci-and-package-owners'},
+                    'CI subset has no independently established Qt-free upper bound')
+                if selected['reason'] != 'protected-ci-dependencies':
+                    host.require(selected == legacy,'exact CI37 selection differs from its independent legacy plan')
             binding = ci_profile.validate_selection(selected,candidate_tree,trusted_tree,registry,target=target,
-                regular=regular,unknown=False,policy=ci_profile.load_policy(root),root=root,read_blob=read_blob)
+                regular=regular,unknown=False,policy=runtime_policy,root=root,read_blob=read_blob,base_tree=base_tree)
         except (ci_profile.CIProfileError, OSError, ValueError) as error:
             raise PreExecutionUnavailable('selected CI37 profile has no qualified source admission') from error
         profile = ci_profile.PROFILE
     host.require(bool(names), 'protected shared owner has no selected suites')
     return {'selection':selected,'profile':profile,'suites':names,'binding':binding}
+
+
+def _ci_runtime_context(context, candidate):
+    """Read original B only for the versioned seven-target namespace."""
+    binding = context.get('profile_binding')
+    if type(binding) is not dict or binding.get('generation_kind') != ci_profile.SEVEN_CONTROLLER_KIND:
+        return {}
+    return {'target':context['binding']['base_ref'],
+            'base_tree':inputs.full_tree(candidate,context['binding']['base_sha'])}
 
 
 def project_template(policy, candidate_tree):
@@ -351,8 +383,12 @@ def platform_partition(policy, profile, registry, candidate_tree, base_tree, tru
         for tree in (base_tree, candidate_tree, trusted_tree):
             inputs._validate_tree(tree)
         selected = profile['selection']
-        names = execution.select_common(registry)
-        host.require(len(names) == 60 and profile['profile'] == FULL_PROFILE
+        full_names = execution.select_common(registry)
+        names = execution.select_common(registry,profile['suites'])
+        affected = (selected.get('reason') == 'protected-affected-dependencies'
+            and selected.get('affected',{}).get('dependency_schema') == 2
+            and selected['affected'].get('target') == target and bool(names) and set(names) < set(full_names))
+        host.require(len(full_names) == 60 and (names == full_names or affected) and profile['profile'] == FULL_PROFILE
             and profile['binding'] is None and profile['suites'] == names
             and selected['suites'] == names and selected['full_host'] is True
             and selected['include_platform'] is True,
@@ -646,9 +682,14 @@ def prepare(candidate, event, environment, adapter):
             raise PreExecutionUnavailable('candidate platform declaration needs existing actual execution')
         if selected['include_platform'] is True and execution.platform_suites(candidate, registry['suites']):
             raise PreExecutionUnavailable('selected profile needs existing nonreusable execution')
-    if binding['base_ref']!='main' and (prepared_selection['profile']!=FULL_PROFILE
-            or selected['full_host'] is not True or set(names)!=set(registry['suites'])):
-        raise PreExecutionUnavailable('child protected owner needs existing nonreusable execution')
+    if binding['base_ref']!='main':
+        future = execution_schema(policy,candidate_tree,binding['base_ref']) == 4
+        supported = (prepared_selection['profile']==FULL_PROFILE and selected['full_host'] is True
+            and (set(names)==set(registry['suites']) or selected.get('reason')=='protected-affected-dependencies')
+            or prepared_selection['profile']==ci_profile.PROFILE
+                and prepared_selection['binding'].get('generation_kind')==ci_profile.SEVEN_CONTROLLER_KIND)
+        if not future or not supported:
+            raise PreExecutionUnavailable('child protected owner needs independently admitted retained-source selection')
     plan = {'owners': {'shared-host': common_owner(prepared_selection,partition)}}
     template=project_template(policy,candidate_tree)
     blob = sandbox._git(ROOT, 'ls-tree', '-z', refs['default'], '--', template).split(b'\t')[0].split()[-1].decode()
@@ -841,7 +882,7 @@ def legacy_common_fallback(context, event, environment, adapter, *, report):
         if context['binding']['base_ref'] in {'android-main', 'android-vr'} else 'Shared tests')) \
         if 'integration' in context else (lambda: current_run(context, adapter, 'shared'))
     native()
-    status, receipt = execution.execute(context['candidate'], list(context['registry']['suites']), include_platform=False,
+    status, receipt = execution.execute(context['candidate'], context['platform_partition']['common_owner']['suites'], include_platform=False,
         junit=report, _impact_selection=True)
     host.require(status == 0 and receipt['reusable'] is False and receipt['environment'] is None,
         'required common fallback failed')
@@ -959,7 +1000,7 @@ def protected_receipt(batch, context, cancelled, installed):
             if context.get('profile',FULL_PROFILE) == ci_profile.PROFILE:
                 runtime_ci.validate_environment(environment,utc_seconds(now),utc_seconds(now+timedelta(hours=24)),
                     now,context['selected'],tree,trusted_tree,context['registry'],root=ROOT,
-                    read_blob=lambda oid:source_blob(batch.candidate,oid))
+                    read_blob=lambda oid:source_blob(batch.candidate,oid),**_ci_runtime_context(context,batch.candidate))
             else:
                 attested.validate_environment(environment, utc_seconds(now), utc_seconds(now + timedelta(hours=24)),
                                              now, root=ROOT, isolated=True)
@@ -1036,7 +1077,7 @@ def publication(context, descriptor, receipt, run, now, descriptor_expires_at):
     if context.get('profile',FULL_PROFILE) == ci_profile.PROFILE:
         runtime_ci.validate_environment(receipt['environment'],qualified,expires,now,context['selected'],
             tree,inputs.full_tree(ROOT,context['refs']['default']),context['registry'],root=ROOT,
-            read_blob=lambda oid:source_blob(context['candidate'],oid))
+            read_blob=lambda oid:source_blob(context['candidate'],oid),**_ci_runtime_context(context,context['candidate']))
     else:
         attested.validate_environment(receipt['environment'], qualified, expires, now, root=ROOT, isolated=True)
     value = {'schema': 1, 'producer': 'overte-producer-aggregate-v1', 'descriptor_digest': descriptor['descriptor_digest'],
@@ -1050,7 +1091,8 @@ def _owner_target_supported(context):
     """Use only the actual source admission returned by protected prepare.
 
     This context is reconstructed internally, never read from candidate JSON.
-    Children retain the existing complete full owner and platform boundary.
+    Versioned child owners retain their independently derived exact selection
+    and separate platform boundary. This helper never admits a supplied plan.
     """
     target = context['binding']['base_ref']
     source = context.get('source_context')
@@ -1066,8 +1108,16 @@ def _owner_target_supported(context):
     if context['policy'].producer.required_execution_schema != 4:
         return False
     owner = context['plan']['owners']['shared-host']
-    return (context['profile'] == FULL_PROFILE and context['selected']['full_host'] is True
-        and owner['suites'] == list(context['registry']['suites'])
+    selected = context['selected']
+    full = (context['profile'] == FULL_PROFILE and selected['full_host'] is True
+        and (owner['suites'] == list(context['registry']['suites'])
+            or selected.get('reason') == 'protected-affected-dependencies'
+                and selected.get('affected',{}).get('dependency_schema') == 2
+                and selected['affected'].get('target') == target))
+    ci = (context['profile'] == ci_profile.PROFILE and selected['full_host'] is False
+        and selected['include_platform'] is False and type(context.get('profile_binding')) is dict
+        and context['profile_binding'].get('generation_kind') == ci_profile.SEVEN_CONTROLLER_KIND)
+    return (bool(owner['suites']) and owner['suites'] == selected['suites'] and (full or ci)
         and (owner['include_platform'] is False or source.get('target_profile') == inputs._AFFECTED_SHARED_PROFILE))
 
 
@@ -1160,7 +1210,7 @@ def verify_current_owners(candidate, event, environment, adapter, *, demanded,
     if context['profile'] == ci_profile.PROFILE:
         runtime_ci.validate_environment(receipt['environment'], aggregate['qualified_at'], aggregate['expires_at'], clock(),
             context['selected'], tree, inputs.full_tree(ROOT, context['refs']['default']), context['registry'], root=ROOT,
-            read_blob=lambda oid:source_blob(candidate, oid))
+            read_blob=lambda oid:source_blob(candidate, oid),**_ci_runtime_context(context,candidate))
     else:
         attested.validate_environment(receipt['environment'], aggregate['qualified_at'], aggregate['expires_at'],
                                       clock(), root=ROOT, isolated=True)
@@ -1279,6 +1329,8 @@ def shared_execution(candidate, event, environment, adapter):
                 'profile_binding':context['profile_binding'],
                 'registry': execution.digest(context['registry']), 'prepared': installed, 'projection': execution.digest(projection),
                 'outside_namespaces': {name: os.stat('/proc/self/ns/' + name).st_ino for name in ('user', 'mnt', 'pid', 'net', 'ipc', 'uts')}}
+            if context['profile_binding'] is not None and context['profile_binding'].get('generation_kind') == ci_profile.SEVEN_CONTROLLER_KIND:
+                binding.update(selection_target=context['binding']['base_ref'],selection_base=context['binding']['base_sha'])
             sandbox._write_source(policy_path, 'context.json', sandbox._canonical({'shared_host': binding}))
             projection = sandbox._files(policy_path)
             image = {name: environment[name] for name in ('ImageOS', 'ImageVersion', 'RUNNER_ENVIRONMENT')}

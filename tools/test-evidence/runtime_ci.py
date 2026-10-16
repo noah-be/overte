@@ -402,7 +402,7 @@ def _process():
 
 
 def _capture_ci_environment(selection, candidate_tree, trusted_tree, registry, *, root=ROOT, target='main', _diagnostic=False,
-                            read_blob=None, source=None, source_root=None, controller_manifest=None):
+                            read_blob=None, source=None, source_root=None, controller_manifest=None, base_tree=None):
     """Actual protected BEFORE/AFTER query; no caller may invent optional tools."""
     if _diagnostic:
         binding = ci_profile.diagnostic_selection(selection,candidate_tree,trusted_tree,registry,
@@ -410,11 +410,11 @@ def _capture_ci_environment(selection, candidate_tree, trusted_tree, registry, *
             controller_manifest=controller_manifest)
     else:
         policy=ci_profile.load_policy(root)
-        require(policy.get('generation_kind')!=ci_profile.CONTROLLER_KIND or controller_manifest is not None,
+        require(not ci_profile.controller_policy(policy) or controller_manifest is not None,
                 'CI37 controller capture requires its sealed admitted D manifest')
         binding = ci_profile.validate_selection(selection, candidate_tree, trusted_tree, registry,
             target=target,policy=policy,root=root,read_blob=read_blob,
-            controller_manifest=controller_manifest)
+            controller_manifest=controller_manifest,base_tree=base_tree)
     return _measure_ci_environment(binding,root=root)
 
 
@@ -477,7 +477,7 @@ def _recorded_path(value, *, prepared=False):
 
 
 def _validate_environment(environment, qualified_at, expires_at, now, selection,
-                         candidate_tree, trusted_tree, registry, *, root=ROOT, target='main', read_blob=None):
+                         candidate_tree, trusted_tree, registry, *, root=ROOT, target='main', read_blob=None, base_tree=None):
     """Admit ORIGINAL CI37 E only; provenance and before/after proof are external.
 
     No tool probe, installation or consumer environment capture occurs here.
@@ -488,7 +488,7 @@ def _validate_environment(environment, qualified_at, expires_at, now, selection,
         'manual diagnostic source binding cannot enter production admission')
     policy = ci_profile.load_policy(root)
     binding = ci_profile.validate_selection(selection, candidate_tree, trusted_tree, registry,target=target,policy=policy,root=root,
-                                            read_blob=read_blob)
+                                            read_blob=read_blob,base_tree=base_tree)
     require(type(now) is datetime and now.tzinfo is not None and now.utcoffset().total_seconds() == 0,
             'CI37 admission requires an independent UTC clock')
     def stamp(value):
@@ -642,11 +642,11 @@ def _validate_environment(environment, qualified_at, expires_at, now, selection,
 
 
 def capture_ci_environment(selection, candidate_tree, trusted_tree, registry, *, root=ROOT, target='main', read_blob=None,
-                           controller_manifest=None):
+                           controller_manifest=None, base_tree=None):
     """No unknown capture outcome may be represented as a reusable identity."""
     try:
         return _capture_ci_environment(selection,candidate_tree,trusted_tree,registry,root=root,target=target,read_blob=read_blob,
-                                       controller_manifest=controller_manifest)
+                                       controller_manifest=controller_manifest,base_tree=base_tree)
     except CIEnvironmentError:
         raise
     except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError, subprocess.SubprocessError) as error:
@@ -683,7 +683,7 @@ def validate_environment(*args, **kwargs):
 
 def plan_original_reuse(environment, qualified_at, expires_at, now, original_selection,
                         current_selection, original_tree, current_tree, trusted_tree,
-                        registry, results, *, root=ROOT, read_blob=None):
+                        registry, results, *, root=ROOT, read_blob=None, target='main', base_tree=None):
     """Pure same-profile plan, never authentication or a renewed PASS receipt.
 
     The native adapter must authenticate the ORIGINAL schema3 receipt, owner,
@@ -691,14 +691,16 @@ def plan_original_reuse(environment, qualified_at, expires_at, now, original_sel
     conversion and no consumer environment measurement occur in this helper.
     """
     admission = validate_environment(environment, qualified_at, expires_at, now,
-        current_selection, current_tree, trusted_tree, registry, root=root,read_blob=read_blob)
+        current_selection, current_tree, trusted_tree, registry, root=root,read_blob=read_blob,target=target,base_tree=base_tree)
     original = ci_profile.validate_selection(original_selection, original_tree, trusted_tree, registry,
-                                             policy=ci_profile.load_policy(root),root=root,read_blob=read_blob)
+                                             policy=ci_profile.load_policy(root),root=root,read_blob=read_blob,target=target,base_tree=base_tree)
+    seven=original.get('generation_kind')==ci_profile.SEVEN_CONTROLLER_KIND
+    names=current_selection['suites'] if seven else list(ci_profile.SUITES)
     require(original == admission['selection'] and type(results) is dict
-        and set(results) == set(ci_profile.SUITES), 'CI37 original and current owners differ')
-    selected = {**registry, 'suites': {name:registry['suites'][name] for name in ci_profile.SUITES}}
+        and set(results) == set(original_selection['suites'] if seven else ci_profile.SUITES), 'CI37 original and current owners differ')
+    selected = {**registry, 'suites': {name:registry['suites'][name] for name in names}}
     plan = inputs.plan_reuse(selected, original_tree, current_tree, results, environment, environment)
-    require(not plan['required'] and plan['reused'] == list(ci_profile.SUITES),
+    require(not plan['required'] and plan['reused'] == names,
             'CI37 original source proof does not cover every currently selected owner')
     return {'kind':'original-ci37-source-plan','reusable':False,'reused_suites':plan['reused'],
         'executed_suites':[], 'original_environment_digest':admission['environment_digest'],

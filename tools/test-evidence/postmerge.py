@@ -198,11 +198,15 @@ def _affected_receipt_selection(profile, registry, target):
     selected=profile['selection']
     if selected.get('reason')!='protected-affected-dependencies':
         return False
-    A.require(target=='main' and profile['profile']==producer.FULL_PROFILE
-        and selected['full_host'] is True and selected['include_platform'] is False
+    versioned = selected.get('affected',{}).get('dependency_schema') == 2
+    A.require(target in source_admission.TARGET_PROFILES and (target=='main' or versioned)
+        and (not versioned or selected['affected'].get('target') == target)
+        and profile['profile']==producer.FULL_PROFILE and selected['full_host'] is True
+        and type(selected['include_platform']) is bool
+        and (selected['include_platform'] is False or target in producer._PLATFORM_TARGETS and versioned)
         and selected['suites']==selected['affected']['required']
         and bool(selected['suites']) and set(selected['suites'])<set(registry['suites']),
-        'affected receipt does not have an independently selected main full-runtime subset')
+            'affected receipt does not have an independently selected finite-target full-runtime subset')
     return True
 
 
@@ -279,9 +283,11 @@ def verify_main(event, environment, adapter, *, root=ROOT, clock=lambda: datetim
         A.require(DOCUMENTATION_SUITES <= set(selected['suites']),
             'original shared owner does not contain every documentation command')
     if target!='main':
-        A.require(current_profile['profile']==producer.FULL_PROFILE and selected['full_host'] is True
-            and set(selected['suites'])==set(registry['suites']),
-            'child protected reuse requires complete shared execution')
+        supported = (current_profile['profile']==producer.FULL_PROFILE and selected['full_host'] is True
+            and (set(selected['suites'])==set(registry['suites']) or affected)
+            or current_profile['profile']==ci_profile.PROFILE
+                and current_profile['binding'].get('generation_kind')==ci_profile.SEVEN_CONTROLLER_KIND)
+        A.require(future and supported, 'child protected reuse requires its independently admitted versioned owner')
     partition = producer.platform_partition(policy, current_profile, registry, current, previous, local,
         target=target, root=root, read_blob=read_blob)
     if partition is None:
@@ -324,7 +330,8 @@ def verify_main(event, environment, adapter, *, root=ROOT, clock=lambda: datetim
     if original_profile['profile'] == ci_profile.PROFILE:
         reuse = runtime_ci.plan_original_reuse(original_environment, aggregate.get('qualified_at'),
             aggregate.get('expires_at'), clock(), selected, current_profile['selection'],
-            original_tree, current, local, registry, receipt['results'], root=root,read_blob=read_blob)
+            original_tree, current, local, registry, receipt['results'], root=root,read_blob=read_blob,
+            target=target,base_tree=previous)
         admission = reuse['admission']
         reused_suites = reuse['reused_suites']
         runtime_admission = {'profile': admission['profile'], 'policy_digest': admission['policy_digest']}

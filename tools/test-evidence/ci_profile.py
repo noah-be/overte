@@ -36,6 +36,8 @@ SOURCE_READY = True
 DIAGNOSTIC_KIND = 'ci37-actual-source-diagnostic-v1'
 CONTROLLER_KIND = 'ci37-protected-controller-v1'
 CONTROLLER_EPOCH = 'ubuntu24-ci37-controller-20261016-v1'
+SEVEN_CONTROLLER_KIND = 'ci37-seven-target-dependencies-v1'
+SEVEN_CONTROLLER_EPOCH = 'ubuntu24-ci37-seven-target-20261016-v1'
 CONTROLLER_MANIFEST = 'ci37-controller-source.json'
 SUITES = (
     "producer-proof", "producer-api", "dependency-releases", "project-runner",
@@ -107,7 +109,9 @@ def _validate_policy(value):
              "unsupported CI37 policy fields")
     controller = 'generation_kind' in value
     if controller:
-        _require(value['generation_kind']==CONTROLLER_KIND and value.get('epoch')==CONTROLLER_EPOCH,
+        epochs = {CONTROLLER_KIND: CONTROLLER_EPOCH, SEVEN_CONTROLLER_KIND: SEVEN_CONTROLLER_EPOCH}
+        _require(type(value['generation_kind']) is str and value['generation_kind'] in epochs
+                 and value.get('epoch')==epochs[value['generation_kind']],
                  'unsupported protected-controller generation namespace or epoch')
     _require(type(value["schema"]) is int and value["schema"] == 1
              and type(value["enabled"]) is bool and value["profile"] == PROFILE,
@@ -135,6 +139,12 @@ def controller_paths():
     """Fixed protected loader closure; never paths supplied by a candidate."""
     import source_admission
     return sorted(set(source_admission.CONTROLLERS)|set(source_admission.IMPORT_MEMBERS))
+
+
+def controller_policy(value):
+    """Recognize only the two reviewed namespaces; manifest transport stays v1."""
+    return type(value) is dict and type(value.get('generation_kind')) is str \
+        and value['generation_kind'] in {CONTROLLER_KIND, SEVEN_CONTROLLER_KIND}
 
 
 def _controller_tree_identity(entries):
@@ -311,12 +321,19 @@ def retained_source_shape(value):
     for key in ('controller_digest','lookup_digest'):
         _require(type(admission[key]) is str and _DIGEST.fullmatch(admission[key]), 'retained admission digest is invalid')
     binding=value['binding']
-    _require(type(binding) is dict and set(binding)==_PROJECTION_BINDING
+    seven = (type(binding) is dict and type(binding.get('profile_binding')) is dict
+        and binding['profile_binding'].get('generation_kind') == SEVEN_CONTROLLER_KIND)
+    fields = _PROJECTION_BINDING | ({'selection_target','selection_base'} if seven else set())
+    _require(type(binding) is dict and set(binding)==fields
         and binding['profile']=='manual-shared-host-compatibility-v1'
         and type(binding['run_id']) is int and binding['run_id']>0
         and type(binding['run_attempt']) is int and binding['run_attempt']==1
         and type(binding['source']) is str and re.fullmatch('[0-9a-f]{40}',binding['source'])
         and binding['source']!='0'*40, 'retained projection binding is incomplete')
+    if seven:
+        _require(binding['runtime_profile']==PROFILE and binding['selection_target'] in _PERMANENT
+            and type(binding['selection_base']) is str and re.fullmatch('[0-9a-f]{40}',binding['selection_base'])
+            and binding['selection_base']!='0'*40, 'seven-target projection source context is incomplete')
     for key in ('snapshot','registry','projection'):
         _require(type(binding[key]) is str and _DIGEST.fullmatch(binding[key]), 'retained projection binding digest is invalid')
     namespaces=binding['outside_namespaces']
@@ -404,6 +421,10 @@ def validate_retained_source(value, base, default, *, native_binding, run_id, re
     if environment.get('profile')==PROFILE:
         _require(binding['runtime_profile']==PROFILE and binding['profile_binding']==environment.get('selection'),
             'retained CI37 runtime selection differs')
+        if environment['selection'].get('generation_kind') == SEVEN_CONTROLLER_KIND:
+            _require(binding['selection_target'] == native_binding['base_ref']
+                and binding['selection_base'] == native_binding['base_sha'],
+                'retained seven-target selection differs from original native source')
         version=environment.get('python',{}).get('version')
         node=environment.get('tools',{}).get('node',{}).get('version')
         _require(type(version) is str and re.fullmatch(r'3\.12\.[0-9]+',version)
@@ -569,8 +590,8 @@ def generation(tree, registry):
 
 def validate_selection(selection, candidate_tree, trusted_tree, registry, *, target="main",
                        regular=True, unknown=False, policy=None, require_enabled=True, root=ROOT, read_blob=None,
-                       controller_manifest=None):
-    """Admit only the independently recomputed main CI37 selection and generation.
+                       controller_manifest=None, base_tree=None):
+    """Admit only a versioned independently derived CI owner and controller class.
 
     Production callers leave require_enabled at its default. False is for pure
     source preparation/tests and yields no runtime or execution qualification.
@@ -582,25 +603,33 @@ def validate_selection(selection, candidate_tree, trusted_tree, registry, *, tar
     _require(type(require_enabled) is bool, "invalid CI37 source preparation mode")
     if require_enabled:
         _require(SOURCE_READY and value["enabled"] is True, "CI37 runtime profile is not activated")
-    _require(target == "main" and regular is True and unknown is False,
+    seven = value.get('generation_kind') == SEVEN_CONTROLLER_KIND
+    if seven:
+        import source_admission
+    _require(type(target) is str and (target in source_admission.TARGET_PROFILES if seven else target == "main")
+             and regular is True and unknown is False,
              "CI37 requires a known regular main plan")
     required = {"suites", "reason", "full_host", "include_platform"}
     _require(isinstance(selection, dict) and required <= selection.keys()
-             and selection.keys() <= required | {"package_owned_paths"},
+             and selection.keys() <= required | {"package_owned_paths"} | ({'affected'} if seven else set()),
              "unsupported CI37 selection fields")
-    _require(selection["suites"] == list(SUITES) and selection["full_host"] is False
-             and selection["include_platform"] is False and isinstance(selection["reason"], str)
-             and selection["reason"] in _REASONS,
+    subset = seven and selection.get('reason') == 'protected-ci-dependencies'
+    _require(type(selection['suites']) is list and selection['suites']
+             and selection['suites'] == [name for name in SUITES if name in selection['suites']]
+             and (set(selection['suites']) < set(SUITES) if subset else selection['suites'] == list(SUITES))
+             and selection["full_host"] is False and selection["include_platform"] is False
+             and isinstance(selection["reason"], str) and (subset or selection["reason"] in _REASONS)
+             and ('affected' in selection) == subset,
              "CI37 requires the exact independently selected 37 owners")
     packages = selection.get("package_owned_paths", [])
     _require(isinstance(packages, list)
              and all(isinstance(path, str) and path in _PACKAGE_LOCKS for path in packages)
              and packages == sorted(set(packages))
-             and bool(packages) == (selection["reason"] == "reviewed-ci-and-package-owners"),
+             and (subset or bool(packages) == (selection["reason"] == "reviewed-ci-and-package-owners")),
              "CI37 package work requires its finite independent owner")
     definitions = definition_digest(registry)
     _require(definitions == value["definition_digest"], "CI37 command definitions changed")
-    controller=value.get('generation_kind')==CONTROLLER_KIND
+    controller=controller_policy(value)
     if controller:
         for tree in (candidate_tree,trusted_tree):
             inputs._validate_tree(tree)
@@ -617,11 +646,32 @@ def validate_selection(selection, candidate_tree, trusted_tree, registry, *, tar
         registry_raw,registry_entry=_diagnostic_file(root,'.github/test-suites.json')
         _require(inputs._validate_registry(json.loads(registry_raw,object_pairs_hook=inputs._unique_object))==registry
             and all(tree.get('.github/test-suites.json')==registry_entry for tree in (candidate_tree,trusted_tree,actual))
-            and actual.get(POLICY)==actual_policy==trusted_tree.get(POLICY)==candidate_tree.get(POLICY)
-            and all(tree.get('tests/platform-profile.json')==actual.get('tests/platform-profile.json')
-                for tree in (candidate_tree,trusted_tree)), 'controller candidate declarations differ from actual D')
+            and actual.get(POLICY)==actual_policy==trusted_tree.get(POLICY)==candidate_tree.get(POLICY),
+            'controller candidate declarations differ from actual D')
         _require(actual.get('tests/platform-profile.json',{}).get('sha')=='d63537504c20204de9d35d9be61da72a56df59c3',
                  'controller CI37 requires the exact empty shared platform')
+        if seven:
+            inputs._validate_tree(base_tree)
+            _require(bool(base_tree) and all(entry['mode'] in {'100644','100755'} and entry['type']=='blob'
+                for entry in base_tree.values()), 'seven-target base inventory is nonordinary')
+            expected = source_admission.ordinary(source_admission.TARGET_PROFILES[target])
+            _require(base_tree.get('tests/platform-profile.json') == candidate_tree.get('tests/platform-profile.json') == expected
+                and base_tree.get(POLICY) == actual_policy
+                and base_tree.get('.github/test-suites.json') == registry_entry,
+                'seven-target CI source declarations differ from their exact target')
+            source_admission.compatibility(base_tree,actual,target,
+                read_actual=lambda name:source_admission.actual_bytes(root,name),
+                actual_imports=source_admission.actual_import_inventory(root))
+            if subset:
+                dependency_raw = inputs.load_dependencies(Path(root)/inputs.AFFECTED_POLICY, registry)
+                _require(json.loads(dependency_raw)['schema'] == 2, 'CI subset requires seven-target protected dependencies')
+                affected = inputs.plan_affected(registry,dependency_raw,base_tree,candidate_tree,actual,target=target)
+                _require(selection['affected'] == affected
+                    and selection['suites'] == [name for name in SUITES if name in affected['required']],
+                    'CI subset differs from independently derived protected dependencies')
+        else:
+            _require(all(tree.get('tests/platform-profile.json')==actual.get('tests/platform-profile.json')
+                for tree in (candidate_tree,trusted_tree)), 'controller candidate declarations differ from actual D')
         candidate_generation=controller_generation(actual,registry)
         _require(controller_generation(trusted_tree,registry)==candidate_generation,
                  'supplied trusted context differs from actual D controllers')
@@ -636,12 +686,13 @@ def validate_selection(selection, candidate_tree, trusted_tree, registry, *, tar
              and old_policy["mode"] == "100644" and old_policy["type"] == "blob",
              "CI37 policy requires identical ordinary trusted and candidate entries")
     pinned = _pinned_source_entry(root)
-    _require(candidate_tree.get(PINNED_SOURCE) == trusted_tree.get(PINNED_SOURCE) == pinned,
+    _require(candidate_tree.get(PINNED_SOURCE) == trusted_tree.get(PINNED_SOURCE) == pinned
+             and (not seven or base_tree.get(PINNED_SOURCE) == pinned),
              "CI37 fixed pinned source differs from the protected root or immutable trees")
     _require(callable(read_blob), "CI37 cleanup admission requires a trusted immutable blob reader")
     # Read both complete authenticated objects on every route, even when their
     # OIDs match. No checked-out candidate file or claimed data class is proof.
-    for tree in (trusted_tree,candidate_tree):
+    for tree in ((base_tree,trusted_tree,candidate_tree) if seven else (trusted_tree,candidate_tree)):
         _cleanup_data(tree.get(DATA_PATH),read_blob)
     # Data contents belong to suite fingerprints and native source binding,
     # not runtime E: original and current admitted holds may legitimately differ.
@@ -649,7 +700,7 @@ def validate_selection(selection, candidate_tree, trusted_tree, registry, *, tar
             "suites": list(SUITES), "definition_digest": definitions,
             "generation_digest": candidate_generation, "policy_digest": policy_identity(value),
             "pinned_source": {"path": PINNED_SOURCE, **pinned}}
-    if controller:binding['generation_kind']=CONTROLLER_KIND
+    if controller:binding['generation_kind']=value['generation_kind']
     return binding
 
 
@@ -732,9 +783,10 @@ def _diagnostic_selection(selection, candidate_tree, trusted_tree, registry, *, 
     _require(all(actual.get(path,{}).get('mode') in {'100644','100755'}
         and actual[path]['type']=='blob' for name in SUITES for path in registry['suites'][name]['closure']['required']),
         'diagnostic fixed owner implementation is missing')
-    derived = policy if policy.get('generation_kind')==CONTROLLER_KIND else {**policy,'generation_digest':generation(actual,registry)}
+    derived = policy if controller_policy(policy) else {**policy,'generation_digest':generation(actual,registry)}
     admitted = validate_selection(selection,actual,actual,registry,target=target,policy=derived,
-        require_enabled=False,root=root,read_blob=read_blob,controller_manifest=controller_manifest)
+        require_enabled=False,root=root,read_blob=read_blob,controller_manifest=controller_manifest,
+        base_tree=actual if policy.get('generation_kind')==SEVEN_CONTROLLER_KIND else None)
     return {'kind':DIAGNOSTIC_KIND,'source_commit':source,'source_tree':tree_oid,
             'production_policy_digest':policy_identity(policy),'actual_selection':admitted}
 
