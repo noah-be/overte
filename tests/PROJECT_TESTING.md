@@ -470,6 +470,11 @@ A root-owned sibling guardian holds the actual cgroup kill/events descriptors
 before releasing any low-UID work. Pipe EOF after a deliberately SIGKILLed root
 worker must kill kernel-observed surviving trusted cleanup canaries and confirm
 the entire owned scope empty. Normal completion and failure use the same scope.
+The restricted UID starts from one byte-identical copy of the verified controller
+in a root-owned public `/tmp` directory, rather than reopening the private runner
+checkout. Exclusive creation, read-only mode, ownership and byte checks protect
+that copy; all boundary, shared and controller-death launches keep the same
+attach-before-release gate. Runner-home permissions are never widened.
 Separate protected probes run before work and after every workload is gone;
 source, run attempt, snapshot, projection and the effective diagnostic runtime
 must agree. This small stdlib profile is explicitly not the complete portable

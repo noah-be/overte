@@ -2,6 +2,7 @@
 """Host diagnostic parsers/control fixtures; no local privileged host probes."""
 
 from copy import deepcopy
+from contextlib import ExitStack
 import io
 import json
 import os
@@ -246,6 +247,147 @@ class BootstrapTests(unittest.TestCase):
         self.assertIn(("lifetime", 60), events)
 
 
+class PublicBootstrapTests(unittest.TestCase):
+    """Real ordinary files; root ownership is modeled, never provisioned locally."""
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="overte-private-bootstrap-fixture-")
+        self.addCleanup(self.temporary.cleanup)
+        self.private = Path(self.temporary.name)
+        self.source = self.private / "sandbox_host.py"
+        self.body = Path(H.__file__).read_bytes()
+        self.source.write_bytes(self.body)
+        self.source.chmod(0o600)
+        self.assertEqual(self.private.stat().st_mode & 0o777, 0o700)
+        actual_lstat, actual_fstat = Path.lstat, os.fstat
+
+        def root_owned(info):
+            return os.stat_result((*info[:4], 0, *info[5:]))
+
+        self.stack = ExitStack()
+        self.addCleanup(self.stack.close)
+        self.stack.enter_context(patch.object(H, "__file__", str(self.source)))
+        self.stack.enter_context(patch.object(H, "_BOOTSTRAP_DIRECTORY", None))
+        self.stack.enter_context(patch.object(H.os, "geteuid", return_value=0))
+        self.stack.enter_context(patch.object(H.Path, "lstat", lambda path, *a, **k: root_owned(actual_lstat(path, *a, **k))))
+        self.stack.enter_context(patch.object(H.os, "fstat", side_effect=lambda fd: root_owned(actual_fstat(fd))))
+        self.addCleanup(lambda: H._BOOTSTRAP_DIRECTORY.cleanup() if H._BOOTSTRAP_DIRECTORY is not None else None)
+
+    def test_exact_readonly_copy_is_outside_private_checkout_and_reused_once(self):
+        temporary = tempfile.TemporaryDirectory
+        with patch.object(H.tempfile, "TemporaryDirectory", wraps=temporary) as create:
+            first, second = H.public_bootstrap(), H.public_bootstrap()
+        self.assertEqual(first, second)
+        self.assertEqual(first.read_bytes(), self.body)
+        self.assertEqual(first.stat().st_mode & 0o777, 0o444)
+        self.assertEqual(first.parent.stat().st_mode & 0o777, 0o755)
+        self.assertEqual(first.parent.parent, Path("/tmp"))
+        self.assertFalse(first.is_relative_to(self.private))
+        create.assert_called_once_with(prefix="overte-sandbox-bootstrap-", dir="/tmp")
+
+    def test_unprivileged_copied_bootstrap_reaches_closed_gate_without_original_path(self):
+        if os.getuid() == 0:
+            self.skipTest("the ordinary-process fixture must not run as root")
+        copied = H.public_bootstrap()
+        # The private source models a runner-only checkout; removing that exact
+        # path proves the child imports no source/neighbor from that checkout.
+        self.source.rename(self.private / "unavailable-original.py")
+        reader, writer = os.pipe()
+        os.close(writer)
+        try:
+            result = H.subprocess.run(["/usr/bin/python3", "-I", str(copied), "--bootstrap", str(reader),
+                                       "/never-read-plan", "protections"], pass_fds=(reader,),
+                                      stdin=H.subprocess.DEVNULL, stdout=H.subprocess.PIPE, stderr=H.subprocess.PIPE,
+                                      env={"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"}, timeout=5)
+        finally:
+            os.close(reader)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b"parent did not release the attached bootstrap", result.stderr)
+        self.assertNotIn(b"can't open file", result.stderr)
+        self.assertEqual(result.stdout, b"")
+
+    def test_nonroot_provisioning_cannot_create_a_copy(self):
+        with patch.object(H.os, "geteuid", return_value=2001), patch.object(H.tempfile, "TemporaryDirectory") as create:
+            with self.assertRaisesRegex(H.Unavailable, "actual trusted root"):
+                H.public_bootstrap()
+        create.assert_not_called()
+
+    def test_untrusted_or_nontraversable_storage_is_rejected(self):
+        actual_lstat = Path.lstat
+        for path, mode, owner in (("/", 0o777, 0), ("/tmp", 0o755, 0), ("/tmp", 0o1777, 2001)):
+            def changed(candidate, *args, **kwargs):
+                info = actual_lstat(candidate, *args, **kwargs)
+                return os.stat_result((0o040000 | mode, *info[1:4], owner, *info[5:])) if str(candidate) == path else info
+            with (self.subTest(path=path, mode=mode, owner=owner), patch.object(H.Path, "lstat", changed),
+                  patch.object(H.tempfile, "TemporaryDirectory") as create, self.assertRaises(H.Unavailable)):
+                H.public_bootstrap()
+            create.assert_not_called()
+        copied = H.public_bootstrap()
+        def foreign_base(path, *args, **kwargs):
+            info = actual_lstat(path, *args, **kwargs)
+            return os.stat_result((*info[:4], 2001, *info[5:])) if path == copied.parent else info
+        with patch.object(H.Path, "lstat", foreign_base), self.assertRaises(H.Unavailable):
+            H.public_bootstrap()
+
+    def test_copy_bytes_and_original_source_changes_are_both_rejected(self):
+        for alter_original in (False, True):
+            with self.subTest(original=alter_original):
+                copied = H.public_bootstrap()
+                target = self.source if alter_original else copied
+                target.chmod(0o600)
+                target.write_bytes(self.body[:-1] + b"!")
+                target.chmod(0o600 if alter_original else 0o444)
+                with self.assertRaisesRegex(H.Unavailable, "differs from the verified controller"):
+                    H.public_bootstrap()
+                target.chmod(0o600)
+                target.write_bytes(self.body)
+                target.chmod(0o600 if alter_original else 0o444)
+
+    def test_writable_copy_directory_and_hardlinked_copy_are_rejected(self):
+        copied = H.public_bootstrap()
+        for target, mode in ((copied, 0o644), (copied.parent, 0o777)):
+            with self.subTest(target=target):
+                original = target.stat().st_mode & 0o777
+                target.chmod(mode)
+                with self.assertRaises(H.Unavailable):
+                    H.public_bootstrap()
+                target.chmod(original)
+        alias = copied.parent / "hardlink.py"
+        os.link(copied, alias)
+        with self.assertRaisesRegex(H.Unavailable, "unsafe metadata"):
+            H.public_bootstrap()
+
+    def test_nonroot_copy_owner_is_rejected(self):
+        H.public_bootstrap()
+        actual_fstat = os.fstat
+        with patch.object(H.os, "fstat", side_effect=lambda fd: os.stat_result((*actual_fstat(fd)[:4], 2001, *actual_fstat(fd)[5:]))):
+            with self.assertRaisesRegex(H.Unavailable, "unsafe metadata"):
+                H.public_bootstrap()
+
+    def test_symlinked_copy_never_reads_or_overwrites_its_target(self):
+        copied = H.public_bootstrap()
+        copied.unlink()
+        copied.symlink_to(self.source)
+        with self.assertRaises(OSError):
+            H.public_bootstrap()
+        self.assertEqual(self.source.read_bytes(), self.body)
+
+    def test_exclusive_creation_rejects_preexisting_alias(self):
+        actual_open = os.open
+        def conflict(path, flags, *args, **kwargs):
+            if flags & os.O_EXCL:
+                Path(path).symlink_to(self.source)
+            return actual_open(path, flags, *args, **kwargs)
+        with patch.object(H.os, "open", side_effect=conflict), self.assertRaises(FileExistsError):
+            H.public_bootstrap()
+        self.assertIsNone(H._BOOTSTRAP_DIRECTORY)
+        self.assertEqual(self.source.read_bytes(), self.body)
+
+    def test_oversized_original_is_rejected_before_copy(self):
+        self.source.write_bytes(b"x" * 1_000_001)
+        with patch.object(H.tempfile, "TemporaryDirectory") as create, self.assertRaisesRegex(H.Unavailable, "bounded ordinary file"):
+            H.public_bootstrap()
+        create.assert_not_called()
+
 class SupervisorFixtures(unittest.TestCase):
     def run_fixture(self, *, reject_attachment=False, case="protections", live=1, members=None, events=None):
         events = [] if events is None else events
@@ -281,6 +423,7 @@ class SupervisorFixtures(unittest.TestCase):
                 events.append("kill-bootstrap")
         process = Process()
         def start(_argv, **kwargs):
+            self.assertEqual(_argv[:4], ["/usr/bin/python3", "-I", "/fixed-public-bootstrap.py", "--bootstrap"])
             self.assertEqual(kwargs["user"], 2001)
             self.assertEqual(kwargs["group"], 2001)
             self.assertEqual(kwargs["extra_groups"], ())
@@ -296,7 +439,8 @@ class SupervisorFixtures(unittest.TestCase):
             if data == b"1":
                 events.append("release")
             return actual_write(descriptor, data)
-        with patch.object(H.subprocess, "Popen", side_effect=start), patch.object(H.os, "write", side_effect=write):
+        with (patch.object(H, "public_bootstrap", return_value=Path("/fixed-public-bootstrap.py")),
+              patch.object(H.subprocess, "Popen", side_effect=start), patch.object(H.os, "write", side_effect=write)):
             if reject_attachment:
                 with self.assertRaises(H.Unavailable):
                     H.supervise(scope, "/fixed-public-plan", 2001, 2001, timeout=2, case=case)
@@ -311,6 +455,14 @@ class SupervisorFixtures(unittest.TestCase):
         self.assertLess(events.index("release"), events.index("kernel-kill-empty"))
         self.assertEqual(result["cleanup"]["kernel_populated"], 0)
         self.assertEqual(result["observation"], {"descendants_started": 1})
+
+    def test_every_fixed_case_uses_same_public_bootstrap_and_retains_attachment_gate(self):
+        for case in H._BOOTSTRAP_CASES:
+            with self.subTest(case=case):
+                events, result = self.run_fixture(case=case)
+                self.assertLess(events.index("attach"), events.index("release"))
+                self.assertLess(events.index("release"), events.index("kernel-kill-empty"))
+                self.assertEqual(result["cleanup"], {"kernel_populated": 0, "subtree_kill": True})
 
     def test_actual_supervisor_suite_mode_never_parses_candidate_stdout_as_proof(self):
         with patch.object(H.json, "loads", side_effect=AssertionError("candidate JSON must not be interpreted")):
