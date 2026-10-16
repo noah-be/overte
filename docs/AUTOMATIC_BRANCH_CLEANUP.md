@@ -6,16 +6,30 @@ continues operating while the maintainer's computers are switched off.
 
 There is no branch-age requirement or waiting period. A closed pull request wakes
 the cleanup immediately. Manual runs and a fifteen-minute schedule catch other
-eligible branches and reassess branches held by running CI. Individual workflow
-completions do not start cleanup: a PR's many checks previously created repeated
-assessments and replaced pending runs without adding deletion evidence. The
-existing mutex keeps `cancel-in-progress: false`, so a new notification does not
+eligible branches. Twelve fixed branch-push workflow completions can also retry
+closed-PR heads after CI holds clear, covering all seven permanent branches and
+their current parent, leaf and legacy platform owners. A trusted API preflight
+checks the actual fork, workflow registration, immutable source, current target
+head and exact current topic heads named by earlier closed PRs. It checks all
+related active workflows, including native and manual work, before starting the
+original cleanup plan. A hint is not integration evidence: full ancestry,
+consumer, backup and deletion checks still run unchanged.
+
+The completion route skips history adoption and its App token. Non-push,
+unlisted, stale, still-active and hint-free notifications cannot start it.
+There is no last-event election: an older callback delivered after a newer one
+can perform the same fresh check. Once a branch is deleted, later callbacks
+find no matching current head. No durable marker or deletion-decision cache is
+introduced. Closed-PR, scheduled and manual assessments retain history adoption.
+The existing mutex keeps `cancel-in-progress: false`, so a new notification does not
 interrupt a running backup or deletion sequence. GitHub may delay scheduled
 workflows; fifteen minutes is a detection interval, not a completion guarantee.
 The schedule uses UTC minutes 7, 22, 37 and 52 to avoid the documented
 top-of-hour scheduler load while retaining four assessments per hour. Confirm
 scheduled operation with an actual `schedule`-event run; a successful closed-PR
 assessment alone does not establish that the scheduler is firing.
+Manual, dynamic and unlisted completion holds still rely on a later schedule or
+manual assessment; the finite retry is not a delivery-time guarantee.
 
 Every assessment reads current GitHub state. It does not authorize deletion from
 a triggering event's result or execute candidate code or artifacts. If trusted
