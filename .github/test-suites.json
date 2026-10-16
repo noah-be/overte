@@ -1280,7 +1280,16 @@
           "tools/repository-checks/package_checks.py",
           ".github/package-workflow-generations.json",
           "tools/sync-test-reuse/gate.py",
-          ".github/sync-test-reuse.json"
+          ".github/sync-test-reuse.json",
+          ".github/shared-sandbox.json",
+          ".github/workflows/shared-sandbox-host-diagnostic.yml",
+          "tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml",
+          "tools/test-evidence/sandbox.py",
+          "tools/test-evidence/sandbox-test.py",
+          "tools/test-evidence/sandbox_host.py",
+          "tools/test-evidence/sandbox-host-test.py",
+          "tools/test-evidence/sandbox_host_fixture.py",
+          "tools/test-evidence/sandbox_probe.py"
         ]
       }
     },

@@ -396,7 +396,7 @@ class HostSelectionTests(unittest.TestCase):
         self.assertTrue(selected['full_host'])
 
     def test_exact_ci_admissions_do_not_waive_neighboring_tests_or_runtime_readers(self):
-        self.assertEqual(len(HOST.CI_ROLLOUT_PATHS),33)
+        self.assertEqual(len(HOST.CI_ROLLOUT_PATHS),41)
         for path in ('tools/test-evidence/new-reader.py','tests/project-suite-self-test-extra.py',
                      '.github/workflows/repository-checks-extra.yml'):
             self.assertTrue(self.selected([path])['include_platform'],path)
@@ -404,6 +404,28 @@ class HostSelectionTests(unittest.TestCase):
                      'tools/test-evidence/inputs.py','tools/test-evidence/validate-sync.py'):
             changed=deepcopy(self.tree);changed[path]['sha']='b'*40
             self.assertTrue(self.selected(['tools/branch-cleanup/cleanup.py'],tree=changed)['include_platform'],path)
+
+    def test_fixed_boundary_controls_keep_their_owners_and_exact_controller_generation(self):
+        paths = ('.github/shared-sandbox.json', '.github/workflows/shared-sandbox-host-diagnostic.yml',
+                 'tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml',
+                 'tools/test-evidence/sandbox-test.py', 'tools/test-evidence/sandbox-host-test.py',
+                 'tools/test-evidence/sandbox.py', 'tools/test-evidence/sandbox_host.py',
+                 'tools/test-evidence/sandbox_host_fixture.py', 'tools/test-evidence/sandbox_probe.py')
+        selected = self.selected(paths)
+        self.assertEqual(set(selected['suites']), self.ci_quick)
+        self.assertFalse(selected['include_platform'])
+        self.assertIn('test-evidence', selected['suites'])
+        for path in ('.github/shared-sandbox.json', 'tools/test-evidence/sandbox.py',
+                     'tools/test-evidence/sandbox_host.py', 'tools/test-evidence/sandbox_host_fixture.py',
+                     'tools/test-evidence/sandbox_probe.py'):
+            candidate = deepcopy(self.tree)
+            candidate[path]['sha'] = 'b' * 40
+            with self.subTest(controller=path):
+                self.assertTrue(self.selected(paths, tree=candidate)['include_platform'])
+        for path in ('tools/test-evidence/sandbox_extra.py',
+                     '.github/workflows/shared-sandbox-host-diagnostic-extra.yml'):
+            with self.subTest(unknown=path):
+                self.assertTrue(self.selected([path])['include_platform'])
 
     def test_both_consumed_platform_readmes_and_optional_membership_remain_bound(self):
         reviewed=deepcopy(self.tree)

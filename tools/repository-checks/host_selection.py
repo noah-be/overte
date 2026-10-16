@@ -74,6 +74,12 @@ CI_ROLLOUT_PATHS = frozenset({
     'tools/test-evidence/runtime-test.py', 'tools/test-evidence/runtime.py',
     'tools/test-evidence/test.py', 'tools/test-evidence/validate-sync-test.py',
     'tools/test-evidence/validate-sync.py',
+    # Fixed CI boundary diagnostics and their owning controls; these paths are
+    # not product sources. Actual controller bytes stay bound below.
+    '.github/shared-sandbox.json', '.github/workflows/shared-sandbox-host-diagnostic.yml',
+    'tools/test-evidence/sandbox-test.py', 'tools/test-evidence/sandbox-host-test.py',
+    'tools/test-evidence/sandbox.py', 'tools/test-evidence/sandbox_host.py',
+    'tools/test-evidence/sandbox_host_fixture.py', 'tools/test-evidence/sandbox_probe.py',
 })
 # These product contracts do not consume the admitted CI inputs. Their source,
 # helpers, fixtures, import/include membership AND definitions are bound below.
@@ -95,6 +101,9 @@ PROGRAM_INPUTS = (
     'tools/test-evidence/inputs.py', 'tools/test-evidence/producer.py',
     'tools/test-evidence/producer_api.py', 'tools/test-evidence/run.py',
     'tools/test-evidence/runtime.py', 'tools/test-evidence/validate-sync.py',
+    '.github/shared-sandbox.json', 'tools/test-evidence/sandbox.py',
+    'tools/test-evidence/sandbox_host.py', 'tools/test-evidence/sandbox_host_fixture.py',
+    'tools/test-evidence/sandbox_probe.py',
     # Actual assertions consume these documents; the generic Markdown rule does
     # not exempt them. Their membership, modes and bytes remain immutable inputs.
     'android/vr/common/openxr/README.md',
@@ -106,23 +115,23 @@ PROGRAM_INPUTS = (
 # legacy-retirement/contract handoff files. Only the two separately owned foreign
 # locks are outside this complement; changed locks need mandatory package coverage.
 # These identities are not execution receipts or application-build evidence.
-REVIEWED_PROGRAMS = '45b3b04af9559fe5449c9c2a3d60f618a249354db6f3aeec0d4f302b57b095f2'
+REVIEWED_PROGRAMS = 'ddbc60b686a7294978f134fc19da97eeea1388311b02073c4360a6a0335b08b5'
 REVIEWED_CHILD_PROGRAMS = {
-    'apple-main': '6370e4003dc1f14c0ee6c60c96ed9c8ef17b6931f328425723b9c0f1dc7f8db5',
-    'apple-ios': '6010204e1248a2123c71545b04a7fca68a4b35b7ede57bfe0aa9c6d2a1be8fe9',
-    'android-main': '89c01153f31ee05ee53f16cd7e603d59497e378d5b8c4e09d6007c92268bab5c',
-    'android-phone': 'd7453a58a8961c1c142b505183344496b8f3a013dcd0d227c17f63daa51fa41b',
-    'android-vr': '89c01153f31ee05ee53f16cd7e603d59497e378d5b8c4e09d6007c92268bab5c',
-    'android-vr-pico': '7e1a0df027a74aa40bcbab527dede4ae044220f2e3d35b7bf65151f4c2a767f4',
+    'apple-main': 'be92755061ed541a247e4455461e46fd35c3a05832f97ef80c3c63fe1100a33e',
+    'apple-ios': 'a8be32ff6623d6d7845288c9dde625e5eb6e979dca7a86fffecf5ea4b97fb925',
+    'android-main': '57c5d80824f9664d27bdc2e2f277b90915313a0e5d5ba4f80d71811c5a3862be',
+    'android-phone': 'ca748226f66d43f57da8a7a3ee3fd04ee6b597a954f1c040cccdb9592d404a31',
+    'android-vr': '57c5d80824f9664d27bdc2e2f277b90915313a0e5d5ba4f80d71811c5a3862be',
+    'android-vr-pico': '5291a030d4f4e4f9622bb17cff2d1d6725bc27eb24c56e8799b0c324801c7440',
 }
 REVIEWED_PREDECESSORS = {
-    'main': '027bd858d2b1faf9ad096ac83701ae6b06e423a9c0821d9c00a41ce0d73d9291',
-    'apple-main': '3e92d8e5f2960ec5dc972955b45a199cb0ddb5b657d29f1b45ee540f238f9c7e',
-    'apple-ios': '2df93ba973772f7f308cdf469ad3afc976d978df5ca2c3ae960430fd6d6b360e',
-    'android-main': 'edc3d552e913084eaa47538996193e0762d66c4f3629a3a0795b1cefb091272d',
-    'android-phone': '38191bcb8678f01d102726cfac057f6a9040fe46079e4013c680f73fce092924',
-    'android-vr': 'edc3d552e913084eaa47538996193e0762d66c4f3629a3a0795b1cefb091272d',
-    'android-vr-pico': '38be32531791cb8a74b8fff13d37673cf9acd37c07b2acfc7eeb256fa763ceb7',
+    'main': '45b3b04af9559fe5449c9c2a3d60f618a249354db6f3aeec0d4f302b57b095f2',
+    'apple-main': '6370e4003dc1f14c0ee6c60c96ed9c8ef17b6931f328425723b9c0f1dc7f8db5',
+    'apple-ios': '6010204e1248a2123c71545b04a7fca68a4b35b7ede57bfe0aa9c6d2a1be8fe9',
+    'android-main': 'dbcf8160e2a81b9963f83b3ba703c595958158e680c835c41678ff50e5f10438',
+    'android-phone': '6baf122bf2377ce70fa31b15b1b4b6a95bab223c1a873f96e3a0182ce80e7241',
+    'android-vr': 'dbcf8160e2a81b9963f83b3ba703c595958158e680c835c41678ff50e5f10438',
+    'android-vr-pico': 'c47bc68965135663f6ff4aebf395a4d2422ca139f77a16213d01e69063845b50',
 }
 CONTROL_PLANE = 'tests/device/run_control_plane_tests.py'
 PACKAGE_LOCKS = {

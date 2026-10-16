@@ -1,0 +1,93 @@
+# Canonical manual-only boundary diagnostic. Never a required evidence producer.
+name: Shared sandbox host diagnostic
+on:
+  workflow_dispatch: null
+permissions:
+  contents: read
+concurrency:
+  group: shared-sandbox-host-diagnostic
+  cancel-in-progress: false
+jobs:
+  boundary-diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Reject unsupported source context before any provisioning
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = noah-l-frank/overte
+          test "$GITHUB_REPOSITORY_ID" = 1319052603
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          test "$GITHUB_REF" = refs/heads/main
+          test "$GITHUB_WORKFLOW_REF" = 'noah-l-frank/overte/.github/workflows/shared-sandbox-host-diagnostic.yml@refs/heads/main'
+          test "$GITHUB_WORKFLOW_SHA" = "$GITHUB_SHA"
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$ImageOS" = ubuntu24
+      - name: Check out only the immutable trusted diagnostic source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: noah-l-frank/overte
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /.github/shared-sandbox.json
+            /.github/workflows/shared-sandbox-host-diagnostic.yml
+            /tools/test-evidence/
+            /tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml
+            /tests/requirements-host.txt
+            /tests/requirements-repository.txt
+            /tools/sbom/requirements-validation.txt
+      - name: Ensure the required namespace tool is available
+        run: |
+          set -euo pipefail
+          if ! test -x /usr/bin/bwrap; then
+            sudo -n /usr/bin/apt-get update
+            sudo -n /usr/bin/apt-get install --yes --no-install-recommends bubblewrap
+          fi
+      - name: Provision the fixed disposable diagnostic account
+        id: account
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$ImageOS" = ubuntu24
+          if getent passwd overte-ci-qualification >/dev/null; then
+            echo 'The fixed disposable account already exists; host is unavailable.' >&2
+            exit 1
+          fi
+          sudo -n /usr/sbin/useradd --system --no-create-home --shell /usr/sbin/nologin overte-ci-qualification
+          echo 'created=true' >> "$GITHUB_OUTPUT"
+          # Match the existing disposable Ubuntu host namespace prerequisite.
+          # No application toolchains, candidate code or product builds are fetched.
+          sudo -n /usr/sbin/sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Measure real boundary attacks and kernel-owned scope cleanup
+        run: |
+          set -euo pipefail
+          mkdir -m 700 "$RUNNER_TEMP/shared-sandbox-diagnostic"
+          sudo -n /usr/bin/systemd-run --wait --pipe --collect --quiet --service-type=exec \
+            --expand-environment=no --property=Delegate=yes \
+            --property=KillMode=control-group --property=TimeoutStopSec=10s --property=SendSIGKILL=yes \
+            --property=UMask=0022 --property=RuntimeMaxSec=120s \
+            --unit="overte-shared-qualification-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.service" \
+            /usr/bin/env -i \
+            PATH=/usr/bin:/bin LANG=C.UTF-8 SUDO_UID="$UID" \
+            GITHUB_ACTIONS=true GITHUB_EVENT_NAME="$GITHUB_EVENT_NAME" \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" GITHUB_REPOSITORY_ID="$GITHUB_REPOSITORY_ID" \
+            GITHUB_REF="$GITHUB_REF" GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" GITHUB_SHA="$GITHUB_SHA" \
+            GITHUB_WORKFLOW_SHA="$GITHUB_WORKFLOW_SHA" \
+            GITHUB_RUN_ID="$GITHUB_RUN_ID" GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+            RUNNER_ENVIRONMENT="$RUNNER_ENVIRONMENT" ImageOS="$ImageOS" ImageVersion="$ImageVersion" \
+            QUALIFY_GITHUB_ENV="$GITHUB_ENV" QUALIFY_GITHUB_OUTPUT="$GITHUB_OUTPUT" \
+            /usr/bin/python3 -I "$GITHUB_WORKSPACE/tools/test-evidence/sandbox_host.py" \
+            | /usr/bin/tee "$RUNNER_TEMP/shared-sandbox-diagnostic/result.json" > /dev/null
+      - name: Remove only the disposable account created by this job
+        if: always() && steps.account.outputs.created == 'true'
+        run: sudo -n /usr/sbin/userdel overte-ci-qualification
+      - name: Preserve diagnostic result without treating it as reusable evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: shared-sandbox-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/shared-sandbox-diagnostic/result.json
+          if-no-files-found: warn
+          retention-days: 7

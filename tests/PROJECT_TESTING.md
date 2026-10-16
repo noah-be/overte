@@ -422,6 +422,40 @@ It declares canonical commands and complete source/fixture/helper closures;
 unreviewed closures remain conservative. Changed Python import modules and
 ancestor Node package metadata cannot hide behind an unchanged entry point.
 
+The existing `test-evidence` quick suite also loads `sandbox-test.py` and
+`sandbox-host-test.py`. Their fixed Linux boundary controls use real temporary
+Git trees and offline process/kernel fixtures, without privileged host probes.
+The owning suite retains its complete repository input fallback. The manual-only
+`.github/workflows/shared-sandbox-host-diagnostic.yml` matches its canonical
+template at `tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml`.
+Dispatch it only from reviewed, protected `main`. It accepts no candidate inputs
+and has no PR trigger; no ordinary PR producer or reusable evidence is enabled.
+
+The prospective Ubuntu 24 diagnostic verifies its loaded controls against the
+immutable manual workflow source. A bounded raw-object materializer creates a
+private, pristine detached Git snapshot without executing checkout filters,
+hooks or candidate configuration. Complete source and metadata inventories
+reject dirty bytes, extra import paths, aliases, writable modes and gitlinks.
+The private index matches the immutable tree; a fixed in-sandbox Git status
+must be clean. A tracked `build` path is rejected because its writable mount
+would hide source inputs. Complete histories above 4,096 objects or 64 MB are
+unsupported by this bounded diagnostic materializer.
+Only exact trusted probe/runtime source enters a separate read-only projection;
+candidate policy code cannot replace it. The hosted workload is a fixed real-Git
+fixture, never an application build or arbitrary PR command.
+
+A root-owned sibling guardian holds the actual cgroup kill/events descriptors
+before releasing any low-UID work. Pipe EOF after a deliberately SIGKILLed root
+worker must kill kernel-observed surviving trusted cleanup canaries and confirm
+the entire owned scope empty. Normal completion and failure use the same scope.
+Separate protected probes run before work and after every workload is gone;
+source, run attempt, snapshot, projection and the effective diagnostic runtime
+must agree. This small stdlib profile is explicitly not the complete portable
+host environment identity. Production launch/post-capture remain denied.
+Live Ubuntu qualification, complete shared-host suite/toolchain compatibility,
+publisher credential isolation and authenticated reuse publication remain
+required before any successful result can authorize reuse.
+
 The `android-build-inputs` quick suite checks dormant Phone and Pico APK source
 planning with real immutable Git histories, including standalone npm locks,
 native/Java/Gradle/Conan inputs, packaged resources, mode changes and stale reader

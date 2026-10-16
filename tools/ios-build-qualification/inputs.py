@@ -43,6 +43,15 @@ REVIEWED_BOUNDARY = "sha256:cba03775542c32affcfe172b66b80b23cab31abd9f61293abd3f
 # its device-control-plane-full and project-runner owners remain independently required.
 # Independent required CI must still validate these files before any app waiver.
 INDEPENDENT_HOST_PATHS = frozenset({
+    ".github/shared-sandbox.json",
+    ".github/workflows/shared-sandbox-host-diagnostic.yml",
+    "tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml",
+    "tools/test-evidence/sandbox.py",
+    "tools/test-evidence/sandbox-test.py",
+    "tools/test-evidence/sandbox_host.py",
+    "tools/test-evidence/sandbox-host-test.py",
+    "tools/test-evidence/sandbox_host_fixture.py",
+    "tools/test-evidence/sandbox_probe.py",
     ".github/workflows/android-required.yml",
     ".github/android-owner-transfer.json",
     "tests/android-owner-transfer-test.py",

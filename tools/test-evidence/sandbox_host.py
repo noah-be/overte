@@ -1,0 +1,823 @@
+#!/usr/bin/env python3
+"""Prospective hosted boundary diagnostic, not production execution/evidence.
+
+Local tests exercise parsers and control order only. The root-only operational
+entrypoint is restricted to a reviewed manual workflow on the fork's main,
+uses only fixed fixtures, and never accepts a candidate command or proof JSON.
+Missing tools/kernel interfaces/isolation produce nonzero unavailable results.
+"""
+
+from __future__ import annotations
+
+from contextlib import ExitStack
+import argparse
+import grp
+import hashlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import pwd
+import re
+import select
+import selectors
+import signal
+import shutil
+import socket
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+import uuid
+
+ROOT = Path(__file__).resolve().parents[2]
+ACCOUNT = "overte-ci-qualification"
+WORKFLOW = "noah-l-frank/overte/.github/workflows/shared-sandbox-host-diagnostic.yml@refs/heads/main"
+CASES = ("protections", "nested", "daemon", "fork-exit", "timeout")
+_BOOTSTRAP_CASES = (*CASES, "probe")
+_MAX_BYTES = 65536
+
+
+class Unavailable(ValueError):
+    pass
+
+
+def require(condition, message):
+    if not condition:
+        raise Unavailable(message)
+
+
+def command(argv, *, timeout=5, **kwargs):
+    try:
+        result = subprocess.run(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                env={"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
+                                     "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null",
+                                     "GIT_NO_REPLACE_OBJECTS": "1", "GIT_NO_LAZY_FETCH": "1"}, timeout=timeout, **kwargs)
+    except (OSError, subprocess.SubprocessError) as error:
+        raise Unavailable("required diagnostic host command is unavailable") from error
+    require(len(result.stdout) <= _MAX_BYTES and len(result.stderr) <= _MAX_BYTES, "diagnostic host command exceeds output bound")
+    return result
+
+
+def host_context(environment, *, effective_uid=None):
+    require((os.geteuid() if effective_uid is None else effective_uid) == 0, "diagnostic requires independently provisioned trusted host root")
+    expected = {"GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_REPOSITORY": "noah-l-frank/overte",
+                "GITHUB_REPOSITORY_ID": "1319052603", "GITHUB_REF": "refs/heads/main", "GITHUB_WORKFLOW_REF": WORKFLOW,
+                "RUNNER_ENVIRONMENT": "github-hosted", "ImageOS": "ubuntu24"}
+    require(all(environment.get(name) == value for name, value in expected.items()), "diagnostic is outside its reviewed hosted manual context")
+    require(re.fullmatch(r"[0-9a-f]{40}", environment.get("GITHUB_SHA", ""))
+            and environment.get("GITHUB_WORKFLOW_SHA") == environment.get("GITHUB_SHA")
+            and re.fullmatch(r"[0-9]+(?:\.[0-9]+)+", environment.get("ImageVersion", "")), "diagnostic source or image identity is missing")
+    require(re.fullmatch(r"[1-9][0-9]*", environment.get("SUDO_UID", "")), "trusted runner identity is missing")
+    require(all(re.fullmatch(r"[1-9][0-9]*", environment.get(name, "")) for name in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT")),
+            "diagnostic run identity is missing")
+    return int(environment["SUDO_UID"])
+
+
+def verify_account(runner_uid):
+    try:
+        account = pwd.getpwnam(ACCOUNT)
+    except KeyError as error:
+        raise Unavailable("fixed diagnostic account is not provisioned") from error
+    require(account.pw_uid not in {0, runner_uid} and account.pw_shell == "/usr/sbin/nologin", "diagnostic account does not have an independent restricted identity")
+    groups = os.getgrouplist(ACCOUNT, account.pw_gid)
+    require(not set(groups).intersection({0, runner_uid})
+            and not {grp.getgrgid(group).gr_name for group in groups}.intersection({"sudo", "admin", "wheel", "docker", "lxd"}),
+            "diagnostic account belongs to a privileged group")
+    verdict = command(["/usr/bin/sudo", "-n", "-l", "-U", ACCOUNT])
+    denied = (verdict.stdout + verdict.stderr).decode("utf-8", errors="replace")
+    require(verdict.returncode == 1 and re.search(r"User " + ACCOUNT + r" is not allowed to run sudo on [^\r\n]+", denied),
+            "diagnostic account has sudo authority or its policy cannot be established")
+    return account.pw_uid, account.pw_gid
+
+
+def cgroup_mount(source):
+    """Require the actual fixed root mount, not a candidate events-file claim."""
+    require(type(source) is str and len(source) <= 1_000_000, "host mount inventory is unsupported")
+    matches = []
+    for line in source.splitlines():
+        left, separator, right = line.partition(" - ")
+        fields, filesystem = left.split(), right.split()
+        if separator and len(fields) >= 6 and len(filesystem) >= 3 and fields[4] == "/sys/fs/cgroup":
+            matches.append((fields, filesystem))
+    require(len(matches) == 1, "fixed cgroup mount is missing or ambiguous")
+    fields, filesystem = matches[0]
+    require(filesystem[0] == "cgroup2" and fields[3] == "/" and "rw" in fields[5].split(","),
+            "writable cgroup-v2 root domain is unavailable")
+
+
+def scope_events(source):
+    require(type(source) is bytes and len(source) <= 4096, "kernel scope observation exceeds bound")
+    try:
+        lines = source.decode("ascii").splitlines()
+        values = {}
+        for line in lines:
+            require(re.fullmatch(r"(?:populated|frozen) [01]", line), "unsupported kernel scope event")
+            name, value = line.split(" ")
+            require(name not in values, "duplicate kernel scope event")
+            values[name] = int(value)
+        require(set(values) == {"populated", "frozen"}, "incomplete kernel scope event")
+        return values
+    except UnicodeError as error:
+        raise Unavailable("unsupported kernel scope event encoding") from error
+
+
+def delegation_path(properties, membership):
+    """Parse independently queried manager/kernel facts; strings are not auth."""
+    require(type(properties) is str and len(properties) <= 4096 and type(membership) is str and len(membership) <= 4096,
+            "delegation metadata exceeds bounds")
+    fields = {}
+    for line in properties.splitlines():
+        name, separator, value = line.partition("=")
+        require(separator and name in {"Delegate", "ControlGroup"} and name not in fields,
+                "delegation metadata is unknown or ambiguous")
+        fields[name] = value
+    require(set(fields) == {"Delegate", "ControlGroup"} and fields["Delegate"] == "yes", "systemd has not delegated the diagnostic subtree")
+    relative = fields["ControlGroup"]
+    require(relative.startswith("/") and relative != "/" and str(Path(relative)) == relative
+            and all(part not in {".", ".."} and re.fullmatch(r"[A-Za-z0-9_.@-]+", part) for part in relative.split("/")[1:]),
+            "systemd control group path is unsupported")
+    require(membership == "0::" + relative + "\n", "current process is outside the independently queried delegated unit")
+    return Path("/sys/fs/cgroup") / relative.lstrip("/")
+
+
+def prepare_delegation():
+    unit = "overte-shared-qualification-" + os.environ["GITHUB_RUN_ID"] + "-" + os.environ["GITHUB_RUN_ATTEMPT"] + ".service"
+    queried = command(["/usr/bin/systemctl", "show", unit, "--property=ControlGroup", "--property=Delegate", "--no-pager"])
+    require(queried.returncode == 0, "actual systemd delegation cannot be queried")
+    root = delegation_path(queried.stdout.decode("ascii"), Path("/proc/self/cgroup").read_text(encoding="ascii"))
+    cgroup_mount(Path("/proc/self/mountinfo").read_text(encoding="ascii"))
+    current = Path("/sys/fs/cgroup")
+    for part in root.relative_to(current).parts:
+        current /= part
+        info = current.lstat()
+        require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022,
+                "delegated cgroup directory is not controlled by host root")
+    # Obey the no-processes-in-inner-nodes rule. Write only a child we create,
+    # never attributes of the systemd-owned unit or hierarchy root. systemd
+    # collects this controller child after the transient service exits.
+    controller = root / "diagnostic-controller"
+    controller.mkdir(mode=0o700)
+    descriptor = os.open(controller / "cgroup.procs", os.O_WRONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    try:
+        os.write(descriptor, (str(os.getpid()) + "\n").encode("ascii"))
+    finally:
+        os.close(descriptor)
+    expected = "0::/" + str(controller.relative_to("/sys/fs/cgroup")) + "\n"
+    require(Path("/proc/self/cgroup").read_text(encoding="ascii") == expected,
+            "controller did not enter its independent delegated child")
+    return root
+
+
+def _read(fd, limit=4096):
+    os.lseek(fd, 0, os.SEEK_SET)
+    data = os.read(fd, limit + 1)
+    require(len(data) <= limit, "kernel control observation exceeds bound")
+    return data
+
+
+class OwnedScope:
+    """Created and held by root on the verified kernel mount, never from JSON."""
+
+    def __init__(self, uid, gid, delegated):
+        self.uid, self.gid, self.path, self.leaf, self.fds = uid, gid, None, None, []
+        cgroup_mount(Path("/proc/self/mountinfo").read_text(encoding="ascii"))
+        mount = Path("/sys/fs/cgroup")
+        info = mount.lstat()
+        require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022,
+                "cgroup mount is not controlled by host root")
+        require(isinstance(delegated, Path) and delegated.is_relative_to(mount) and delegated != mount,
+                "private scopes require the independently verified delegated subtree")
+        self.path = delegated / ("fixture-scope-" + uuid.uuid4().hex)
+        try:
+            self.path.mkdir(mode=0o700)
+            self.leaf = self.path / "fixture"
+            self.leaf.mkdir(mode=0o700)
+            for directory in (self.path, self.leaf):
+                descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+                self.fds.append(descriptor)
+                current = os.fstat(descriptor)
+                require(current.st_uid == 0 and current.st_dev == info.st_dev and not current.st_mode & 0o077,
+                        "kernel scope directory is not exclusively parent-owned")
+            self.directory, self.leaf_directory = self.fds
+            self.events = self.open("cgroup.events", os.O_RDONLY)
+            self.kill_fd = self.open("cgroup.kill", os.O_WRONLY)
+            self.procs = self.open("cgroup.procs", os.O_RDWR, leaf=True)
+            kind = self.open("cgroup.type", os.O_RDONLY)
+            require(_read(kind).strip() == b"domain" and self.populated() == 0, "fresh kernel scope is not an empty domain")
+        except BaseException:
+            self.close()
+            raise
+
+    def open(self, name, flags, *, leaf=False):
+        descriptor = os.open(name, flags | os.O_CLOEXEC | os.O_NOFOLLOW,
+                             dir_fd=self.leaf_directory if leaf else self.directory)
+        self.fds.append(descriptor)
+        info = os.fstat(descriptor)
+        require(info.st_uid == 0 and stat.S_ISREG(info.st_mode) and not info.st_mode & 0o022,
+                "kernel scope control file is writable outside its parent")
+        return descriptor
+
+    def populated(self):
+        return scope_events(_read(self.events))["populated"]
+
+    def members(self):
+        raw = _read(self.procs)
+        require(re.fullmatch(rb"(?:[1-9][0-9]*\n)*", raw), "kernel scope member inventory is unsupported")
+        return {int(value) for value in raw.splitlines()}
+
+    def attach(self, process):
+        require(process.pid != os.getpid() and self.uid != 0 and self.populated() == 0, "scope attachment is not a new independent child")
+        status = Path("/proc/" + str(process.pid) + "/status").read_text(encoding="ascii")
+        match = re.search(r"^Uid:\s+([0-9]+)\s+([0-9]+)\s+([0-9]+)\s+([0-9]+)$", status, re.M)
+        require(match is not None and {int(value) for value in match.groups()} == {self.uid}, "bootstrap has not dropped its real host identity")
+        group = re.search(r"^Gid:\s+([0-9]+)\s+([0-9]+)\s+([0-9]+)\s+([0-9]+)$", status, re.M)
+        supplementary = re.search(r"^Groups:[ \t]*([0-9 \t]*)$", status, re.M)
+        require(group is not None and {int(value) for value in group.groups()} == {self.gid}
+                and supplementary is not None and not supplementary[1].strip(), "bootstrap retained an unexpected actual host group")
+        os.write(self.procs, (str(process.pid) + "\n").encode("ascii"))
+        require(self.members() == {process.pid} and self.populated() == 1, "bootstrap was not exclusively attached before release")
+
+    def kill_and_wait(self, timeout=3):
+        os.write(self.kill_fd, b"1\n")
+        deadline = time.monotonic() + timeout
+        while self.populated():
+            require(time.monotonic() < deadline, "kernel scope retained live descendants after kill")
+            time.sleep(0.02)
+        return {"kernel_populated": 0, "subtree_kill": True}
+
+    def close(self):
+        for descriptor in reversed(self.fds):
+            os.close(descriptor)
+        self.fds.clear()
+        if self.leaf is not None and self.leaf.exists():
+            self.leaf.rmdir()
+        if self.path is not None and self.path.exists():
+            self.path.rmdir()
+
+
+def trusted_cleanup_canaries(count):
+    """Fixed trusted cgroup kill canaries, never arbitrary pre-sandbox work.
+
+    PID namespace teardown may already kill the inner fixture's children. These
+    separate low-UID controls inherit the authenticated scope after release and
+    survive the initial bwrap process, without relaxing its namespace flags.
+    """
+    require(type(count) is int and count in {1, 3}, "unsupported fixed cleanup canary inventory")
+    reader, writer = os.pipe2(os.O_CLOEXEC)
+    try:
+        for _ in range(count):
+            if os.fork() == 0:
+                try:
+                    os.close(reader)
+                    os.setsid()
+                    for descriptor in (0, 1, 2):
+                        os.close(descriptor)
+                    os.write(writer, b"1")
+                    os.close(writer)
+                    # Longer than the eight-second case deadline. Kernel-owned
+                    # cleanup must terminate us; this fixed fallback is bounded.
+                    time.sleep(60)
+                finally:
+                    os._exit(0)
+        os.close(writer)
+        writer = None
+        remaining = count
+        while remaining:
+            block = os.read(reader, remaining)
+            require(block and block == b"1" * len(block), "fixed cleanup canaries did not become ready")
+            remaining -= len(block)
+    finally:
+        os.close(reader)
+        if writer is not None:
+            os.close(writer)
+
+
+def bootstrap(gate, plan, case="protections"):
+    """Trusted unprivileged pre-exec gate: no workload runs before attachment."""
+    require(os.getuid() != 0 and os.geteuid() == os.getuid(), "bootstrap must already run under the restricted actual host UID")
+    with os.fdopen(gate, "rb", closefd=True) as channel:
+        require(channel.read(1) == b"1", "parent did not release the attached bootstrap")
+    value = json.loads(Path(plan).read_text(encoding="ascii"))
+    require(type(value) is list and value and value[0] == "/usr/bin/bwrap"
+            and all(type(arg) is str and "\0" not in arg for arg in value), "fixed diagnostic launch plan is unsupported")
+    require(case in _BOOTSTRAP_CASES, "unsupported fixed bootstrap case")
+    if case in {"daemon", "fork-exit"}:
+        trusted_cleanup_canaries(3 if case == "fork-exit" else 1)
+    os.execve(value[0], value, {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"})
+
+
+def supervise(scope, plan, uid, gid, *, timeout, case="protections", _before_cleanup=None):
+    """Contain before exec, then kill/confirm the whole kernel subtree."""
+    require(case in _BOOTSTRAP_CASES and 0 < timeout <= 8, "unsupported fixed supervisor case or deadline")
+    gate_read, gate_write = os.pipe2(os.O_CLOEXEC)
+    process, data, reason = None, bytearray(), None
+    selector = selectors.DefaultSelector()
+    try:
+        process = subprocess.Popen(["/usr/bin/python3", "-I", str(Path(__file__).resolve()), "--bootstrap", str(gate_read), str(plan), case],
+                                   user=uid, group=gid, extra_groups=(), pass_fds=(gate_read,), close_fds=True,
+                                   stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                   env={"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"}, start_new_session=True)
+        os.close(gate_read)
+        gate_read = None
+        scope.attach(process)
+        os.write(gate_write, b"1")
+        os.close(gate_write)
+        gate_write = None
+        selector.register(process.stdout, selectors.EVENT_READ)
+        deadline = time.monotonic() + timeout
+        while True:
+            if time.monotonic() >= deadline:
+                reason = "timeout"
+                break
+            for key, _ in selector.select(0.02):
+                block = os.read(key.fileobj.fileno(), min(8192, _MAX_BYTES + 1 - len(data)))
+                if block:
+                    data.extend(block)
+                    require(len(data) <= _MAX_BYTES, "fixed fixture diagnostic output exceeded bound")
+                else:
+                    selector.unregister(key.fileobj)
+            if process.poll() is not None:
+                # Reap the initial command before observing the separate trusted
+                # cleanup canaries; output EOF alone cannot prove this ordering.
+                process.wait(timeout=3)
+                break
+        live_before_cleanup = scope.populated()
+        canaries = None
+        if case in {"daemon", "fork-exit"}:
+            minimum = 3 if case == "fork-exit" else 1
+            members = scope.members()
+            require(reason is None and process.returncode is not None and process.pid not in members
+                    and live_before_cleanup == 1 and len(members) >= minimum,
+                    "no kernel-observed cleanup canaries survived the initial command")
+            canaries = {"initial_command_reaped": True, "kernel_populated": live_before_cleanup,
+                        "kernel_member_count": len(members), "minimum_canaries": minimum}
+        if _before_cleanup is not None:
+            # Only the fixed controller-death diagnostic uses this private
+            # trusted callback, after actual initial-command reap/live proof.
+            require(case == "daemon" and canaries is not None, "controller-death fixture has no live cleanup canary")
+            _before_cleanup()
+        cleanup = scope.kill_and_wait()
+        process.wait(timeout=3)
+        # Drain bounded fixed-fixture output ONLY after kernel scope is empty.
+        remainder = process.stdout.read(_MAX_BYTES + 1 - len(data))
+        data.extend(remainder)
+        require(len(data) <= _MAX_BYTES, "fixed fixture diagnostic output exceeded bound")
+        try:
+            observation = json.loads(data)
+        except (ValueError, UnicodeError):
+            observation = None
+        return {"exit_code": process.returncode, "reason": reason, "live_before_cleanup": live_before_cleanup,
+                "cleanup": cleanup, "observation": observation, "trusted_cleanup_canaries": canaries}
+    finally:
+        for descriptor in (gate_read, gate_write):
+            if descriptor is not None:
+                os.close(descriptor)
+        if process is not None:
+            # This is the same authenticated root-owned scope even on errors.
+            # No PGID/JSON/bwrap-exit fallback is accepted as descendant cleanup.
+            scope.kill_and_wait()
+            if process.poll() is None:
+                process.kill()  # bootstrap may have failed before attachment
+            process.wait(timeout=3)
+            process.stdout.close()
+        selector.close()
+
+
+def _wait_child(pid, timeout=5):
+    deadline = time.monotonic() + timeout
+    while True:
+        observed, status = os.waitpid(pid, os.WNOHANG)
+        if observed == pid:
+            return status
+        require(time.monotonic() < deadline, "trusted cleanup process did not finish")
+        time.sleep(0.02)
+
+
+def _guardian_loop(scope, channel, proof, binding, *, lifetime=30):
+    """Independent root owner of already opened kernel controls.
+
+    The workload never inherits the release pipe or protected result FD.
+    Controller death closes the sole writer; EOF triggers the same actual
+    subtree kill/empty check as normal release. No candidate JSON is read.
+    """
+    ready = select.select([channel], [], [], lifetime)[0]
+    payload = os.read(channel, 5) if ready else None
+    trigger = "controller-eof" if payload == b"" else "released" if payload == b"done" else "deadline"
+    cleanup = scope.kill_and_wait()
+    info = os.fstat(scope.directory)
+    value = {"trigger": trigger, "cleanup": cleanup, "scope": [info.st_dev, info.st_ino], "binding": binding}
+    os.write(proof, (json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode("ascii"))
+
+
+class Guardian:
+    """Root-owned sibling, provisioned and ready before any low-UID launch."""
+    def __init__(self, scope, protected, binding):
+        require(os.geteuid() == 0, "cleanup guardian requires actual trusted root")
+        info = protected.lstat()
+        require(protected.is_absolute() and protected.resolve(strict=True) == protected
+                and stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and stat.S_IMODE(info.st_mode) == 0o700,
+                "guardian report directory is not private trusted storage")
+        self.scope, self.binding = scope, binding
+        info = os.fstat(scope.directory)
+        self.identity = [info.st_dev, info.st_ino]
+        self.path = protected / ("guardian-" + uuid.uuid4().hex + ".json")
+        proof = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+        reader, self.writer = os.pipe2(os.O_CLOEXEC)
+        ready_read, ready_write = os.pipe2(os.O_CLOEXEC)
+        try:
+            self.pid = os.fork()
+        except OSError:
+            for descriptor in (proof, reader, self.writer, ready_read, ready_write):
+                os.close(descriptor)
+            self.writer = None
+            self.pid = None
+            scope.kill_and_wait()
+            raise Unavailable("root cleanup guardian could not start") from None
+        if self.pid == 0:
+            code = 1
+            try:
+                signal.signal(signal.SIGTERM, signal.SIG_IGN)
+                keep = {reader, proof, ready_write, scope.kill_fd, scope.events, scope.directory}
+                for entry in Path("/proc/self/fd").iterdir():
+                    descriptor = int(entry.name)
+                    if descriptor not in keep:
+                        try:
+                            os.close(descriptor)
+                        except OSError:
+                            pass
+                os.write(ready_write, b"1")
+                os.close(ready_write)
+                _guardian_loop(scope, reader, proof, binding)
+                code = 0
+            except (Unavailable, OSError, ValueError):
+                pass
+            finally:
+                os._exit(code)
+        os.close(reader)
+        os.close(proof)
+        os.close(ready_write)
+        try:
+            require(select.select([ready_read], [], [], 3)[0] and os.read(ready_read, 1) == b"1",
+                    "root cleanup guardian did not become ready")
+        except BaseException:
+            self.close()
+            raise
+        finally:
+            os.close(ready_read)
+
+    def relinquish_writer(self):
+        """Death fixture: only its root worker keeps the pipe writer alive."""
+        if self.writer is not None:
+            os.close(self.writer)
+            self.writer = None
+
+    def finish(self, expected="released"):
+        if self.writer is not None:
+            try:
+                os.write(self.writer, b"done")
+            finally:
+                self.relinquish_writer()
+        status = _wait_child(self.pid)
+        self.pid = None
+        require(status == 0, "root cleanup guardian failed")
+        info = self.path.lstat()
+        require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and stat.S_IMODE(info.st_mode) == 0o600
+                and info.st_nlink == 1 and info.st_size <= _MAX_BYTES, "cleanup result lost its protected origin")
+        value = json.loads(self.path.read_bytes())
+        require(value == {"trigger": expected, "cleanup": {"kernel_populated": 0, "subtree_kill": True},
+                          "scope": self.identity, "binding": self.binding}
+                and self.scope.populated() == 0, "guardian has no independently confirmed empty bound scope")
+        return value
+
+    def close(self):
+        # Failure never becomes qualification. Still perform independent cleanup
+        # and reap the guardian before removing any private scope directory.
+        self.relinquish_writer()
+        if self.pid is not None:
+            try:
+                _wait_child(self.pid)
+            except Unavailable:
+                os.kill(self.pid, signal.SIGKILL)
+                _wait_child(self.pid)
+            self.pid = None
+        self.scope.kill_and_wait()
+
+
+def controller_death(scope, guardian, plan, uid, gid):
+    """SIGKILL an actual root worker after reap + kernel-live canary proof."""
+    reader, writer = os.pipe2(os.O_CLOEXEC)
+    worker = os.fork()
+    if worker == 0:
+        try:
+            os.close(reader)
+            def ready_then_wait():
+                os.write(writer, b"1")
+                # The outer trusted observer must kill this controller. A
+                # timeout cannot qualify a simulated death or an empty scope.
+                time.sleep(30)
+                raise Unavailable("controller death was not exercised")
+            supervise(scope, plan, uid, gid, timeout=8, case="daemon", _before_cleanup=ready_then_wait)
+        finally:
+            os._exit(1)
+    os.close(writer)
+    guardian.relinquish_writer()
+    reaped = False
+    try:
+        require(select.select([reader], [], [], 12)[0] and os.read(reader, 1) == b"1"
+                and scope.populated() == 1 and len(scope.members()) >= 1,
+                "controller-death fixture has no actual surviving kernel-owned canary")
+        os.kill(worker, signal.SIGKILL)
+        status = _wait_child(worker)
+        reaped = True
+        require(os.WIFSIGNALED(status) and os.WTERMSIG(status) == signal.SIGKILL,
+                "fixed controller did not actually die by SIGKILL")
+        proof = guardian.finish("controller-eof")
+        return {"controller_sigkill_observed": True, "live_before_cleanup": 1,
+                "kernel_scope_empty": True, "guardian_trigger": proof["trigger"]}
+    finally:
+        os.close(reader)
+        if not reaped:
+            try:
+                os.kill(worker, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            _wait_child(worker)
+        guardian.close()
+
+
+def validate_case(name, result, outside):
+    require(name in CASES and result["cleanup"] == {"kernel_populated": 0, "subtree_kill": True}, "fixed fixture has no confirmed scope cleanup")
+    observed = result["observation"]
+    require(type(observed) is dict, "fixed fixture did not report its actual observation")
+    if name == "timeout":
+        require(result["reason"] == "timeout" and observed.get("descendants_started") == 1
+                and result["live_before_cleanup"] == 1 and result["exit_code"] != 0, "timeout fixture did not retain a contained descendant")
+    else:
+        require(result["reason"] is None and result["exit_code"] == 0, "fixed fixture did not execute successfully")
+        if name in {"daemon", "fork-exit"}:
+            require(observed == {"descendants_started": 3 if name == "fork-exit" else 1}, "detached descendant fixture did not execute")
+            controls = result.get("trusted_cleanup_canaries")
+            minimum = 3 if name == "fork-exit" else 1
+            require(result.get("live_before_cleanup") == 1 and type(controls) is dict
+                    and set(controls) == {"initial_command_reaped", "kernel_populated", "kernel_member_count", "minimum_canaries"}
+                    and controls["initial_command_reaped"] is True and controls["kernel_populated"] == 1
+                    and type(controls["minimum_canaries"]) is int and controls["minimum_canaries"] == minimum
+                    and type(controls["kernel_member_count"]) is int
+                    and controls["kernel_member_count"] >= minimum,
+                    "trusted cleanup canary kill coverage lacks actual surviving kernel members")
+        elif name == "nested":
+            require(observed == {"nested_loopback": True, "nested_network_distinct": True}, "required nested user/network namespace fixture failed")
+        else:
+            protected = observed.get("process", {})
+            require(protected == {"NoNewPrivs": "1", **{key: "0000000000000000" for key in ("CapInh", "CapPrm", "CapEff", "CapBnd", "CapAmb")}},
+                    "actual namespace process retained privileges")
+            namespaces = observed.get("namespaces", {})
+            require(set(namespaces) == set(outside) and all(type(value) is int and value != outside[key] for key, value in namespaces.items()),
+                    "mandatory namespaces are not independent of the host")
+            flags = set(observed) - {"process", "namespaces", "uid_map"}
+            expected = {"parent_proc_hidden", "protected_read_hidden", "protected_write_hidden", "command_files_hidden", "scope_hidden",
+                        "source_readonly", "git_readonly", "venv_readonly", "policy_readonly", "loopback", "only_loopback_interface",
+                        "no_ipv4_default_route", "credential_environment_absent", "path_socket_hidden", "abstract_socket_hidden",
+                        "home_writable", "temp_writable", "build_writable", "sudo_denied", "venv_aliases", "protected_descriptors_absent", "readonly_mount_flags", "git_pristine"}
+            require(flags == expected and all(observed[key] is True for key in expected), "one or more real boundary attacks succeeded or prerequisites failed")
+
+
+def _module():
+    # Import only the current trusted source, never fixture/candidate modules.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    spec = importlib.util.spec_from_file_location("trusted_boundary_plan", Path(__file__).with_name("sandbox.py"))
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def diagnostic_snapshot(source, original, destination, policy):
+    """Fixed real-Git fixture only; no application or arbitrary PR is run."""
+    original.mkdir(mode=0o755)
+    bodies = {"fixture.py": Path(__file__).with_name("sandbox_host_fixture.py").read_bytes(),
+              "readonly-canary": b"public-readonly-canary\n"}
+    for name in ("sandbox_probe.py", "runtime.py"):
+        bodies["policy/tools/test-evidence/" + name] = Path(__file__).with_name(name).read_bytes()
+    bodies["policy/readonly-canary"] = b"public-readonly-canary\n"
+    for name, body in bodies.items():
+        path = original / name
+        path.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+        path.write_bytes(body)
+    git = ["/usr/bin/git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false",
+           "-c", "commit.gpgsign=false", "-c", "user.name=Boundary diagnostic", "-c", "user.email=fixture@example.invalid"]
+    for args in (("init", "-q", "--initial-branch=main"), ("add", "--all"), ("commit", "-qm", "Record fixed boundary fixture")):
+        command([*git, *args], cwd=original).check_returncode()
+    revision = command([*git, "rev-parse", "HEAD"], cwd=original).stdout.strip().decode("ascii")
+    snapshot = source.materialize_snapshot(original, revision, destination)
+    projection = source.project_policy(destination, policy, snapshot)
+    return snapshot, projection
+
+
+def verify_qualification_source(source, revision, *, root=ROOT):
+    """Match actual loaded finite controls to the immutable manual source.
+
+    A shallow trusted checkout is sufficient: no history traversal, candidate
+    configuration, filters, hooks, refs or downloaded objects are consulted.
+    """
+    names = {*source.contract(root)["sources"], "tools/test-evidence/sandbox_host.py",
+             "tools/test-evidence/sandbox_host_fixture.py", "tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml",
+             ".github/workflows/shared-sandbox-host-diagnostic.yml"}
+    require(re.fullmatch(r"[0-9a-f]{40}", revision), "qualification source is not immutable")
+    raw = source._git(root, "ls-tree", "-rz", "--full-tree", revision, "--", *sorted(names))
+    seen = set()
+    for entry in raw.split(b"\0"):
+        if not entry:
+            continue
+        metadata, separator, relative = entry.partition(b"\t")
+        fields = metadata.split(b" ")
+        require(separator and len(fields) == 3 and fields[:2] == [b"100644", b"blob"],
+                "qualification source entry is missing, nonregular or executable")
+        name = relative.decode("utf-8")
+        require(name in names and name not in seen and re.fullmatch(rb"[0-9a-f]{40}", fields[2]),
+                "qualification source inventory is ambiguous")
+        seen.add(name)
+        body = source._git(root, "cat-file", "blob", fields[2].decode("ascii"), limit=1_000_000)
+        observed = source._git(root, "hash-object", "-t", "blob", "--stdin", input_bytes=body).strip()
+        require(observed == fields[2] and body == source._source(root, name),
+                "loaded qualification controls differ from the immutable manual source")
+    require(seen == names, "immutable qualification controls are incomplete")
+
+
+def validate_runtime(result, binding, environment, uid, gid):
+    require(result["exit_code"] == 0 and result["reason"] is None
+            and result["cleanup"] == {"kernel_populated": 0, "subtree_kill": True},
+            "protected runtime probe did not finish in an empty owned scope")
+    observed = result["observation"]
+    require(type(observed) is dict and observed.get("schema") == 1 and observed.get("authority") == "none"
+            and observed.get("measurement") == "protected-boundary-profile" and observed.get("reusable") is False
+            and observed.get("runtime_compatibility") == "unqualified", "unqualified runtime observation is missing")
+    identity, process = observed.get("identity"), observed.get("process")
+    require(type(identity) is dict and identity.get("binding") == binding and identity.get("environment") == environment
+            and identity.get("prefix") == "/opt/overte-ci/venv" and type(identity.get("files")) is dict
+            and len(identity["files"]) >= 8
+            and all(type(value) is str and re.fullmatch(r"[0-9a-f]{64}", value) for value in identity["files"].values()),
+            "runtime probe is not bound to the actual source, run, snapshot, projection and profile")
+    require(type(process) is dict and type(process.get("status")) is dict, "runtime process protection observation is missing")
+    status = process["status"]
+    require(status.get("NoNewPrivs") == "1" and status.get("Uid", "").split() == [str(uid)] * 4
+            and status.get("Gid", "").split() == [str(gid)] * 4
+            and all(status.get(key) == "0000000000000000" for key in ("CapInh", "CapPrm", "CapEff", "CapBnd", "CapAmb")),
+            "protected runtime probe retained host privileges")
+    return "sha256:" + hashlib.sha256(json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def protected_launch(source, layout, snapshot, projection, scope, binding, plan_path, arguments, uid, gid, *, case, timeout=8):
+    """Root-only diagnostic control flow, never a production launch API."""
+    require(os.geteuid() == 0, "protected diagnostic launch requires actual root")
+    source.verify_snapshot(layout.candidate, snapshot)
+    source.verify_projection(layout.policy_source, projection)
+    plan = source.build_plan(layout, arguments)
+    plan_path.write_text(json.dumps(plan["argv"]), encoding="ascii")
+    guardian = Guardian(scope, layout.protected, binding)
+    try:
+        observation = supervise(scope, plan_path, uid, gid, timeout=timeout, case=case)
+        guardian.finish()
+        source.verify_snapshot(layout.candidate, snapshot)
+        source.verify_projection(layout.policy_source, projection)
+        return observation
+    finally:
+        guardian.close()
+
+
+def runtime_probe(scopes, launch, binding, environment, uid, gid):
+    # No source/caller "empty" boolean can enter this path. These are the
+    # actual already authenticated, held kernel scope descriptors.
+    require(all(scope.populated() == 0 for scope in scopes.values()),
+            "protected probe attempted before all owned scopes were empty")
+    arguments = ["/opt/overte-ci/venv/bin/python", "-I", "/overte-policy/tools/test-evidence/sandbox_probe.py", "--boundary-diagnostic"]
+    return validate_runtime(launch(arguments), binding, environment, uid, gid)
+
+
+def run_host():
+    runner = host_context(os.environ)
+    release = Path("/etc/os-release").read_text(encoding="ascii")
+    require('ID=ubuntu' in release and 'VERSION_ID="24.04"' in release, "actual host OS is outside the diagnostic contract")
+    uid, gid = verify_account(runner)
+    ip = next((value for value in ("/usr/bin/ip", "/usr/sbin/ip") if Path(value).is_file()), None)
+    require(ip is not None, "fixed system network tool is unavailable")
+    tools = {}
+    for executable in ("/usr/bin/bwrap", ip, "/usr/bin/unshare", "/usr/bin/python3", "/usr/bin/sudo"):
+        info = Path(executable).stat()
+        require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022, "required fixed host tool is unavailable or mutable")
+        tools[Path(executable).name] = "sha256:" + hashlib.sha256(Path(executable).read_bytes()).hexdigest()
+        if executable == "/usr/bin/bwrap":
+            require(not info.st_mode & 0o6000, "privileged bubblewrap executable is outside the diagnostic profile")
+    delegated = prepare_delegation()
+    os.environ["HOST_DIAGNOSTIC_CANARY"] = "public-fixture-canary-not-a-secret"
+    source = _module()
+    verify_qualification_source(source, os.environ["GITHUB_SHA"])
+    result = {"schema": 1, "status": "started", "authority": "none", "production_qualified": False,
+              "source": os.environ["GITHUB_SHA"], "image": {name: os.environ[name] for name in ("ImageOS", "ImageVersion")},
+              "kernel": os.uname().release, "tools": tools, "account_uid": uid, "cases": {}, "runtime_compatibility": "unqualified",
+              "diagnostic_sources": {name: "sha256:" + hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
+                                     for name in ("tools/test-evidence/sandbox_host.py", "tools/test-evidence/sandbox_host_fixture.py",
+                                                  "tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml")}}
+    with tempfile.TemporaryDirectory(prefix="overte-boundary-diagnostic-") as temporary, ExitStack() as stack:
+        base = Path(temporary)
+        base.chmod(0o755)
+        paths = {name: base / name for name in ("candidate", "scratch", "policy", "venv", "protected")}
+        for name, path in paths.items():
+            path.mkdir(mode=0o700 if name in {"scratch", "protected"} else 0o755)
+        os.chown(paths["scratch"], uid, gid)
+        snapshot, projection = diagnostic_snapshot(source, base / "original", paths["candidate"], paths["policy"])
+        command(["/usr/bin/python3", "-m", "venv", "--without-pip", str(paths["venv"])]).check_returncode()
+        (paths["venv"] / "readonly-canary").write_text("public-readonly-canary\n", encoding="ascii")
+        (paths["venv"] / "readonly-canary").chmod(0o666)
+        git_canary = paths["candidate"] / ".git/config"
+        expected_config = git_canary.read_bytes()
+        protected = paths["protected"] / "dummy-secret"
+        protected.write_text("diagnostic-canary-not-a-secret\n", encoding="ascii")
+        private_descriptor = stack.enter_context(protected.open("rb"))
+        os.set_inheritable(private_descriptor.fileno(), True)
+        command_files = [os.environ.get(name, "") for name in ("QUALIFY_GITHUB_ENV", "QUALIFY_GITHUB_OUTPUT")]
+        require(all(value and Path(value).is_absolute() and not Path(value).is_symlink() and Path(value).is_file()
+                    and Path(value).stat().st_uid == runner for value in command_files), "actual runner command-file probes are unavailable")
+        outside = {name: os.stat("/proc/self/ns/" + name).st_ino for name in ("user", "mnt", "pid", "net", "ipc", "uts")}
+        abstract = "overte-boundary-" + uuid.uuid4().hex
+        path_socket = str(paths["protected"] / "host.socket")
+        for target in (path_socket, "\0" + abstract):
+            server = stack.enter_context(socket.socket(socket.AF_UNIX))
+            server.bind(target)
+            server.listen(1)
+        context = {"parent_pid": os.getpid(), "protected_canary": str(protected), "command_files": command_files,
+                   "abstract_socket": abstract, "path_socket": path_socket, "ip": ip}
+        layout = source.Layout(paths["candidate"], paths["scratch"], paths["policy"], paths["venv"], paths["protected"])
+        # Allocate every immutable scope identity before sealing context. No
+        # candidate/source/projection byte is rewritten between before/after.
+        scopes = {}
+        for case in (*CASES, "before", "after", "controller-death"):
+            scope = scopes[case] = OwnedScope(uid, gid, delegated)
+            stack.callback(scope.close)
+            stack.callback(scope.kill_and_wait)
+        binding = {"source": os.environ["GITHUB_SHA"], "run_id": int(os.environ["GITHUB_RUN_ID"]),
+                   "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]), "snapshot": snapshot["digest"],
+                   "projection": "sha256:" + hashlib.sha256(source._canonical(projection)).hexdigest()}
+        projection = source.bind_projection(paths["policy"], projection, {"binding": binding,
+            "fixture": {**context, "scope_directory": str(scopes["protections"].path)}})
+        result["snapshot"] = {**snapshot["identity"], "digest": snapshot["digest"], "objects": snapshot["objects"]}
+        result["binding"] = binding
+
+        def launch(case, arguments, timeout=8):
+            return protected_launch(source, layout, snapshot, projection, scopes[case], binding, base / "fixed-plan.json",
+                                    arguments, uid, gid, timeout=timeout,
+                                    case="probe" if case in {"before", "after"} else case)
+
+        before = runtime_probe(scopes, lambda args: launch("before", args), binding, source._ENVIRONMENT, uid, gid)
+        for case in CASES:
+            observation = launch(case, ["/opt/overte-ci/venv/bin/python", "-I", "/work/fixture.py", case],
+                                 timeout=4 if case == "timeout" else 8)
+            validate_case(case, observation, outside)
+            require(git_canary.read_bytes() == expected_config
+                    and protected.read_text(encoding="ascii") == "diagnostic-canary-not-a-secret\n",
+                    "outside protected source or report canary was altered")
+            result["cases"][case] = {"status": "passed", "kernel_scope_empty": True,
+                "live_before_cleanup": observation["live_before_cleanup"], "trusted_cleanup_canaries": observation["trusted_cleanup_canaries"]}
+        source.verify_snapshot(paths["candidate"], snapshot)
+        source.verify_projection(paths["policy"], projection)
+        death_plan = source.build_plan(layout, ["/opt/overte-ci/venv/bin/python", "-I", "/work/fixture.py", "daemon"])
+        death_path = base / "fixed-plan.json"
+        death_path.write_text(json.dumps(death_plan["argv"]), encoding="ascii")
+        scope = scopes["controller-death"]
+        guardian = Guardian(scope, paths["protected"], binding)
+        try:
+            result["cases"]["controller-death"] = controller_death(scope, guardian, death_path, uid, gid)
+        finally:
+            guardian.close()
+        # Every prior workload and canary is confirmed gone BEFORE starting a
+        # separate fixed protected post-probe under the same effective profile.
+        after = runtime_probe(scopes, lambda args: launch("after", args), binding, source._ENVIRONMENT, uid, gid)
+        require(before == after, "protected runtime profile changed between before and post-kill observations")
+        result["runtime_boundary"] = {"before": before, "after": after, "matching": True,
+                                      "scope": "diagnostic-profile-only", "reusable": False}
+        result.update(status="boundary-diagnostic-passed", contract=source.contract()["digest"])
+    return result
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--bootstrap", nargs=3, metavar=("GATE_FD", "FIXED_PLAN", "FIXTURE_CASE"))
+    arguments = parser.parse_args(argv)
+    if arguments.bootstrap is not None:
+        bootstrap(int(arguments.bootstrap[0]), arguments.bootstrap[1], arguments.bootstrap[2])
+        return 1
+    try:
+        result = run_host()
+        code = 0
+    except (Unavailable, OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
+        result = {"schema": 1, "status": "unavailable", "authority": "none", "production_qualified": False,
+                  "error": str(error) if isinstance(error, Unavailable) else "required host diagnostic operation failed"}
+        code = 1
+    print(json.dumps(result, sort_keys=True, separators=(",", ":"), allow_nan=False))
+    return code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

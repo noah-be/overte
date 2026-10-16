@@ -40,6 +40,19 @@ REVIEWED_ANDROID_CI_PATHS = (
 )
 
 
+REVIEWED_SANDBOX_CI_PATHS = (
+    ".github/shared-sandbox.json",
+    ".github/workflows/shared-sandbox-host-diagnostic.yml",
+    "tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml",
+    "tools/test-evidence/sandbox.py",
+    "tools/test-evidence/sandbox-test.py",
+    "tools/test-evidence/sandbox_host.py",
+    "tools/test-evidence/sandbox-host-test.py",
+    "tools/test-evidence/sandbox_host_fixture.py",
+    "tools/test-evidence/sandbox_probe.py",
+)
+
+
 def load(name):
     spec = importlib.util.spec_from_file_location(name, ROOT / f"tools/ios-build-qualification/{name}.py")
     module = importlib.util.module_from_spec(spec)
@@ -1074,6 +1087,7 @@ class HostGenerationTests(unittest.TestCase):
             selected = self.host.ci_host_omission(previous, inputs.read_snapshot(self.root, all_ci))
             self.assertEqual(set(selected["changedPaths"]), self.host.CI_HOST_INDEPENDENT_PATHS)
             self.assertTrue(set(REVIEWED_ANDROID_CI_PATHS).issubset(selected["changedPaths"]))
+            self.assertTrue(set(REVIEWED_SANDBOX_CI_PATHS).issubset(selected["changedPaths"]))
             mode_change = self.commit(all_ci, {ci: ("100755", "# Changed independent executable mode\n")})
             self.assertIsNone(self.host.ci_host_omission(inputs.read_snapshot(self.root, all_ci),
                                                        inputs.read_snapshot(self.root, mode_change)))
@@ -1107,6 +1121,14 @@ class HostGenerationTests(unittest.TestCase):
                 "tools/repository-checks/android_handoff_unreviewed.py",
                 "tools/repository-checks/workflows/android-owned/handoff/android/phone/tests/unreviewed.py",
                 "android/phone/tests/phone-release-metadata-test.py"))
+            cases += tuple({path: (mode, "# Nonordinary sandbox CI fixture\n")}
+                           for path in REVIEWED_SANDBOX_CI_PATHS for mode in ("100755", "120000"))
+            cases += tuple({path: "# Unknown sandbox sibling or native scanner input\n"} for path in (
+                ".github/shared-sandbox-extra.json",
+                ".github/workflows/shared-sandbox-host-extra.yml",
+                "tools/repository-checks/workflows/shared-sandbox-extra.yml",
+                "tools/test-evidence/sandbox_extra.py",
+                "tools/test-evidence/sandbox_native.h"))
             for changes in cases:
                 with self.subTest(changes=changes):
                     revision = self.commit(self.base, {ci: "# Independent CI edit\n", **changes})
