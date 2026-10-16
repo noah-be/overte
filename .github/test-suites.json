@@ -1378,7 +1378,9 @@
         "kind": "repository",
         "inputs": [],
         "required": [
-          "tests/host-producer-preparation-test.py"
+          "tests/host-producer-preparation-test.py",
+          "tools/repository-checks/workflows/producers/legacy/protected-project-tests-v1.yml",
+          "tools/repository-checks/workflows/producers/legacy/protected-project-tests-postmerge-v1.yml"
         ]
       }
     },

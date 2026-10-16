@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import stat
+import subprocess
 from types import SimpleNamespace
 import tempfile
 import unittest
@@ -275,9 +276,9 @@ class ProbeAndManualIntegrationTests(unittest.TestCase):
     def test_canonical_manual_ci37_omits_java_qt_setup_and_preserves_full_preparation(self):
         import yaml
         canonical=yaml.safe_load((C.ROOT/'tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml').read_bytes())
-        # The active copy deliberately remains the independently reviewed Java
-        # fix until root review authorizes copying the canonical diagnostic.
+        # Both copies retain the independently reviewed full preparation.
         active=yaml.safe_load((C.ROOT/'.github/workflows/shared-sandbox-host-diagnostic.yml').read_bytes())
+        self.assertEqual(active,canonical)
         steps={step['name']:step for step in canonical['jobs']['boundary-diagnostic']['steps']}
         original={step['name']:step for step in active['jobs']['boundary-diagnostic']['steps']}
         for name in ('Set up prepared shared-host Java','Install existing mandatory portable host contract prerequisites'):
@@ -285,9 +286,30 @@ class ProbeAndManualIntegrationTests(unittest.TestCase):
             self.assertEqual(steps[name]['if'],"inputs.profile == 'shared-host'")
         quick=steps['Prepare the fixed Qt-free CI37 diagnostic tools']
         self.assertEqual(quick['if'],"inputs.profile == 'ci37'")
-        self.assertIn('cmake ninja-build make g++',quick['run'])
         self.assertNotIn('JAVA',quick['run']);self.assertNotIn('qml-module',quick['run']);self.assertNotIn('libglm',quick['run'])
         self.assertIn('root:root',quick['run']);self.assertIn('go-w',quick['run'])
+        # Execute only the actual prerequisite selection prefix. All commands
+        # are temporary fixtures; sudo records arguments and installs nothing.
+        prefix=quick['run'].split('test ! -e /opt/overte-ci',1)[0]
+        tools={'cmake','ctest','ninja','make','gmake','g++','gcc'}
+        cases=[(set(),[]),({'ninja'},['ninja-build']),({'ctest'},['cmake']),
+               ({'gmake','gcc'},['make','g++']),({'g++','gcc'},['g++'])]
+        for missing,packages in cases:
+            with self.subTest(missing=missing),tempfile.TemporaryDirectory() as temporary:
+                root=Path(temporary);binpath=root/'bin';binpath.mkdir();log=root/'apt.log'
+                for name in tools-missing:
+                    path=binpath/name;path.write_text('#!/bin/sh\nexit 0\n');path.chmod(0o755)
+                sudo=binpath/'sudo'
+                sudo.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$SETUP_LOG"\n')
+                sudo.chmod(0o755)
+                subprocess.run(['/usr/bin/bash','-euc',prefix],check=True,capture_output=True,text=True,
+                    env={'PATH':str(binpath),'SETUP_LOG':str(log)})
+                if packages:
+                    self.assertEqual(log.read_text().splitlines(),[
+                        '-n /usr/bin/apt-get update',
+                        '-n /usr/bin/apt-get install --no-install-recommends -y '+' '.join(packages)])
+                else:
+                    self.assertFalse(log.exists())
 
 
 if __name__=='__main__':

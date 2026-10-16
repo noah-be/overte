@@ -33,7 +33,7 @@ import subprocess
 # Protected apple-ios merge of the successful host-only workflow bootstrap.
 # Its only tree delta from the previous anchor is the exact reviewed workflow.
 REVIEWED_REVISION = "2fc894a0605103843b36653f250f854714a963ee"
-REVIEWED_BOUNDARY = "sha256:cba03775542c32affcfe172b66b80b23cab31abd9f61293abd3f5cb0e19c03e8"
+REVIEWED_BOUNDARY = "sha256:cc243adcadf8cf8f51e1226a30f908552e5511126be995f916b2b82084cda027"
 
 # Reviewed host control-plane files, not generic tests/** or tools/** patterns.
 # In particular, E2E builds can compile tests/device source and fixtures.
@@ -55,6 +55,8 @@ INDEPENDENT_HOST_PATHS = frozenset({
     "tools/test-evidence/sandbox_shared.py",
     "tools/test-evidence/producer_workflow.py",
     "tools/test-evidence/postmerge.py",
+    "tests/run-unittest-suite.py",
+    "tests/unittest-runner-test.py",
     ".github/ci37-runtime.json",
     "tools/test-evidence/ci_profile.py",
     "tools/test-evidence/runtime_ci.py",

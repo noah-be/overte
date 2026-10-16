@@ -889,7 +889,8 @@ class FixedResultTests(unittest.TestCase):
         for relative in paths:
             workflow = yaml.safe_load((H.ROOT / relative).read_text())
             steps = [step for job in workflow['jobs'].values() for step in job.get('steps', [])]
-            scripts = [step['run'] for step in steps if "<<'PYROOTS'" in step.get('run', '')]
+            scripts = [step['run'] for step in steps if "<<'PYROOTS'" in step.get('run', '')
+                       and 'test -n "$JAVA_HOME"' in step['run']]
             self.assertEqual(len(scripts), 1)
             script = scripts[0]
             resolver = 'JAVA_HOME="$(readlink -e -- "$JAVA_HOME")"'
@@ -928,7 +929,7 @@ class FixedResultTests(unittest.TestCase):
 
     def test_manual_workflow_matches_template_without_pr_trigger_or_success_skip(self):
         template = (H.ROOT / "tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml").read_text()
-        self.assertIn("options: [boundary, shared-host]", template)
+        self.assertIn("options: [boundary, shared-host, ci37]", template)
         self.assertIn("default: boundary", template)
         self.assertNotIn("pull_request:", template)
         self.assertNotIn("workflow_call:", template)
@@ -1280,7 +1281,7 @@ class SharedHostCompatibilityTests(unittest.TestCase):
 
     def test_manual_profile_is_finite_and_pr_production_paths_remain_denied(self):
         template = (H.ROOT / ".github/workflows/shared-sandbox-host-diagnostic.yml").read_text()
-        self.assertIn("options: [boundary, shared-host]", template)
+        self.assertIn("options: [boundary, shared-host, ci37]", template)
         self.assertIn("fetch-depth: 2", template)
         self.assertIn("node-version: '22'", template)
         self.assertIn("python-version: '3.12'", template)

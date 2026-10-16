@@ -38,6 +38,7 @@ CI_TESTS = frozenset({
     'tests/android-build-inputs-test.py', 'tests/ios-build-qualification-test.py',
     'tests/ios-input-selection-test.py', 'tests/codeql-selection-test.py',
     'tests/browser-cpu-selection-test.py', 'tests/host-selection-test.py', 'tests/android-owner-transfer-test.py',
+    'tests/unittest-runner-test.py',
 })
 CI_POLICY = frozenset({
     '.github/branch-policy.json', '.github/branch-cleanup.json', '.github/issue-policy.json',
@@ -131,23 +132,23 @@ PROGRAM_INPUTS = (
 # legacy-retirement/contract handoff files. Only the two separately owned foreign
 # locks are outside this complement; changed locks need mandatory package coverage.
 # These identities are not execution receipts or application-build evidence.
-REVIEWED_PROGRAMS = 'ce8fd47bac93237504dd4e57a13476b8dccb1550564e4e988e1e4e64c603f1e7'
+REVIEWED_PROGRAMS = 'b45803dfe120b41336e2605e1909688952674b857302585b866b30dcc865493f'
 REVIEWED_CHILD_PROGRAMS = {
-    'apple-main': '7d4118b8b9e2a36ca5019ac52a644f6ec6d9a22e18fb6a367971b0debcc662d4',
-    'apple-ios': 'd6b9e698a16c6244dd8d3f05abf4ada4e6b7856394b5ca1fb6ac58de184ad219',
-    'android-main': 'ff14094a2b691e74ceadced1856ad34544074081a59cb0b15f3b873bde48ac09',
-    'android-phone': '8bda0243f26f78cf9dc85c076b45860a0d8663830c41a0aaacba633cc5665220',
-    'android-vr': 'ff14094a2b691e74ceadced1856ad34544074081a59cb0b15f3b873bde48ac09',
-    'android-vr-pico': '2a426352108051e53f0499dbe676f9d24d0c742b0eb4decd413ee3f8b2482973',
+    'apple-main': '17e5899ba62e8674bc025bcf188a9f3432b4679a4e0567264a15a2592d7b0c73',
+    'apple-ios': 'd250eb3af638bf362034170df5c4f1c4606ecbaa7b3212081aed54609f08a1c4',
+    'android-main': '38069df7942d2f94158929bc9ced136741525f08500e255efc3064b921434019',
+    'android-phone': '1b7ec0c6420e29c255b3d2b1af8e3437c3b0ef8534ce1b817200c4cc597718ce',
+    'android-vr': '38069df7942d2f94158929bc9ced136741525f08500e255efc3064b921434019',
+    'android-vr-pico': 'a719fd3fb3f162c0c819676703866360bf5213e7ac2a64bc20fed1dbd94198dd',
 }
 REVIEWED_PREDECESSORS = {
-    'main': 'd13648fabb706293b3be33984b0d6257901bc664cf4946ae9b83d4ddcdbfcc7d',
-    'apple-main': 'a97236b83c4de2a6706f9236089a8b1a4c60b41a1bce1f283ed3e69b1ecae931',
-    'apple-ios': '45f5fb8a6a678c81dae3e45d48c48af395bace2c2eeecbb063da84e8d8cb57be',
-    'android-main': '1c19d5e90cdb606cdc9ea1f3777220f381e716b7874404fd96b5a797e77fac54',
-    'android-phone': 'c4968fe76c3a0e2550ee07cca081d07b0de464b260abccb7e9491099cc1255f3',
-    'android-vr': '1c19d5e90cdb606cdc9ea1f3777220f381e716b7874404fd96b5a797e77fac54',
-    'android-vr-pico': 'ede624f8898e9235a95081a8edcdbee099a0fc05da44f5c854e19dddd828d6b2',
+    'main': '99c83612c366f8863d9b3c9678555cf821cac4ce7663c4187a8e31ede3859974',
+    'apple-main': 'a2b345f8110a3daaaab9b1be0d56e8714f0534f66ac20b4fd67d89f0a3e92f79',
+    'apple-ios': '9cfbd480295922fd67a41f31d9c14c2e0eaecf07f1741be6aeb28f184827e473',
+    'android-main': '4fa11b331624286a284d493a0c3f32a8458ab090489d9ba3f908a09ae9995ede',
+    'android-phone': '58128de81ec528d2c9c048ba4b8e2dfc56900cda6ec7121ad3c908e5dcafc6c2',
+    'android-vr': '4fa11b331624286a284d493a0c3f32a8458ab090489d9ba3f908a09ae9995ede',
+    'android-vr-pico': '80174eec2d2e27299949ea3c7b2d9f679774bf48b7f6d7d98b9ba2408c635b56',
 }
 CONTROL_PLANE = 'tests/device/run_control_plane_tests.py'
 PACKAGE_LOCKS = {
@@ -277,12 +278,13 @@ def _protected_producer_transition(tree, paths, base_tree, trusted_tree, target)
     required = set(policy.CONSUMER_WORKFLOW_PATHS)
     for old_name, new_name in (
             ('android-owned-npm5-sync-ci-v1', 'protected-shared-producer-v1'),
-            ('postmerge-original-e-v1', 'protected-producer-postmerge-original-e-v1')):
+            ('postmerge-original-e-v1', 'protected-producer-postmerge-original-e-v1'),
+            ('postmerge-original-e-v1', 'protected-producer-ci37-v1')):
         previous, producer = generations.get(old_name, {}), generations.get(new_name, {})
         if set(previous) != required or set(producer) != required \
                 or {path for path in required if previous[path] != producer[path]} != endpoints:
             continue
-        # Two reviewed complete pairs only, never an arbitrary cross-product.
+        # Reviewed complete pairs only, never an arbitrary cross-product.
         if all(snapshot.get(path) == entry
                for snapshot, workflows in ((trusted_tree, previous), (base_tree, previous), (tree, producer))
                for path, entry in workflows.items()):
