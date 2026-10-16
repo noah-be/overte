@@ -707,6 +707,7 @@ class HostGenerationTests(unittest.TestCase):
         self.root, self.trusted = directory / "candidate", directory / "trusted"
         self.root.mkdir();self.trusted.mkdir()
         self.git("init", "-q")
+        self.blobs = {}
         self.git("config", "user.email", "fixture@example.invalid")
         self.git("config", "user.name", "Offline source fixture")
         for relative in (".github/ios-build-qualification.json", ".github/ios-host-orchestration.json",
@@ -749,13 +750,24 @@ class HostGenerationTests(unittest.TestCase):
 
     def commit(self, parent, changes, *, parents=None):
         self.git("read-tree", parent) if parent else self.git("read-tree", "--empty")
+        records = []
         for path, value in changes.items():
             if value is None:
-                self.git("update-index", "--force-remove", "--", path)
+                records.append(f"0 {'0' * 40}\t{path}\0".encode())
                 continue
             mode, content = value if isinstance(value, tuple) else ("100644", value)
-            oid = parent if mode == "160000" else self.git("hash-object", "-w", "--stdin", data=content.encode())
-            self.git("update-index", "--add", "--cacheinfo", mode + "," + oid + "," + path)
+            if mode == "160000":
+                oid = parent
+            else:
+                # Equal immutable bytes identify the same blob within this
+                # disposable repository. Negative cases still create real Git
+                # trees/commits with every supplied path, mode and parent.
+                if content not in self.blobs:
+                    self.blobs[content] = self.git("hash-object", "-w", "--stdin", data=content.encode())
+                oid = self.blobs[content]
+            records.append(f"{mode} {oid}\t{path}\0".encode())
+        if records:
+            self.git("update-index", "-z", "--index-info", data=b"".join(records))
         tree = self.git("write-tree")
         ancestors = parents if parents is not None else [parent] if parent else []
         revision = self.git("commit-tree", tree, *(argument for p in ancestors for argument in ("-p", p)),
