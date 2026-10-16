@@ -2,6 +2,7 @@
 """Offline runtime-identity tests; no host queries, installs or builds."""
 
 from contextlib import ExitStack
+from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -12,6 +13,8 @@ import sys
 import tempfile
 import unittest
 import venv
+
+import inputs
 
 
 SPEC = importlib.util.spec_from_file_location("test_evidence_runtime", Path(__file__).with_name("runtime.py"))
@@ -326,6 +329,74 @@ class RuntimeIdentityTests(unittest.TestCase):
                 RUNTIME._os_identity()
             with patch.object(RUNTIME.platform, "machine", return_value="unknown"), self.assertRaises(RUNTIME.RuntimeIdentityError):
                 RUNTIME._os_identity()
+
+
+class IsolatedPreparedIdentityTests(unittest.TestCase):
+    def setUp(self):
+        self.base = RuntimeIdentityTests().capture()
+        self.python = Path('/opt/hostedtoolcache/Python') / self.base['python']['version'] / 'x64'
+        self.node = Path('/opt/hostedtoolcache/node') / self.base['tools']['node']['version'][1:] / 'x64'
+        self.java = Path(inputs.ISOLATED_JDK)
+        self.roots = dict.fromkeys((inputs.ISOLATED_VENV, str(self.python), str(self.node), str(self.java)),
+                                   'sha256:' + 'a' * 64)
+
+    def capture(self, roots=None, *, certificate=False, python=None, node=None, java=None):
+        with (patch.object(RUNTIME, 'capture_host_environment', return_value=deepcopy(self.base)),
+              patch.object(RUNTIME.sys, 'prefix', inputs.ISOLATED_VENV),
+              patch.object(RUNTIME.sys, 'base_prefix', str(self.python if python is None else python)),
+              patch.object(RUNTIME.Path, 'resolve', lambda path, **_kwargs: Path(inputs.ISOLATED_CACERTS)
+                           if certificate and path == self.java / 'lib/security/cacerts' else path),
+              patch.object(RUNTIME.Path, 'is_symlink', return_value=certificate),
+              patch.object(RUNTIME.os, 'readlink', return_value=inputs.ISOLATED_CACERTS),
+              patch.object(RUNTIME, '_checked_executable', return_value=(self.node if node is None else node) / 'bin/node'),
+              patch.object(RUNTIME, '_identified_java_home', return_value=self.java if java is None else java)):
+            return RUNTIME.capture_isolated_host_environment(self.roots if roots is None else roots)
+
+    def test_actual_prepared_identity_is_mandatory_versioned_and_copied_inside_capture(self):
+        original = deepcopy(self.base)
+        value = self.capture()
+        self.assertEqual(value['schema'], 3)
+        self.assertEqual(value['profile'], inputs.ISOLATED_FULL_PROFILE)
+        self.assertEqual(value['prepared'], {'schema': 1, 'roots': self.roots, 'external_inputs': []})
+        self.assertEqual(self.base, original, 'legacy capture shape is unchanged')
+        self.roots[inputs.ISOLATED_VENV] = 'sha256:' + 'b' * 64
+        self.assertNotEqual(value['prepared']['roots'], self.roots, 'E cannot alias its mutable binding')
+        self.assertNotEqual(value, self.capture(), 'same versions with different prepared bytes must differ in E')
+
+    def test_actual_tool_roots_cannot_be_replaced_by_supplied_digest_paths(self):
+        for override in ({'python': Path('/other/python')}, {'node': Path('/usr')}, {'java': Path('/usr/lib/jvm/other')}):
+            with self.subTest(override=override), self.assertRaises(RUNTIME.RuntimeIdentityError):
+                self.capture(**override)
+        for roots in ({}, {**self.roots, '/unknown': 'sha256:' + 'a' * 64},
+                      {**self.roots, inputs.ISOLATED_VENV: 'unknown'}):
+            with self.subTest(roots=roots), self.assertRaises(RUNTIME.RuntimeIdentityError):self.capture(roots)
+
+    def test_actual_fixed_certificate_selection_cannot_be_omitted_or_invented(self):
+        roots = {**self.roots, inputs.ISOLATED_CACERTS: 'sha256:' + 'c' * 64}
+        value = self.capture(roots, certificate=True)
+        self.assertEqual(value['prepared']['external_inputs'], [inputs.ISOLATED_CACERTS])
+        for selected, supplied in ((True, self.roots), (False, roots)):
+            with self.subTest(selected=selected), self.assertRaises(RUNTIME.RuntimeIdentityError):
+                self.capture(supplied, certificate=selected)
+
+    def test_fresh_tiny_boundary_projection_imports_without_repository_inputs(self):
+        with tempfile.TemporaryDirectory(prefix='overte-boundary-import-') as temporary:
+            destination = Path(temporary)
+            scripts = destination / 'tools/test-evidence'
+            scripts.mkdir(parents=True)
+            for name in ('runtime.py', 'sandbox_probe.py'):
+                (scripts / name).write_bytes(Path(__file__).with_name(name).read_bytes())
+            (destination / 'readonly-canary').write_text('fixed-boundary-fixture')
+            code = ('import importlib.util,sys;'
+                'assert importlib.util.find_spec("inputs") is None;'
+                's=importlib.util.spec_from_file_location("tiny_probe",sys.argv[1]);'
+                'm=importlib.util.module_from_spec(s);s.loader.exec_module(m);'
+                'assert "inputs" not in sys.modules;'
+                'assert callable(m.runtime.capture_host_environment)')
+            result = subprocess.run([sys.executable, '-I', '-S', '-c', code, str(scripts/'sandbox_probe.py')],
+                cwd=destination, env={'PATH':'/usr/bin:/bin','PYTHONPATH':str(Path(__file__).parent)},
+                capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
 
 
 if __name__ == "__main__":

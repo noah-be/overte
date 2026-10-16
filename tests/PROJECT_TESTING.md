@@ -509,14 +509,23 @@ rehashing the complete repository for each suite. The Git exception is exactly
 ambient Git settings remain rejected. Candidate output is bounded and encoded;
 private root-owned reports and command files are outside the namespace.
 
-Separate protected probes must capture the complete actual
-`runtime.capture_host_environment()` before work and after every prior scope
+Separate protected probes must capture the complete actual isolated full
+environment before work and after every prior scope
 has kernel-confirmed cleanup. Unknown/mismatching E, failed/missing/cancelled
 commands or changed prepared/source inputs fail the diagnostic. Local tests
 use real Git fixtures and fake suite launches only; they establish neither
 privileged Ubuntu compatibility nor a complete runtime measurement. Even a
 future hosted diagnostic pass has `authority=none` and `reusable=false`.
 Authenticated producer/publisher provenance remains a separate prerequisite.
+The isolated full environment has schema 3 and profile
+`ubuntu24-isolated-host-qt5-qt6-v1`. Inside the protected probe, after readonly
+mount validation, `runtime.capture_isolated_host_environment()` retains the
+complete root-measured venv, Python, Node and Temurin17 installation identities
+and its exact external certificate-store identity when selected. The captured
+executable roots must match those identities. The parent checks the probe's
+binding and rehashes prepared inputs after cleanup. These mandatory identities
+remain in original E, suite fingerprints and the native whole-receipt hash;
+bare legacy full E cannot enter isolated admission. No consumer VM is measured.
 
 The shared diagnostic reuses the script's loaded controller module, so its
 trusted `Unavailable` exception retains its explicit denial reason. A foreign
@@ -630,8 +639,9 @@ The separate source-only CI37 profile is prepared in
 [`ci_profile.py`](../tools/test-evidence/ci_profile.py),
 [`runtime_ci.py`](../tools/test-evidence/runtime_ci.py) and the disabled
 [CI37 policy](../.github/ci37-runtime.json). Its environment has schema 2 and
-profile `ubuntu24-ci37-v1`; existing full Qt environment schema 1 and execution
-receipt schema 3 remain unchanged. The exact ordered 37 CI owners, command
+profile `ubuntu24-ci37-v1`; legacy full Qt environment schema 1 remains separate
+from the isolated full environment schema 3. Execution receipt schema 3 remains
+unchanged. The exact ordered 37 CI owners, command
 definitions and a conservative immutable executable/import/discovery/lookup
 generation are mandatory. Three fixed Markdown leaves (`README.md`,
 `tests/PROJECT_TESTING.md`, `docs/BRANCH_WORKFLOW.md`) may change bytes; their
@@ -1425,3 +1435,24 @@ aliases, mode changes and query-pack inputs cannot inherit this exception.
 YAML remains a JavaScript analysis input. The deployment transition cannot use
 either JSON optimization; both immutable trees must already contain the exact
 pinned workflow, and current selected analyses and findings remain required.
+
+The exact pinned generation also excludes edits to existing ordinary `100644`
+native leaves with these case-sensitive suffixes: `.c`, `.cpp`, `.h`, `.hpp`,
+`.m`, `.mm`, `.qml`, `.vert`, `.frag` and `.glsl`. Both complete immutable
+inventories and both old/new Git blobs are required. The trusted reader bounds
+each blob to 4 MiB, the aggregate to 16 MiB and the inventory to 64 distinct
+blobs, verifies object hashes, and conservatively rejects non-UTF-8/binary or
+shebang content. No candidate source is imported or executed. Missing or
+unsupported proof keeps both scans selected.
+
+The reviewed JavaScript extractor may inspect native file headers, but none of
+these unsupported suffixes produces extracted source; Python default recursive
+discovery follows `.py`/`.pyw` and extensionless scripts. TypeScript's reviewed
+single-file parser cannot read these native bodies indirectly. Existing file
+membership preserves package and startup directory discovery. Additions,
+deletions, renames, executable/mode changes, unknown suffixes, extractor overrides,
+analysis controls, aliases and submodules cannot use this exception. Mixed
+language changes retain their required scans, while the independent required
+result gate recomputes the selection and still requires a successful current
+selector even when no language is selected. Product/native tests remain owned
+by their existing gates; scheduled CodeQL scans remain full.

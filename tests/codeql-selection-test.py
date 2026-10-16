@@ -3,6 +3,7 @@
 
 from copy import deepcopy
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -396,6 +397,83 @@ class LanguageSelectionTests(unittest.TestCase):
                     self.assertEqual(plan["reasons"][0]["code"], "unavailable-complete-inventory")
 
 
+class NativeLeafSelectionTests(unittest.TestCase):
+    def setUp(self):
+        self.before = reviewed_tree()
+        self.before['.github/workflows/codeql.yml']['sha'] = CODEQL._PINNED_RESULTS_WORKFLOW
+        self.after, self.blobs = deepcopy(self.before), {}
+
+    def put(self, tree, path, raw, mode='100644'):
+        oid = hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
+        self.blobs[oid] = raw
+        tree[path] = {'mode': mode, 'type': 'blob', 'sha': oid}
+
+    def native(self, path='native/Example.cpp', old=b'int value = 1;\n', new=b'int value = 2;\n'):
+        self.put(self.before, path, old); self.put(self.after, path, new)
+
+    def select(self, **options):
+        return CODEQL.select_languages(self.before,self.after,read_blob=self.blobs.__getitem__,**options)
+
+    def test_exact_existing_suffixes_skip_both_pinned_languages_with_old_and_new_blob_proof(self):
+        self.assertEqual(CODEQL._PINNED_NATIVE_EXTENSIONS,
+            {'.c','.cpp','.h','.hpp','.m','.mm','.qml','.vert','.frag','.glsl'})
+        for suffix in CODEQL._PINNED_NATIVE_EXTENSIONS:
+            self.native('native/Example'+suffix)
+        for event in ('pull_request','push'):
+            plan = self.select(event=event)
+            self.assertEqual(plan['languages'], [])
+            self.assertEqual(len(plan['changes']),10)
+            self.assertTrue(all(row['code']=='reviewed-pinned-native-source' for row in plan['reasons']))
+        self.assertTrue(CODEQL.select_languages(self.before,self.after)['full_scan'], 'no blob proof means full scans')
+
+    def test_shebang_binary_invalid_utf8_missing_or_mismatching_immutable_bytes_decline(self):
+        for raw in (b'#!/usr/bin/env python\nprint(1)\n', b'#!/usr/bin/env node\n',
+                    b'\xef\xbb\xbf#!/bin/unknown\n', b'\0native', b'\xffnative'):
+            self.native(new=raw)
+            with self.subTest(raw=raw):self.assertTrue(self.select()['full_scan'])
+        self.native()
+        for reader in (lambda oid: b'unbound bytes',lambda oid: 'not bytes',lambda oid: None):
+            self.assertTrue(CODEQL.select_languages(self.before,self.after,read_blob=reader)['full_scan'])
+        with patch.object(CODEQL,'_NATIVE_BLOB_BYTES',1):self.assertTrue(self.select()['full_scan'])
+        for failure in (OSError('unavailable'),CODEQL.inputs.InputError('unavailable'),subprocess.TimeoutExpired('git',10)):
+            with self.subTest(failure=type(failure).__name__):
+                def unavailable(_oid):raise failure
+                self.assertTrue(CODEQL.select_languages(self.before,self.after,read_blob=unavailable)['full_scan'])
+
+    def test_exact_case_membership_modes_and_both_endpoint_contents_are_mandatory(self):
+        for mutation in ('addition','deletion','rename','before-executable','after-executable','old-shebang'):
+            self.setUp();self.native()
+            if mutation=='addition':self.before.pop('native/Example.cpp')
+            elif mutation=='deletion':self.after.pop('native/Example.cpp')
+            elif mutation=='rename':self.after['native/Renamed.cpp']=self.after.pop('native/Example.cpp')
+            elif mutation=='before-executable':self.before['native/Example.cpp']['mode']='100755'
+            elif mutation=='after-executable':self.after['native/Example.cpp']['mode']='100755'
+            else:self.put(self.before,'native/Example.cpp',b'#!/usr/bin/python\n')
+            with self.subTest(mutation=mutation):self.assertTrue(self.select()['full_scan'])
+        for path in ('native/Example.CPP','native/Example.H','native/Example.cc','native/.eslintrc.cpp','native/.hidden.h'):
+            self.setUp();self.native(path)
+            with self.subTest(path=path):self.assertTrue(self.select()['full_scan'])
+
+    def test_mixed_known_languages_remain_selected_and_global_alias_pack_unknown_stay_full(self):
+        for changes,expected in (({'tools/check.py'},['python']),({'browser/src/main.ts'},['javascript-typescript']),
+                ({'tools/check.py','browser/src/main.ts'},list(CODEQL.LANGUAGES)),
+                ({'unknown.data'},list(CODEQL.LANGUAGES)),({'tools/repository-checks/codeql.py'},list(CODEQL.LANGUAGES))):
+            self.setUp();self.native()
+            for path in changes:self.after[path]=entry('b')
+            with self.subTest(changes=changes):self.assertEqual(self.select()['languages'],expected)
+        for mutation in ('old-workflow','config','symlink','gitlink','pack'):
+            self.setUp();self.native()
+            if mutation=='old-workflow':self.before['.github/workflows/codeql.yml']['sha']=CODEQL._RETARGET_RESULTS_WORKFLOW
+            elif mutation=='config':self.after['.github/codeql/codeql-config.yml']=entry('b')
+            elif mutation in ('symlink','gitlink'):
+                self.before['unrelated']=self.after['unrelated']=entry(mode='120000' if mutation=='symlink' else '160000')
+            else:
+                self.before['native/qlpack.yml']=self.after['native/qlpack.yml']=entry()
+            def no_blob(_oid):raise AssertionError('global safeguards precede native blob reads')
+            with self.subTest(mutation=mutation):
+                self.assertTrue(CODEQL.select_languages(self.before,self.after,read_blob=no_blob)['full_scan'])
+
+
 class ImmutableRepositoryTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="overte-codeql-selection-")
@@ -478,6 +556,40 @@ class ImmutableRepositoryTests(unittest.TestCase):
                 plan = CODEQL.select_repository(self.root, base, merge, event='pull_request')
                 self.assertEqual(plan['languages'], expected)
                 self.assertEqual(plan['commits'], {'base': base, 'candidate': merge})
+
+    def pinned_native_base(self):
+        self.write('.github/workflows/codeql.yml',
+                   (ROOT/'tools/repository-checks/workflows/metadata-edits/codeql-pinned.yml').read_text())
+        self.write('native/Example.cpp','int value = 1;\n')
+        return self.commit()
+
+    def test_real_native_blob_selection_ignores_dirty_checkout_and_bounds_unknown_inputs(self):
+        base=self.pinned_native_base()
+        self.write('native/Example.cpp','int value = 2;\n');head=self.commit()
+        self.write('native/Example.cpp','#!/usr/bin/python\nraise RuntimeError("dirty source must never execute")\n')
+        for event in ('pull_request','push'):
+            plan=CODEQL.select_repository(self.root,base,head,event=event)
+            self.assertEqual(plan['languages'],[])
+            self.assertEqual([x['path'] for x in plan['changes']],['native/Example.cpp'])
+        for constant,value in (('_NATIVE_BLOB_BYTES',1),('_NATIVE_TOTAL_BYTES',1),('_NATIVE_BLOB_COUNT',1)):
+            with self.subTest(constant=constant),patch.object(CODEQL,constant,value):
+                self.assertTrue(CODEQL.select_repository(self.root,base,head)['full_scan'])
+        for variable in ('LGTM_INDEX_FILETYPES','CODEQL_EXTRACTOR_JAVASCRIPT_OPTION_TEST',
+                         'CODEQL_EXTRACTOR_PYTHON_OPTION_TEST'):
+            with self.subTest(variable=variable),patch.dict(CODEQL.os.environ,{variable:'unreviewed'}):
+                self.assertTrue(CODEQL.select_repository(self.root,base,head)['full_scan'])
+
+    def test_genuine_native_merge_keeps_historical_language_inputs_and_native_membership_changes(self):
+        base=self.pinned_native_base()
+        self.write('tools/history.py','# historical child difference\n');historical=self.commit()
+        self.write('native/Example.cpp','int value = 2;\n');head=self.commit()
+        merge=self.git('commit-tree',self.git('rev-parse',head+'^{tree}'),'-p',base,'-p',head,'-m','Full history merge fixture')
+        plan=CODEQL.select_repository(self.root,base,merge)
+        self.assertEqual(plan['languages'],['python'])
+        self.assertEqual({x['path'] for x in plan['changes']},{'native/Example.cpp','tools/history.py'})
+        self.git('checkout','-q','--detach',base)
+        self.git('mv','native/Example.cpp','native/Renamed.cpp');renamed=self.commit()
+        self.assertTrue(CODEQL.select_repository(self.root,base,renamed)['full_scan'])
 
 
 RESULT_SPEC = importlib.util.spec_from_file_location("trusted_codeql_results", ROOT / "tools/repository-checks/codeql_results.py")
@@ -585,13 +697,15 @@ class SelectedResultTests(unittest.TestCase):
     def verify(self, **options):
         return RESULTS.Verifier(self.root, self.event, self.env, api=self.api, **options).verify(processing_seconds=0)
 
-    def pinned_policy_candidate(self, changed_path='.github/test-suites.json', extra_sources=None):
+    def pinned_policy_candidate(self, changed_path='.github/test-suites.json', extra_sources=None,
+                                existing_sources=None,replacement='{"fixture":2}\n'):
         """Real immutable two-parent candidate; only fake authenticated API I/O."""
         self.write(RESULTS.WORKFLOW,
                    (ROOT / 'tools/repository-checks/workflows/metadata-edits/codeql-pinned.yml').read_text())
         for path in CODEQL._PYTHON_POLICY_JSONS | CODEQL._INERT_CI_JSONS: self.write(path, '{"fixture":1}\n')
+        for path,source in (existing_sources or {}).items():self.write(path,source)
         self.base = self.commit()
-        self.write(changed_path, '{"fixture":2}\n')
+        self.write(changed_path,replacement)
         for path, source in (extra_sources or {}).items(): self.write(path, source)
         self.head = self.commit()
         self.candidate = self.git('commit-tree', self.git('rev-parse', self.head + '^{tree}'),
@@ -609,6 +723,19 @@ class SelectedResultTests(unittest.TestCase):
             'status': 'completed', 'conclusion': 'success',
             'started_at': '2026-10-15T21:00:02Z', 'completed_at': '2026-10-15T21:00:03Z'})
         self.analyses[0]['commit_sha'] = self.candidate
+
+    def test_pinned_native_edit_recomputed_from_real_git_still_requires_successful_current_selector(self):
+        self.pinned_policy_candidate('native/Example.cpp',existing_sources={'native/Example.cpp':'int value = 1;\n'},
+                                     replacement='int value = 2;\n')
+        self.env['CODEQL_EXPECTED_LANGUAGES']='[]'
+        selector=deepcopy(self.jobs[-1]);self.jobs,self.analyses=[selector],[]
+        self.assertEqual(self.verify()['languages'],[])
+        self.assertFalse(any('/code-scanning/' in call for call in self.api.calls))
+        self.jobs[0]['conclusion']='failure'
+        with self.assertRaises(RESULTS.ResultError):self.verify()
+        self.jobs=[selector]
+        self.env['CODEQL_EXPECTED_LANGUAGES']='["python"]'
+        with self.assertRaisesRegex(RESULTS.ResultError,'caller language plan differs'):self.verify()
 
     def test_pinned_ci_metadata_uses_real_git_and_still_requires_current_successful_selector(self):
         self.pinned_policy_candidate('.github/branch-cleanup.json')

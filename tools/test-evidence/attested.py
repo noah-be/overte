@@ -161,11 +161,18 @@ def validate_environment(environment, qualified_at, expires_at, now, *, root=ROO
     require(_time(policy["not_before"]) <= qualified <= now < expires
             and (expires - qualified).total_seconds() <= policy["max_age_seconds"],
             "original runtime proof is expired or outside the reviewed epoch")
+    if isolated:
+        try:
+            inputs.isolated_full_environment(environment)
+        except inputs.InputError as error:
+            raise AttestedReuseUnavailable("original isolated prepared environment is incomplete") from error
     inputs._environment(environment)
     require(len(inputs._canonical(environment)) <= 2_000_000, "recorded runtime exceeds its byte bound")
-    _fields(environment, {"schema", "profile", "os", "python", "tools", "qt", "glm", "system_packages", "flags", "trusted_execution"})
-    require(type(environment["schema"]) is int and environment["schema"] == 1
-            and environment["profile"] == "ubuntu24-host-qt5-qt6-v1", "unsupported original runtime generation")
+    _fields(environment, {"schema", "profile", "os", "python", "tools", "qt", "glm", "system_packages", "flags", "trusted_execution"}
+            | ({"prepared"} if isolated else set()))
+    require(type(environment["schema"]) is int and environment["schema"] == (inputs.ISOLATED_FULL_SCHEMA if isolated else 1)
+            and environment["profile"] == (inputs.ISOLATED_FULL_PROFILE if isolated else "ubuntu24-host-qt5-qt6-v1"),
+            "unsupported original runtime generation")
     operating = environment["os"]
     _fields(operating, {"architecture", "distribution", "kernel", "namespace", "runner", "timezone_digest", "version"})
     require((operating["distribution"], operating["version"], operating["architecture"]) == ("ubuntu", "24.04", "x86_64"),

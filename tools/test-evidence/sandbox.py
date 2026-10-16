@@ -444,9 +444,12 @@ class _StreamedObjects:
             "mode": 0o444, "size": stored_size, "sha256": stored_hash.hexdigest()}
         return raw, size
 
-    def verify(self, candidate):
+    def verify(self):
         # Three bounded Git invocations hash private ordinary spool files. No
         # checkout/filter executes, and no blob is loaded into Python memory.
+        # Git also validates .gitmodules referenced by a tree. Resolve those
+        # objects from the complete private stream, never reopen source packs
+        # whose mmap window may exceed this verifier's address-space bound.
         for kind in ("commit", "tree", "blob"):
             items = [(oid, path) for oid, (actual, path, _size) in self.objects.items() if actual == kind]
             if not items:
@@ -454,7 +457,7 @@ class _StreamedObjects:
             paths = "".join(str(path) + "\n" for _oid, path in items).encode("ascii")
             remaining = self.deadline - time.monotonic()
             _require(remaining > 0, "streamed snapshot verification deadline exceeded")
-            observed = _git(candidate, "hash-object", "-t", kind, "--no-filters", "--stdin-paths", input_bytes=paths,
+            observed = _git(self.destination, "hash-object", "-t", kind, "--no-filters", "--stdin-paths", input_bytes=paths,
                             limit=len(items) * 41, timeout=min(120, remaining), bounded=True)
             _require(observed.splitlines() == [oid.encode("ascii") for oid, _path in items], "streamed object hash differs")
 
@@ -543,7 +546,7 @@ def materialize_candidate_snapshot(candidate, revision, destination, *, context_
                         parents.append(row[7:].decode("ascii"))
                 commits[oid] = {"commit": oid, "tree": header[0][5:].decode("ascii"), "parents": parents}
                 tree(commits[oid]["tree"], write=oid == revision)
-            reader.verify(candidate)
+            reader.verify()
             objects = len(reader.objects)
             stored = dict(reader.stored)
         finally:

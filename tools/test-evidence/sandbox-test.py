@@ -515,6 +515,29 @@ class StreamedCandidateTests(GitFixture):
         self.assertEqual((destination / "first/shared.py").read_bytes(), (destination / "second/shared.py").read_bytes())
         self.assertEqual((destination / "first/shared.py").stat().st_nlink, 1)
 
+    def test_complete_stream_does_not_reopen_the_original_object_store_for_hash_verification(self):
+        (self.repository / ".gitmodules").write_text("# Public metadata; no submodule checkout.\n")
+        self.commit()
+        original = S._StreamedObjects.verify
+        source_objects = self.repository / ".git/objects"
+        closed_objects = self.root / "closed-original-objects"
+        expected = (self.repository / "test.py").read_bytes()
+
+        def verify(reader, *arguments):
+            # Independent verification must need only the bounded private
+            # stream, even when the original packed store is no longer usable.
+            source_objects.rename(closed_objects)
+            try:
+                return original(reader, *arguments)
+            finally:
+                closed_objects.rename(source_objects)
+
+        with patch.object(S._StreamedObjects, "verify", verify):
+            destination, value = self.snapshot()
+        self.assertEqual((destination / "test.py").read_bytes(), expected)
+        self.assertEqual(value["identity"]["commit"], self.revision)
+        self.assertEqual(self.status(destination, "status", "--porcelain"), "")
+
     def test_real_object_count_above_legacy_4096_limit_materializes_completely(self):
         folder = self.repository / "many"
         folder.mkdir()

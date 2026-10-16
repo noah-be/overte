@@ -472,7 +472,8 @@ def shared_execution(candidate, event, environment, adapter):
             context = prepare(snapshot_path, event, environment, adapter)
             try:
                 prepared = shared.prepared_tools(environment,profile=context['profile'])
-                installed = shared.prepared_identity(shared.identity_roots(prepared))
+                installed = shared.prepared_identity(shared.identity_roots(prepared),
+                    external_inputs=shared.prepared_external_inputs(prepared))
             except (host.Unavailable,OSError) as error:
                 if context['profile'] != ci_profile.PROFILE:
                     raise

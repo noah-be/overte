@@ -24,6 +24,18 @@ def signed(value, field):
     return result
 
 
+def isolated_codec_environment():
+    """New E's codec shape only; runtime admission is tested in attested-test."""
+    return {'schema': P.inputs.ISOLATED_FULL_SCHEMA, 'profile': P.inputs.ISOLATED_FULL_PROFILE,
+        'os': {}, 'python': {'version': '3.12.15'},
+        'tools': {'node': {'version': 'v22.23.3'}}, 'qt': {}, 'glm': {},
+        'system_packages': {}, 'flags': {}, 'trusted_execution': {},
+        'prepared': {'schema': 1, 'external_inputs': [P.inputs.ISOLATED_CACERTS],
+            'roots': dict.fromkeys((P.inputs.ISOLATED_VENV, P.inputs.ISOLATED_JDK,
+                '/opt/hostedtoolcache/Python/3.12.15/x64', '/opt/hostedtoolcache/node/22.23.3/x64',
+                P.inputs.ISOLATED_CACERTS), 'sha256:' + 'a' * 64)}}
+
+
 class ProducerProtocolTests(unittest.TestCase):
     def setUp(self):
         self.binding = {
@@ -495,6 +507,41 @@ class MaterializedGitContextTests(unittest.TestCase):
         legacy.policy = replace(legacy.policy, required_execution_schema=3)
         legacy.aggregate["descriptor_digest"] = P.descriptor(legacy.binding, legacy.plan, legacy.policy, legacy.run)["descriptor_digest"]
         with self.assertRaises(P.ProtocolError):legacy.verify(signed(legacy.aggregate, "aggregate_digest"))
+
+    def test_isolated_prepared_e_roundtrips_and_cannot_change_under_original_native_commitment(self):
+        case = self.fixture()
+        environment = isolated_codec_environment()
+        case.context = replace(case.context, environment=deepcopy(environment))
+        case.receipt['environment'] = deepcopy(environment)
+        case.receipt['results'] = {name: {'status': 'passed', 'fingerprint': P.inputs.suite_fingerprint(
+            case.registry, name, case.tree, environment)} for name in case.registry['suites']}
+        case.receipt = signed(case.receipt, 'receipt_digest')
+        case.run = replace(case.run, final_publisher=replace(case.run.final_publisher,
+            receipt_sha256=hashlib.sha256(P.canonical(case.receipt)).hexdigest()))
+        case.aggregate['results']['shared-host']['receipt'] = case.receipt
+        case.aggregate = signed(case.aggregate, 'aggregate_digest')
+        with patch.object(P.execution, 'capture_execution_environment', side_effect=AssertionError('no consumer E')):
+            self.assertTrue(case.verify()['verified'])
+        self.assertEqual(json.loads(P.canonical(case.receipt))['environment'], environment)
+        for path in (P.inputs.ISOLATED_VENV, P.inputs.ISOLATED_CACERTS):
+            changed = deepcopy(environment)
+            changed['prepared']['roots'][path] = 'sha256:' + 'b' * 64
+            with self.subTest(path=path):
+                with self.assertRaises(P.ProtocolError):
+                    case.verify(contexts={'shared-host': replace(case.context, environment=changed)})
+                altered = deepcopy(case.receipt)
+                altered['environment'] = changed
+                with self.assertRaises(P.execution.ExecutionError):
+                    P.execution.validate_receipt(signed(altered, 'receipt_digest'), case.registry, case.tree,
+                                                 expected_git_context=case.context.git_context)
+                altered['results'] = {name: {'status': 'passed', 'fingerprint': P.inputs.suite_fingerprint(
+                    case.registry, name, case.tree, changed)} for name in case.registry['suites']}
+                altered = signed(altered, 'receipt_digest')
+                self.assertNotEqual(hashlib.sha256(P.canonical(altered)).hexdigest(), case.run.final_publisher.receipt_sha256)
+                aggregate = deepcopy(case.aggregate); aggregate['results']['shared-host']['receipt'] = altered
+                with self.assertRaises(P.ProtocolError):
+                    case.verify(signed(aggregate, 'aggregate_digest'),
+                                contexts={'shared-host': replace(case.context, environment=changed)})
 
     def test_context_tampering_is_rejected_even_with_recomputed_public_digests(self):
         for mutation in ('parents', 'extra', 'missing', 'shallow', 'tree', 'mode', 'profile'):

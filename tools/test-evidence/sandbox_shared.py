@@ -29,6 +29,9 @@ ROOT = Path(__file__).resolve().parents[2]
 VENV = Path('/opt/overte-ci/venv')
 PROFILE = 'manual-shared-host-compatibility-v1'
 FULL_ENVIRONMENT = 'ubuntu24-host-qt5-qt6-v1'
+_TEMURIN17_HOME = Path('/usr/lib/jvm/temurin-17-jdk-amd64')
+_TEMURIN17_CACERTS = Path('/etc/ssl/certs/adoptium/cacerts')
+_CACERTS_MAX_BYTES = 4 * 1024 ** 2
 
 
 def sources():
@@ -126,9 +129,54 @@ def identity_roots(prepared):
     return tuple(dict.fromkeys((*prepared[0], *(() if prepared[3] is None else (prepared[3],)))))
 
 
-def prepared_identity(toolchains):
+def _prepared_external_input(roots, external_inputs):
+    """One reviewed Debian Temurin17 data leaf, never a general alias escape."""
+    host.require(type(external_inputs) is tuple and external_inputs in ((), (_TEMURIN17_CACERTS,)),
+                 'unsupported prepared external inputs')
+    if not external_inputs:
+        return None
+    host.require(_TEMURIN17_HOME in roots, 'prepared external input lacks its bound Temurin17 root')
+    alias = _TEMURIN17_HOME / 'lib/security/cacerts'
+    alias_info = alias.lstat()
+    host.require(stat.S_ISLNK(alias_info.st_mode) and alias_info.st_uid == 0
+                 and os.readlink(alias) == str(_TEMURIN17_CACERTS),
+                 'prepared external input has an unsupported Java alias')
+    parents = []
+    for path in sorted({*alias.parents, *_TEMURIN17_CACERTS.parents}, key=str):
+        info = path.lstat()
+        host.require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022,
+                     'prepared external input parent is aliased or mutable')
+        parents.append([str(path), {'mode': stat.S_IMODE(info.st_mode), 'uid': info.st_uid, 'gid': info.st_gid}])
+    info = _TEMURIN17_CACERTS.lstat()
+    host.require(stat.S_ISREG(info.st_mode) and info.st_uid == 0
+                 and stat.S_IMODE(info.st_mode) in {0o444, 0o644}
+                 and 0 < info.st_size <= _CACERTS_MAX_BYTES,
+                 'prepared external input is not a protected bounded certificate store')
+    host.require(alias.resolve(strict=True) == _TEMURIN17_CACERTS,
+                 'prepared external input resolution differs')
+    return {'alias': {'path': str(alias), 'target': os.readlink(alias),
+                      'mode': stat.S_IMODE(alias_info.st_mode), 'uid': alias_info.st_uid, 'gid': alias_info.st_gid},
+            'parents': parents, 'leaf': {'mode': stat.S_IMODE(info.st_mode), 'uid': info.st_uid,
+                                       'gid': info.st_gid, 'size': info.st_size}}
+
+
+def prepared_external_inputs(prepared):
+    """Select the fixed leaf only when the actual prepared Java references it."""
+    java = prepared[3]
+    if java != _TEMURIN17_HOME:
+        return ()
+    alias = java / 'lib/security/cacerts'
+    if not alias.is_symlink() or os.readlink(alias) != str(_TEMURIN17_CACERTS):
+        return ()
+    selected = (_TEMURIN17_CACERTS,)
+    _prepared_external_input(identity_roots(prepared), selected)
+    return selected
+
+
+def prepared_identity(toolchains, *, external_inputs=()):
     """Bind all mounted prepared files, modes and aliases once per batch side."""
     roots = (VENV, *toolchains)
+    external = _prepared_external_input(roots, external_inputs)
     result, entries, size = {}, 0, 0
     for root in roots:
         root_info = root.lstat()
@@ -147,7 +195,9 @@ def prepared_identity(toolchains):
                 relative = path.relative_to(root).as_posix()
                 if stat.S_ISLNK(info.st_mode):
                     target = path.resolve(strict=True)
-                    host.require(any(target.is_relative_to(allowed) for allowed in (*roots, Path('/usr'))),
+                    fixed_external = (external is not None and path == _TEMURIN17_HOME / 'lib/security/cacerts'
+                                      and target == _TEMURIN17_CACERTS)
+                    host.require(fixed_external or any(target.is_relative_to(allowed) for allowed in (*roots, Path('/usr'))),
                                  'prepared tool alias escapes readonly mounts')
                     value = {'alias': os.readlink(path)}
                 elif stat.S_ISDIR(info.st_mode):
@@ -161,6 +211,12 @@ def prepared_identity(toolchains):
                              'sha256': sandbox._file_hash(path)}
                 digest.update(sandbox._canonical([relative, value]))
         result[str(root)] = 'sha256:' + digest.hexdigest()
+    if external is not None:
+        content = sandbox._file_hash(_TEMURIN17_CACERTS)
+        host.require(_prepared_external_input(roots, external_inputs) == external,
+                     'prepared external input changed during identification')
+        external['leaf']['sha256'] = content
+        result[str(_TEMURIN17_CACERTS)] = 'sha256:' + hashlib.sha256(sandbox._canonical(external)).hexdigest()
     return result
 
 
@@ -183,6 +239,8 @@ def shared_plan(layout, command, prepared, environment):
     # Locate the command separator rather than relying on caller argument count.
     split = plan['argv'].index('--')
     argv = plan['argv'][:split]
+    for path in prepared_external_inputs(prepared):
+        argv += ['--ro-bind', str(path), str(path)]
     for name, value in sorted(effective.items()):
         argv += ['--setenv', name, value]
     plan['argv'] = [*argv, '--', *plan['argv'][split + 1:]]
@@ -221,7 +279,9 @@ def validate_probe(result, binding, uid, gid):
     complete = (identity.get('schema') == 2 and identity.get('profile') == ci_profile.PROFILE
                 and identity.get('selection') == binding.get('profile_binding')
                 and not {'qt','glm','java'} & identity.keys()) if quick else (
-                identity.get('schema') == 1 and identity.get('profile') == FULL_ENVIRONMENT
+                identity.get('schema') == inputs.ISOLATED_FULL_SCHEMA
+                 and identity.get('profile') == inputs.ISOLATED_FULL_PROFILE
+                 and identity.get('prepared', {}).get('roots') == binding['prepared']
                  and set(identity.get('qt', {}).get('modules', {})) == set(runtime._QT_MODULES)
                  and set(identity.get('glm', {})) == {'header_digest', 'configuration_digest'})
     host.require(common and complete,
@@ -362,7 +422,9 @@ def check_batch(batch, registry, cancelled, installed, *, names=None, admit=None
     after = batch.probe(cancelled)
     host.require(before == after, 'full protected shared-host environment changed after kernel cleanup')
     sandbox.verify_snapshot(batch.candidate, batch.snapshot)
-    host.require(sandbox._files(batch.policy) == batch.projection and prepared_identity(identity_roots(batch.prepared)) == installed,
+    host.require(sandbox._files(batch.policy) == batch.projection
+                 and prepared_identity(identity_roots(batch.prepared),
+                                       external_inputs=prepared_external_inputs(batch.prepared)) == installed,
                  'readonly prepared inputs changed across shared-host batch')
     return statuses, before, after
 
@@ -384,7 +446,7 @@ def run_host(*, profile=FULL_ENVIRONMENT):
     uid, gid = host.verify_account(runner)
     names = verify_source(os.environ['GITHUB_SHA'])
     prepared = prepared_tools(os.environ, profile=profile) if quick else prepared_tools(os.environ)
-    installed = prepared_identity(identity_roots(prepared))
+    installed = prepared_identity(identity_roots(prepared), external_inputs=prepared_external_inputs(prepared))
     delegated = host.prepare_delegation()
     registry = inputs.load_registry(ROOT / '.github/test-suites.json')
     host.require(all(entry['environment'] == 'host-qt5-qt6' and entry['command'][0] in {'python', 'node'}

@@ -1170,7 +1170,8 @@ class MainConsumerTests(unittest.TestCase):
         self.case.plan['owners']['shared-host']['include_platform'] = True
         self.git = postmerge.producer.expected_git_context(self.adapter, self.case.binding)
         receipt = deepcopy(self.case.aggregate['results']['shared-host']['receipt'])
-        receipt.update(schema=3, git_context=self.git, include_platform=True)
+        receipt.update(schema=3, git_context=self.git, include_platform=True,
+                       environment=FIXTURES.isolated_codec_environment())
         receipt['results'] = {name:{'status':'passed','fingerprint':P.inputs.suite_fingerprint(
             self.registry,name,self.tree,receipt['environment'])} for name in self.registry['suites']}
         self.receipt = FIXTURES.signed(receipt,'receipt_digest')
@@ -1230,6 +1231,27 @@ class MainConsumerTests(unittest.TestCase):
         self.assertFalse(proof['reusable'])
         self.assertFalse(proof['package_work'])
         self.assertEqual(self.receipt['candidate_commit'],self.case.binding['merge_sha'])
+        self.assertEqual(self.receipt['environment']['profile'],self.module.inputs.ISOLATED_FULL_PROFILE)
+        self.assertIn(self.module.inputs.ISOLATED_CACERTS,self.receipt['environment']['prepared']['roots'])
+        self.assertEqual(self.module.attested.validate_environment.call_args.args[0],self.receipt['environment'])
+
+    def test_changed_prepared_identity_cannot_keep_original_fingerprints_or_native_receipt_hash(self):
+        run = self.adapter.capture_integrated(500,self.case.plan,self.case.policy,now=NOW).observations[0].run
+        for path in (self.module.inputs.ISOLATED_VENV,self.module.inputs.ISOLATED_CACERTS):
+            original = deepcopy((self.case.aggregate,self.case.artifacts,self.case.archives))
+            changed = deepcopy(self.receipt)
+            changed['environment']['prepared']['roots'][path] = 'sha256:' + 'b'*64
+            for renew_fingerprints in (False,True):
+                if renew_fingerprints:
+                    changed['results'] = {name:{'status':'passed','fingerprint':P.inputs.suite_fingerprint(
+                        self.registry,name,self.tree,changed['environment'])} for name in self.registry['suites']}
+                self.case.aggregate['results']['shared-host']['receipt'] = FIXTURES.signed(changed,'receipt_digest')
+                self.case.aggregate = FIXTURES.signed(self.case.aggregate,'aggregate_digest')
+                self.case.artifacts[100] = self.case.artifacts[100][:1]
+                self.case.artifact(run,'aggregate',self.case.aggregate)
+                with self.subTest(path=path,renew_fingerprints=renew_fingerprints):
+                    self.assertFalse(self.lookup()['reused'])
+            self.case.aggregate,self.case.artifacts,self.case.archives = original
 
     def test_current_canonical_producer_generation_reaches_original_native_commitment(self):
         self.assertEqual(self.real_package.validate_tree_wiring(self.tree),'protected-producer-ci37-v1')

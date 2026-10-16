@@ -69,12 +69,20 @@ class RuntimeFixture(unittest.TestCase):
     def admit(self, environment=None, qualified=QUALIFIED, expires=EXPIRES, now=NOW):
         return A.validate_environment(self.environment if environment is None else environment, qualified, expires, now, root=self.root)
 
+    def isolated(self, *, certificate=False):
+        self.policy['flags'].update(git_process_overrides='maintenance-disabled-safe-work', LC_ALL='C.UTF-8')
+        self.write_policy(); self.environment['flags'] = deepcopy(self.policy['flags']); self.bind_controller()
+        self.environment.update(schema=inputs.ISOLATED_FULL_SCHEMA, profile=inputs.ISOLATED_FULL_PROFILE,
+            prepared={'schema': 1, 'external_inputs': [inputs.ISOLATED_CACERTS] if certificate else [],
+                'roots': dict.fromkeys((inputs.ISOLATED_VENV, inputs.ISOLATED_JDK,
+                    '/opt/hostedtoolcache/Python/3.12.15/x64', '/opt/hostedtoolcache/node/22.23.3/x64',
+                    *((inputs.ISOLATED_CACERTS,) if certificate else ())), HASH)})
+        return self.environment
+
 
 class AdmissionTests(RuntimeFixture):
     def test_isolated_work_exception_needs_separate_source_capability_and_exact_trusted_policy(self):
-        self.policy['flags']['git_process_overrides'] = 'maintenance-disabled-safe-work'
-        self.policy['flags']['LC_ALL'] = 'C.UTF-8'
-        self.write_policy(); self.environment['flags'] = deepcopy(self.policy['flags']); self.bind_controller()
+        self.isolated()
         with patch.object(A,'ISOLATED_ADMISSION_READY',False), self.assertRaises(A.AttestedReuseUnavailable):
             A.validate_environment(self.environment,QUALIFIED,EXPIRES,NOW,root=self.root,isolated=True)
         with patch.object(A,'ISOLATED_ADMISSION_READY',True):
@@ -99,6 +107,33 @@ class AdmissionTests(RuntimeFixture):
                     A.load_policy(self.root,isolated=True)
                 self.policy['flags'][name]=original
         self.assertFalse(A.ACTIVATION_READY)
+
+    def test_isolated_generation_requires_every_prepared_identity_and_retains_original_without_queries(self):
+        self.isolated(certificate=True)
+        original = deepcopy(self.environment)
+        with (patch.object(A, 'ISOLATED_ADMISSION_READY', True),
+              patch.object(runtime, 'capture_isolated_host_environment', side_effect=AssertionError('unused consumer E')),
+              patch.object(runtime, '_command', side_effect=AssertionError('no consumer tool queries'))):
+            value = A.validate_environment(original, QUALIFIED, EXPIRES, NOW, root=self.root, isolated=True)
+            self.assertEqual(value['environment_digest'], A._digest(original))
+            self.assertEqual(original, self.environment)
+            for mutation in ('legacy', 'prepared', 'extra', 'root', 'certificate', 'external', 'digest', 'version'):
+                changed = deepcopy(original)
+                if mutation == 'legacy':
+                    changed.update(schema=1, profile='ubuntu24-host-qt5-qt6-v1'); changed.pop('prepared')
+                elif mutation == 'prepared':changed.pop('prepared')
+                elif mutation == 'extra':changed['prepared']['unexpected'] = True
+                elif mutation == 'root':changed['prepared']['roots']['/unknown'] = HASH
+                elif mutation == 'certificate':changed['prepared']['roots'].pop(inputs.ISOLATED_CACERTS)
+                elif mutation == 'external':changed['prepared']['external_inputs'] = []
+                elif mutation == 'digest':changed['prepared']['roots'][inputs.ISOLATED_VENV] = 'unknown'
+                else:changed['python']['version'] = '3.12.99'
+                with self.subTest(mutation=mutation), self.assertRaises(A.AttestedReuseUnavailable):
+                    A.validate_environment(changed, QUALIFIED, EXPIRES, NOW, root=self.root, isolated=True)
+            changed = deepcopy(original)
+            changed['prepared']['roots'][inputs.ISOLATED_CACERTS] = 'sha256:' + 'b' * 64
+            other = A.validate_environment(changed, QUALIFIED, EXPIRES, NOW, root=self.root, isolated=True)
+            self.assertNotEqual(value['environment_digest'], other['environment_digest'])
 
     def test_original_environment_is_retained_without_measuring_or_installing_consumer(self):
         original = deepcopy(self.environment)

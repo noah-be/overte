@@ -497,3 +497,40 @@ def capture_host_environment() -> dict:
     }
     # Make the contract explicitly JSON-only and independent of insertion order.
     return json.loads(json.dumps(identity, sort_keys=True, separators=(",", ":"), allow_nan=False))
+
+
+def capture_isolated_host_environment(prepared: dict) -> dict:
+    """Capture full E inside the protected namespace after readonly mount proof.
+
+    ``prepared`` comes from the root-owned projected binding, measured before
+    execution and independently rehashed after cleanup. Its authenticated
+    readonly mounts avoid a redundant full installation reread in each probe.
+    Callers outside that protected protocol gain no evidence authority here.
+    """
+    # The tiny boundary-only projection deliberately has no inputs.py. Only
+    # the full protected policy projection enters this capture implementation.
+    import inputs
+
+    identity = capture_host_environment()
+    try:
+        python = Path(sys.base_prefix).resolve(strict=True)
+        node = _checked_executable("node").parent.parent
+        java = _identified_java_home()
+        expected_python = Path("/opt/hostedtoolcache/Python") / identity["python"]["version"] / "x64"
+        expected_node = Path("/opt/hostedtoolcache/node") / identity["tools"]["node"]["version"].removeprefix("v") / "x64"
+        if Path(sys.prefix) != Path(inputs.ISOLATED_VENV) or python != expected_python or node != expected_node \
+                or java != Path(inputs.ISOLATED_JDK) \
+                or _checked_executable("node") != node / "bin/node":
+            raise _fail("isolated prepared roots differ from actual runtime tools")
+        alias = java / "lib/security/cacerts"
+        external = [inputs.ISOLATED_CACERTS] if alias.is_symlink() \
+            and os.readlink(alias) == inputs.ISOLATED_CACERTS else []
+        if external and alias.resolve(strict=True) != Path(inputs.ISOLATED_CACERTS):
+            raise _fail("isolated prepared certificate alias differs from its bound input")
+        identity.update(schema=inputs.ISOLATED_FULL_SCHEMA, profile=inputs.ISOLATED_FULL_PROFILE,
+                        prepared={"schema": 1, "roots": prepared, "external_inputs": external})
+        inputs._environment(identity)
+    except (OSError, RuntimeError, inputs.InputError, KeyError, TypeError) as error:
+        raise _fail("isolated prepared runtime identity is incomplete") from error
+    # Do not retain a mutable alias to the projected binding or caller's map.
+    return json.loads(json.dumps(identity, sort_keys=True, separators=(",", ":"), allow_nan=False))

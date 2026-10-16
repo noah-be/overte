@@ -1225,7 +1225,11 @@ class SharedHostCompatibilityTests(unittest.TestCase):
             layout = sandbox.Layout(*paths)
             prepared = ((), Path("/opt/hostedtoolcache/Python/3.12.12/x64"),
                         Path("/opt/hostedtoolcache/node/22.20.0/x64"), Path("/usr/lib/jvm/temurin-17-jdk-amd64"))
-            plan = SHARED.shared_plan(layout, ["python", "tests/fake.py", "--require-qml"], prepared, {})
+            # This fixture checks the command/mount plan, not the local JDK's
+            # ownership. Real temporary certificate aliases are covered below.
+            with patch.object(SHARED, "prepared_external_inputs", return_value=()) as external:
+                plan = SHARED.shared_plan(layout, ["python", "tests/fake.py", "--require-qml"], prepared, {})
+            external.assert_called_once_with(prepared)
             args = plan["argv"]
             self.assertEqual(args[-3:], ["/opt/overte-ci/venv/bin/python", "tests/fake.py", "--require-qml"])
             triples = [args[i + 1:i + 3] for i, value in enumerate(args) if value == "--setenv"]
@@ -1277,9 +1281,9 @@ class SharedHostCompatibilityTests(unittest.TestCase):
               patch.object(probe.socket, "socket"), patch.object(probe.fcntl, "ioctl", return_value=b"\0" * 16 + b"\1\0"),
               patch.object(probe, "process_observation", return_value={"fixture": "not real process proof"}),
               patch.object(probe.os, "stat", return_value=SimpleNamespace(st_ino=123)),
-              patch.object(probe.runtime, "capture_host_environment", side_effect=error) as capture):
+              patch.object(probe.runtime, "capture_isolated_host_environment", side_effect=error) as capture):
             with self.assertRaises(probe.runtime.RuntimeIdentityError):probe.measure_shared_host()
-            capture.assert_called_once_with()
+            capture.assert_called_once_with(binding['prepared'])
             capture.side_effect = None
             capture.return_value = {"fixture": "fake complete-runtime call only, no actual E qualification"}
             result = probe.measure_shared_host()
@@ -1756,6 +1760,206 @@ class ProtectedSelectedProducerTests(unittest.TestCase):
             'Publish final producer ${{ needs.project-tests.outputs.receipt_sha256 }}')
         active=(H.ROOT/'.github/workflows/project-tests.yml').read_bytes()
         self.assertNotEqual(active,(H.ROOT/p.TEMPLATE).read_bytes())
+
+class SharedHostPreparedExternalInputsTests(unittest.TestCase):
+    """Real temporary aliases and bytes with fake protected-root ownership."""
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.base = Path(self.temporary.name)
+        self.java = self.base / 'jdk'
+        self.venv = self.base / 'venv'
+        self.target = self.base / 'etc/ssl/certs/adoptium/cacerts'
+        self.alias = self.java / 'lib/security/cacerts'
+        self.venv.mkdir()
+        self.alias.parent.mkdir(parents=True)
+        self.target.parent.mkdir(parents=True)
+        self.target.write_bytes(b'fixed fake certificate-store bytes')
+        self.alias.symlink_to(self.target)
+        self.prepared = ((), self.base / 'python', self.base / 'node', self.java)
+        self.foreign = set()
+        original = Path.lstat
+        def protected(path, *args, **kwargs):
+            info = original(path, *args, **kwargs)
+            if path == self.base or self.base in path.parents or path in self.base.parents:
+                values = list(info)
+                values[4] = 1001 if path in self.foreign else 0
+                values[5] = 0
+                if path in self.base.parents:
+                    values[0] &= ~0o022
+                return os.stat_result(values)
+            return info
+        self.patches = ExitStack()
+        self.addCleanup(self.patches.close)
+        self.patches.enter_context(patch.object(Path, 'lstat', protected))
+        self.patches.enter_context(patch.object(SHARED, 'VENV', self.venv))
+        self.patches.enter_context(patch.object(SHARED, '_TEMURIN17_HOME', self.java))
+        self.patches.enter_context(patch.object(SHARED, '_TEMURIN17_CACERTS', self.target))
+
+    def identity(self):
+        return SHARED.prepared_identity((self.java,), external_inputs=SHARED.prepared_external_inputs(self.prepared))
+
+    def test_generic_identity_still_rejects_external_java_alias(self):
+        with self.assertRaisesRegex(H.Unavailable, 'prepared tool alias escapes readonly mounts'):
+            SHARED.prepared_identity((self.java,))
+
+    def test_exact_reference_adds_the_certificate_identity_only_with_explicit_admission(self):
+        self.assertEqual(SHARED.prepared_external_inputs(self.prepared), (self.target,))
+        observed = self.identity()
+        self.assertEqual(set(observed), {str(self.venv), str(self.java), str(self.target)})
+        self.assertTrue(all(value.startswith('sha256:') for value in observed.values()))
+        before = deepcopy(observed)
+        self.target.write_bytes(b'changed fake certificate-store bytes')
+        changed = self.identity()
+        self.assertNotEqual(changed[str(self.target)], before[str(self.target)])
+        self.assertEqual(changed[str(self.java)], before[str(self.java)])
+        self.target.chmod(0o444)
+        self.assertNotEqual(self.identity()[str(self.target)], changed[str(self.target)])
+
+    def test_direct_call_cannot_forge_an_unbound_or_arbitrary_external_input(self):
+        for selected in ([self.target], (self.target, self.target), (self.base / 'other',)):
+            with self.subTest(selected=selected), self.assertRaises(H.Unavailable):
+                SHARED.prepared_identity((self.java,), external_inputs=selected)
+        with self.assertRaises(H.Unavailable):
+            SHARED.prepared_identity((), external_inputs=(self.target,))
+        unknown = self.java / 'lib/security/unknown'
+        unknown.symlink_to(self.target)
+        with self.assertRaisesRegex(H.Unavailable, 'prepared tool alias escapes readonly mounts'):
+            self.identity()
+
+    def test_other_alias_target_is_rejected_even_with_a_forged_fixed_tuple(self):
+        other = self.base / 'other-store'
+        other.write_bytes(b'other')
+        self.alias.unlink()
+        self.alias.symlink_to(other)
+        self.assertEqual(SHARED.prepared_external_inputs(self.prepared), ())
+        with self.assertRaises(H.Unavailable):self.identity()
+        with self.assertRaises(H.Unavailable):
+            SHARED.prepared_identity((self.java,), external_inputs=(self.target,))
+
+    def test_mutable_or_foreign_leaf_alias_or_parent_is_rejected(self):
+        for path in (self.target, self.target.parent, self.alias.parent):
+            with self.subTest(path=path, change='mode'):
+                original = path.stat().st_mode
+                path.chmod(0o666 if path == self.target else 0o775)
+                try:
+                    with self.assertRaises(H.Unavailable):self.identity()
+                finally:path.chmod(original)
+        for path in (self.target, self.alias, self.target.parent, self.alias.parent):
+            with self.subTest(path=path, change='owner'):
+                self.foreign.add(path)
+                try:
+                    with self.assertRaises(H.Unavailable):self.identity()
+                finally:self.foreign.remove(path)
+
+    def test_symlink_or_directory_certificate_leaf_is_rejected(self):
+        self.target.unlink()
+        other = self.base / 'other-store'
+        other.write_bytes(b'other')
+        self.target.symlink_to(other)
+        with self.assertRaises(H.Unavailable):self.identity()
+        self.target.unlink()
+        self.target.mkdir()
+        with self.assertRaises(H.Unavailable):self.identity()
+
+    def test_certificate_modes_cannot_grant_write_execute_or_special_permissions(self):
+        for mode in (0o664, 0o600, 0o755, 0o4755):
+            with self.subTest(mode=oct(mode)):
+                self.target.chmod(mode)
+                with self.assertRaises(H.Unavailable):self.identity()
+
+    def test_aliased_parent_and_oversized_or_empty_leaf_are_rejected(self):
+        for size in (0, SHARED._CACERTS_MAX_BYTES + 1):
+            with self.subTest(size=size):
+                with self.target.open('wb') as output:output.truncate(size)
+                with self.assertRaises(H.Unavailable):self.identity()
+        self.target.write_bytes(b'bounded')
+        parent = self.target.parent
+        moved = parent.with_name('moved-store')
+        parent.rename(moved)
+        parent.symlink_to(moved, target_is_directory=True)
+        with self.assertRaises(H.Unavailable):self.identity()
+
+    def test_no_java_or_unreferenced_leaf_adds_no_external_identity_or_mount(self):
+        no_java = (*self.prepared[:3], None)
+        self.assertEqual(SHARED.prepared_external_inputs(no_java), ())
+        self.target.chmod(0o666)
+        self.assertEqual(set(SHARED.prepared_identity(())), {str(self.venv)})
+        with patch.object(SHARED.sandbox, 'build_plan', return_value={'argv': ['bwrap', '--', 'fixed']}):
+            no_java_plan = SHARED.shared_plan(None, ['python', 'fixture.py'], no_java, {})
+        self.assertNotIn(str(self.target), no_java_plan['argv'])
+        self.target.chmod(0o644)
+        self.alias.unlink()
+        self.alias.write_bytes(b'ordinary bundled store')
+        self.assertEqual(SHARED.prepared_external_inputs(self.prepared), ())
+        self.assertNotIn(str(self.target), self.identity())
+
+    def test_plan_binds_only_the_exact_referenced_readonly_leaf(self):
+        with patch.object(SHARED.sandbox, 'build_plan', return_value={'argv': ['bwrap', '--', 'fixed']}):
+            plan = SHARED.shared_plan(None, ['python', 'fixture.py'], self.prepared, {})
+        args = plan['argv']
+        mounts = [args[index + 1:index + 3] for index, value in enumerate(args) if value == '--ro-bind']
+        self.assertEqual(mounts, [[str(self.target), str(self.target)]])
+        self.assertNotIn('/etc', args)
+        self.assertNotIn(str(self.target.parent), args)
+
+    def test_protected_probe_requires_the_bound_leaf_mount_to_be_readonly(self):
+        import sandbox_probe as probe
+        binding = {'profile': SHARED.PROFILE, 'prepared': {str(self.target): 'fake-fixed-digest'}}
+        paths = ('/usr', '/work', '/overte-policy', '/opt/overte-ci/venv', '/work/build')
+        base_mounts = '\n'.join(f'1 0 0:1 / {path} {"rw" if path.endswith("/build") else "ro"} - tmpfs tmpfs rw' for path in paths)
+        for flags in (None, 'rw', 'ro'):
+            mounts = base_mounts + ('' if flags is None else f'\n1 0 0:1 / {self.target} {flags} - tmpfs tmpfs rw')
+            with (self.subTest(flags=flags),
+                  patch.object(probe.Path, 'read_bytes', return_value=json.dumps({'shared_host': binding}).encode()),
+                  patch.object(probe.Path, 'read_text', return_value=mounts),
+                  patch.object(probe.socket, 'if_nameindex', return_value=[(1, 'lo')]),
+                  patch.object(probe.socket, 'socket'), patch.object(probe.fcntl, 'ioctl', return_value=b'\0' * 16 + b'\1\0'),
+                  patch.object(probe, 'process_observation', return_value={}),
+                  patch.object(probe.os, 'stat', return_value=SimpleNamespace(st_ino=123)),
+                  patch.object(probe.runtime, 'capture_isolated_host_environment', return_value={'fake': 'not E proof'}) as capture):
+                if flags == 'ro':
+                    self.assertEqual(probe.measure_shared_host()['binding'], binding)
+                    capture.assert_called_once_with(binding['prepared'])
+                else:
+                    with self.assertRaisesRegex(ValueError, 'not read-only'):probe.measure_shared_host()
+                    capture.assert_not_called()
+
+    def test_parent_probe_validation_rejects_missing_or_writable_bound_leaf(self):
+        binding = {'prepared': {str(self.target): 'fake-fixed-digest'}, 'outside_namespaces': {'user': 1}}
+        environment = {'schema': SHARED.inputs.ISOLATED_FULL_SCHEMA, 'profile': SHARED.inputs.ISOLATED_FULL_PROFILE,
+            'prepared': {'roots': binding['prepared']},
+            'python': {'version': '3.12.15'}, 'tools': {'node': {'version': 'v22.20.0'}},
+            'system_packages': {'fake': True}, 'trusted_execution': {'fake': True},
+            'qt': {'modules': dict.fromkeys(SHARED.runtime._QT_MODULES)},
+            'glm': {'header_digest': 'fake', 'configuration_digest': 'fake'},
+            'flags': {'git_process_overrides': 'maintenance-disabled-safe-work'}}
+        mounts = {name: ['ro'] for name in ('/usr', '/work', '/overte-policy', str(self.venv))}
+        mounts['/work/build'] = ['rw']
+        status = {'NoNewPrivs': '1', 'Uid': '2001 2001 2001 2001', 'Gid': '2001 2001 2001 2001',
+                  **dict.fromkeys(('CapInh', 'CapPrm', 'CapEff', 'CapBnd', 'CapAmb'), '0000000000000000')}
+        result = {'exit_code': 0, 'reason': None, 'cleanup': {'kernel_populated': 0, 'subtree_kill': True},
+            'observation': {'schema': 1, 'authority': 'none', 'measurement': SHARED.PROFILE, 'binding': binding,
+                'environment': environment, 'process': {'status': status}, 'mounts': mounts,
+                'namespaces': {'user': 2}, 'reusable': False}}
+        for flags in (None, ['rw'], ['ro']):
+            changed = deepcopy(result)
+            if flags is not None:changed['observation']['mounts'][str(self.target)] = flags
+            with self.subTest(flags=flags), patch.object(SHARED.inputs, '_environment', return_value=environment) as admission:
+                if flags == ['ro']:
+                    self.assertEqual(SHARED.validate_probe(changed, binding, 2001, 2001), environment)
+                    admission.assert_called_once_with(environment)
+                else:
+                    with self.assertRaisesRegex(H.Unavailable, 'mount protection is incomplete'):
+                        SHARED.validate_probe(changed, binding, 2001, 2001)
+                    admission.assert_not_called()
+        changed = deepcopy(result)
+        changed['observation']['mounts'][str(self.target)] = ['ro']
+        changed['observation']['environment']['prepared']['roots'] = {'different': 'fake-digest'}
+        with (patch.object(SHARED.inputs, '_environment', return_value=changed['observation']['environment']),
+              self.assertRaisesRegex(H.Unavailable, 'environment is incomplete')):
+            SHARED.validate_probe(changed, binding, 2001, 2001)
+
 
 if __name__ == "__main__":
     unittest.main()

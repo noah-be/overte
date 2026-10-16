@@ -197,12 +197,13 @@ class ProbeAndManualIntegrationTests(unittest.TestCase):
         spec=importlib.util.spec_from_file_location('ci37_probe_fixture',Path(__file__).with_name('sandbox_probe.py'))
         self.probe=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.probe)
 
-    def test_full_capture_remains_exact_default_and_unknown_profiles_never_probe(self):
-        with patch.object(self.probe.runtime,'capture_host_environment',return_value={'full':'original'}) as capture:
-            self.assertEqual(self.probe.shared_environment({}),{'full':'original'})
-            for binding in ({'runtime_profile':'unknown'},{'diagnostic_only':1},{'diagnostic_only':True}):
+    def test_full_capture_requires_prepared_identity_and_unknown_profiles_never_probe(self):
+        prepared={'fixture':'root-authenticated-map-only'}
+        with patch.object(self.probe.runtime,'capture_isolated_host_environment',return_value={'full':'original'}) as capture:
+            self.assertEqual(self.probe.shared_environment({'prepared':prepared}),{'full':'original'})
+            for binding in ({},{'runtime_profile':'unknown'},{'diagnostic_only':1},{'diagnostic_only':True}):
                 with self.subTest(binding=binding),self.assertRaises(ValueError):self.probe.shared_environment(binding)
-            capture.assert_called_once()
+            capture.assert_called_once_with(prepared)
 
     def test_protected_probe_cannot_choose_manual_diagnostic_capture_implicitly(self):
         import runtime_ci
