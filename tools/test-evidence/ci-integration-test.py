@@ -331,6 +331,152 @@ class ProbeAndManualIntegrationTests(unittest.TestCase):
                     self.assertFalse(log.exists())
 
 
+class ProtectedSetupTemplateTests(unittest.TestCase):
+    """Dormant workflow plans and fake shell tools, never host qualification."""
+    def setUp(self):
+        import yaml
+        path=C.ROOT/'tools/repository-checks/workflows/producers/protected-project-tests.yml'
+        self.rows=yaml.safe_load(path.read_bytes())['jobs']['project-tests']['steps']
+        self.steps={row['name']:row for row in self.rows}
+
+    def plan(self,protected,full,executed,*,success=True):
+        import re
+        values={'needs.route.outputs.protected_full':protected,'steps.host.outputs.full_host':full,
+                'steps.protected.outputs.protected_executed':executed}
+        def atom(value):
+            match=re.fullmatch(r"([a-z_.]+) (==|!=) '(true|false)'",value)
+            self.assertIsNotNone(match,value)
+            actual=values[match[1]]
+            return (actual==match[3]) if match[2]=='==' else (actual!=match[3])
+        names=('Independently select affected host contracts','Set up Java','Verify runner prerequisites',
+            'Install QML and portable C++ contract prerequisites','Prepare the protected trusted host environment',
+            'Prepare the protected CI37 host environment','Verify protected CI37 runner prerequisites',
+            'Execute the selected protected shared owner','Set up Java for pre-execution fallback',
+            'Verify fallback runner prerequisites','Prepare isolated host evidence validators',
+            'Run independently selected host contracts')
+        # All these conditions use GitHub's implicit success() gate. In
+        # particular no failed/cancelled protected execution may reach legacy.
+        return [row['name'] for row in self.rows if row['name'] in names and success and
+            ('if' not in row or any(all(atom(part) for part in term.split(' && '))
+                for term in row['if'].split(' || ')))]
+
+    def test_full_protected37_legacy37_and_preexecution_fallback_plans(self):
+        select='Independently select affected host contracts'
+        java=['Set up Java','Verify runner prerequisites']
+        qt='Install QML and portable C++ contract prerequisites'
+        full='Prepare the protected trusted host environment'
+        quick=['Prepare the protected CI37 host environment','Verify protected CI37 runner prerequisites']
+        execute='Execute the selected protected shared owner'
+        restore=['Set up Java for pre-execution fallback','Verify fallback runner prerequisites']
+        legacy=['Prepare isolated host evidence validators','Run independently selected host contracts']
+        self.assertEqual(self.plan('true','true','true'),[select,*java,qt,full,execute])
+        self.assertEqual(self.plan('true','false','true'),[select,*quick,execute])
+        self.assertEqual(self.plan('false','false',''),[select,*java,*legacy])
+        self.assertEqual(self.plan('true','false','false'),[select,*quick,execute,*restore,*legacy])
+        self.assertEqual(self.plan('true','true','false'),[select,*java,qt,full,execute,*legacy])
+        self.assertEqual(self.plan('true','false','',success=False),[])
+        for name in (*restore,*legacy):
+            self.assertNotIn('always()',self.steps[name]['if'])
+            self.assertNotIn('continue-on-error',self.steps[name])
+        order=[row['name'] for row in self.rows]
+        self.assertLess(order.index('Set up Python'),order.index(select))
+        self.assertLess(order.index('Set up Node.js'),order.index(select))
+        self.assertLess(order.index(select),order.index('Set up Java'))
+
+    def test_original_full_preparation_java_and_qt_are_preserved(self):
+        import yaml
+        original=yaml.safe_load((C.ROOT/'tools/repository-checks/workflows/host/project-tests.yml').read_bytes())
+        old={row['name']:row for row in original['jobs']['project-tests']['steps']}
+        for name in ('Set up Java','Verify runner prerequisites'):
+            self.assertEqual({key:value for key,value in self.steps[name].items() if key!='if'},old[name])
+        name='Install QML and portable C++ contract prerequisites'
+        self.assertEqual(self.steps[name],old[name])
+        for name,digest in (
+            ('Verify runner prerequisites','36a8510ed3474fdb512d8c6932392e463e3e15dcca1488e68ba34a3b968a792a'),
+            ('Prepare the protected trusted host environment','8971d9d719129a6f74c233bf864a73f5fea3f089f6ca862d155bd36afaa7aafd')):
+            self.assertEqual(hashlib.sha256(self.steps[name]['run'].encode()).hexdigest(),digest)
+        self.assertEqual(self.steps['Set up Java for pre-execution fallback']['uses'],old['Set up Java']['uses'])
+        self.assertEqual(self.steps['Set up Java for pre-execution fallback']['with'],old['Set up Java']['with'])
+        self.assertEqual(self.steps['Verify fallback runner prerequisites']['run'],old['Verify runner prerequisites']['run'])
+        manual=yaml.safe_load((C.ROOT/'tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml').read_bytes())
+        quick=next(row for row in manual['jobs']['boundary-diagnostic']['steps']
+                   if row['name']=='Prepare the fixed Qt-free CI37 diagnostic tools')['run']
+        self.assertEqual(self.steps['Prepare the protected CI37 host environment']['run'],
+                         quick.replace('-r tests/requirements-host.txt','-r trusted/tests/requirements-host.txt'))
+
+    def test_actual_prerequisite_shell_queries_java_only_for_full_or_legacy(self):
+        for name,java in (('Verify runner prerequisites',True),('Verify fallback runner prerequisites',True),
+                          ('Verify protected CI37 runner prerequisites',False)):
+            with self.subTest(name=name),tempfile.TemporaryDirectory() as temporary:
+                folder=Path(temporary);log=folder/'queries'
+                for tool in ('bash','jq','cmake','ninja','ctest','python3','node',*(('java',) if java else ())):
+                    path=folder/tool
+                    path.write_text('#!/bin/sh\nprintf "%s %s\\n" "${0##*/}" "$*" >> "$SETUP_LOG"\n')
+                    path.chmod(0o755)
+                subprocess.run(['/usr/bin/bash','-euc',self.steps[name]['run']],check=True,capture_output=True,
+                               env={'PATH':str(folder),'SETUP_LOG':str(log)})
+                self.assertEqual(log.read_text().splitlines(),['python3 --version','node --version',
+                                                               *(['java -version'] if java else [])])
+
+    def test_actual_ci37_shell_installs_only_missing_fixed_native_tools(self):
+        script=self.steps['Prepare the protected CI37 host environment']['run']
+        prefix=script.split('test ! -e /opt/overte-ci',1)[0]
+        tools={'cmake','ctest','ninja','make','gmake','g++','gcc'}
+        cases=[(set(),[]),({'cmake','ctest'},['cmake']),({'ninja'},['ninja-build']),
+               ({'make','gmake'},['make']),({'gmake','gcc'},['make','g++'])]
+        for missing,packages in cases:
+            with self.subTest(missing=missing),tempfile.TemporaryDirectory() as temporary:
+                folder=Path(temporary);log=folder/'apt.log'
+                for name in tools-missing:
+                    path=folder/name;path.write_text('#!/bin/sh\nexit 0\n');path.chmod(0o755)
+                sudo=folder/'sudo'
+                sudo.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$SETUP_LOG"\n');sudo.chmod(0o755)
+                subprocess.run(['/usr/bin/bash','-euc',prefix],check=True,capture_output=True,
+                               env={'PATH':str(folder),'SETUP_LOG':str(log)})
+                self.assertEqual(log.read_text().splitlines() if log.exists() else [],[
+                    '-n /usr/bin/apt-get update',
+                    '-n /usr/bin/apt-get install --no-install-recommends -y '+' '.join(packages)] if packages else [])
+        self.assertNotIn('JAVA',script)
+        self.assertNotIn('qml',script)
+
+    def test_actual_ci37_three_root_validator_rejects_java_aliases_and_other_versions(self):
+        script=self.steps['Prepare the protected CI37 host environment']['run']
+        body=script.split("<<'PYROOTS'\n",1)[1].split('\nPYROOTS',1)[0]
+        python='/opt/hostedtoolcache/Python/3.12.15/x64';node='/opt/hostedtoolcache/node/22.23.3/x64'
+        cases=[([python,node],True,False),([python,node,'/usr/lib/jvm/temurin-17-jdk-amd64'],False,False),
+               ([python,python],False,False),([python.replace('3.12.15','3.13.1'),node],False,False),
+               ([python,node.replace('22.23.3','24.1.0')],False,False),([python,node],False,True)]
+        for roots,accepted,alias in cases:
+            with (self.subTest(roots=roots,alias=alias),patch('sys.argv',['-',*roots]),
+                  patch.object(Path,'is_dir',return_value=True),patch.object(Path,'is_symlink',return_value=alias),
+                  patch.object(Path,'resolve',lambda self,strict=False:self)):
+                if accepted:exec(compile(body,'protected-ci37-roots','exec'),{})
+                else:
+                    with self.assertRaises(AssertionError):exec(compile(body,'protected-ci37-roots','exec'),{})
+
+    def test_actual_protected_shell_accepts_unset_java_without_changing_full_forwarding(self):
+        script=self.steps['Execute the selected protected shared owner']['run']
+        for java in (None,'/usr/lib/jvm/temurin-17-jdk-amd64'):
+            with self.subTest(java=java),tempfile.TemporaryDirectory() as temporary:
+                folder=Path(temporary);log=folder/'arguments'
+                node=folder/'node';node.write_text('#!/bin/sh\nprintf "/opt/hostedtoolcache/node/22.23.3/x64\\n"\n');node.chmod(0o755)
+                sudo=folder/'sudo';sudo.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$SETUP_LOG"\n');sudo.chmod(0o755)
+                keys=('GITHUB_EVENT_NAME','GITHUB_REPOSITORY','GITHUB_REPOSITORY_ID','GITHUB_REF',
+                    'GITHUB_WORKFLOW_REF','GITHUB_SHA','GITHUB_WORKFLOW_SHA','GITHUB_RUN_ID','GITHUB_RUN_ATTEMPT',
+                    'RUNNER_ENVIRONMENT','ImageOS','ImageVersion','GITHUB_BASE_REF','GITHUB_HEAD_REF',
+                    'GITHUB_WORKSPACE','GITHUB_EVENT_PATH','RUNNER_TEMP','GITHUB_OUTPUT','GH_TOKEN')
+                environment={key:'fixture' for key in keys}
+                environment.update(PATH=str(folder),SETUP_LOG=str(log))
+                if java is not None:environment['JAVA_HOME']=java
+                subprocess.run(['/usr/bin/bash','-euc',script],check=True,capture_output=True,env=environment)
+                arguments=log.read_text().splitlines()
+                self.assertIn('QUALIFY_JAVA_HOME='+(java or ''),arguments)
+                self.assertIn('QUALIFY_NODE_ROOT=/opt/hostedtoolcache/node/22.23.3/x64',arguments)
+                self.assertIn('/usr/bin/env',arguments);self.assertIn('-i',arguments)
+                self.assertIn('--property=Delegate=yes',arguments)
+                self.assertIn('test -n "$JAVA_HOME"',self.steps['Prepare the protected trusted host environment']['run'])
+
+
 class CleanupDataGitRouteTests(unittest.TestCase):
     """Real small Git/route fixtures; never production source or runtime proof."""
     def setUp(self):
