@@ -130,7 +130,9 @@ def shared_environment(binding):
             raise ValueError('CI37 actual capture differs from root-selected owner')
         return environment
     if runtime_profile == 'ubuntu24-host-qt5-qt6-v1' and not diagnostic:
-        return runtime.capture_host_environment()
+        if type(binding.get('prepared')) is not dict:
+            raise ValueError('protected full prepared identity is unavailable')
+        return runtime.capture_isolated_host_environment(binding['prepared'])
     raise ValueError('unknown protected shared runtime profile')
 
 

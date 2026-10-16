@@ -1277,9 +1277,9 @@ class SharedHostCompatibilityTests(unittest.TestCase):
               patch.object(probe.socket, "socket"), patch.object(probe.fcntl, "ioctl", return_value=b"\0" * 16 + b"\1\0"),
               patch.object(probe, "process_observation", return_value={"fixture": "not real process proof"}),
               patch.object(probe.os, "stat", return_value=SimpleNamespace(st_ino=123)),
-              patch.object(probe.runtime, "capture_host_environment", side_effect=error) as capture):
+              patch.object(probe.runtime, "capture_isolated_host_environment", side_effect=error) as capture):
             with self.assertRaises(probe.runtime.RuntimeIdentityError):probe.measure_shared_host()
-            capture.assert_called_once_with()
+            capture.assert_called_once_with(binding['prepared'])
             capture.side_effect = None
             capture.return_value = {"fixture": "fake complete-runtime call only, no actual E qualification"}
             result = probe.measure_shared_host()
@@ -1913,17 +1913,18 @@ class SharedHostPreparedExternalInputsTests(unittest.TestCase):
                   patch.object(probe.socket, 'socket'), patch.object(probe.fcntl, 'ioctl', return_value=b'\0' * 16 + b'\1\0'),
                   patch.object(probe, 'process_observation', return_value={}),
                   patch.object(probe.os, 'stat', return_value=SimpleNamespace(st_ino=123)),
-                  patch.object(probe.runtime, 'capture_host_environment', return_value={'fake': 'not E proof'}) as capture):
+                  patch.object(probe.runtime, 'capture_isolated_host_environment', return_value={'fake': 'not E proof'}) as capture):
                 if flags == 'ro':
                     self.assertEqual(probe.measure_shared_host()['binding'], binding)
-                    capture.assert_called_once_with()
+                    capture.assert_called_once_with(binding['prepared'])
                 else:
                     with self.assertRaisesRegex(ValueError, 'not read-only'):probe.measure_shared_host()
                     capture.assert_not_called()
 
     def test_parent_probe_validation_rejects_missing_or_writable_bound_leaf(self):
         binding = {'prepared': {str(self.target): 'fake-fixed-digest'}, 'outside_namespaces': {'user': 1}}
-        environment = {'schema': 1, 'profile': SHARED.FULL_ENVIRONMENT,
+        environment = {'schema': SHARED.inputs.ISOLATED_FULL_SCHEMA, 'profile': SHARED.inputs.ISOLATED_FULL_PROFILE,
+            'prepared': {'roots': binding['prepared']},
             'python': {'version': '3.12.15'}, 'tools': {'node': {'version': 'v22.20.0'}},
             'system_packages': {'fake': True}, 'trusted_execution': {'fake': True},
             'qt': {'modules': dict.fromkeys(SHARED.runtime._QT_MODULES)},
@@ -1948,6 +1949,12 @@ class SharedHostPreparedExternalInputsTests(unittest.TestCase):
                     with self.assertRaisesRegex(H.Unavailable, 'mount protection is incomplete'):
                         SHARED.validate_probe(changed, binding, 2001, 2001)
                     admission.assert_not_called()
+        changed = deepcopy(result)
+        changed['observation']['mounts'][str(self.target)] = ['ro']
+        changed['observation']['environment']['prepared']['roots'] = {'different': 'fake-digest'}
+        with (patch.object(SHARED.inputs, '_environment', return_value=changed['observation']['environment']),
+              self.assertRaisesRegex(H.Unavailable, 'environment is incomplete')):
+            SHARED.validate_probe(changed, binding, 2001, 2001)
 
 
 if __name__ == "__main__":

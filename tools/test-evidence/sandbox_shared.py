@@ -279,7 +279,9 @@ def validate_probe(result, binding, uid, gid):
     complete = (identity.get('schema') == 2 and identity.get('profile') == ci_profile.PROFILE
                 and identity.get('selection') == binding.get('profile_binding')
                 and not {'qt','glm','java'} & identity.keys()) if quick else (
-                identity.get('schema') == 1 and identity.get('profile') == FULL_ENVIRONMENT
+                identity.get('schema') == inputs.ISOLATED_FULL_SCHEMA
+                 and identity.get('profile') == inputs.ISOLATED_FULL_PROFILE
+                 and identity.get('prepared', {}).get('roots') == binding['prepared']
                  and set(identity.get('qt', {}).get('modules', {})) == set(runtime._QT_MODULES)
                  and set(identity.get('glm', {})) == {'header_digest', 'configuration_digest'})
     host.require(common and complete,

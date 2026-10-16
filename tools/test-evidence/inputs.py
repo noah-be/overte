@@ -24,6 +24,13 @@ _NAME = re.compile(r"[a-z0-9][a-z0-9-]*")
 _OBJECT = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
 _DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
 _MODES = {"100644": "blob", "100755": "blob", "120000": "blob", "160000": "commit"}
+ISOLATED_FULL_SCHEMA = 3
+ISOLATED_FULL_PROFILE = "ubuntu24-isolated-host-qt5-qt6-v1"
+ISOLATED_VENV = "/opt/overte-ci/venv"
+ISOLATED_JDK = "/usr/lib/jvm/temurin-17-jdk-amd64"
+ISOLATED_CACERTS = "/etc/ssl/certs/adoptium/cacerts"
+_FULL_ENVIRONMENT_FIELDS = {"schema", "profile", "os", "python", "tools", "qt", "glm",
+                            "system_packages", "flags", "trusted_execution"}
 # These legacy controls remain the default for every unreviewed suite. A
 # reviewed import graph can replace them with its complete directory inputs;
 # changes to that graph fall back to the entire repository, including data read
@@ -229,6 +236,41 @@ def python_import_digest(tree: dict, roots: list[str]) -> str:
     return _python_import_digest(tree, _import_roots(roots))
 
 
+def isolated_full_environment(environment: object) -> dict:
+    """Validate recorded protected prepared identities without consumer queries.
+
+    Only authenticated protected capture establishes these hashes. This pure
+    shape check neither captures a runtime nor supplies producer authority.
+    """
+    if type(environment) is not dict or set(environment) != _FULL_ENVIRONMENT_FIELDS | {"prepared"} \
+            or type(environment.get("schema")) is not int or environment["schema"] != ISOLATED_FULL_SCHEMA \
+            or environment.get("profile") != ISOLATED_FULL_PROFILE:
+        raise InputError("isolated full environment generation is incomplete")
+    python = environment.get("python")
+    tools = environment.get("tools")
+    version = python.get("version") if type(python) is dict else None
+    node = tools.get("node") if type(tools) is dict else None
+    node_version = node.get("version") if type(node) is dict else None
+    if type(version) is not str or not re.fullmatch(r"3\.12\.[0-9]+", version) \
+            or type(node_version) is not str or not re.fullmatch(r"v22\.[0-9]+\.[0-9]+", node_version):
+        raise InputError("isolated prepared tool versions are unsupported")
+    prepared = environment["prepared"]
+    if type(prepared) is not dict or set(prepared) != {"schema", "roots", "external_inputs"} \
+            or type(prepared["schema"]) is not int or prepared["schema"] != 1 \
+            or type(prepared["external_inputs"]) is not list \
+            or prepared["external_inputs"] not in ([], [ISOLATED_CACERTS]):
+        raise InputError("isolated prepared identity fields are incomplete")
+    expected = {ISOLATED_VENV, ISOLATED_JDK,
+                "/opt/hostedtoolcache/Python/" + version + "/x64",
+                "/opt/hostedtoolcache/node/" + node_version[1:] + "/x64",
+                *prepared["external_inputs"]}
+    roots = prepared["roots"]
+    if type(roots) is not dict or set(roots) != expected or any(
+            type(value) is not str or not _DIGEST.fullmatch(value) for value in roots.values()):
+        raise InputError("isolated prepared root inventory is incomplete or unbound")
+    return prepared
+
+
 def _environment(environment: object) -> dict:
     if not isinstance(environment, dict) or not environment:
         raise InputError("runtime environment identity must be a nonempty JSON object")
@@ -247,6 +289,8 @@ def _environment(environment: object) -> dict:
 
     keys(environment)
     _canonical(environment)
+    if environment.get("profile") == ISOLATED_FULL_PROFILE:
+        isolated_full_environment(environment)
     return environment
 
 
