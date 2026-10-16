@@ -343,6 +343,18 @@ class ProtectedProducerPermissionTests(unittest.TestCase):
         permissions = {'contents': 'read', 'actions': 'read', 'pull-requests': 'read', 'checks': 'read'}
         expected = deepcopy(old)
         expected['jobs']['project']['permissions'] = permissions
+        expected['jobs']['metadata-source'] = {
+            'name': 'Authenticate PR text edit',
+            'if': "github.event_name == 'pull_request' && github.base_ref == 'main' && github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)",
+            'uses': './.github/workflows/pr-metadata-context.yml',
+        }
+        route = expected['jobs']['route']
+        route['needs'] = 'metadata-source'
+        route['if'] = "always() && (needs.metadata-source.result == 'success' || needs.metadata-source.result == 'skipped')"
+        route['permissions'] = {'contents': 'read', 'actions': 'read', 'pull-requests': 'read'}
+        event = next(step for step in route['steps'] if step.get('id') == 'event')
+        event['env'] = {'GH_TOKEN': '${{ github.token }}',
+                        'NATIVE_METADATA_INTENT': '${{ needs.metadata-source.outputs.metadata_intent }}'}
         self.assertEqual(prospective, expected)
         self.assertEqual(prospective['permissions'], {'contents': 'read'})
         self.assertEqual(prospective['jobs']['project']['uses'], './.github/workflows/project-tests.yml')
