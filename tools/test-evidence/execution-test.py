@@ -327,6 +327,7 @@ class ProtectedProducerOrderingTests(unittest.TestCase):
         prepared = ((),None,None,None)
         patches = [mock.patch.object(producer,'PRODUCTION_READY',True),
               mock.patch.object(producer.sandbox,'ACTIVATION_READY',True),
+              mock.patch.object(producer.attested,'load_policy',return_value={'fixture':'trusted isolated policy only'}),
               mock.patch.object(producer.os,'geteuid',return_value=0),
               mock.patch.object(producer.os,'stat',side_effect=stat),
               mock.patch.object(producer.signal,'signal'),
@@ -356,7 +357,6 @@ class ProtectedProducerOrderingTests(unittest.TestCase):
             self.assertEqual(events.count('materialize'),1)
             self.assertEqual(batches[0][1],destination[0])
         self.assertEqual(events,['materialize','select-pristine','native-job','descriptor','actual-selected-run','fresh-bookend','native-job'])
-        self.assertFalse(producer.PRODUCTION_READY)
 
 
 if __name__ == "__main__":

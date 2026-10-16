@@ -29,7 +29,13 @@ import sandbox
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE = 'tools/repository-checks/workflows/producers/parent-qualification.yml'
 SOURCE_READY = False
-GENERATIONS = {'postmerge-original-e-v1', 'protected-producer-postmerge-original-e-v1'}
+GENERATIONS = {'postmerge-original-e-v1', 'protected-producer-postmerge-original-e-v1',
+               'protected-producer-ci37-v1'}
+
+
+def _source_qualified():
+    return (SOURCE_READY is True and producer.PRODUCTION_READY is True
+            and sandbox.ACTIVATION_READY is True and attested.ISOLATED_ADMISSION_READY is True)
 
 
 def _native(event, environment):
@@ -122,7 +128,7 @@ def _policy(policy, registry, binding, controller, adapter, root, selected):
 
 def verify_main(event, environment, adapter, *, root=ROOT, clock=lambda: datetime.now(timezone.utc)):
     """Verify one independently selected original owner, never rebound PASS."""
-    A.require(SOURCE_READY and producer.PRODUCTION_READY and attested.ISOLATED_ADMISSION_READY,
+    A.require(_source_qualified(),
               'postmerge protected reuse is not qualified')
     source, run_id = _native(event, environment)
     binding, references = adapter._integrated_current(run_id, 15368, clock())
@@ -225,7 +231,7 @@ def verify_main(event, environment, adapter, *, root=ROOT, clock=lambda: datetim
 def lookup(event, environment, adapter=None, *, root=ROOT, clock=lambda: datetime.now(timezone.utc)):
     """Pre-execution only: no failure is hidden by retrying an alternate executor."""
     try:
-        if not (SOURCE_READY and producer.PRODUCTION_READY and attested.ISOLATED_ADMISSION_READY):
+        if not _source_qualified():
             return {'reused': False, 'reason': 'protected-consumer-not-qualified'}
         proof = verify_main(event, environment, adapter or A.Adapter(), root=root, clock=clock)
         return {'reused': True, 'proof': proof}
@@ -244,7 +250,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     event = {}
     try:
-        if SOURCE_READY and producer.PRODUCTION_READY and attested.ISOLATED_ADMISSION_READY:
+        if _source_qualified():
             path = Path(os.environ['GITHUB_EVENT_PATH'])
             A.require(not path.is_symlink() and path.is_file() and path.stat().st_size <= 2_000_000,
                       'native event file unavailable')

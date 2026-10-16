@@ -486,7 +486,7 @@ Live Ubuntu qualification, complete shared-host suite/toolchain compatibility,
 publisher credential isolation and authenticated reuse publication remain
 required before any successful result can authorize reuse.
 
-The same dispatch-only workflow offers a finite `boundary` or `shared-host`
+The same dispatch-only workflow offers finite `boundary`, `shared-host` or `ci37`
 profile, defaulting to the unchanged fixed boundary fixture. `shared-host`
 prepares the existing Python 3.12 host virtualenv, Node 22, JDK 17, Qt 5/6 and
 GLM prerequisites and seals their actual versioned installations. It accepts
@@ -517,6 +517,15 @@ use real Git fixtures and fake suite launches only; they establish neither
 privileged Ubuntu compatibility nor a complete runtime measurement. Even a
 future hosted diagnostic pass has `authority=none` and `reusable=false`.
 Authenticated producer/publisher provenance remains a separate prerequisite.
+
+The shared diagnostic reuses the script's loaded controller module, so its
+trusted `Unavailable` exception retains its explicit denial reason. A foreign
+loaded module is rejected rather than replaced. Other failures retain the
+nonzero unavailable result and expose only bounded public exception types,
+errno names, trusted source callsites and operation stages. A bounded cause
+chain preserves an earlier failure when cleanup also raises. Generic exception
+text, command arguments, environment values and arbitrary filenames are not
+reported. These diagnostics grant no execution, publication or reuse authority.
 
 The account check accepts only sudo's complete single stdout denial line with
 empty stderr. sudo 1.9.15's successful zero-command listing can exit 0: its

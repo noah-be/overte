@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Dormant shared sandbox plans and supervisor controls, never reusable proof.
 
-Stage A deliberately cannot launch a production sandbox or issue an execution
-receipt. A bwrap exit is not proof that its PID namespace is empty. Host UID
-provisioning, loopback initialization, kernel-owned process scopes and actual
-host qualification are prerequisites, not assertions accepted from JSON.
+The legacy execute/capture entrypoints cannot launch a production sandbox or
+issue an execution receipt. A bwrap exit is not proof that its PID namespace is
+empty. Host UID provisioning, loopback initialization, kernel-owned process
+scopes and actual host qualification are prerequisites, not JSON assertions.
 """
 
 from __future__ import annotations
@@ -28,6 +28,8 @@ import runtime
 
 ROOT = Path(__file__).resolve().parents[2]
 POLICY = ".github/shared-sandbox.json"
+# Protected producer source capability only. The legacy entrypoints below stay
+# unavailable even after a separately reviewed activation of this capability.
 ACTIVATION_READY = False
 REQUIREMENTS = (
     "separate-host-uid-without-sudo",
@@ -103,6 +105,12 @@ def _source(root, relative):
 
 
 def load_policy(root=ROOT):
+    """Read the fixed diagnostic/legacy identity, never production permission.
+
+    enabled:false and qualified_hosts:[] deliberately remain exact. Production
+    uses the protected supervisor's independent native/runtime/kernel checks;
+    supplying a host assertion or enabled JSON cannot authorize that path.
+    """
     root = _directory(root)
     try:
         policy = json.loads(_source(root, POLICY), object_pairs_hook=_unique)
@@ -113,6 +121,14 @@ def load_policy(root=ROOT):
     _require(policy == expected and type(policy.get("schema")) is int and policy.get("enabled") is False,
              "sandbox policy is not the reviewed unqualified generation")
     return policy
+
+
+def require_protected_execution(root=ROOT):
+    """Admit only a reviewed source capability; this does not prove execution."""
+    _require(ACTIVATION_READY is True, "protected sandbox execution is not qualified")
+    # Preserve the diagnostic contract used by the actual fixed namespace
+    # plan. Its disabled JSON is an identity, not the protected permission.
+    load_policy(root)
 
 
 def contract(root=ROOT):

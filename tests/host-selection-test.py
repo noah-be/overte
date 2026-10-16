@@ -19,6 +19,13 @@ HOST = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(HOST)
 
 
+def copy_git_tree(tree):
+    # full_tree validates flat entries with immutable mode/type/SHA strings.
+    # Copy both mapping levels so each negative mutation remains independent,
+    # without recursively traversing every scalar in the real source tree.
+    return {path: entry.copy() for path, entry in tree.items()}
+
+
 class HostSelectionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -44,7 +51,7 @@ class HostSelectionTests(unittest.TestCase):
     def producer_transition(self):
         policy = HOST.package_policy()
         generations = {generation['name']: generation['workflows'] for generation in policy.workflow_generations()}
-        previous, candidate = deepcopy(self.tree), deepcopy(self.tree)
+        previous, candidate = copy_git_tree(self.tree), copy_git_tree(self.tree)
         previous.update(deepcopy(generations['android-owned-npm5-sync-ci-v1']))
         candidate.update(deepcopy(generations['protected-shared-producer-v1']))
         paths = sorted(path for path in previous.keys() | candidate.keys() if previous.get(path) != candidate.get(path))
@@ -62,7 +69,7 @@ class HostSelectionTests(unittest.TestCase):
         policy=HOST.package_policy()
         generations={g['name']:g['workflows'] for g in policy.workflow_generations()}
         for producer_name in ('protected-producer-postmerge-original-e-v1', 'protected-producer-ci37-v1'):
-            previous,candidate=deepcopy(self.tree),deepcopy(self.tree)
+            previous,candidate=copy_git_tree(self.tree),copy_git_tree(self.tree)
             previous.update(deepcopy(generations['postmerge-original-e-v1']))
             candidate.update(deepcopy(generations[producer_name]))
             paths=sorted(path for path in previous.keys() | candidate.keys() if previous.get(path)!=candidate.get(path))
@@ -74,7 +81,7 @@ class HostSelectionTests(unittest.TestCase):
             # be mixed into either complete later installation generation.
             for side in ('base','candidate'):
                 for path in generations['postmerge-original-e-v1']:
-                    snapshots={'base':deepcopy(previous),'candidate':deepcopy(candidate)}
+                    snapshots={'base':copy_git_tree(previous),'candidate':copy_git_tree(candidate)}
                     snapshots[side][path]={'mode':'100755','type':'blob','sha':'a'*40}
                     with self.subTest(side=side,path=path):
                         self.assertFalse(HOST._protected_producer_transition(snapshots['candidate'],paths,
@@ -97,7 +104,7 @@ class HostSelectionTests(unittest.TestCase):
             elif mutation == 'extra-path': changed_paths = [*paths, 'docs/producer-transition.md']
             elif mutation == 'duplicate-path': changed_paths = [*paths, paths[0]]
             elif mutation == 'trusted-drift':
-                kwargs['trusted_tree'] = deepcopy(previous)
+                kwargs['trusted_tree'] = copy_git_tree(previous)
                 kwargs['trusted_tree']['docs/producer-transition.md'] = {'mode': '100644', 'type': 'blob', 'sha': 'a'*40}
             with self.subTest(mutation=mutation):
                 self.assertNotEqual(self.selected(changed_paths, **kwargs)['reason'],
@@ -109,7 +116,7 @@ class HostSelectionTests(unittest.TestCase):
         for side in ('base', 'candidate', 'trusted'):
             for path in workflows:
                 for mutation in ('missing', 'modified', 'executable', 'symlink', 'gitlink', 'mixed'):
-                    snapshots = {'base': deepcopy(previous), 'candidate': deepcopy(candidate), 'trusted': deepcopy(previous)}
+                    snapshots = {'base': copy_git_tree(previous), 'candidate': copy_git_tree(candidate), 'trusted': copy_git_tree(previous)}
                     snapshot = snapshots[side]
                     if mutation == 'missing': del snapshot[path]
                     elif mutation == 'modified': snapshot[path]['sha'] = 'a'*40
@@ -130,7 +137,7 @@ class HostSelectionTests(unittest.TestCase):
                      '.github/shared-sandbox.json', '.github/test-suites.json',
                      '.github/package-workflow-generations.json', 'tests/platform-profile.json',
                      'interface/src/Application.cpp', 'docs/producer-transition.md'):
-            changed = deepcopy(candidate)
+            changed = copy_git_tree(candidate)
             changed[path] = {'mode': '100644', 'type': 'blob', 'sha': 'a'*40}
             with self.subTest(path=path):
                 self.assertFalse(HOST._protected_producer_transition(changed, paths, previous, previous, 'main'))
@@ -154,7 +161,7 @@ class HostSelectionTests(unittest.TestCase):
 
     def test_ci_changes_after_producer_installation_return_to_the_existing_quick_selection(self):
         _, previous, _ = self.producer_transition()
-        candidate = deepcopy(previous)
+        candidate = copy_git_tree(previous)
         path = 'tools/branch-cleanup/cleanup.py'
         candidate[path]['sha'] = 'a'*40
         result = self.selected([path], tree=candidate, trusted_tree=previous, base_tree=previous)
@@ -169,7 +176,7 @@ class HostSelectionTests(unittest.TestCase):
         import producer_workflow as producer
         packages = HOST.package_policy()
         generations={g['name']:g['workflows'] for g in packages.workflow_generations()}
-        previous,candidate_tree=deepcopy(self.tree),deepcopy(self.tree)
+        previous,candidate_tree=copy_git_tree(self.tree),copy_git_tree(self.tree)
         previous.update(deepcopy(generations['postmerge-original-e-v1']))
         candidate_tree.update(deepcopy(generations['protected-producer-ci37-v1']))
         paths=sorted(path for path in previous.keys() | candidate_tree.keys()
@@ -257,8 +264,8 @@ class HostSelectionTests(unittest.TestCase):
                 self.assertEqual(adapter.current.call_count, 2)  # Independent source bookend.
                 # Once installed, the same controllers retain the normal CI37
                 # route and prepare cannot relabel it as full-host execution.
-                snapshots['base'] = snapshots['trusted'] = deepcopy(candidate_tree)
-                snapshots['candidate'] = deepcopy(candidate_tree)
+                snapshots['base'] = snapshots['trusted'] = copy_git_tree(candidate_tree)
+                snapshots['candidate'] = copy_git_tree(candidate_tree)
                 path = 'tools/branch-cleanup/cleanup.py'
                 snapshots['candidate'][path]['sha'] = '9'*40
                 plan['paths'] = [path]
@@ -299,7 +306,7 @@ class HostSelectionTests(unittest.TestCase):
 
     def test_mixed_ci_and_owned_locks_keep_reviewed_production_graph_without_full_host(self):
         paths = tuple(HOST.PACKAGE_LOCKS)
-        candidate = deepcopy(self.tree)
+        candidate = copy_git_tree(self.tree)
         for path in paths:
             candidate[path]['sha'] = 'b'*40
         selected = self.selected(['tools/branch-cleanup/cleanup.py', *paths],
@@ -312,11 +319,11 @@ class HostSelectionTests(unittest.TestCase):
         self.assertEqual(HOST.program_digest(candidate), HOST.REVIEWED_PROGRAMS)
 
     def test_ci_only_after_integrated_npm_update_keeps_the_same_reader_boundary(self):
-        reviewed = deepcopy(self.tree)
+        reviewed = copy_git_tree(self.tree)
         for path in HOST.PACKAGE_LOCKS:
             reviewed[path]['sha'] = 'a' * 40
-        previous = deepcopy(self.tree)
-        candidate = deepcopy(previous)
+        previous = copy_git_tree(self.tree)
+        candidate = copy_git_tree(previous)
         changed = 'tools/branch-cleanup/cleanup.py'
         candidate[changed]['sha'] = 'b' * 40
         with patch.object(HOST, 'REVIEWED_PROGRAMS', HOST.program_digest(reviewed)):
@@ -328,7 +335,7 @@ class HostSelectionTests(unittest.TestCase):
         for path in HOST.PACKAGE_LOCKS:
             self.assertTrue(self.selected([changed, path], tree=candidate, base_tree=reviewed)['full_host'])
         appium = 'tests/device/ios/package-lock.json'
-        drift = deepcopy(candidate)
+        drift = copy_git_tree(candidate)
         drift[appium] = {'mode': '100644', 'type': 'blob', 'sha': 'c' * 40}
         self.assertNotEqual(HOST.program_digest(drift), HOST.program_digest(candidate))
 
@@ -336,7 +343,7 @@ class HostSelectionTests(unittest.TestCase):
         path = 'browser-client/package-lock.json'
         for reader in ('tests/platform-profile.json', 'scripts/system/chat.js',
                        'libraries/shared/src/new-package-reader.h'):
-            candidate = deepcopy(self.tree)
+            candidate = copy_git_tree(self.tree)
             candidate[path]['sha'] = 'b'*40
             candidate[reader] = {'mode': '100644', 'type': 'blob', 'sha': 'c'*40}
             with self.subTest(reader=reader):
@@ -347,8 +354,8 @@ class HostSelectionTests(unittest.TestCase):
 
     def test_owned_locks_keep_required_changed_control_plane_owner(self):
         path = 'browser-client/package-lock.json'
-        candidate = deepcopy(self.tree); candidate[path]['sha'] = 'b'*40
-        previous = deepcopy(self.tree); previous[HOST.CONTROL_PLANE]['sha'] = 'c'*40
+        candidate = copy_git_tree(self.tree); candidate[path]['sha'] = 'b'*40
+        previous = copy_git_tree(self.tree); previous[HOST.CONTROL_PLANE]['sha'] = 'c'*40
         selected = self.selected([HOST.CONTROL_PLANE, path], tree=candidate,
                                  base_tree=previous, package_paths=(path,))
         self.assertEqual(set(selected['suites']), self.ci_quick | {'device-control-plane-full'})
@@ -359,7 +366,7 @@ class HostSelectionTests(unittest.TestCase):
         path = 'browser-client/package-lock.json'
         for mode in ('missing', '100755', '120000', '160000'):
             for side in ('base', 'candidate'):
-                candidate, previous = deepcopy(self.tree), deepcopy(self.tree)
+                candidate, previous = copy_git_tree(self.tree), copy_git_tree(self.tree)
                 changed = candidate if side == 'candidate' else previous
                 if mode == 'missing': del changed[path]
                 else: changed[path] = {'mode': mode, 'type': 'commit' if mode == '160000' else 'blob', 'sha': 'b'*40}
@@ -372,7 +379,7 @@ class HostSelectionTests(unittest.TestCase):
             self.selected(['interface/src/Application.cpp'], package_paths=('interface/src/Application.cpp',))
 
     def test_reviewed_generation_binds_actual_reader_inventory(self):
-        tree=deepcopy(self.tree)
+        tree=copy_git_tree(self.tree)
         del tree['tests/device/contracts/tablet/pages.json']
         self.assertNotEqual(HOST.program_digest(tree), HOST.REVIEWED_PROGRAMS)
 
@@ -385,7 +392,7 @@ class HostSelectionTests(unittest.TestCase):
         self.assertEqual(set(selected['suites']), self.all_names)
 
     def test_finite_ci_executables_have_separate_complete_ordinary_inventory(self):
-        previous = deepcopy(self.tree)
+        previous = copy_git_tree(self.tree)
         paths = sorted(HOST.CI_EXECUTABLE_PATHS)
         for path in paths:
             self.assertEqual(previous[path]['mode'], '100755')
@@ -399,19 +406,19 @@ class HostSelectionTests(unittest.TestCase):
         for changes in ({'unknown': True}, {'paths': paths[:-1]}):
             self.assertFalse(HOST.regular_ci_inventory({**plan, **changes}, previous, self.tree))
         self.assertFalse(HOST.regular_ci_inventory(plan, None, self.tree))
-        drift = deepcopy(previous)
+        drift = copy_git_tree(previous)
         drift['unowned/input.py'] = {'mode': '100644', 'type': 'blob', 'sha': 'c' * 40}
         self.assertFalse(HOST.regular_ci_inventory(plan, drift, self.tree))
         self.assertTrue(self.selected(paths, regular=False, base_tree=drift)['full_host'])
 
     def test_ci_executable_waiver_rejects_modes_missing_files_and_unknown_executables(self):
         path = 'tests/project-suite-self-test.py'
-        previous = deepcopy(self.tree)
+        previous = copy_git_tree(self.tree)
         previous[path]['sha'] = 'b' * 40
         plan = {'unknown': False, 'regular': False, 'paths': [path]}
         for side in ('base', 'candidate'):
             for mode in ('missing', '100644', '120000', '160000'):
-                base, candidate = deepcopy(previous), deepcopy(self.tree)
+                base, candidate = copy_git_tree(previous), copy_git_tree(self.tree)
                 changed = base if side == 'base' else candidate
                 if mode == 'missing':
                     del changed[path]
@@ -421,12 +428,12 @@ class HostSelectionTests(unittest.TestCase):
                 with self.subTest(side=side, mode=mode):
                     self.assertFalse(HOST.regular_ci_inventory(plan, base, candidate))
         for extra in ('tools/branch-cleanup/cleanup.py', 'docs/NEW.md'):
-            candidate = deepcopy(self.tree)
+            candidate = copy_git_tree(self.tree)
             candidate[extra] = {'mode': '100755', 'type': 'blob', 'sha': 'c' * 40}
             self.assertFalse(HOST.regular_ci_inventory({**plan, 'paths': [path, extra]}, previous, candidate))
 
     def test_two_separate_npm_owners_compose_with_the_finite_executable_inventory(self):
-        previous, candidate = deepcopy(self.tree), deepcopy(self.tree)
+        previous, candidate = copy_git_tree(self.tree), copy_git_tree(self.tree)
         executable = 'tests/project-suite-self-test.py'
         previous[executable]['sha'] = 'b' * 40
         plan = self.package_plan()
@@ -483,7 +490,7 @@ class HostSelectionTests(unittest.TestCase):
                      'unknown/data.bin','provenance/artifact_identity.py','tools/sbom/verify-artifact-identity.py',
                      'browser-client/package-lock.json','script-archive/marketplace/S3Server/package-lock.json'):
             with self.subTest(path=path):
-                tree=deepcopy(self.tree)
+                tree=copy_git_tree(self.tree)
                 if path == 'tests/run-project-tests.py':
                     tree[path]['sha']='b'*40  # A changed implementation is not an owned-path waiver.
                 result=self.selected(['tools/branch-cleanup/cleanup.py',path],tree=tree)
@@ -498,14 +505,14 @@ class HostSelectionTests(unittest.TestCase):
                      'tests/json.py','tests/json/__init__.py','json.py','json/__init__.py',
                      'PhoneLoadingDiagnostics.h','QCoreApplication'):
             with self.subTest(path=path):
-                tree=deepcopy(self.tree)
+                tree=copy_git_tree(self.tree)
                 tree[path]={'mode':'100644','type':'blob','sha':'a'*40}
                 result=self.selected(['tools/branch-cleanup/cleanup.py'],tree=tree)
                 self.assertTrue(result['full_host'])
                 self.assertEqual(result['reason'],'host-reader-generation-not-reviewed')
 
     def test_changed_trusted_reader_cannot_resume_old_dependency_exclusion(self):
-        tree=deepcopy(self.tree)
+        tree=copy_git_tree(self.tree)
         tree['tests/device/run_control_plane_tests.py']['sha']='b'*40
         result=self.selected(['tools/branch-cleanup/cleanup.py'],trusted_tree=tree)
         self.assertTrue(result['full_host'])
@@ -514,7 +521,7 @@ class HostSelectionTests(unittest.TestCase):
         for mode in ('deleted','100755','120000','160000'):
             for side in ('candidate','trusted'):
                 with self.subTest(mode=mode,side=side):
-                    tree=deepcopy(self.tree);path='tests/device/run_control_plane_tests.py'
+                    tree=copy_git_tree(self.tree);path='tests/device/run_control_plane_tests.py'
                     if mode=='deleted': del tree[path]
                     else: tree[path]={'mode':mode,'type':'commit' if mode=='160000' else 'blob','sha':'a'*40}
                     result=self.selected(['tools/branch-cleanup/cleanup.py'],
@@ -588,10 +595,10 @@ class HostSelectionTests(unittest.TestCase):
         # The six actual immutable topic trees are separately checked locally.
         for index,target in enumerate(sorted(targets)):
             with self.subTest(target=target):
-                child=deepcopy(self.tree)
+                child=copy_git_tree(self.tree)
                 child['tests/platform-profile.json']['sha']=str(index+1)*40
                 digest=HOST.program_digest(child)
-                previous=deepcopy(child);previous[HOST.CONTROL_PLANE]['sha']='a'*40
+                previous=copy_git_tree(child);previous[HOST.CONTROL_PLANE]['sha']='a'*40
                 with patch.dict(HOST.REVIEWED_CHILD_PROGRAMS,{target:digest}):
                     initial=self.selected([HOST.CONTROL_PLANE,'tools/branch-cleanup/cleanup.py'],
                                           tree=child,target=target,base_tree=previous)
@@ -605,17 +612,17 @@ class HostSelectionTests(unittest.TestCase):
                     self.assertTrue(self.selected(['tools/branch-cleanup/cleanup.py'],tree=child,target='main')['include_platform'])
 
     def test_only_explicitly_reviewed_predecessor_reader_generations_remain_compatible(self):
-        previous = deepcopy(self.tree)
+        previous = copy_git_tree(self.tree)
         previous['tools/test-evidence/validate-sync.py']['sha'] = 'b' * 40
         with patch.dict(HOST.REVIEWED_PREDECESSORS, {'main': HOST.program_digest(previous)}):
             selected = self.selected(['tools/branch-cleanup/cleanup.py'], tree=previous)
             self.assertFalse(selected['full_host'])
-            changed = deepcopy(previous)
+            changed = copy_git_tree(previous)
             changed['libraries/shared/src/new-reader.cpp'] = {'mode': '100644', 'type': 'blob', 'sha': 'c' * 40}
             self.assertTrue(self.selected(['tools/branch-cleanup/cleanup.py'], tree=changed)['full_host'])
 
     def test_immutable_launcher_difference_requires_owner_even_without_caller_path_hint(self):
-        previous=deepcopy(self.tree);previous[HOST.CONTROL_PLANE]['sha']='b'*40
+        previous=copy_git_tree(self.tree);previous[HOST.CONTROL_PLANE]['sha']='b'*40
         selected=self.selected(['tools/branch-cleanup/cleanup.py'],base_tree=previous)
         self.assertIn('device-control-plane-full',selected['suites'])
         self.assertTrue(selected['full_host'])
@@ -629,7 +636,7 @@ class HostSelectionTests(unittest.TestCase):
             self.assertTrue(self.selected([path])['include_platform'],path)
         for path in ('tests/run-project-tests.py','tools/test-evidence/execution.py',
                      'tools/test-evidence/inputs.py','tools/test-evidence/validate-sync.py'):
-            changed=deepcopy(self.tree);changed[path]['sha']='b'*40
+            changed=copy_git_tree(self.tree);changed[path]['sha']='b'*40
             self.assertTrue(self.selected(['tools/branch-cleanup/cleanup.py'],tree=changed)['include_platform'],path)
 
     def test_fixed_boundary_controls_keep_their_owners_and_exact_controller_generation(self):
@@ -659,7 +666,7 @@ class HostSelectionTests(unittest.TestCase):
                      'tools/repository-checks/workflows/producers/protected-project-tests.yml',
                      'tools/repository-checks/workflows/producers/repository-checks.yml',
                      'tools/repository-checks/workflows/producers/parent-qualification.yml'):
-            candidate = deepcopy(self.tree)
+            candidate = copy_git_tree(self.tree)
             candidate[path] = {'mode': '100644', 'type': 'blob', 'sha': 'b' * 40}
             with self.subTest(controller=path):
                 self.assertTrue(self.selected(paths, tree=candidate)['include_platform'])
@@ -669,7 +676,7 @@ class HostSelectionTests(unittest.TestCase):
                 self.assertTrue(self.selected([path])['include_platform'])
 
     def test_both_consumed_platform_readmes_and_optional_membership_remain_bound(self):
-        reviewed=deepcopy(self.tree)
+        reviewed=copy_git_tree(self.tree)
         docs=('android/vr/common/openxr/README.md','android/phone/device-tests/parity/fixtures/README.md')
         for path in docs:
             reviewed[path]={'mode':'100644','type':'blob','sha':'a'*40}
@@ -678,7 +685,7 @@ class HostSelectionTests(unittest.TestCase):
                          'tests/json.py','tests/json/__init__.py','json.py','json/__init__.py'):
                 for side in ('candidate','trusted'):
                     with self.subTest(path=path,side=side):
-                        changed=deepcopy(reviewed)
+                        changed=copy_git_tree(reviewed)
                         changed[path]={'mode':'100644','type':'blob','sha':'b'*40}
                         result=self.selected(['tools/branch-cleanup/cleanup.py'],
                                              tree=changed if side=='candidate' else reviewed,
@@ -687,7 +694,7 @@ class HostSelectionTests(unittest.TestCase):
                         self.assertTrue(result['include_platform'])
             for path in docs:
                 for mode in ('deleted','100755','120000','160000','rename'):
-                    changed=deepcopy(reviewed)
+                    changed=copy_git_tree(reviewed)
                     if mode=='deleted':del changed[path]
                     elif mode=='rename':changed[path+'.new']=changed.pop(path)
                     else:changed[path]={'mode':mode,'type':'commit' if mode=='160000' else 'blob','sha':'a'*40}
@@ -697,7 +704,7 @@ class HostSelectionTests(unittest.TestCase):
     def test_excluded_ci_symlink_or_gitlink_cannot_get_partial_verification(self):
         for mode in ('120000','160000'):
             for side in ('candidate','trusted'):
-                changed=deepcopy(self.tree)
+                changed=copy_git_tree(self.tree)
                 changed['tools/branch-cleanup/cleanup.py']={'mode':mode,'type':'commit' if mode=='160000' else 'blob','sha':'a'*40}
                 result=self.selected(['tests/branch-cleanup-test.py'],
                                      tree=changed if side=='candidate' else self.tree,
