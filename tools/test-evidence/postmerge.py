@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Source-staged main consumer of ORIGINAL protected PR evidence.
+"""Source-staged finite protected-target consumer of ORIGINAL PR evidence.
 
 No candidate checkout, runtime probe, installation or test command is needed to
 look up proof. Unsupported proof leaves the existing actual execution selected.
@@ -27,12 +27,14 @@ import producer_api as A
 import producer_workflow as producer
 import runtime_ci
 import sandbox
+import source_admission
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE = 'tools/repository-checks/workflows/producers/parent-qualification.yml'
 SOURCE_READY = True
 GENERATIONS = {'postmerge-original-e-v1', 'protected-producer-postmerge-original-e-v1',
-               'protected-producer-ci37-v1', 'protected-producer-metadata-ci-v1'}
+               'protected-producer-ci37-v1', 'protected-producer-metadata-ci-v1',
+               'protected-producer-seven-target-ci-v1'}
 
 
 def _source_qualified():
@@ -41,22 +43,26 @@ def _source_qualified():
 
 
 def _native(event, environment):
+    target=environment.get('GITHUB_REF','').removeprefix('refs/heads/')
+    A.require(target in source_admission.TARGET_PROFILES, 'unknown protected consumer target')
+    workflow='parent-qualification' if target in {'main','android-main','android-vr','apple-main'} else 'project-tests'
+    job='qualify-parent' if workflow=='parent-qualification' else 'route'
     expected = {'GITHUB_ACTIONS': 'true', 'GITHUB_REPOSITORY': A.REPOSITORY,
         'GITHUB_REPOSITORY_ID': '1319052603', 'GITHUB_EVENT_NAME': 'push',
-        'GITHUB_REF': 'refs/heads/main', 'GITHUB_RUN_ATTEMPT': '1',
-        'GITHUB_JOB': 'qualify-parent', 'RUNNER_ENVIRONMENT': 'github-hosted', 'ImageOS': 'ubuntu24'}
+        'GITHUB_REF': 'refs/heads/'+target, 'GITHUB_RUN_ATTEMPT': '1',
+        'GITHUB_JOB': job, 'RUNNER_ENVIRONMENT': 'github-hosted', 'ImageOS': 'ubuntu24'}
     A.require(all(environment.get(key) == value for key, value in expected.items()),
-              'consumer requires the original current main push job')
+              'consumer requires the original current protected push job')
     source = A.sha(environment.get('GITHUB_SHA'))
     A.require(environment.get('GITHUB_WORKFLOW_SHA') == source
-        and environment.get('GITHUB_WORKFLOW_REF') == A.REPOSITORY + '/.github/workflows/parent-qualification.yml@refs/heads/main'
+        and environment.get('GITHUB_WORKFLOW_REF') == A.REPOSITORY + '/.github/workflows/'+workflow+'.yml@refs/heads/'+target
         and re.fullmatch(r'[1-9][0-9]*', environment.get('GITHUB_RUN_ID', '')),
         'consumer native workflow source unavailable')
-    A.require(type(event) is dict and event.get('ref') == 'refs/heads/main' and event.get('after') == source
+    A.require(type(event) is dict and event.get('ref') == 'refs/heads/'+target and event.get('after') == source
         and event.get('deleted') is False and event.get('forced') is False
         and event.get('repository', {}).get('full_name') == A.REPOSITORY
         and event.get('repository', {}).get('id') == 1319052603,
-        'consumer event differs from the current native main push')
+        'consumer event differs from the current native protected push')
     return source, int(environment['GITHUB_RUN_ID'])
 
 
@@ -104,6 +110,30 @@ def original_controller(policy, previous, current, root=ROOT):
     return P.digest(identity)
 
 
+def default_authority(adapter, references):
+    authority=adapter._object('branches/main')
+    A.require(authority.get('name')=='main' and authority.get('protected') is True
+        and authority.get('commit',{}).get('sha')==references['default'],
+        'current default controller authority protection changed')
+    return {'name':'main','protected':True,'commit':references['default']}
+
+
+def integrated_controller(policy, previous, current, local, target, root):
+    """Reconstruct actual D bytes from original B's complete finite enrollment.
+
+    The native pre-import recipe commits D to B. This does not assert a
+    historical D commit; the original controller hash and E remain actual D.
+    Metadata retention keeps its separate original_controller path unchanged.
+    """
+    A.require(set(producer.controller_sources(policy))==set(source_admission.CONTROLLERS),
+              'integrated controller graph is not independently reviewed')
+    read=lambda name:source_admission.actual_bytes(root,name)
+    before=source_admission.compatibility(previous,local,target,read_actual=read,actual_imports=source_admission.actual_import_inventory(root))
+    after=source_admission.compatibility(current,local,target,read_actual=read,actual_imports=source_admission.actual_import_inventory(root))
+    A.require(before==after, 'integrated controller or target declarations changed')
+    return before['controller_digest']
+
+
 def _policy(policy, registry, binding, controller, adapter, root, selected):
     tree = inputs.full_tree(root, 'HEAD')
     entry = tree.get(producer.TEMPLATE)
@@ -136,46 +166,62 @@ def verify_main(event, environment, adapter, *, root=ROOT, clock=lambda: datetim
               'postmerge protected reuse is not qualified')
     source, run_id = _native(event, environment)
     binding, references = adapter._integrated_current(run_id, 15368, clock())
-    A.require(references['target'] == references['default'] == source and references['default_ref'] == 'main'
-        and binding['base_ref'] == 'main' and event.get('before') == binding['base_sha']
-        and execution.checkout_identity(root) == (source, references['integration']['tree']),
-        'current main or trusted source differs from authenticated push')
+    source_authority=default_authority(adapter,references)
+    target=binding['base_ref']
+    default_tree_sha, _=adapter._commit(references['default'])
+    A.require(references['target'] == source and references['default_ref'] == 'main'
+        and target in source_admission.TARGET_PROFILES and event.get('before') == binding['base_sha']
+        and execution.checkout_identity(root) == (references['default'], default_tree_sha),
+        'current target or trusted default source differs from authenticated push')
     current_tree_sha, current = full_tree(adapter, source)
-    local = inputs.full_tree(root, source)
-    A.require(current == local and current_tree_sha == references['integration']['tree'],
-              'complete current main inventory differs from trusted immutable checkout')
+    local = inputs.full_tree(root, references['default'])
+    _, immutable_default=full_tree(adapter,references['default'])
+    A.require(immutable_default == local and current_tree_sha == references['integration']['tree'],
+              'complete default inventory differs from trusted immutable checkout')
     policy = producer._host_policy()
     package = policy.package_policy()
     A.require(package.validate_tree_wiring(current) in GENERATIONS,
-              'current main does not contain the exact complete consumer generation')
-    A.require(current.get('.github/workflows/parent-qualification.yml') == local.get(TEMPLATE)
-        and current.get(TEMPLATE, {}).get('mode') == '100644', 'actual parent workflow differs from trusted canonical source')
+              'current target does not contain the exact complete consumer generation')
+    workflow=references['integration']['workflow_path']
+    template=TEMPLATE if workflow=='.github/workflows/parent-qualification.yml' else producer.TEMPLATE
+    A.require(workflow in {'.github/workflows/parent-qualification.yml','.github/workflows/project-tests.yml'}
+        and current.get(workflow)==local.get(template) and local.get(template,{}).get('mode')=='100644',
+        'actual protected push workflow differs from trusted canonical source')
     _, previous = full_tree(adapter, binding['base_sha'])
-    controller = original_controller(policy, previous, local, root)
+    controller = integrated_controller(policy,previous,current,local,target,root)
     registry = inputs.load_registry(root / '.github/test-suites.json')
     A.require(all(suite['scope'] == 'content' for suite in registry['suites'].values()),
               'candidate-scoped suites require actual execution for the integrated commit')
-    # Empty product declarations are independently bound on BOTH full snapshots.
+    # Enrolled product declarations are independently bound on BOTH snapshots.
     # Additional candidate commands cannot disappear behind a trusted registry.
     for snapshot in (previous, current):
-        for relative in ('.github/test-suites.json', 'tests/platform-profile.json'):
+        for relative in ('.github/test-suites.json',):
             A.require(snapshot.get(relative) == local.get(relative), 'candidate command or product declarations changed')
-    A.require(json.loads(package._trusted_bytes('tests/platform-profile.json')) ==
-        {'schema': 1, 'platform': 'shared', 'suites': []}, 'product execution is outside this main consumer')
+    A.require(local.get('tests/platform-profile.json')==source_admission.ordinary(source_admission.SHARED_PROFILE),
+        'shared default controller profile changed')
     # Receipt fields never choose the profile or selected owner. Derive the
     # current plan before discovering its original native producer source.
-    # The controller's original B context is independently reconstructed above;
-    # using it for both plans also retains the finite full transition owner.
+    # On main, original D is independently known to be original B; preserve
+    # that full transition context even after current default advances to S.
+    # Child admission is limited to complete shared execution under the current
+    # identical controller policy; no historical whole-default tree is invented.
+    selection_context=previous if target=='main' else local
     read_blob = lambda oid:adapter.api.immutable_blob(oid)
-    current_profile = producer.selection_profile(policy, registry, current, previous, previous, root=root,read_blob=read_blob)
+    current_profile = producer.selection_profile(policy, registry, current, previous, selection_context, root=root,target=target,read_blob=read_blob)
     selected = current_profile['selection']
+    if target!='main':
+        A.require(current_profile['profile']==producer.FULL_PROFILE and selected['full_host'] is True
+            and set(selected['suites'])==set(registry['suites']),
+            'child protected reuse requires complete shared execution')
+    A.require(source_admission.shared_platform_supported(selected,target,current.get(source_admission.PROFILE)),
+        'required platform owners need existing actual execution')
     plan, api_policy = _policy(policy, registry, binding, controller, adapter, root, selected)
     snapshot = adapter.capture_integrated(run_id, plan, api_policy, now=clock())
     A.require(snapshot.references == references, 'integration changed before original proof selection')
     original_tree_sha, original_tree = full_tree(adapter, snapshot.binding['merge_sha'])
     A.require(original_tree_sha == snapshot.binding['merge_tree'] == current_tree_sha and original_tree == current,
               'integrated file tree differs from the complete actually tested source')
-    original_profile = producer.selection_profile(policy, registry, original_tree, previous, previous, root=root,read_blob=read_blob)
+    original_profile = producer.selection_profile(policy, registry, original_tree, previous, selection_context, root=root,target=target,read_blob=read_blob)
     A.require(original_profile == current_profile, 'original and current independently selected owners differ')
     authority = P.select_authority(snapshot.observations, snapshot.binding, plan, api_policy.producer,
                                    inventory_complete=snapshot.inventory_complete, now=clock())
@@ -217,14 +263,18 @@ def verify_main(event, environment, adapter, *, root=ROOT, clock=lambda: datetim
         and verified['source_chain']['producer_commit'] == snapshot.binding['merge_sha']
         and verified['receipt_sha256'] == hashlib.sha256(P.canonical(receipt)).hexdigest()
         and verified['aggregate_digest'] == aggregate.get('aggregate_digest')
-        and clock() < P._time(verified['expires_at']), 'original proof changed before consumer completion')
+        and clock() < P._time(verified['expires_at'])
+        and execution.checkout_identity(root)==(references['default'],default_tree_sha)
+        and integrated_controller(policy,previous,current,local,target,root)==controller
+        and default_authority(adapter,references)==source_authority,
+        'original proof changed before consumer completion')
     # Independent package owners are never inferred from shared proof. Their
     # exact immutable delta controls whether checkout/Node/package routing is
     # still needed. A changed package-reader/controller already denied above.
     roots = (*package.tools().PROJECTS, package.S3, package.BROWSER)
     package_work = any(any(path == prefix or path.startswith(prefix + '/') for prefix in roots)
                        for path in previous.keys() | current.keys() if previous.get(path) != current.get(path))
-    return {'schema': 1, 'kind': 'original-pr-main-reuse', 'reusable': False,
+    return {'schema': 1, 'kind': 'original-pr-main-reuse' if target=='main' else 'original-pr-target-reuse', 'target':target, 'reusable': False,
         'current_commit': source, 'current_tree': current_tree_sha, 'current_push_run_id': run_id,
         'original_commit': snapshot.binding['merge_sha'], 'original_git_context': original_git,
         'original_proof': verified, 'original_environment_digest': admission['environment_digest'],
