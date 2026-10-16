@@ -2888,6 +2888,9 @@ class RetainedDefaultMetadataTests(unittest.TestCase):
         for tree in (c.previous,c.tree):
             tree.update(deepcopy(self.generation))
             tree[C.producer.PLATFORM_TEMPLATE]=deepcopy(self.generation['.github/workflows/project-tests.yml'])
+            tree[self.sources[A.METADATA_WORKFLOW]]=deepcopy(self.generation[A.METADATA_WORKFLOW])
+            tree[A.METADATA_SOURCE]={'mode':'100644','type':'blob','sha':C.source_admission.blob_id(
+                (C.ROOT/A.METADATA_SOURCE).read_bytes())}
         package=C.producer._host_policy().package_policy()
         old_generations=package.workflow_generations()
         package.validate_tree_wiring=lambda tree:C.ci_profile.RETAINED_SOURCE_GENERATION \
@@ -2944,6 +2947,8 @@ class RetainedDefaultMetadataTests(unittest.TestCase):
             final_publisher=replace(f.run.final_publisher,receipt_sha256=hashlib.sha256(P.canonical(self.receipt)).hexdigest()))
         c.aggregate['descriptor_digest']=P.descriptor(c.binding,c.plan,c.pp,f.run)['descriptor_digest']
         c.aggregate=FIXTURES.signed(c.aggregate,'aggregate_digest');c.add_run(f.run)
+        c.runs[100]['display_title']=A.ORDINARY_RUN_NAME
+        c.runs[101]['display_title']=A.NONPRODUCER_RUN_NAME
         for index,name in enumerate(('native','android','project / tool-dependencies','project / package-checks',
                                      C.producer.PLATFORM_JOB,'documentation','workflow-contracts'),150):
             c.jobs[100].append(f.job(index,100,name,skipped=True))
