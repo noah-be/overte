@@ -43,6 +43,8 @@ REVIEWED_BOUNDARY = "sha256:cc243adcadf8cf8f51e1226a30f908552e5511126be995f916b2
 # its device-control-plane-full and project-runner owners remain independently required.
 # Independent required CI must still validate these files before any app waiver.
 INDEPENDENT_HOST_PATHS = frozenset({
+    ".github/test-suite-dependencies.json",
+    "tools/test-evidence/affected-test.py",
     ".github/shared-sandbox.json",
     ".github/workflows/shared-sandbox-host-diagnostic.yml",
     "tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml",

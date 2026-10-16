@@ -43,6 +43,8 @@ VARIANTS = ["complete-reviewed-launcher", "Qt6Core/Gui/Qml/Concurrent/WebChannel
 # test receipt, shared-owner handoff or application-build selection authority.
 REVIEWED_CI_HOST_BOUNDARY = "09469192aac99ef9e1ff991a2c6be58942ed9e76f1f35dd2d5b23d4ea1dc15bb"
 CI_HOST_INDEPENDENT_PATHS = frozenset({
+    ".github/test-suite-dependencies.json",
+    "tools/test-evidence/affected-test.py",
     ".github/shared-sandbox.json",
     ".github/workflows/shared-sandbox-host-diagnostic.yml",
     "tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml",

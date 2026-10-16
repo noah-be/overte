@@ -67,6 +67,8 @@ VARIANTS = {
 # package readers, even when an existing workflow separately runs their tests.
 # Do not turn this into tests/**, tools/**, .github/** or all *.json exemptions.
 INDEPENDENT_HOST_PATHS = {
+    ".github/test-suite-dependencies.json": "100644",
+    "tools/test-evidence/affected-test.py": "100644",
     ".github/android-checks.json": "100644",
     ".github/codeql/codeql-config.yml": "100644",
     ".github/repository-checks.json": "100644",

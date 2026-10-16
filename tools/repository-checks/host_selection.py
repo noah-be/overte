@@ -41,6 +41,7 @@ CI_TESTS = frozenset({
     'tests/unittest-runner-test.py',
 })
 CI_POLICY = frozenset({
+    '.github/test-suite-dependencies.json',
     '.github/branch-policy.json', '.github/branch-cleanup.json', '.github/issue-policy.json',
     '.github/repository-checks.json', '.github/package-workflow-generations.json',
     '.github/test-suites.json',
@@ -58,6 +59,7 @@ CI_POLICY = frozenset({
 # import/read these controls or unit tests. Do not extend this to tools/** or
 # tests/**: those roots also contain real product readers and import candidates.
 CI_ROLLOUT_PATHS = frozenset({
+    'tools/test-evidence/affected-test.py',
     '.github/android-checks.json', '.github/android-orchestration.json', '.github/android-owner-transfer.json',
     '.github/attested-runtime.json', '.github/sync-test-reuse.json', '.github/ci37-runtime.json',
     '.github/workflows/dependency-releases.yml', '.github/workflows/repository-checks.yml',
@@ -294,6 +296,26 @@ def _protected_producer_transition(tree, paths, base_tree, trusted_tree, target)
 
 def select(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_root=ROOT,
            trusted_root=ROOT, target='main', base_tree=None, package_paths=()):
+    """Improve an existing trusted decision only with a strictly smaller owner set."""
+    legacy = _select_legacy(tree, paths, regular, unknown=unknown, trusted_tree=trusted_tree,
+        candidate_root=candidate_root, trusted_root=trusted_root, target=target,
+        base_tree=base_tree, package_paths=package_paths)
+    if legacy['reason'] in {'unknown-or-nonregular-inventory', 'unowned-inputs',
+                            'reviewed-protected-producer-transition'}:
+        return legacy
+    registry = inputs.load_registry(ROOT / '.github/test-suites.json')
+    affected = affected_selection(registry, tree, base_tree, trusted_tree, paths)
+    if affected is None:
+        return legacy
+    if affected['reason'] == 'protected-dependencies-unavailable':
+        return affected
+    # Do not replace a stronger existing CI37/package proof with broad unproved
+    # repository owners, or relabel that proof as an unsupported environment.
+    return affected if set(affected['suites']) < set(legacy['suites']) else legacy
+
+
+def _select_legacy(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_root=ROOT,
+                   trusted_root=ROOT, target='main', base_tree=None, package_paths=()):
     registry = inputs.load_registry(ROOT / '.github/test-suites.json')
     names = list(registry['suites'])
     reason = 'unowned-inputs'
@@ -341,6 +363,32 @@ def select(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_
             return result
         reason = 'host-reader-generation-not-reviewed'
     return {'suites': names, 'reason': reason, 'full_host': True, 'include_platform': True}
+
+
+def affected_selection(registry, tree, base_tree, trusted_tree, paths):
+    """Use only an already protected graph; missing legacy graphs retain legacy routing.
+
+    A graph/source rollout cannot certify itself. Every unavailable or changed
+    protected authority keeps the complete existing gate, before any execution.
+    """
+    snapshots = (tree, base_tree, trusted_tree)
+    if all(isinstance(snapshot, dict) and inputs.AFFECTED_POLICY not in snapshot for snapshot in snapshots):
+        return None
+    try:
+        raw = inputs.load_dependencies(ROOT / inputs.AFFECTED_POLICY, registry)
+        device = json.loads(raw)['suites'].get('device-control-plane-full', {})
+        if any(not ci_owned(path) for path in device.get('native_independent_paths', ())):
+            raise ValueError('device native lookup may exempt only reviewed CI-owned leaves')
+        plan = inputs.plan_affected(registry, raw, base_tree, tree, trusted_tree)
+        if plan['paths'] != sorted(paths) or len(paths) != len(set(paths)):
+            raise ValueError('affected suite paths differ from complete immutable delta')
+    except (inputs.InputError, ValueError, OSError, KeyError, TypeError):
+        return {'suites': list(registry['suites']), 'reason': 'protected-dependencies-unavailable',
+                'full_host': True, 'include_platform': True}
+    return {'suites': plan['required'], 'reason': 'protected-affected-dependencies',
+            # This legacy flag also controls prerequisite preparation. Until
+            # setup ownership is qualified, retain complete host provisioning.
+            'full_host': True, 'include_platform': False, 'affected': plan}
 
 
 def target_branch(event):
