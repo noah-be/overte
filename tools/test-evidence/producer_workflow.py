@@ -41,6 +41,13 @@ DESCRIPTOR_JOB = 'project / Publish producer descriptor'
 SHARED_JOB = 'project / Shared tests'
 PUBLISH_PREFIX = 'project / Publish final producer '
 FULL_PROFILE = 'ubuntu24-host-qt5-qt6-v1'
+CURRENT_OWNER_GENERATION = 'protected-producer-seven-target-ci-v1'
+DOCUMENTATION_SUITES = frozenset({'documentation-contracts', 'documentation', 'policy-consistency'})
+WORKFLOW_CONTRACT_SUITES = frozenset({'workflow-contracts'})
+_CURRENT_OWNER_DEMANDS = (DOCUMENTATION_SUITES, WORKFLOW_CONTRACT_SUITES,
+                         DOCUMENTATION_SUITES | WORKFLOW_CONTRACT_SUITES)
+_CURRENT_OWNER_TARGETS = frozenset({'main', 'apple-main', 'apple-ios', 'android-main',
+                                   'android-phone', 'android-vr', 'android-vr-pico'})
 
 
 class PreExecutionUnavailable(host.Unavailable):
@@ -501,6 +508,129 @@ def publication(context, descriptor, receipt, run, now, descriptor_expires_at):
     return value
 
 
+def _owner_target_supported(context):
+    """Use only the actual source admission returned by protected prepare.
+
+    This context is reconstructed internally, never read from candidate JSON.
+    Children retain the existing complete full owner and platform boundary.
+    """
+    target = context['binding']['base_ref']
+    source = context.get('source_context')
+    if target not in _CURRENT_OWNER_TARGETS or type(source) is not dict or type(source.get('schema')) is not int or source['schema'] != 1 \
+            or source.get('kind') != 'protected-default-controller-source-v1' or source.get('target') != target \
+            or source.get('base') != context['binding']['base_sha'] or source.get('default') != context['refs']['default'] \
+            or source.get('controller_digest') != context['policy'].producer.controller_digest \
+            or not isinstance(source.get('lookup_digest'), str) \
+            or re.fullmatch(r'sha256:[0-9a-f]{64}', source['lookup_digest']) is None:
+        return False
+    if target == 'main':
+        return True
+    owner = context['plan']['owners']['shared-host']
+    return (context['profile'] == FULL_PROFILE and context['selected']['full_host'] is True
+        and owner['suites'] == list(context['registry']['suites'])
+        and (owner['include_platform'] is False or source.get('target_profile') == inputs._AFFECTED_SHARED_PROFILE))
+
+
+def _completed_owner_outputs(context, receipt):
+    """Dispatch hints only, emitted after actual selected publication validates."""
+    supported = (_host_policy().package_policy().validate_wiring(context['candidate']) == CURRENT_OWNER_GENERATION
+                 and _owner_target_supported(context))
+    passed = {name for name, result in receipt['results'].items() if result['status'] == 'passed'} if supported else set()
+    return {'documentation_verified': str(DOCUMENTATION_SUITES <= passed).lower(),
+            'workflow_contracts_verified': str(WORKFLOW_CONTRACT_SUITES <= passed).lower()}
+
+
+def verify_current_owners(candidate, event, environment, adapter, *, demanded,
+                          clock=lambda: datetime.now(timezone.utc)):
+    """Authenticate completed owners of this still-running original PR only.
+
+    This fixed outer job may consume its own completed native producer jobs;
+    it cannot make the overall pending run a completed reusable authority.
+    The caller still checks every other required lane independently.
+    """
+    host.require(type(demanded) in {set, frozenset} and demanded in _CURRENT_OWNER_DEMANDS
+                 and environment.get('GITHUB_JOB') == 'repository-checks',
+                 'current owner lookup requires a fixed native outer owner group')
+    protected_admission()
+    candidate = Path(candidate).resolve(strict=True)
+    host.require(candidate == Path(environment['GITHUB_WORKSPACE']).resolve(strict=True) / 'candidate',
+                 'current owner candidate is outside the exact native checkout')
+    context = prepare(candidate, event, environment, adapter)
+    package = _host_policy().package_policy()
+    host.require(package.validate_wiring(candidate) == CURRENT_OWNER_GENERATION
+                 and _owner_target_supported(context)
+                 and demanded <= set(context['plan']['owners']['shared-host']['suites']),
+                 'current owner requires the exact enrolled generation and every actual command')
+
+    def observe():
+        snapshot = adapter.capture(context['number'], context['plan'], context['policy'], now=clock())
+        host.require(snapshot.binding == context['binding'] and snapshot.references == context['refs'],
+                     'current owner source differs from independently selected native context')
+        authority = protocol.select_authority(snapshot.observations, snapshot.binding, context['plan'],
+            context['policy'].producer, inventory_complete=snapshot.inventory_complete, now=clock())
+        host.require(authority['state'] == 'pending' and authority['run_id'] == context['run_id']
+                     and authority['attempt'] == 1,
+                     'current owner is not the unique original current native run')
+        selected = next(item for item in snapshot.observations if item.run.run_id == context['run_id'])
+        run = selected.run
+        host.require(run.status == 'in_progress' and run.conclusion is None and run.attempt == run.latest_attempt == 1
+                     and run.workflow_commit == context['binding']['merge_sha']
+                     and snapshot.source_chains[run.run_id]['producer_commit'] == context['binding']['merge_sha']
+                     and run.final_publisher is not None,
+                     'current owner does not belong to the actual original native merge execution')
+        latest = adapter._object('actions/runs/' + str(run.run_id))
+        host.require(latest.get('id') == run.run_id and latest.get('run_attempt') == 1
+                     and latest.get('status') == run.status and latest.get('conclusion') is None,
+                     'current outer run changed during owner authentication')
+        jobs = adapter._pages(f'actions/runs/{run.run_id}/attempts/1/jobs', 'jobs')
+        matches = [job for job in jobs if job.get('name') == 'repository-checks']
+        host.require(len(matches) == 1, 'current outer aggregate job is missing or ambiguous')
+        outer = adapter._job(matches[0], latest, 15368, final_name='repository-checks')
+        host.require(outer.status == 'in_progress' and outer.conclusion is None
+                     and outer.started_at is not None and outer.completed_at is None
+                     and run.final_publisher.job.completed_at is not None
+                     and protocol._time(run.final_publisher.job.completed_at) <= protocol._time(outer.started_at) <= clock()
+                     and outer.job_id not in {run.publisher.job_id, run.final_publisher.job.job_id,
+                                              *(job.job_id for job in run.owners.values())},
+                     'current outer aggregate did not start after its completed original publisher')
+        return snapshot, selected, outer
+
+    initial, observation, outer = observe()
+    run = observation.run
+    items = initial.artifact_inventories[run.run_id]
+    raw, facts = adapter._artifact(run, 'aggregate', items, clock(), context['binding']['head_sha'])
+    host.require(raw is not None and facts is not None, 'current original aggregate is unavailable')
+    aggregate = protocol.read_artifact(raw, 'aggregate', facts, run, now=clock())
+    receipt = aggregate.get('results', {}).get('shared-host', {}).get('receipt')
+    host.require(type(receipt) is dict and receipt.get('schema') == 3,
+                 'current owner requires an actual isolated original receipt')
+    tree = inputs.full_tree(candidate, context['binding']['merge_sha'])
+    host.require(tree.get('tests/platform-profile.json') == context['source_context']['target_profile'],
+                 'current owner platform declaration differs from its actual protected source admission')
+    shared_context = protocol.SharedContext(context['registry'], tree, receipt['environment'],
+        context['binding']['merge_sha'], context['binding']['merge_tree'], context['git_context'])
+    verified = protocol._verify_original_payload(raw, facts, context['binding'], context['plan'],
+        context['policy'].producer, observation, contexts={'shared-host': shared_context}, now=clock())
+    host.require(receipt['requested_suites'] == context['plan']['owners']['shared-host']['suites']
+                 and demanded <= set(receipt['results']), 'current owner omitted an actual demanded result')
+    if context['profile'] == ci_profile.PROFILE:
+        runtime_ci.validate_environment(receipt['environment'], aggregate['qualified_at'], aggregate['expires_at'], clock(),
+            context['selected'], tree, inputs.full_tree(ROOT, context['refs']['default']), context['registry'], root=ROOT,
+            read_blob=lambda oid:source_blob(candidate, oid))
+    else:
+        attested.validate_environment(receipt['environment'], aggregate['qualified_at'], aggregate['expires_at'],
+                                      clock(), root=ROOT, isolated=True)
+    final, final_observation, final_outer = observe()
+    host.require(final == initial and final_observation == observation and final_outer == outer
+                 and prepare(candidate, event, environment, adapter) == context
+                 and package.validate_wiring(candidate) == CURRENT_OWNER_GENERATION
+                 and clock() < protocol._time(verified['expires_at']),
+                 'current original proof, native jobs, artifacts or protected source changed')
+    return {**verified, 'kind': 'current-original-pr-owners', 'qualification': False, 'reusable': False,
+            'suites': sorted(demanded),
+            'source_chain': final.source_chains[run.run_id], 'outer_job_id': outer.job_id}
+
+
 def _receipt_artifact(context, run, adapter):
     name = f"ci-protected-receipt-{run.run_id}-1"
     items = [item for item in adapter._artifacts(run) if item.get('name') == name]
@@ -684,6 +814,7 @@ def main(argv=None):
     _bookend(context, adapter)
     host.require(current_run(context, adapter, 'publish') == run, 'native publication job changed before output')
     execution._write_receipt(_directory('ci-producer-aggregate') / 'aggregate.json', value)
+    _output(_completed_owner_outputs(context, receipt))
     return 0
 
 

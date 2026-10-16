@@ -415,6 +415,26 @@ def verify_aggregate(raw, artifact, binding, plan, policy, observations, *, inve
     initial = next(item for item in observations if (item.run.run_id, item.run.attempt) == (first["run_id"], first["attempt"]))
     if run.final_publisher is None or initial.run.final_publisher != run.final_publisher:
         raise ProtocolError("authenticated final publisher is missing or changed during verification")
+    return _verify_original_payload(raw, artifact, binding, plan, policy, selected, contexts=contexts, now=now)
+
+
+def _verify_original_payload(raw, artifact, binding, plan, policy, selected, *, contexts, now):
+    """Validate the same original payload after independent native authority.
+
+    This does not select an authoritative run or assert overall run success.
+    The ordinary verifier above still requires its unchanged completed-run
+    selector. Only the fixed current-self native owner entrypoint may instead
+    authenticate its own running outer job and completed producer jobs.
+    """
+    validate_binding(binding)
+    validate_plan(plan)
+    _now(now)
+    if not isinstance(selected, Observation):
+        raise ProtocolError("original selected observation is unavailable")
+    run = selected.run
+    _run(run, policy)
+    if run.final_publisher is None:
+        raise ProtocolError("authenticated original final publisher is unavailable")
     if run.attempt != 1 or run.latest_attempt != 1:
         raise ProtocolError("final publication requires the original first execution attempt")
     if len(plan["owners"]) != 1 or next(iter(plan["owners"].values()))["kind"] != "shared":
