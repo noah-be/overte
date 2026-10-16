@@ -1,0 +1,152 @@
+# Dormant: trusted policy blocks activation until the complete owner handoff.
+name: Required Android host checks
+on:
+  workflow_call:
+    inputs:
+      android_required:
+        required: true
+        type: string
+      android_candidate:
+        required: true
+        type: string
+      android_plan:
+        required: true
+        type: string
+      android_inventory:
+        required: true
+        type: string
+    outputs:
+      verified:
+        value: ${{ jobs.verify.outputs.verified }}
+      candidate:
+        value: ${{ jobs.verify.outputs.candidate }}
+      plan:
+        value: ${{ jobs.verify.outputs.plan }}
+      inventory:
+        value: ${{ jobs.verify.outputs.inventory }}
+permissions:
+  contents: read
+jobs:
+  route:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      android_required: ${{ steps.plan.outputs.android_required }}
+      android_candidate: ${{ steps.plan.outputs.android_candidate }}
+      android_plan: ${{ steps.plan.outputs.android_plan }}
+      android_inventory: ${{ steps.plan.outputs.android_inventory }}
+    steps:
+    - name: Check out trusted Android policy
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.event.repository.default_branch }}
+        path: trusted
+        persist-credentials: false
+    - name: Read exact candidate Git objects
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.sha }}
+        path: candidate
+        fetch-depth: 2
+        persist-credentials: false
+        sparse-checkout: .github
+    - name: Independently select the complete Android union
+      id: plan
+      env:
+        EXPECTED_ANDROID_ROUTE: ${{ toJSON(inputs) }}
+      run: python3 trusted/tools/repository-checks/android_gate.py plan --candidate candidate --output "$GITHUB_OUTPUT" --expected-json "$EXPECTED_ANDROID_ROUTE"
+  execute:
+    needs: route
+    if: needs.route.outputs.android_required == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    outputs:
+      verified: ${{ steps.execute.outputs.verified }}
+      candidate: ${{ steps.execute.outputs.candidate }}
+      plan: ${{ steps.execute.outputs.plan }}
+      inventory: ${{ steps.execute.outputs.inventory }}
+    steps:
+    - name: Check out trusted execution controller
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.event.repository.default_branch }}
+        path: trusted
+        persist-credentials: false
+    - name: Check out exact candidate without credentials
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.sha }}
+        path: candidate
+        fetch-depth: 2
+        persist-credentials: false
+    - name: Set up the Android Java 21 owner
+      uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+      with:
+        distribution: temurin
+        java-version: 21
+        cache: gradle
+        cache-dependency-path: candidate/android/common/tests/robolectric/*.gradle
+    - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      with:
+        python-version: '3.12'
+    - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+      with:
+        node-version: 22
+    - name: Install Qt 5 test runtime
+      run: |
+        sudo apt-get -o Acquire::Retries=4 update
+        sudo apt-get -o Acquire::Retries=4 install -y --no-install-recommends \
+          qtdeclarative5-dev-tools qml-module-qttest qml-module-qtquick2 \
+          qml-module-qtquick-controls qml-module-qtquick-controls2 \
+          qml-module-qtquick-layouts qml-module-qtquick-window2
+    - name: Prepare pinned trusted host tools outside candidate
+      run: bash trusted/tools/repository-checks/android-host-prepare.sh "$RUNNER_TEMP/android-host-venv"
+    - name: Execute and verify the independently selected Android owners once
+      id: execute
+      env:
+        EXPECTED_ANDROID_ROUTE: ${{ toJSON(needs.route.outputs) }}
+      run: |
+        export PATH="$RUNNER_TEMP/android-host-venv/bin:$PATH"
+        "$RUNNER_TEMP/android-host-venv/bin/python" trusted/tools/repository-checks/android_gate.py run \
+          --candidate candidate --expected-json "$EXPECTED_ANDROID_ROUTE" --output "$GITHUB_OUTPUT" \
+          --receipt "$RUNNER_TEMP/android-execution.json" --reports "$RUNNER_TEMP/android-reports"
+    - name: Upload actual execution diagnostics
+      if: always()
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      with:
+        name: android-execution-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+        path: |
+          ${{ runner.temp }}/android-execution.json
+          ${{ runner.temp }}/android-reports/
+        if-no-files-found: warn
+        retention-days: 7
+  verify:
+    if: always()
+    needs: [route, execute]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      verified: ${{ steps.verify.outputs.verified }}
+      candidate: ${{ steps.verify.outputs.candidate }}
+      plan: ${{ steps.verify.outputs.plan }}
+      inventory: ${{ steps.verify.outputs.inventory }}
+    steps:
+    - name: Check out trusted final verifier
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.event.repository.default_branch }}
+        path: trusted
+        persist-credentials: false
+    - name: Read exact candidate Git objects
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.sha }}
+        path: candidate
+        fetch-depth: 2
+        persist-credentials: false
+        sparse-checkout: .github
+    - name: Recompute candidate union and require complete successful ownership
+      id: verify
+      env:
+        ANDROID_RESULTS: ${{ toJSON(needs) }}
+      run: python3 trusted/tools/repository-checks/android_gate.py verify --candidate candidate --needs-json "$ANDROID_RESULTS" --output "$GITHUB_OUTPUT"

@@ -28,6 +28,8 @@ PRIVILEGED_PATHS = (
     ".github/workflows/workflow-security.yml",
     ".github/rulesets/",
     "tools/repository-checks/",
+    "tools/test-evidence/",
+    ".github/test-suites.json",
     "tools/native-tests/",
     ".github/native-tests.json",
     ".github/workflows/native-tests.yml",

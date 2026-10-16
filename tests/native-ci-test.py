@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -34,6 +35,7 @@ class RoutingTests(unittest.TestCase):
     def test_host_changes_do_not_start_native_builds(self):
         for path in ('README.md', 'docs/developer.md', 'tools/native-tests/README.md', 'scripts/system/main.js',
                      'tests/device/run_control_plane_tests.py', 'tests/project-health-test.py',
+                     'tools/native-tests/check.py', 'tests/native-ci-test.py',
                      'tools/sync-test-reuse/test.py', 'server-console/src/main.js',
                      '.github/ISSUE_TEMPLATE/bug.yml', 'interface/resources/qml/Main.qml',
                      'interface/resources/images/example.png'):
@@ -64,9 +66,42 @@ class RoutingTests(unittest.TestCase):
                 self.assertEqual(route['mode'], 'full')
                 self.assertEqual(route['paths'], [path])
 
+    def test_host_evidence_tools_do_not_hide_native_or_build_inputs(self):
+        host = ['tools/test-evidence/inputs.py', 'tools/test-evidence/runtime.py',
+                'tools/test-evidence/fixtures/example.json']
+        for path in host:
+            with self.subTest(path=path):
+                self.assertEqual(POLICY.plan([path])['mode'], 'skip')
+                self.assertEqual(POLICY.plan([path], regular=False)['mode'], 'full')
+        for path in ('tools/test-evidence/new.cpp', 'tools/test-evidence/new.h',
+                     'tools/test-evidence/CMakeLists.txt',
+                     'tools/test-evidence/generate.cmake',
+                     'tools/test-evidence/resources.qrc',
+                     'tools/test-evidence/unmapped.data',
+                     'tools/test-evidence-sibling/inputs.py',
+                     'libraries/shared/src/AABox.cpp'):
+            with self.subTest(path=path):
+                result = POLICY.plan([*host, path])
+                self.assertEqual(result['mode'], 'full')
+                self.assertEqual(result['paths'], [path])
+
     def test_core_test_edit_uses_bounded_core_lane(self):
-        for path in ('tests/shared/src/AABoxTests.cpp', 'tools/native-tests/check.py', 'tools/native-tests/run.py'):
+        for path in ('tests/shared/src/AABoxTests.cpp', 'tools/native-tests/select.py',
+                     'tools/native-tests/run.py', 'tools/native-tests/qt-test.py'):
             self.assertEqual(POLICY.plan([path])['mode'], 'core')
+
+    def test_routing_only_edits_preserve_native_and_nonregular_selection(self):
+        routing = ['tools/native-tests/check.py', 'tests/native-ci-test.py']
+        self.assertEqual(POLICY.plan(routing)['mode'], 'skip')
+        self.assertEqual(POLICY.plan(routing, regular=False)['mode'], 'full')
+        for native in ('libraries/shared/src/AABox.cpp', 'conanfile.py',
+                       'tools/native-tests/CMakeLists.txt', 'tools/native-tests/new.cpp',
+                       'tools/native-tests/unknown.py'):
+            with self.subTest(native=native):
+                selected = POLICY.plan([*routing, native])
+                self.assertEqual(selected['mode'], 'full')
+                self.assertEqual(selected['paths'], [native])
+        self.assertEqual(POLICY.plan([*routing, 'tools/native-tests/run.py'])['mode'], 'core')
 
     def test_jsdoc_dependency_manifests_skip_native_but_build_and_unknown_paths_do_not(self):
         for path in ('tools/jsdoc/package.json', 'tools/jsdoc/package-lock.json'):
@@ -75,6 +110,44 @@ class RoutingTests(unittest.TestCase):
             for native in ('tools/jsdoc/CMakeLists.txt', 'tools/jsdoc/new.cpp',
                            'tools/jsdoc/unknown.json', 'libraries/shared/src/AABox.cpp'):
                 self.assertEqual(POLICY.plan([path, native])['mode'], 'full')
+
+    def test_javascript_package_manifests_do_not_build_the_native_product(self):
+        projects = ('browser-client', 'browser-direct-client',
+                    'script-archive/marketplace/S3Server')
+        manifests = [f'{project}/{name}' for project in projects
+                     for name in ('package.json', 'package-lock.json')]
+        self.assertEqual(POLICY.plan(manifests)['mode'], 'skip')
+        for path in manifests:
+            with self.subTest(path=path):
+                self.assertEqual(POLICY.plan([path])['mode'], 'skip')
+                self.assertEqual(POLICY.plan([path], regular=False)['mode'], 'full')
+                for native in ('libraries/shared/src/AABox.cpp',
+                               'conanfile.py', 'cmake/macros/TargetGlm.cmake'):
+                    self.assertEqual(POLICY.plan([path, native])['mode'], 'full')
+        for project in projects:
+            for name in ('CMakeLists.txt', 'input.cmake', 'resources.qrc',
+                         'unknown.json', 'package-lock.json.cpp', 'new.h'):
+                with self.subTest(project=project, name=name):
+                    self.assertEqual(POLICY.plan([manifests[0], f'{project}/{name}'])['mode'], 'full')
+
+    def test_browser_history_fixtures_skip_native_without_exempting_neighbors(self):
+        fixtures = sorted(POLICY.HOST_BROWSER_FIXTURES)
+        self.assertEqual(len(fixtures), 12)
+        self.assertEqual(POLICY.plan(fixtures)['mode'], 'skip')
+        for path in fixtures:
+            with self.subTest(path=path):
+                self.assertEqual(POLICY.plan([path])['mode'], 'skip')
+                self.assertEqual(POLICY.plan([path], regular=False)['mode'], 'full')
+        for path in ('browser-client/tests/integration/unknown.mjs',
+                     'browser-client/tests/fixtures/unknown.json.gz',
+                     'browser-client/tests/CMakeLists.txt',
+                     'browser-client/tests/integration/configure.cmake',
+                     'browser-client/tests/fixtures/resources.qrc',
+                     'browser-client/tests/fixtures/new.cpp',
+                     'browser-client/tests/fixtures/new.h',
+                     'libraries/shared/src/AABox.cpp', 'conanfile.py'):
+            with self.subTest(path=path):
+                self.assertEqual(POLICY.plan([*fixtures, path])['mode'], 'full')
 
     def test_production_dependency_and_unknown_changes_are_conservative(self):
         for path in ('libraries/shared/src/AABox.cpp', 'libraries/shared/src/AABox.h',
@@ -265,8 +338,24 @@ class WorkflowCostTests(unittest.TestCase):
         self.assertNotRegex(workflow, r'(?m)^  (push|pull_request|pull_request_target):')
         config = json.loads((ROOT / '.github/repository-checks.json').read_text())
         if config.get('native_required', False) or 'main' in config.get('native_required_branches', []):
-            self.assertIn("if: needs.route.outputs.native != 'skip'", caller)
-            self.assertIn('workflow-security, native]', caller)
+            jobs = yaml.safe_load(caller)['jobs']
+            generation = load('native_complete_workflow_contract',
+                              'tests/workflow-contract-test.py').reviewed_package_generation()
+            metadata = generation in ('npm-consumers-metadata-edits-v1', 'android-owned-npm5-sync-ci-v1',
+                                      'protected-producer-metadata-ci-v1', 'protected-producer-seven-target-ci-v1')
+            condition = "needs.route.outputs.native != 'skip'"
+            if metadata:
+                condition = "needs.route.outputs.metadata_only != 'true' && " + condition
+            self.assertEqual(jobs['native']['if'], condition)
+            self.assertEqual(jobs['native']['needs'], 'route')
+            self.assertEqual(jobs['repository-checks']['if'],
+                             "always() && (needs.route.result != 'success' || needs.route.outputs.metadata_only != 'true')"
+                             if metadata else 'always()')
+            if metadata:
+                self.assertEqual(jobs['repository-checks']['name'],
+                    "${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && "
+                    "'repository-checks (metadata unchanged)' || 'repository-checks' }}")
+            self.assertIn('native', jobs['repository-checks']['needs'])
         self.assertIn("timeout-minutes: ${{ inputs.mode == 'full' && 90 || 15 }}", workflow)
         self.assertIn('timeout-minutes: 10', workflow)
         self.assertNotIn('--build=missing', workflow)
@@ -452,10 +541,29 @@ class GitInventoryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             trusted, candidate = root / 'trusted', root / 'candidate'
-            trusted.mkdir()
             candidate.mkdir()
-            for directory in directories:
-                shutil.copytree(ROOT / directory, trusted / directory)
+            def sparse_trusted(paths):
+                # Exercise a real sparse Git checkout: the reviewed package
+                # controller reads immutable skip-worktree blobs for trusted
+                # requirements that this routing checkout does not materialize.
+                subprocess.run(['git', 'clone', '-q', '--shared', '--no-checkout',
+                                str(ROOT), str(trusted)], check=True,
+                               capture_output=True)
+                subprocess.run(['git', '-C', str(trusted), 'sparse-checkout',
+                                'set', '--cone', *paths], check=True,
+                               capture_output=True)
+                subprocess.run(['git', '-C', str(trusted), 'checkout', '-q', '--detach',
+                                subprocess.check_output(['git', 'rev-parse', 'HEAD'],
+                                                        cwd=ROOT, text=True).strip()],
+                               check=True, capture_output=True)
+                # This historical package/IOS sparse contract has an explicit
+                # inactive Browser policy inside its disposable trusted clone.
+                # The actual activated Browser pair has dedicated CLI tests.
+                policy = trusted / '.github/repository-checks.json'
+                config = json.loads(policy.read_text())
+                config['browser_client_required_branches'] = []
+                policy.write_text(json.dumps(config, indent=2) + '\n')
+            sparse_trusted(directories)
             def git(*args):
                 return subprocess.check_output(['git', *args], cwd=candidate,
                                                text=True, stderr=subprocess.PIPE).strip()
@@ -466,6 +574,11 @@ class GitInventoryTests(unittest.TestCase):
             wiring = candidate / '.github/workflows/ios-build-qualification.yml'
             wiring.parent.mkdir(parents=True)
             wiring.write_bytes((ROOT / 'tools/ios-build-qualification/workflow.yml').read_bytes())
+            # Use the complete exact historical package tuple, independent of
+            # later active Browser/Android caller generations.
+            for name in ('repository-checks.yml', 'project-tests.yml', 'parent-qualification.yml', 'sync-validation.yml'):
+                (wiring.parent / name).write_bytes(
+                    (ROOT / 'tools/repository-checks/workflows/packages' / name).read_bytes())
             git('add', '.')
             git('commit', '-qm', 'Base fixture')
             base = git('rev-parse', 'HEAD')
@@ -498,9 +611,7 @@ class GitInventoryTests(unittest.TestCase):
             native_checkout = next(step for step in native_workflow['jobs']['build']['steps']
                                    if step.get('name') == 'Check out trusted selection tools')
             shutil.rmtree(trusted)
-            trusted.mkdir()
-            for directory in native_checkout['with']['sparse-checkout'].splitlines():
-                shutil.copytree(ROOT / directory, trusted / directory)
+            sparse_trusted(native_checkout['with']['sparse-checkout'].splitlines())
             # A propagated caller must not activate Linux builds on platform bases.
             base = merge
             git('switch', '-qc', 'native-candidate')
@@ -631,13 +742,15 @@ class CMakeGraphTests(unittest.TestCase):
             selected = SELECT.select(targets, {'shared-Fixture'}, route['paths'], source)
             self.assertFalse(selected['broad'])
             self.assertEqual(set(selected['targets']), {'interface', 'shared-Fixture'})
-        combined = POLICY.plan(['interface/src/octree/SafeLanding.cpp',
-                                'tools/native-tests/check.py',
-                                'tests/safe-landing/safe-landing-driver.cpp'])
-        self.assertEqual(combined['mode'], 'full')
-        selected = SELECT.select(targets, {'shared-Fixture'}, combined['paths'], source)
-        self.assertTrue(selected['broad'])
-        self.assertEqual(set(selected['targets']), {'interface', 'shared-Fixture', 'unrelated'})
+        for helper, broad in (('tools/native-tests/check.py', False),
+                              ('tools/native-tests/run.py', True)):
+            combined = POLICY.plan(['interface/src/octree/SafeLanding.cpp', helper,
+                                    'tests/safe-landing/safe-landing-driver.cpp'])
+            self.assertEqual(combined['mode'], 'full')
+            selected = SELECT.select(targets, {'shared-Fixture'}, combined['paths'], source)
+            self.assertEqual(selected['broad'], broad)
+            expected = {'interface', 'shared-Fixture'} | ({'unrelated'} if broad else set())
+            self.assertEqual(set(selected['targets']), expected)
 
     def test_actual_cmake_fixture_inputs_cannot_hide_in_host_exception(self):
         with tempfile.TemporaryDirectory() as temporary:
