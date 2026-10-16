@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import redirect_stderr, redirect_stdout
 from copy import deepcopy
+import base64
 import hashlib
 import importlib.util
 import io
@@ -16,6 +17,7 @@ import tarfile
 import tempfile
 import unittest
 from unittest.mock import patch
+import zlib
 
 import yaml
 
@@ -34,8 +36,73 @@ ownership = load("android_owner_fixture", "tests/android-ci-test.py")
 checks = load("android_outer_test_subject", "tools/repository-checks/check.py")
 
 
+# Exact pre-hermetic archive-reading test bytes. Shallow CI checkouts need not
+# contain this historical Git object; verify its original identity before use.
+LEGACY_METADATA_BLOB = "de670465b44ca7be8d550274acbe92bdfc9e7acc"
+LEGACY_METADATA_ZLIB = (
+    'eNrtG2tz27jxu38Fy/aDlJMo28nlUs94GjdW5jxNzhlb6dzUdTkQCUk48xWAVKxm/N+7iwcJviQrTS5z7elDYoKLxWLf2AX/'
+    '+IdJIfhkzpIJTdZOtslXafL0wHXdc7pmAR0vOKVOTkUunEXKHU4jSgR1YpKwBYyOnOu/Xr51SBI6GU/XNCFJQJ2AU5KzNPEA'
+    'z8EBi7OU586KiFXE5ubxF5Em5u9UHCx4GjsZyRHE0cPv4NGAiGIOCwRUCDOS0zhbsIia5yJhORJqnv/N1OuDg6vLy5lzKtEN'
+    'fB8HfX/ocSrSaE0HQy8jnCa5uHl6ezC7vHwDoHLGxHFhXzxl4SQDrtBJwCZyZ3Qsn8eaGeOY5iQkOfGyjXvw97M3F+dns8sr'
+    'C02eppGYaPDJmkQsRCxm/rxIwojK2QcHQUSEcN7hAlfq/VuNfoZSGJhtevj4Cl4PTw4c+IV04Qiav88GgkYLPYg/EXCSByvD'
+    'gFR4IGnGQTpLmg9KMPy5l3+fXs2m/tX0zfTseurPptczf/b23fnFlTuqQRrmIw78O2R8MKxAhsPm8l58hzCa1aczXtCRQ++Z'
+    'yP30Tj5aU2ADHmJNOeEbILxcbWYGzxmnQZ7yzQCwnuo1GhhCA2O2XsfrJSRuLkqyOwBuzAYB1uSNUG457yPLV0bXvH+w7DX8'
+    'PzDIRo770R06RDiEByu2pic1LupB7yNnKFI+cEH7J4THz5+N1y/IBJ7kyp5I3ZEzd6dvXjtik+QrmrPAbdDOwWAFGB1uoDQW'
+    'jxdJXcY37pLlgM0dv4J/cVHU0iEMAIIxyEdQfPvj9OzcvR0B6+9zJa0aFpGHaZGfWgu9u3g3HTnBigZ3Dfihp6DhP86yQYPs'
+    'NeWa6k91XczJ0j0pTVCb3PrQO/IOxyTKVsT7HgnV832UJsI3AOo4DXCQhgh8dAi/7wGJSAseUN+wEF7VWFpheWjpi4+m2aZe'
+    'rMjx988NopAtQb6lWiC3BVsmlPsB5TlbsAD8gV/O+Qm22qB8F4V9e+vefw+zFFUkLzj1ARTooiGAvSaRaNEDgCxZ+iIHyhFV'
+    'kcgdhU2WZyS4I0vqLzWckuPR8zu3l6uGSgwHxhyliQzMBjyMHqi+FnjblLsQwHBtspFgYzaoa1bknb5AvQJXbbxuTgk/Tz8m'
+    'LcdbdzcBOI+kQP2XEC+RcyyA2LFKwxKXVhQk3MLEKYgkMRHUU3oigUABSOjPN+A+BsOht6L3GsOwok/tHKkZOSj4kQMRqKAW'
+    'fptP9l4RugakuOijUxggF72wiDMxUPjAnyegfKAVp26RL8YvLA+ld4A4KsKCNIY8ItSkoSRMWnEqLcAxitAY5jRLBUMaT6Xv'
+    'ajHqpuGr+ADjOlrdeFxN1u6vGlAA6N3Vm8pc6yotYcaGKA1sk+9AplRTwjYGvbUmluaOS0y2TbSxKZ0cg+xs0tWoBX1b8R7i'
+    'go9piWa+TgliCM6SyW2eNmJKncVP5HpGnvaKdgRxApJJ36IIM4MyZCgfg3ScWrRYWiwoDSF3SwBO0xykSY70umBJEXWblqcW'
+    '2SfvwAQXVd5hiVMPmpLN9Ugk5mnsBeG99ia7wKvs2GNJnubpI+eVOaZWiN5p1z+egVO4fv/22uYE/mxl0EY9tA1Z87HLfG1T'
+    'zSIKMyDehABHm86usqJOp6nCl218lbAaimXyE5boPOVD21Bv7UxjuBNVmerUbR02vmBLBCgE5TIfxAdMrN2vsgKNCYs6hFfl'
+    'PLD0S3pPkNmgJ/Kk0EeKtVTFYS+/z92adPWLf2LE6/fPe+6LhKE7qq35pfgVx0bqcbVCH/bPTnnrq37TxPemldrdwnbMQ3e6'
+    'uc+cb5xMKTr1QWeLa/Bywvt9Qj3e7dBNtZaEGINLj0l+isjrclyUUfP0U53IB3fktBP/Hg0EGwXXaXk9zZly3PCneTwAZDHB'
+    'fDjlSw9CA8+pZ3x9BIWXBP6vkKyPXGUd0gnDtLZiyrcQMSDKwfubT+0IAQELFGYhk/C75Qn4JpJMgL05i+lLOAfgEuZgoIet'
+    'AxaOSqA24qzg0Vas2ooBZJXnmTiZTBo+blKu18ZenorcI9d54jx/hgiz8N7XbMI3Z3DKWNHxcTd9eLhappxRyRkX6is0V/wE'
+    'WvGPBURAtftca06aAWqxzVcb5B/kTKhAsEz+tX4B3qNNQ5JCsk9l8UlRoakXZuvai9ZmPjT1pkuOMQEtMQxtylEP7y/HTqy7'
+    '5Viut02OL76MHJecQNlsT24bgru4bT0/VCaucIlO36XfeVD/2VER0pB7F4R+upxdvJpKcmHutSn+aKogqg93VpQ69GxkWO28'
+    'Ua8dYPk+yGw27kZmZfQNP2m9+RxPOS9YFI5tJOgp6wgkDFRaWGgrLsSQVTHHI8skSclqPKcThXtCAixdS36JSQsbjGLZhsVQ'
+    '05BlDyje5sX4+Jl3+OylUvET1/nOcY+1kjeKWnDkClaEoRl+cn8ha7mzox+kzYZ3+HD8g/fUfWjM00RJz14at6FUBiYIZtJE'
+    'VxLjU1z92eHDbZN8VfQO/ZCCh8NMXlvTZ8YLsAWW1cpSemjMjzpdjK4G2RP0WHtGj0HqA2kV9UeNNGNUheWRUxqepSV27QYO'
+    'gqqoL/zykBOlAYmija6BkTk0DEyNv33uEUVUanV5qm7mTxByeD79UJBooGZ4ahdYrBs5hyONBxNGyrm9V9VvOZX9Ei9KSSgG'
+    'jQPdo06MQ1UpkkcCuzoPQt4Hef3U24PU6gTtgbrnhNxHeMVWWToY6G3fQBSbR0ysoBJ5+xjwUuh6xFfdmJ7JF8nATZNoI3NE'
+    'jaFUNl8EkDf0zDTC15NChoeCeZHL7L3l9e5YIt2VALx0nNAi5yQyBdpdddeHTgKu6JLeVwTUTcbUnoES7v7r5nD8ZzJe3H56'
+    '/uzhT+6W7aA63KCjeC3zbJzuvtoEEcjz/OfdE62U9fbm8PZGeTZE0t8H2YK00iDYXjH/BeK0xquKovDgVvtsnqj0i078mG63'
+    '1NeuuHhMyGzDVlHplkURi1Z3ALd5omu9suqk/hyZ6lO9fBMx3HkWMTjMg2qMnKOhnITjTWBnK5GVJbUqAWoBRCnsPTz8Botj'
+    'jfJXW/eaHZl6aWxUCe4GB7aZ8w3oETibGh5vGaXzgev19Ij/on/ucDhsxiHjimKICj5UjGRIiuHwrnySj5U6DlG/v/hmQuHO'
+    'EGgiVruwV21XrdqZ+JppunftdsTDx9eLrXq+fZRvFrkba7aL3mq8PbHMdTbVkVpPKZ/bsxTXzAYVuOZkG1jXN6vagyzCy8E2'
+    'cCtr1fB24ftzS+hblLXKMuzcoyfxMJcUdkkS6S6vPAzrcsC9wsywCGRqWrNdt4+FZWY42lUm+zosMhuvMakcbLKpGSPsbEeb'
+    'zwRT4tpFj468pspDMAJtcwucYlwTfiN+x0zEeAfCJ3kaM5m+/kpeQtfvVMlZdSL1kN2bhCPRHFr6cUY55Cr/rz7my/qVb+hL'
+    'jjt8SW/CHKZQPoEtOlJDHTh6O9WGevxPK2HfaU6yqVdLXv6blOUr9++29evaW+9q4FXbfYy3gPZGzkhU2q8/p8Ad6svDUiAv'
+    '6zXdxeNL27Wz+f6mqRR5zyD9bTSZ0w8FuCjh7PAUj1VqO23cKVDglR/RJQk2ep/CjwsAAMvysXYVkexXcvnf0gE3zjfajf7u'
+    'kPdRY1Qb6ZC12nxhjdXNgDJVMwOyyCYva6iLHD70YTovTdl3PfbpmroLVfbcp2vaPefbdk33LypuF///6MWWfQPlr3SMF5sY'
+    '6ih3RoWxhi7P8pCTb4u3Lc134U5hLVeGC/lQe+/MldUrtwFauweScbbGmuHWayCqHLxHCbg21SsS3LmlqDnfNGSGYJpDoNUD'
+    'RajVKroPaJY7l9dTzlPeIW9xxzK8oQMXWxQWATf/oY/CIqzTu1/PiFrgFkc1u7fU1/qPjJIjUD7U29mqqPVopPRj9Nk1P3MT'
+    'tfykAHn7PoGeqcDPBKTHOAUPidH6XvbJoTFy5yzYPUYph8FnCpfXFz+PRQYtn0V5I700BIT2sVsEpPkZsJbyNdgBks37I4D+'
+    'fGMRJHl0sId1yNVsd1sxpM+IcYrb06WsV2yfPKm+mxht/Wbi7XR2BsWQM//N5au/+bOLt9PL9zP/evrq8qfza3Xn+vCo8+6z'
+    '7BuXu/DwCgIEi+/mql+ML+rmIDnkSZkM8J+RHpELT3+u93J7rKF21/L36LK1btxnbyrM7Laz0i7MoUwGflmHLss3nUGh3aTA'
+    'vOVQNZi/WcrRUUs87i8BqAZMK8/sZozJvqBJRpbwARqq5w7O1L5+QP7I7x+e/za4UyP+kTxSvYCQyRTAN11Av/qAo++mblOl'
+    '2l98IPswNG2b0v3pilRM8ltSzBobH8t7zWuWgAPwwf35sk3r6zatH4AvkqedR7C+6uVK3ule7u/C6j+3zikkidCsDKBduXGq'
+    '9ndLdAds4fjyUyffl3mMD59VsMT3XSWRMu3BUfzyYo5Vic3p8fDgP53OPIk='
+)
+
+
+def legacy_metadata_fixture():
+    source = zlib.decompress(base64.b64decode(LEGACY_METADATA_ZLIB, validate=True))
+    if gate._blob(source)["sha"] != LEGACY_METADATA_BLOB:
+        raise ValueError("legacy metadata fixture identity changed")
+    return source
+
+
 class RequiredAndroidTests(unittest.TestCase):
     def setUp(self):
+        # Every test supplies its own runner context, never the enclosing CI job's.
+        self.enterContext(patch.dict(os.environ, {
+            name: value for name, value in os.environ.items() if not name.startswith("GITHUB_")
+        }, clear=True))
         self.fixture = ownership.AndroidOwnershipTests(methodName="runTest")
         self.fixture.setUp()
         self.addCleanup(self.fixture.doCleanups)
@@ -314,10 +381,12 @@ class RequiredAndroidTests(unittest.TestCase):
         self.anchor()  # A legacy Browser-root anchor cannot authorize this route.
         browser = "browser-client/package-lock.json"
         self.assertTrue(self.merge(browser, self.updated_lock(browser))["required"])
-        old = subprocess.check_output(["git", "cat-file", "blob",
-            "de670465b44ca7be8d550274acbe92bdfc9e7acc"], cwd=ROOT)
+        old = legacy_metadata_fixture()
+        self.assertEqual(gate.handoff().policy()["source_contracts"][gate.HERMETIC_METADATA_TEST]["reviewed_blob"],
+                         LEGACY_METADATA_BLOB)
         (self.candidate / gate.HERMETIC_METADATA_TEST).write_bytes(old)
         self.fixture.commit()
+        self.assertEqual(self.git("rev-parse", "HEAD:" + gate.HERMETIC_METADATA_TEST), LEGACY_METADATA_BLOB)
         self.lock_anchor()  # Even a matching anchor cannot review the old archive reader.
         self.anchor()
         result = self.merge(browser, (self.candidate / browser).read_text() + "\n")

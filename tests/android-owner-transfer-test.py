@@ -33,6 +33,46 @@ shared, _ = gate.android()._shared()
 OBSERVED = {"profile": "offline-owned-controller-fixture", "python": "isolated fixture"}
 
 
+# Recreate each exact reviewed predecessor from the retained workflow plus its
+# removed PR trigger. The original Git blob hash prevents any template drift.
+REVIEWED_WORKFLOWS = {
+    '.github/workflows/android-tests.yml': (
+        '86f727401d2458814b6de6f3eaa1c7308058fa03',
+        '  pull_request:\n'
+        '    types: [opened, synchronize, reopened, labeled, unlabeled]\n'
+        '    branches: [main, android-main, android-phone, android-vr, android-vr-pico]\n'
+        '    paths:\n'
+        '      - "android/**"\n'
+        '      - "interface/**"\n'
+        '      - "libraries/**"\n'
+        '      - "scripts/**"\n'
+        '      - ".github/workflows/android-tests.yml"\n'
+        '      - "!**/*.md"\n'
+    ),
+    '.github/workflows/android-vr-tests.yml': (
+        '174d58419f7d0e8ecd15e4a1ab101f72bb81877f',
+        '  pull_request:\n'
+        '    paths:\n'
+        '      - "android/**"\n'
+        '      - "interface/**"\n'
+        '      - "libraries/**"\n'
+        '      - "scripts/**"\n'
+        '      - ".github/workflows/android-vr-tests.yml"\n'
+        '      - "!**/*.md"\n'
+    ),
+}
+
+
+def reviewed_workflow(target, current):
+    expected, trigger = REVIEWED_WORKFLOWS[target]
+    if "  pull_request:\n" in current or current.count("  push:\n") != 1:
+        raise ValueError("retired Android workflow trigger changed")
+    original = current.replace("  push:\n", trigger + "  push:\n", 1)
+    if gate._blob(original.encode("utf-8"))["sha"] != expected:
+        raise ValueError("reviewed original Android workflow identity changed")
+    return original
+
+
 class AndroidOwnerTransferTests(unittest.TestCase):
     def setUp(self):
         self.fixture = prior.RequiredAndroidTests(methodName="runTest")
@@ -372,7 +412,8 @@ class AndroidOwnerTransferTests(unittest.TestCase):
                 patch.object(gate, "ACTIVATION_READY", True):
             initial = self.owner()
         changed = deepcopy(initial);changed[handoff.PICO]["plan"] = "sha256:" + "0" * 64
-        with patch.object(handoff, "platform_owner", side_effect=[initial, changed]), \
+        with patch.dict(os.environ, self.context()), \
+                patch.object(handoff, "platform_owner", side_effect=[initial, changed]) as owner_check, \
                 patch.object(handoff, "host_selection", return_value=self.selection()), \
                 patch.object(shared.inputs, "load_registry", return_value=self.registry), \
                 patch.object(shared, "capture_execution_environment", return_value=OBSERVED), \
@@ -380,6 +421,7 @@ class AndroidOwnerTransferTests(unittest.TestCase):
             handoff.project(self.candidate, self.fixture.event, self.fixture.sha, "pull_request",
                 policy_root=self.policy_root, junit=self.directory / "changed.xml", receipt_path=self.directory / "changed.json",
                 timeout=10, host_timeout=10)
+        self.assertEqual(owner_check.call_count, 2)
         self.assertEqual(json.loads((self.directory / "changed.json").read_text())["conclusion"], "failure")
 
     def test_outer_still_requires_actual_android_success_after_predictive_profile_transfer(self):
@@ -496,8 +538,11 @@ class AndroidOwnerTransferTests(unittest.TestCase):
         for target, entry in document["legacy_workflows"].items():
             current = (ROOT / entry["source"]).read_text()
             self.assertNotRegex(current, r"(?m)^  pull_request:$")
-            original = subprocess.check_output(["git", "--no-replace-objects", "cat-file", "blob", entry["reviewed_blob"]], cwd=ROOT, text=True)
+            self.assertEqual(entry["reviewed_blob"], REVIEWED_WORKFLOWS[target][0])
+            original = reviewed_workflow(target, current)
             self.assertEqual(current, original[:original.index("  pull_request:\n")] + original[original.index("  push:\n"):])
+            with self.assertRaisesRegex(ValueError, "identity changed"):
+                reviewed_workflow(target, current + "\n")
         for name in ("repository-checks.yml",):
             text = (ROOT / handoff.OWNED / name).read_text()
             workflow = yaml.safe_load(text)
