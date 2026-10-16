@@ -562,7 +562,7 @@ def plan_affected(registry, dependency_bytes, base_tree, candidate_tree, trusted
     No candidate program, supplied subset, receipt or runtime query is used.
     This supplies no passing/reuse proof. A missing or changed protected graph,
     selector, registry, execution authority or nonregular inventory is unavailable.
-    The caller retains its conservative legacy full route on InputError.
+    The caller retains its independently validated legacy gate on InputError.
     """
     _validate_registry(registry)
     if type(dependency_bytes) is not bytes or len(dependency_bytes) > 64_000:

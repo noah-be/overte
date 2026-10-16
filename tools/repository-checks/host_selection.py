@@ -308,7 +308,9 @@ def select(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_
     if affected is None:
         return legacy
     if affected['reason'] == 'protected-dependencies-unavailable':
-        return affected
+        # An unavailable additional proof cannot invalidate the independently
+        # reviewed legacy decision or require broader work than that decision.
+        return legacy
     # Do not replace a stronger existing CI37/package proof with broad unproved
     # repository owners, or relabel that proof as an unsupported environment.
     narrower = set(affected['suites']) < set(legacy['suites'])

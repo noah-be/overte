@@ -151,6 +151,36 @@ class ShippingPolicyTests(unittest.TestCase):
         tree[inputs.AFFECTED_POLICY]=blob(raw)
         return root,registry,raw,tree
 
+    def bounded_context(self):
+        """Seal a small synthetic repository while preserving real definitions.
+
+        Real whole-inventory shipping/legacy routing and protected iOS proofs
+        remain separate. Repeated mutation cases need every actual authority,
+        required subject, CI exception and currently reviewed import root, not
+        thousands of unrelated application assets in every negative plan.
+        """
+        root,registry,raw,source=self.shipping_context()
+        policy=json.loads(raw)
+        required=set(inputs.AFFECTED_AUTHORITY)
+        required.update(policy['suites']['device-control-plane-full']['native_independent_paths'])
+        # These existing importable mutation subjects must remain edits, rather
+        # than becoming new import names in the smaller synthetic inventory.
+        required.update({'tests/device/self_tests/test_voice_roundtrip.py',
+                         'provenance/artifact_identity.py'})
+        for suite in registry['suites'].values():
+            required.update(suite['closure']['required'])
+            imports=suite.get('python_imports')
+            if imports and inputs.python_import_digest(source,imports['roots'])==imports['reviewed']:
+                required.update(entry['path'] for entry in inputs.selected_entries(
+                    source,inputs._import_patterns(imports['roots'])))
+        tree={path:dict(entry) for path,entry in source.items() if path in required}
+        policy['lookup_digest']=inputs.affected_lookup_digest(tree)
+        native=policy['suites']['device-control-plane-full']
+        native['reviewed_reader_digest']=inputs.device_reader_digest(tree,native['native_independent_paths'])
+        sealed=(json.dumps(policy,indent=2)+'\n').encode()
+        tree[inputs.AFFECTED_POLICY]=blob(sealed)
+        return root,registry,sealed,tree
+
     def test_shipping_five_controller_case_omits_device_without_running_any_suite(self):
         root,registry,raw,base=self.shipping_context()
         candidate=deepcopy(base)
@@ -170,7 +200,7 @@ class ShippingPolicyTests(unittest.TestCase):
         self.assertTrue(selected['full_host']);self.assertFalse(selected['include_platform'])
         self.assertFalse(selected['affected']['reusable'])
 
-    def test_first_deployment_graph_edit_missing_history_and_hidden_delta_retain_full_gate(self):
+    def test_unavailable_graph_retains_the_independently_selected_legacy_gate(self):
         root,registry,raw,base=self.shipping_context()
         spec=importlib.util.spec_from_file_location('affected_host_rollout',root/'tools/repository-checks/host_selection.py')
         host=importlib.util.module_from_spec(spec);spec.loader.exec_module(host)
@@ -180,11 +210,25 @@ class ShippingPolicyTests(unittest.TestCase):
         for old,trusted,claimed in ((without,without,paths),(None,base,paths),(base,base,paths+['README.md'])):
             with self.subTest(old_missing=old is None,claimed=claimed):
                 selected=host.select(candidate,claimed,True,trusted_tree=trusted,base_tree=old)
-                self.assertEqual(len(selected['suites']),60)
-                self.assertEqual(selected['reason'],'protected-dependencies-unavailable')
+                legacy=host._select_legacy(candidate,claimed,True,trusted_tree=trusted,base_tree=old)
+                self.assertEqual(selected,legacy)
+
+    def test_changed_graph_cannot_expand_an_independently_reviewed_ci37_plan(self):
+        root,registry,raw,base=self.shipping_context()
+        spec=importlib.util.spec_from_file_location('affected_graph_preserves_legacy',root/'tools/repository-checks/host_selection.py')
+        host=importlib.util.module_from_spec(spec);spec.loader.exec_module(host)
+        candidate=deepcopy(base);candidate[inputs.AFFECTED_POLICY]=blob(b'changed policy bytes')
+        options={'base_tree':base,'trusted_tree':base}
+        with patch.object(host,'REVIEWED_PROGRAMS',host.program_digest(base)):
+            legacy=host._select_legacy(candidate,[inputs.AFFECTED_POLICY],True,**options)
+            self.assertEqual(len(legacy['suites']),37)
+            self.assertFalse(legacy['full_host'])
+            self.assertEqual(host.select(candidate,[inputs.AFFECTED_POLICY],True,**options),legacy)
+        with self.assertRaises(inputs.InputError):
+            inputs.plan_affected(registry,raw,base,candidate,base)
 
     def test_each_device_component_reader_data_discovery_native_and_variant_keeps_device(self):
-        _,registry,raw,base=self.shipping_context()
+        _,registry,raw,base=self.bounded_context()
         paths=('tests/device/catalog.json','tests/device/self_tests/test_voice_roundtrip.py',
             'tests/device/fixture/new-resource.json','provenance/artifact_identity.py',
             'tools/sbom/verify-artifact-identity.py','libraries/audio-client/src/AudioClient.cpp',
@@ -200,7 +244,7 @@ class ShippingPolicyTests(unittest.TestCase):
         self.assertIn('device-control-plane-full',inputs.plan_affected(registry,raw,historical,candidate,base)['required'])
 
     def test_optional_ios_adapter_and_historical_native_root_headers_remain_bound(self):
-        _,registry,raw,base=self.shipping_context()
+        _,registry,raw,base=self.bounded_context()
         for path in ('ios/audio/IOSAudioAdapter.cpp','ios/audio/IOSAudioAdapter.h',
                      'ios/audio/new-private-header.h','cassert','QtCore/QCoreApplication'):
             for shape in ('candidate-only','historical-both'):
@@ -213,7 +257,7 @@ class ShippingPolicyTests(unittest.TestCase):
                     self.assertIn('device-control-plane-full',plan['required'])
 
     def test_native_independence_is_closed_bounded_and_cannot_exempt_unowned_headers(self):
-        root,registry,raw,base=self.shipping_context()
+        root,registry,raw,base=self.bounded_context()
         for paths in ([],['*'],['../cassert'],[inputs.AFFECTED_POLICY]*2,[f'leaf-{n}' for n in range(1001)]):
             value=json.loads(raw)
             value['suites']['device-control-plane-full']['native_independent_paths']=paths
@@ -228,11 +272,11 @@ class ShippingPolicyTests(unittest.TestCase):
         host=importlib.util.module_from_spec(spec);spec.loader.exec_module(host)
         with patch.object(inputs,'load_dependencies',return_value=forged):
             selected=host.select(candidate,['tools/test-evidence/sandbox_host.py'],True,base_tree=base,trusted_tree=base)
-        self.assertEqual(len(selected['suites']),60)
-        self.assertEqual(selected['reason'],'protected-dependencies-unavailable')
+        legacy=host._select_legacy(candidate,['tools/test-evidence/sandbox_host.py'],True,base_tree=base,trusted_tree=base)
+        self.assertEqual(selected,legacy)
 
     def test_reviewed_product_owners_share_only_the_fixed_complete_lookup_proof(self):
-        _,registry,raw,base=self.shipping_context()
+        _,registry,raw,base=self.bounded_context()
         candidate=deepcopy(base);candidate['tools/test-evidence/sandbox_host.py']=blob(b'changed CI')
         plan=inputs.plan_affected(registry,raw,base,candidate,base)
         self.assertTrue(inputs._AFFECTED_PRODUCT_SUITES.issubset(plan['omitted']))
@@ -261,7 +305,7 @@ class ShippingPolicyTests(unittest.TestCase):
                 inputs._validate_dependencies(changed,changed_registry)
 
     def test_javascript_and_performance_component_data_cannot_use_ci_byte_exemptions(self):
-        _,_,raw,base=self.shipping_context()
+        _,_,raw,base=self.bounded_context()
         paths=json.loads(raw)['suites']['device-control-plane-full']['native_independent_paths']
         for path in ('tests/javascript/README.md','tests/performance/README.md',
                      'tests/safe-landing/README.md','tests/mocha/README.md','server-console/README.md',
@@ -273,7 +317,7 @@ class ShippingPolicyTests(unittest.TestCase):
                                     inputs.device_reader_digest(new,[*paths,path]))
 
     def test_fixed_ci_subjects_bind_all_three_trees_without_coupling_product_owners(self):
-        _,registry,raw,base=self.shipping_context()
+        _,registry,raw,base=self.bounded_context()
         candidate=deepcopy(base);candidate['tools/test-evidence/sandbox_host.py']=blob(b'changed CI')
         plan=inputs.plan_affected(registry,raw,base,candidate,base)
         self.assertTrue(set(inputs._AFFECTED_SUBJECTS).issubset(plan['omitted']))
@@ -304,7 +348,7 @@ class ShippingPolicyTests(unittest.TestCase):
         self.assertTrue(inputs._AFFECTED_PRODUCT_SUITES.issubset(selected['omitted']))
 
     def test_fixed_ci_subject_policy_cannot_supply_unknown_owners_or_subject_maps(self):
-        _,registry,raw,base=self.shipping_context()
+        _,registry,raw,base=self.bounded_context()
         value=json.loads(raw)
         for shape in ('unknown-owner','candidate-scope','alternate-subjects','extra-map','missing-native'):
             changed=deepcopy(value);definitions=deepcopy(registry)
@@ -327,7 +371,7 @@ class ShippingPolicyTests(unittest.TestCase):
         self.assertIn('python-test-runner',plan['required'])
 
     def test_unknown_root_import_shadow_cannot_inherit_any_omission(self):
-        _,registry,raw,base=self.shipping_context()
+        _,registry,raw,base=self.bounded_context()
         for path in ('json.py','sitecustomize.py','tools/repository-checks/json.py','tests/device/new_module.py','namespace/__init__.py'):
             candidate=deepcopy(base);candidate[path]=blob(b'new shadow')
             with self.subTest(path=path),self.assertRaises(inputs.InputError):
@@ -370,7 +414,7 @@ class ShippingPolicyTests(unittest.TestCase):
                 self.assertIs(selected,legacy if affected_full and not legacy_full else affected)
 
     def test_nonempty_or_changed_platform_cannot_enter_partial_route_even_on_both_sides(self):
-        _,registry,raw,base=self.shipping_context()
+        _,registry,raw,base=self.bounded_context()
         changed=deepcopy(base);changed['tests/platform-profile.json']=blob(b'{"schema":1,"platform":"android","suites":[{}]}')
         candidate=deepcopy(changed);candidate['tools/test-evidence/sandbox_host.py']=blob(b'unrelated')
         with self.assertRaises(inputs.InputError):inputs.plan_affected(registry,raw,changed,candidate,changed)

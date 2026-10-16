@@ -9,9 +9,11 @@ The trusted selector independently reads complete immutable base, candidate and
 protected inventories. The exact dependency-policy blob must already exist,
 unchanged and ordinary, in all three. A first deployment, graph edit, changed
 selector/execution authority, unknown history, unowned delta, import-name/mode
-change or nonregular input retains complete verification. Candidate policy never
-supplies its own authority. There is no command-line enable, suite list or
-candidate-provided exclusion map.
+change or nonregular input cannot supply this additional proof. The independently
+validated legacy decision remains required; an unavailable optional graph cannot
+expand an already proven CI37 route. Unknown legacy inputs still require the
+complete gate. Candidate policy never supplies its own authority. There is no
+command-line enable, suite list or candidate-provided exclusion map.
 
 Already reviewed pattern/import closures are compared independently. Required
 files, complete import roots, helper/data contents, discovery membership and
