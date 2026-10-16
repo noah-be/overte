@@ -468,14 +468,37 @@ class DependencyPolicyRoutingTests(unittest.TestCase):
             self.assertEqual(android._kind(entry),'application-input')
             self.assertNotIn(path,host.CI_HOST_INDEPENDENT_PATHS)
 
-    def test_protected_ios_complete_reader_complements_remain_exact(self):
+    def test_complete_source_reader_complements_exclude_only_exact_new_leaves(self):
         ios=self.module('affected_ios_reviewed','tools/ios-build-qualification/inputs.py')
         host=self.module('affected_ios_host_reviewed','tools/ios-build-qualification/host.py')
-        snapshot=ios.read_snapshot(Path(__file__).resolve().parents[2],ios.REVIEWED_REVISION)
-        self.assertFalse({inputs.AFFECTED_POLICY,'tools/test-evidence/affected-test.py',
-                          'tools/test-evidence/AFFECTED_SELECTION.md'} & {e.path for e in snapshot.entries})
-        self.assertEqual(ios._boundary(snapshot),ios.REVIEWED_BOUNDARY)
-        self.assertEqual(host.ci_host_boundary(snapshot),host.REVIEWED_CI_HOST_BOUNDARY)
+        root=Path(__file__).resolve().parents[2]
+        revision=ios._git(root,'rev-parse','--verify','HEAD^{commit}').decode().strip()
+        snapshot=ios.read_snapshot(root,revision)
+        paths={inputs.AFFECTED_POLICY,'tools/test-evidence/affected-test.py',
+               'tools/test-evidence/AFFECTED_SELECTION.md'}
+        added={entry.path:entry for entry in snapshot.entries if entry.path in paths}
+        self.assertEqual(set(added),paths)
+        self.assertTrue(all(entry.mode=='100644' and entry.object_type=='blob'
+                            for entry in added.values()))
+        before=SimpleNamespace(entries=tuple(entry for entry in snapshot.entries if entry.path not in paths))
+        self.assertEqual(len(before.entries)+len(paths),len(snapshot.entries))
+        app=ios._boundary(before)
+        own_host=host.ci_host_boundary(before)
+        self.assertIsNotNone(app)
+        self.assertIsNotNone(own_host)
+        self.assertEqual(ios._boundary(snapshot),app)
+        self.assertEqual(host.ci_host_boundary(snapshot),own_host)
+        changed=SimpleNamespace(entries=tuple(ios.Entry(entry.path,entry.mode,entry.object_type,'f'*40)
+            if entry.path in paths else entry for entry in snapshot.entries))
+        self.assertEqual(ios._boundary(changed),app)
+        self.assertEqual(host.ci_host_boundary(changed),own_host)
+        # The historical anchor is independently reconstructed by the complete
+        # immutable reader audit; a shallow candidate need not fetch its commit.
+        self.assertEqual(ios.REVIEWED_REVISION,'2fc894a0605103843b36653f250f854714a963ee')
+        self.assertEqual(ios.REVIEWED_BOUNDARY,
+            'sha256:cc243adcadf8cf8f51e1226a30f908552e5511126be995f916b2b82084cda027')
+        self.assertEqual(host.REVIEWED_CI_HOST_BOUNDARY,
+            '09469192aac99ef9e1ff991a2c6be58942ed9e76f1f35dd2d5b23d4ea1dc15bb')
 
     def test_new_policy_uses_existing_native_browser_and_package_host_routes(self):
         native=self.module('affected_native_route','tools/native-tests/check.py')
