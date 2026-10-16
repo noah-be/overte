@@ -1323,6 +1323,26 @@ unknown, changed-reader and nonregular inputs retain the full host route.
 New candidate command variants run in the impact executor and cannot produce a
 legacy full-inventory receipt unless all commands have a supported receipt.
 
+An ordinary native PR or protected push with an exactly unchanged complete Git
+tree can select `host_mode: unchanged`. The trusted router verifies raw commit
+hashes, ordered PR merge parents or forward push ancestry, the full immutable
+inventory, and native repository/event/ref identities. PR label inventory must
+be present; an explicit Android diagnostic request retains real execution.
+An empty supplied path list is insufficient. The required aggregate independently
+recomputes this proof and requires skipped jobs with exactly empty outputs.
+This route starts no host/package test and produces no execution receipt.
+
+The dormant `protected-producer-original-default-v1` recipes extend that proof
+to authenticated synchronization and protected-parent scheduling. They recheck
+the complete current candidate and protected workflow source before omitting
+setup, then verify native validation steps and repeat source/topology bookends
+at the final gate. An unchanged parent also omits Android platform execution.
+Its report has `execution: null` and carries no reused suites, test passes,
+JUnit results or reusable evidence. These canonical recipes require the complete
+reviewed installation and hosted qualification; source-only preparation does
+not enable result reuse. The active source13 parent retains its historical Node
+setup until that installation.
+
 A partial parent run uploads its real JUnit results and a diagnostic
 `host-selection.json` with the exact candidate, package plan, selected and
 omitted names, and `reusable: false`. That report makes no passing claim for
