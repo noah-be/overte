@@ -451,6 +451,109 @@ def inventory_paths(candidate: Path, base_sha: str, expected_sha: str, *,
     return paths, documentation_safe
 
 
+def verified_empty_candidate(candidate: Path, event: dict, expected_sha: str) -> dict | None:
+    """Prove a native PR/push has exactly zero effective tree changes.
+
+    An empty caller path list is never this proof. Re-read raw hash-checked
+    commit objects, native event/ref identities and the complete immutable
+    inventory with replacements/grafts/config overrides disabled. Missing
+    native context or history declines this optimization; ordinary planning
+    and all policy/topology/security checks remain required.
+    """
+    repository = {'full_name':'noah-l-frank/overte','id':1319052603}
+    if not isinstance(event,dict) or event.get('repository',{}).get('full_name') != repository['full_name'] \
+            or type(event.get('repository',{}).get('id')) is not int \
+            or event['repository']['id'] != repository['id']:
+        return None
+    native = os.environ
+    if native.get('GITHUB_REPOSITORY') != repository['full_name'] \
+            or native.get('GITHUB_REPOSITORY_ID') != str(repository['id']) \
+            or native.get('GITHUB_SHA') != expected_sha or native.get('GITHUB_REF_TYPE') != 'branch':
+        return None
+    config, branches = configuration()
+    def sha(value):
+        return type(value) is str and re.fullmatch('[0-9a-f]{40}',value) and value != '0'*40
+    def branch(value):
+        return (type(value) is str and 0 < len(value) <= 255 and not value.startswith(('/', '-', 'refs/'))
+            and not value.endswith(('/', '.')) and '//' not in value and '..' not in value and '@{' not in value
+            and not re.search(r'[\x00-\x20\x7f~^:?*\[\\]',value)
+            and all(not part.startswith('.') and not part.endswith('.lock') for part in value.split('/')))
+    if not sha(expected_sha): return None
+    pr = event.get('pull_request')
+    if isinstance(pr,dict):
+        base, head = pr.get('base',{}), pr.get('head',{})
+        number = event.get('number')
+        if (native.get('GITHUB_EVENT_NAME') != 'pull_request' or type(number) is not int or number <= 0
+                or native.get('GITHUB_REF') != 'refs/pull/'+str(number)+'/merge'
+                or base.get('ref') not in branches or not branch(head.get('ref'))
+                or native.get('GITHUB_BASE_REF') != base.get('ref')
+                or native.get('GITHUB_HEAD_REF') != head.get('ref')
+                or any((row.get('repo') or {}).get('full_name') != repository['full_name']
+                       or type((row.get('repo') or {}).get('id')) is not int
+                       or row['repo']['id'] != repository['id'] for row in (base,head))):
+            return None
+        # Diagnostic requests can demand real work without a code delta.
+        if event.get('action') not in {'opened','reopened','synchronize','edited'}:
+            return None
+        labels = pr.get('labels',[])
+        if (not isinstance(labels,list) or any(not isinstance(label,dict) or type(label.get('name')) is not str
+                for label in labels) or any(label['name']=='android-long-diagnostics' for label in labels)):
+            return None
+        before, source = base.get('sha'), head.get('sha')
+        ref, head_ref, kind = base['ref'], head['ref'], 'pull_request'
+    else:
+        ref = event.get('ref')
+        if (native.get('GITHUB_EVENT_NAME') != 'push' or type(ref) is not str
+                or not ref.startswith('refs/heads/') or ref[11:] not in branches
+                or native.get('GITHUB_REF') != ref or event.get('deleted') is True or event.get('forced') is True):
+            return None
+        before, source = event.get('before'), event.get('after')
+        if source != expected_sha: return None
+        ref, head_ref, kind = ref[11:], ref[11:], 'push'
+    if not sha(before) or not sha(source): return None
+    environment = {'PATH':'/usr/bin:/bin','HOME':'/nonexistent','LANG':'C.UTF-8','LC_ALL':'C.UTF-8',
+        'GIT_CONFIG_NOSYSTEM':'1','GIT_CONFIG_SYSTEM':'/dev/null','GIT_CONFIG_GLOBAL':'/dev/null',
+        'GIT_NO_LAZY_FETCH':'1','GIT_ALLOW_PROTOCOL':'none','GIT_TERMINAL_PROMPT':'0',
+        'GIT_GRAFT_FILE':'/dev/null'}
+    def git(*arguments, maximum=16*1024**2):
+        raw = subprocess.check_output(['/usr/bin/git','--no-replace-objects','-c','core.fsmonitor=false',
+            '-c','core.hooksPath=/dev/null',*arguments],cwd=candidate,env=environment,
+            stderr=subprocess.PIPE,timeout=30)
+        if len(raw)>maximum: raise ValueError('empty-delta immutable inventory is oversized')
+        return raw
+    def commit(identity):
+        raw = git('cat-file','commit',identity,maximum=1_000_000)
+        if hashlib.sha1(b'commit '+str(len(raw)).encode()+b'\0'+raw).hexdigest() != identity:
+            raise ValueError('empty-delta raw commit identity mismatch')
+        rows = raw.split(b'\n\n',1)[0].splitlines()
+        if not rows or not re.fullmatch(rb'tree [0-9a-f]{40}',rows[0]):
+            raise ValueError('empty-delta raw commit tree missing')
+        parents = [row[7:].decode('ascii') for row in rows if row.startswith(b'parent ')]
+        if any(not sha(parent) for parent in parents): raise ValueError('empty-delta raw parent identity invalid')
+        return rows[0][5:].decode('ascii'),parents
+    try:
+        if git('rev-parse','--verify','HEAD^{commit}',maximum=128).decode('ascii').strip() != expected_sha:
+            return None
+        current, parents = commit(expected_sha)
+        previous, _ = commit(before)
+        commit(source)
+        if kind == 'pull_request' and parents != [before,source]: return None
+        if kind == 'push' and (before == expected_sha
+                or git('merge-base','--is-ancestor',before,expected_sha,maximum=0) != b''): return None
+        if current != previous: return None
+        tree = git('cat-file','tree',current)
+        if hashlib.sha1(b'tree '+str(len(tree)).encode()+b'\0'+tree).hexdigest() != current: return None
+        inventory = git('ls-tree','-rz','--full-tree',expected_sha)
+        if not inventory or not inventory.endswith(b'\0') \
+                or inventory != git('ls-tree','-rz','--full-tree',before): return None
+    except (OSError,ValueError,UnicodeError,subprocess.SubprocessError):
+        return None
+    return {'schema':1,'kind':'verified-empty-candidate-v1','event':kind,
+        'repository':repository,'base':before,'head':source,'candidate':expected_sha,
+        'tree':current,'base_ref':ref,'head_ref':head_ref,
+        'inventory_sha256':hashlib.sha256(inventory).hexdigest()}
+
+
 def native_required(config: dict, event: dict | None) -> bool:
     """Scope activation by trusted event base, while older descendants still work."""
     if config.get("native_required", False):
@@ -574,7 +677,8 @@ def bound_project_owners(needs, candidate, event, sha):
 def verify(needs: dict, require_native: bool = True, *, require_direct: bool = False,
            direct_plan: dict | None = None, package_plan: dict | None = None,
            require_packages: bool = False, require_browser: bool = False, browser_plan: dict | None = None,
-           android_plan: dict | None = None, require_android: bool = False) -> dict:
+           android_plan: dict | None = None, require_android: bool = False,
+           candidate: Path | None = None, event: dict | None = None) -> dict:
     expected_jobs = {"route", "project", "documentation", "workflow-security", "native"}
     has_browser = isinstance(needs, dict) and 'browser-client' in needs
     if has_browser:
@@ -617,6 +721,8 @@ def verify(needs: dict, require_native: bool = True, *, require_direct: bool = F
         if package_plan is None:
             raise ValueError("package verification requires independently recomputed candidate inputs")
         packages = package_policy()
+        if package_plan.get('host_mode') == 'unchanged':
+            packages.verify_empty_plan(package_plan,candidate,event)
         if any(outputs.get(key) != value for key, value in packages.outputs(package_plan).items()):
             raise ValueError("required package route/candidate/plan mismatch")
         selected = bool(package_plan["package_set"]) or package_plan["host_mode"] in {"full", "tool-dependencies"}
@@ -805,7 +911,8 @@ def main() -> int:
                             require_direct=direct_browser_required(config, event), direct_plan=direct_plan,
                             package_plan=package_plan, require_packages=package_required,
                             require_browser=browser_required, browser_plan=browser_plan,
-                            android_plan=android_plan, require_android=android_required)
+                            android_plan=android_plan, require_android=android_required,
+                            candidate=args.candidate,event=event)
             if native_owners is not None:
                 result['native_owners'] = native_owners
         else:
