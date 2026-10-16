@@ -580,26 +580,58 @@ def current_platform_context(candidate, event, environment, adapter, *, root=ROO
     template = PLATFORM_PARENT_TEMPLATE if workflow == '.github/workflows/parent-qualification.yml' else PLATFORM_TEMPLATE
     host.require(workflow in {'.github/workflows/parent-qualification.yml', '.github/workflows/project-tests.yml'}
         and current.get(workflow) == local.get(template), 'platform push workflow is not its fixed recipe')
-    controller = postmerge.integrated_controller(policy, previous, current, local, target, root)
+    # Loading current controllers and deriving ownership grants no execution
+    # authority. Original B lookup data may differ only in the fixed seventeen.
+    controller = postmerge.integrated_controller_for_reuse(policy, previous, current, local, target, root)
     registry = inputs.load_registry(root / '.github/test-suites.json')
     paths = sorted(path for path in previous.keys() | current.keys() if previous.get(path) != current.get(path))
     regular = bool(paths) and all(entry is None or entry['mode'] == '100644' and entry['type'] == 'blob'
         for path in paths for entry in (previous.get(path), current.get(path)))
-    selected = policy.select(current, paths, regular, base_tree=previous, trusted_tree=local,
-        candidate_root=root, trusted_root=root, target=target)
+    package_plan = package.candidate_plan(candidate,event,source)
+    host.require(package_plan['candidate']==source and package_plan['tree']==binding['merge_tree']
+        and package_plan['base']==binding['base_sha'] and package_plan['head']==source
+        and package_plan['unknown'] is False and package_plan['paths']==paths
+        and package_plan['regular'] is regular,
+        'platform push package plan differs from complete immutable source')
     host.require(source_admission.shared_platform_supported({'include_platform': False}, target,
         current.get(source_admission.PROFILE)), 'platform push declaration is unknown')
+    selected = None
     partition = None
-    if selected['include_platform'] is True:
+    if package_plan['host_mode']!='full':
+        # The existing exact package/documentation router owns these deltas.
+        # A generic host selector must not invent a platform owner for them.
+        host.require(regular and package_plan['host_mode'] in {
+            'documentation','tool-dependencies','package-dependencies'},
+            'unknown nonhost parent route')
+    else:
+        selected = policy.select(current, paths, regular, base_tree=previous, trusted_tree=local,
+            candidate_root=root, trusted_root=root, target=target)
+    if selected is not None and (selected['include_platform'] is True or selected['full_host'] is True):
+        # A real platform owner must independently re-enter the unchanged strict
+        # source and selection admission before setup or command execution.
+        controller = postmerge.integrated_controller(policy, previous, current, local, target, root)
         profile = selection_profile(policy, registry, current, previous, local, root=root, target=target,
             read_blob=adapter.api.immutable_blob)
         host.require(profile['selection'] == selected, 'platform push selections differ')
-        partition = platform_partition(policy, profile, registry, current, previous, local,
-            target=target, root=root, read_blob=adapter.api.immutable_blob)
-        host.require(partition is not None, 'required Android platform push is unsupported')
+        if selected['include_platform'] is True:
+            partition = platform_partition(policy, profile, registry, current, previous, local,
+                target=target, root=root, read_blob=adapter.api.immutable_blob)
+            host.require(partition is not None, 'required Android platform push is unsupported')
+        else:
+            host.require(selected['include_platform'] is False and profile['profile']==FULL_PROFILE
+                and profile['binding'] is None and selected['full_host'] is True,
+                'full-host platform omission has no strict independent owner')
+    elif selected is not None:
+        profile = selection_profile_for_reuse(policy, registry, current, previous, local,
+            root=root,target=target,read_blob=adapter.api.immutable_blob)
+        host.require(profile['selection']==selected and profile['profile']==ci_profile.PROFILE
+            and type(profile['binding']) is dict
+            and profile['binding'].get('generation_kind')==ci_profile.SEVEN_CONTROLLER_KIND
+            and selected['full_host'] is False,
+            'platform omission has no independently admitted seven-target CI owner')
     return {'number': binding['pull_request'], 'run_id': run_id, 'binding': binding, 'refs': refs,
         'candidate': candidate, 'registry': registry, 'selected': selected, 'platform_partition': partition,
-        'integration': refs['integration'], 'controller': controller}
+        'integration': refs['integration'], 'controller': controller,'package_plan':package_plan}
 
 
 def _platform_push_native(event, environment):
@@ -608,7 +640,7 @@ def _platform_push_native(event, environment):
     host.require(target in _PLATFORM_TARGETS, 'unknown platform push target')
     parent = target in {'android-main', 'android-vr'}
     workflow = 'parent-qualification' if parent else 'project-tests'
-    jobs = {'common-parent', 'platform-tests', 'qualify-parent'} if parent else {
+    jobs = {'route', 'common-parent', 'platform-tests', 'qualify-parent'} if parent else {
         'project-tests', 'platform-tests', 'project-results', 'route'}
     expected = {'GITHUB_ACTIONS': 'true', 'GITHUB_REPOSITORY': producer_api.REPOSITORY,
         'GITHUB_REPOSITORY_ID': '1319052603', 'GITHUB_EVENT_NAME': 'push',
@@ -662,7 +694,8 @@ def _platform_bookend(context, event, environment, adapter):
     except (PreExecutionUnavailable, ValueError, OSError) as error:
         raise host.Unavailable('platform source admission changed after execution') from error
     host.require(after['binding'] == context['binding'] and after['refs'] == context['refs']
-        and after['platform_partition'] == context['platform_partition'],
+        and after['platform_partition'] == context['platform_partition']
+        and all(after.get(name)==context.get(name) for name in ('selected','controller','package_plan')),
         'Android platform selection changed after execution')
 
 
@@ -1044,29 +1077,77 @@ def verify_platform_project(candidate, event, environment, adapter, needs):
     return package.verify(normalized, plan)
 
 
+def parent_route_outputs(context):
+    """Dispatch hints bound to current native source; never reusable evidence."""
+    host.require(context['binding']['base_ref'] in {'android-main','android-vr'}
+        and context['refs']['target']==context['binding']['merge_sha'], 'unreviewed parent route target')
+    partition=context['platform_partition']
+    identity={'schema':1,'kind':'current-parent-platform-route-v1','binding':context['binding'],
+        'default':context['refs']['default'],'controller':context['controller'],
+        'selection':context['selected'],'package_plan':context.get('package_plan'),
+        'partition':partition['digest'] if partition else None}
+    return {'parent_candidate':context['binding']['merge_sha'],
+        'parent_plan':protocol.digest(identity).removeprefix('sha256:'),
+        'platform_required':str(partition is not None).lower()}
+
+
+def _empty_parent_source(candidate,event,environment,adapter):
+    """Independently prove why an existing main/Apple parent has no route VM."""
+    import postmerge
+    source,run_id=postmerge._native(event,environment)
+    binding,refs=adapter._integrated_current(run_id,15368,datetime.now(timezone.utc))
+    target=binding['base_ref']
+    host.require(target in {'main','apple-main'} and refs['target']==source
+        and event.get('before')==binding['base_sha'] and refs['default_ref']=='main',
+        'skipped parent routing has no known empty-platform source')
+    tree,current=postmerge.full_tree(adapter,source)
+    _,previous=postmerge.full_tree(adapter,binding['base_sha'])
+    default_tree,local=postmerge.full_tree(adapter,refs['default'])
+    host.require(execution.checkout_identity(ROOT)==(refs['default'],default_tree)
+        and inputs.full_tree(ROOT,refs['default'])==local
+        and execution.checkout_identity(candidate)==(source,tree)
+        and inputs.full_tree(candidate,source)==current
+        and refs['integration']['workflow_path']=='.github/workflows/parent-qualification.yml'
+        and current.get('.github/workflows/parent-qualification.yml')==local.get(PLATFORM_PARENT_TEMPLATE)
+        and all(snapshot.get(source_admission.PROFILE)==source_admission.ordinary(source_admission.SHARED_PROFILE)
+            for snapshot in (previous,current,local)), 'empty parent profile or native source changed')
+    controller=postmerge.integrated_controller_for_reuse(_host_policy(),previous,current,local,target,ROOT)
+    authority=postmerge.default_authority(adapter,refs)
+    return binding,refs,controller,authority
+
+
 def verify_platform_parent(candidate, event, environment, adapter, needs):
     """The old required parent check stays downstream of BOTH actual owners."""
     package = _host_policy().package_policy()
     host.require(package.validate_wiring(candidate) == PLATFORM_GENERATION
-        and type(needs) is dict and set(needs) == {'common-parent', 'platform-tests'}
+        and type(needs) is dict and set(needs) == {'route','common-parent', 'platform-tests'}
         and all(type(row) is dict for row in needs.values())
         and needs['common-parent'].get('result') == 'success',
         'future parent aggregate requires its complete successful common job')
     target = environment.get('GITHUB_REF', '').removeprefix('refs/heads/')
     platform = needs['platform-tests']
-    if target not in _PLATFORM_TARGETS:
-        import postmerge
-        postmerge._native(event, environment)
-        host.require(platform.get('result') == 'skipped', 'unselected parent platform job made a claim')
+    if target in {'main','apple-main'}:
+        before=_empty_parent_source(candidate,event,environment,adapter)
+        host.require(needs['route'].get('result')=='skipped' and needs['route'].get('outputs')=={}
+            and platform.get('result')=='skipped' and platform.get('outputs')=={},
+            'empty-profile parent requires exact unselected routing/platform jobs')
+        host.require(_empty_parent_source(candidate,event,environment,adapter)==before,
+            'empty parent source changed during aggregate verification')
         return
+    host.require(target in {'android-main','android-vr'}, 'unreviewed parent platform target')
     context = current_platform_context(candidate, event, environment, adapter)
+    host.require(needs['route'].get('result')=='success'
+        and needs['route'].get('outputs')==parent_route_outputs(context),
+        'parent dispatch differs from independently rederived current native source')
     partition = context['platform_partition']
-    expected = {'required': str(partition is not None).lower(), 'verified': str(partition is not None).lower(),
-        'partition': partition['digest'].removeprefix('sha256:') if partition else ''}
-    host.require(platform.get('result') == 'success' and platform.get('outputs') == expected,
-        'current parent platform owner is missing or failed')
     if partition is not None:
+        expected={'required':'true','verified':'true','partition':partition['digest'].removeprefix('sha256:')}
+        host.require(platform.get('result')=='success' and platform.get('outputs')==expected,
+            'current parent platform owner is missing or failed')
         completed_platform_job(context, adapter)
+    else:
+        host.require(platform.get('result')=='skipped' and platform.get('outputs')=={},
+            'unselected parent platform job made a claim')
     _platform_bookend(context, event, environment, adapter)
 
 
@@ -1377,7 +1458,9 @@ def _output(values, *, protected=False):
         host.require(stat.S_ISREG(info.st_mode) and info.st_uid in allowed and not info.st_mode & 0o022,
                      'native command file is not protected from candidate writes')
         body = ''.join(key + '=' + value + '\n' for key, value in values.items())
-        host.require(all(re.fullmatch(r'[a-z_]+', key) and re.fullmatch(r'(?:true|false|[0-9a-f]{64})', value)
+        host.require(all(re.fullmatch(r'[a-z_]+', key) and (re.fullmatch(r'(?:true|false|[0-9a-f]{64})', value)
+            or key=='parent_candidate' and re.fullmatch(r'[0-9a-f]{40}',value)
+            or key=='platform_plan' and value=='' and values.get('platform_required')=='false')
                          for key, value in values.items()), 'unsupported native producer output')
         with os.fdopen(descriptor, 'w', encoding='ascii', closefd=False) as output:
             output.write(body)
@@ -1454,7 +1537,7 @@ def shared_execution(candidate, event, environment, adapter):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('role', choices=('descriptor', 'shared', 'publish', 'platform', 'platform-plan',
+    parser.add_argument('role', choices=('descriptor', 'shared', 'publish', 'platform', 'platform-plan','parent-route',
         'fallback-common', 'project-verify', 'parent-verify'))
     parser.add_argument('--candidate', type=Path, required=True)
     args = parser.parse_args(argv)
@@ -1513,7 +1596,7 @@ def main(argv=None):
         return 0
     try:
         context = (current_platform_context(candidate, event, os.environ, adapter)
-            if args.role in {'platform', 'platform-plan', 'fallback-common'} else
+            if args.role in {'platform', 'platform-plan', 'parent-route', 'fallback-common'} else
             prepare(candidate, event, os.environ, adapter))
     except PreExecutionUnavailable:
         if args.role == 'descriptor':
@@ -1521,6 +1604,10 @@ def main(argv=None):
             return 0
         raise
     context['candidate'] = candidate
+    if args.role=='parent-route':
+        _platform_bookend(context,event,os.environ,adapter)
+        _output(parent_route_outputs(context))
+        return 0
     if args.role == 'platform-plan':
         partition = context.get('platform_partition')
         _output({'platform_required': str(partition is not None).lower(),

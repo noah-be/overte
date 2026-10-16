@@ -1457,6 +1457,11 @@ class AndroidPlatformPartitionTests(unittest.TestCase):
                 '/.github/workflows/'+workflow+'.yml@refs/heads/'+target}
         return event,environment
 
+    def push_plan(self,current,mode='full'):
+        return {'candidate':'a'*40,'tree':'c'*40,'base':'b'*40,'head':'a'*40,
+            'paths':sorted(path for path in self.base.keys()|current.keys() if self.base.get(path)!=current.get(path)),
+            'regular':True,'unknown':False,'host_mode':mode,'plan':'f'*64}
+
     def test_push_roles_authenticate_push_without_relabelling_an_open_pr(self):
         for target in self.declarations:
             event,environment=self.push_event(target)
@@ -1476,6 +1481,7 @@ class AndroidPlatformPartitionTests(unittest.TestCase):
         _,parent=P.source_admission.actual_bytes(P.ROOT,P.PLATFORM_PARENT_TEMPLATE)
         local={**deepcopy(self.trusted),P.PLATFORM_PARENT_TEMPLATE:parent}
         current={**deepcopy(self.tree),'.github/workflows/parent-qualification.yml':parent}
+        self.package_boundary.candidate_plan=Mock(return_value=self.push_plan(current))
         binding={'pull_request':23,'base_ref':self.target,'base_sha':'b'*40,
             'merge_sha':'a'*40,'merge_tree':'c'*40}
         refs={'target':'a'*40,'default':'d'*40,'default_ref':'main',
@@ -1487,13 +1493,14 @@ class AndroidPlatformPartitionTests(unittest.TestCase):
         def tree(_adapter,revision):return ('c'*40,{'a'*40:current,'b'*40:self.base,'d'*40:local}[revision])
         with patch.object(P,'_host_policy',return_value=self.policy),patch.object(postmerge,'full_tree',side_effect=tree), \
              patch.object(postmerge,'integrated_controller',return_value='sha256:'+'e'*64) as guard, \
+             patch.object(postmerge,'integrated_controller_for_reuse',return_value='sha256:'+'e'*64) as precheck, \
              patch.object(P.execution,'checkout_identity',side_effect=lambda path:('d'*40,'f'*40) if path==P.ROOT else ('a'*40,'c'*40)), \
              patch.object(P.inputs,'full_tree',side_effect=lambda path,revision:local if path==P.ROOT else current):
             context=P.current_platform_context(Path('/unexecuted'),event,environment,adapter)
         self.assertEqual(context['selected'],self.profile['selection'])
         self.assertFalse(context['platform_partition']['common_owner']['include_platform'])
         self.assertEqual(len(context['platform_partition']['commands']),13)
-        guard.assert_called_once();adapter.current.assert_not_called()
+        guard.assert_called_once();precheck.assert_called_once();adapter.current.assert_not_called()
 
     def test_common_fallback_runs_only_full_common_once_and_never_emits_reusable_E(self):
         context,patches=self.execution_fixture()
@@ -1586,24 +1593,41 @@ class AndroidPlatformPartitionTests(unittest.TestCase):
                 P.completed_platform_job(context,adapter,now=now)
 
     def test_future_parent_keeps_required_name_after_both_independent_jobs(self):
-        import yaml
+        import ast,shlex,yaml
         parent=yaml.safe_load((P.ROOT/P.PLATFORM_PARENT_TEMPLATE).read_bytes())
         jobs=parent['jobs']
-        self.assertEqual(set(jobs),{'common-parent','platform-tests','qualify-parent'})
+        self.assertEqual(set(jobs),{'route','common-parent','platform-tests','qualify-parent'})
         self.assertEqual(jobs['qualify-parent']['name'],'Qualify exact parent')
-        self.assertEqual(set(jobs['qualify-parent']['needs']),{'common-parent','platform-tests'})
+        self.assertEqual(set(jobs['qualify-parent']['needs']),{'route','common-parent','platform-tests'})
         self.assertEqual(jobs['qualify-parent']['if'],'always()')
-        self.assertNotIn('needs',jobs['platform-tests'])
+        self.assertEqual(jobs['platform-tests']['needs'],'route')
+        self.assertEqual(jobs['common-parent']['needs'],'route')
+        self.assertIn('always() && !cancelled()',jobs['common-parent']['if'])
+        self.assertIn('"main","apple-main"',jobs['common-parent']['if'])
+        self.assertEqual(jobs['platform-tests']['if'],"needs.route.result == 'success' && needs.route.outputs.platform_required == 'true'")
+        self.assertIn('"android-main","android-vr"',jobs['route']['if'])
+        self.assertNotIn('needs',jobs['route'])
+        self.assertEqual(jobs['route']['permissions'],{name:'read' for name in ('contents','actions','pull-requests','checks')})
+        planned=next(step for step in jobs['route']['steps'] if step.get('id')=='plan')
+        command=shlex.split(planned['run']);ast.parse(command[command.index('-c')+1])
+        self.assertEqual(command[:4],['/usr/bin/python3','-I','-S','-B'])
+        self.assertIn('parent-route',command)
+        guard=next(step['run'] for step in jobs['route']['steps'] if step.get('id')=='protected-source')
+        self.assertEqual(guard,next(step['run'] for step in jobs['common-parent']['steps'] if step.get('id')=='protected-source'))
         common={row['name']:row for row in jobs['common-parent']['steps']}
         for name in ('Run complete host qualification','Run independently selected parent host contracts',
                 'Create content-addressed qualification evidence','Upload immutable qualification evidence'):
-            self.assertIn("steps.platform.outputs.platform_required != 'true'",common[name]['if'])
+            self.assertIn("needs.route.outputs.platform_required != 'true'",common[name]['if'])
+        self.assertNotIn('Independently derive Android common and platform ownership',common)
         self.assertIn('fallback-common',common['Execute common parent suites without claiming platform evidence']['run'])
         self.assertNotIn('include-platform',common['Execute common parent suites without claiming platform evidence']['run'])
 
     def test_parent_aggregate_never_waives_current_platform_from_original_common_proof(self):
-        partition=self.partition();context={'platform_partition':partition}
-        needs={'common-parent':{'result':'success'},'platform-tests':{'result':'success',
+        partition=self.partition();context={'platform_partition':partition,
+            'binding':{'base_ref':self.target,'merge_sha':'a'*40},'refs':{'target':'a'*40,'default':'d'*40},
+            'controller':'sha256:'+'e'*64,'selected':self.profile['selection']}
+        needs={'route':{'result':'success','outputs':P.parent_route_outputs(context)},
+            'common-parent':{'result':'success'},'platform-tests':{'result':'success',
             'outputs':{'required':'true','verified':'true','partition':partition['digest'].removeprefix('sha256:')}}}
         self.package_boundary.validate_wiring=Mock(return_value=P.PLATFORM_GENERATION)
         event,environment=self.push_event(job='qualify-parent')
@@ -1612,13 +1636,178 @@ class AndroidPlatformPartitionTests(unittest.TestCase):
              patch.object(P,'_platform_bookend') as bookend,patch.object(P,'completed_platform_job') as native:
             P.verify_platform_parent(Path('/unexecuted'),event,environment,object(),needs)
             native.assert_called_once();bookend.assert_called_once()
-            for key in ('common-parent','platform-tests'):
+            for key in ('route','common-parent','platform-tests'):
                 for status in ('failure','cancelled','skipped','pending'):
                     changed=deepcopy(needs);changed[key]['result']=status
                     with self.subTest(key=key,status=status),self.assertRaises(H.Unavailable):
                         P.verify_platform_parent(Path('/unexecuted'),event,environment,object(),changed)
             with patch.object(P,'completed_platform_job',side_effect=H.Unavailable('missing native platform step')),self.assertRaises(H.Unavailable):
                 P.verify_platform_parent(Path('/unexecuted'),event,environment,object(),needs)
+
+    def test_unselected_parent_platform_requires_independent_route_and_no_dummy_success(self):
+        context={'platform_partition':None,'binding':{'base_ref':self.target,'merge_sha':'a'*40},
+            'refs':{'target':'a'*40,'default':'d'*40},'controller':'sha256:'+'e'*64,
+            'selected':{'suites':list(C.SUITES),'full_host':False,'include_platform':False}}
+        route=P.parent_route_outputs(context)
+        needs={'route':{'result':'success','outputs':route},'common-parent':{'result':'success'},
+            'platform-tests':{'result':'skipped','outputs':{}}}
+        self.package_boundary.validate_wiring=Mock(return_value=P.PLATFORM_GENERATION)
+        event,environment=self.push_event(job='qualify-parent')
+        with patch.object(P,'_host_policy',return_value=self.policy), \
+             patch.object(P,'current_platform_context',return_value=context),patch.object(P,'_platform_bookend'), \
+             patch.object(P,'completed_platform_job',side_effect=AssertionError('no unselected platform proof')):
+            P.verify_platform_parent(Path('/unexecuted'),event,environment,object(),needs)
+            for change in ('pending','failed','skipped-route','candidate','digest','flag','extra','platform-success','platform-pending'):
+                value=deepcopy(needs)
+                if change=='pending':value['route']['result']='in_progress'
+                elif change=='failed':value['route']['result']='failure'
+                elif change=='skipped-route':value['route']['result']='skipped'
+                elif change=='candidate':value['route']['outputs']['parent_candidate']='b'*40
+                elif change=='digest':value['route']['outputs']['parent_plan']='0'*64
+                elif change=='flag':value['route']['outputs']['platform_required']='true'
+                elif change=='extra':value['route']['outputs']['verified']='true'
+                elif change=='platform-success':value['platform-tests']={'result':'success','outputs':{'verified':'false'}}
+                else:value['platform-tests']['result']='in_progress'
+                with self.subTest(change=change),self.assertRaises(H.Unavailable):
+                    P.verify_platform_parent(Path('/unexecuted'),event,environment,object(),value)
+
+    def test_push_planning_skips_strict_only_for_independently_admitted_ci_owner(self):
+        import postmerge
+        event,environment=self.push_event(job='route')
+        _,parent=P.source_admission.actual_bytes(P.ROOT,P.PLATFORM_PARENT_TEMPLATE)
+        local={**deepcopy(self.trusted),P.PLATFORM_PARENT_TEMPLATE:parent}
+        current={**deepcopy(self.tree),'.github/workflows/parent-qualification.yml':parent}
+        self.package_boundary.candidate_plan=Mock(return_value=self.push_plan(current))
+        binding={'pull_request':23,'base_ref':self.target,'base_sha':'b'*40,'merge_sha':'a'*40,'merge_tree':'c'*40}
+        refs={'target':'a'*40,'default':'d'*40,'default_ref':'main',
+            'integration':{'workflow_path':'.github/workflows/parent-qualification.yml'}}
+        adapter=SimpleNamespace(_integrated_current=Mock(return_value=(binding,refs)),api=SimpleNamespace(immutable_blob=Mock()))
+        selected={'suites':list(C.SUITES),'reason':'reviewed-ci-only-inputs','full_host':False,'include_platform':False}
+        profile={'profile':C.PROFILE,'binding':{'generation_kind':C.SEVEN_CONTROLLER_KIND},
+            'suites':list(C.SUITES),'selection':selected}
+        self.policy.select=Mock(return_value=selected)
+        with patch.object(P,'_host_policy',return_value=self.policy), \
+             patch.object(postmerge,'full_tree',side_effect=lambda adapter,revision:('c'*40,
+                {'a'*40:current,'b'*40:self.base,'d'*40:local}[revision])), \
+             patch.object(postmerge,'integrated_controller_for_reuse',return_value='sha256:'+'e'*64), \
+             patch.object(postmerge,'integrated_controller',side_effect=AssertionError('unselected plan is not strict execution')) as strict, \
+             patch.object(P,'selection_profile_for_reuse',return_value=profile) as derive, \
+             patch.object(P.execution,'checkout_identity',side_effect=lambda path:('d'*40,'f'*40) if path==P.ROOT else ('a'*40,'c'*40)), \
+             patch.object(P.inputs,'full_tree',side_effect=lambda path,revision:local if path==P.ROOT else current):
+            context=P.current_platform_context(Path('/unexecuted'),event,environment,adapter)
+            self.assertIsNone(context['platform_partition']);derive.assert_called_once();strict.assert_not_called()
+            for change in ('kind','profile','selection'):
+                changed=deepcopy(profile)
+                if change=='kind':changed['binding']['generation_kind']=C.CONTROLLER_KIND
+                elif change=='profile':changed['profile']=P.FULL_PROFILE
+                else:changed['selection']={**selected,'suites':selected['suites'][1:]}
+                derive.return_value=changed
+                with self.subTest(change=change),self.assertRaises(H.Unavailable):
+                    P.current_platform_context(Path('/unexecuted'),event,environment,adapter)
+            derive.return_value=profile
+            selected['full_host']=True;selected['reason']='reviewed-ci-with-control-plane-update'
+            with patch.object(postmerge,'integrated_controller',return_value='sha256:'+'e'*64) as full_guard:
+                context=P.current_platform_context(Path('/unexecuted'),event,environment,adapter)
+                self.assertIsNone(context['platform_partition']);full_guard.assert_called_once()
+            selected['full_host']=False
+            selected['include_platform']=True
+            with self.assertRaisesRegex(AssertionError,'strict execution'):
+                P.current_platform_context(Path('/unexecuted'),event,environment,adapter)
+
+    def test_push_nonhost_package_routes_require_complete_plan_and_never_invent_platform(self):
+        import postmerge
+        event,environment=self.push_event(job='route')
+        _,parent=P.source_admission.actual_bytes(P.ROOT,P.PLATFORM_PARENT_TEMPLATE)
+        local={**deepcopy(self.trusted),P.PLATFORM_PARENT_TEMPLATE:parent}
+        current={**deepcopy(self.tree),'.github/workflows/parent-qualification.yml':parent}
+        binding={'pull_request':23,'base_ref':self.target,'base_sha':'b'*40,'merge_sha':'a'*40,'merge_tree':'c'*40}
+        refs={'target':'a'*40,'default':'d'*40,'default_ref':'main',
+            'integration':{'workflow_path':'.github/workflows/parent-qualification.yml'}}
+        adapter=SimpleNamespace(_integrated_current=Mock(return_value=(binding,refs)),api=SimpleNamespace(immutable_blob=Mock()))
+        self.policy.select=Mock(side_effect=AssertionError('no host owner for bounded package route'))
+        planned=self.package_boundary.candidate_plan=Mock()
+        with patch.object(P,'_host_policy',return_value=self.policy), \
+             patch.object(postmerge,'full_tree',side_effect=lambda adapter,revision:('c'*40,
+                {'a'*40:current,'b'*40:self.base,'d'*40:local}[revision])), \
+             patch.object(postmerge,'integrated_controller_for_reuse',return_value='sha256:'+'e'*64), \
+             patch.object(postmerge,'integrated_controller',side_effect=AssertionError('no platform execution')), \
+             patch.object(P,'selection_profile_for_reuse',side_effect=AssertionError('no shared owner')), \
+             patch.object(P.execution,'checkout_identity',side_effect=lambda path:('d'*40,'f'*40) if path==P.ROOT else ('a'*40,'c'*40)), \
+             patch.object(P.inputs,'full_tree',side_effect=lambda path,revision:local if path==P.ROOT else current):
+            for mode,path in (('documentation','README.md'),('tool-dependencies','tools/jsdoc/package-lock.json'),
+                    ('package-dependencies','script-archive/marketplace/S3Server/package-lock.json')):
+                self.assertEqual(self.package.select([path],legacy_mode='documentation' if mode=='documentation' else 'full')['host_mode'],mode)
+                planned.return_value=self.push_plan(current,mode)
+                context=P.current_platform_context(Path('/unexecuted'),event,environment,adapter)
+                self.assertIsNone(context['selected']);self.assertIsNone(context['platform_partition'])
+                self.assertEqual(P.parent_route_outputs(context)['platform_required'],'false')
+                before=P.parent_route_outputs(context)['parent_plan']
+                changed=deepcopy(context);changed['package_plan']['plan']='e'*64
+                self.assertNotEqual(P.parent_route_outputs(changed)['parent_plan'],before)
+            for field,value in (('candidate','f'*40),('tree','f'*40),('base','f'*40),('head','f'*40),
+                    ('unknown',True),('paths',[]),('regular',False),('host_mode','unknown'),('host_mode','delegated-sync')):
+                planned.return_value={**self.push_plan(current,'documentation'),field:value}
+                with self.subTest(field=field,value=value),self.assertRaises(H.Unavailable):
+                    P.current_platform_context(Path('/unexecuted'),event,environment,adapter)
+            planned.return_value=self.push_plan(current,'documentation')
+            context=P.current_platform_context(Path('/unexecuted'),event,environment,adapter)
+            with patch.object(P,'current_platform_context',return_value={**context,'package_plan':{}}),self.assertRaises(H.Unavailable):
+                P._platform_bookend(context,event,environment,adapter)
+
+    def test_empty_parent_profile_requires_native_source_and_exact_skipped_jobs(self):
+        import postmerge
+        self.package_boundary.validate_wiring=Mock(return_value=P.PLATFORM_GENERATION)
+        for target in ('main','apple-main'):
+            event,environment=self.push_event(target,job='qualify-parent')
+            environment['GITHUB_WORKFLOW_REF']=P.producer_api.REPOSITORY+'/.github/workflows/parent-qualification.yml@refs/heads/'+target
+            profile=P.source_admission.ordinary(P.source_admission.SHARED_PROFILE)
+            _,template=P.source_admission.actual_bytes(P.ROOT,P.PLATFORM_PARENT_TEMPLATE)
+            current={P.source_admission.PROFILE:profile,'.github/workflows/parent-qualification.yml':template}
+            local={P.source_admission.PROFILE:profile,P.PLATFORM_PARENT_TEMPLATE:template}
+            binding={'base_ref':target,'base_sha':'b'*40}
+            refs={'target':'a'*40,'default':'d'*40,'default_ref':'main',
+                'integration':{'workflow_path':'.github/workflows/parent-qualification.yml'}}
+            adapter=SimpleNamespace(_integrated_current=Mock(return_value=(binding,refs)))
+            needs={'route':{'result':'skipped','outputs':{}},'common-parent':{'result':'success'},
+                'platform-tests':{'result':'skipped','outputs':{}}}
+            with patch.object(P,'_host_policy',return_value=self.policy), \
+                 patch.object(postmerge,'full_tree',side_effect=lambda adapter,revision:('c'*40,
+                    local if revision=='d'*40 else current)), \
+                 patch.object(postmerge,'integrated_controller_for_reuse',return_value='sha256:'+'e'*64), \
+                 patch.object(postmerge,'default_authority',return_value={'protected':True}), \
+                 patch.object(P.execution,'checkout_identity',side_effect=lambda path:('d'*40,'c'*40) if path==P.ROOT else ('a'*40,'c'*40)), \
+                 patch.object(P.inputs,'full_tree',side_effect=lambda path,revision:local if path==P.ROOT else current):
+                P.verify_platform_parent(Path('/unexecuted'),event,environment,adapter,needs)
+                for change in ('route-success','route-output','platform-success','profile'):
+                    value=deepcopy(needs)
+                    if change=='route-success':value['route']['result']='success'
+                    elif change=='route-output':value['route']['outputs']={'platform_required':'false'}
+                    elif change=='platform-success':value['platform-tests']['result']='success'
+                    else:current[P.source_admission.PROFILE]={**profile,'mode':'100755'}
+                    with self.subTest(target=target,change=change),self.assertRaises(H.Unavailable):
+                        P.verify_platform_parent(Path('/unexecuted'),event,environment,adapter,value)
+                current[P.source_admission.PROFILE]=profile
+
+    def test_parent_route_outputs_bind_whole_current_plan_and_empty_output_is_finite(self):
+        context={'platform_partition':None,'binding':{'base_ref':self.target,'merge_sha':'a'*40},
+            'refs':{'target':'a'*40,'default':'d'*40},'controller':'sha256:'+'e'*64,'selected':self.profile['selection']}
+        before=P.parent_route_outputs(context)
+        for field in ('binding','refs','controller','selected'):
+            changed=deepcopy(context)
+            if field=='binding':changed[field]['base_sha']='b'*40
+            elif field=='refs':changed[field]['default']='f'*40
+            elif field=='controller':changed[field]='sha256:'+'f'*64
+            else:changed[field]['suites']=changed[field]['suites'][1:]
+            with self.subTest(field=field):self.assertNotEqual(P.parent_route_outputs(changed)['parent_plan'],before['parent_plan'])
+        with tempfile.TemporaryDirectory() as directory:
+            output=Path(directory)/'output';output.touch(mode=0o600)
+            with patch.dict(P.os.environ,{'GITHUB_OUTPUT':str(output)}):
+                P._output(before);P._output({'platform_required':'false','platform_plan':''})
+                valid=output.read_bytes()
+                for value in ({'platform_required':'true','platform_plan':''},{'receipt_sha256':''},
+                        {'receipt_sha256':'a'*40},{'parent_candidate':'not-a-commit'}):
+                    with self.subTest(value=value),self.assertRaises(H.Unavailable):P._output(value)
+                    self.assertEqual(output.read_bytes(),valid)
 
 
 if __name__=='__main__':
