@@ -222,6 +222,11 @@ legacy Android activation flag and required-branch policy retain their existing
 meaning. Protected D supplies every controller; an authenticated old14 B may be
 the predecessor of the first exact22 installation, subject to the existing
 immutable handoff checks. Candidate controller code is never imported.
+Before importing the repository execution/API graph, a pinned standard-library
+guard authenticates the actual protected D checkout, its complete controller
+bytes and import lookup inventory. The current PR's relevant diagnostic label
+is independently checked at both source bookends; unrelated label changes do
+not alter the plan.
 
 For selected work, the final outer job independently authenticates its current
 attempt-1 Android route, execute and verify jobs and their fixed successful
@@ -231,5 +236,10 @@ step, and repeats source, plan, ref and native-job observations. Its outer run
 remains in progress; this entrypoint creates no reusable E, receipt or historical
 qualification. Failed, missing or skipped owners remain merge failures. An
 independently proved unselected plan requires exact skipped/no-output behavior.
+Even an unselected plan requires the current outer job's native Actions app,
+attempt and source checks. Newer ordinary pending or failed runs still block.
+Only the shared API's authenticated metadata non-producer may be excluded;
+its exact reviewed native-intent type has a stable inventory projection while
+its complete live source and job restrictions are rechecked at both bookends.
 No actual Android workload or hosted qualification is asserted by this source
 implementation; activation and complete workflow enrollment remain separate.

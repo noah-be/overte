@@ -852,12 +852,28 @@ class CurrentAndroidNativeOwnerTests(unittest.TestCase):
             self.jobs.append(job)
             self.checks[identity]={'id':identity,'head_sha':self.head,'check_suite':{'id':200},'app':{'id':15368},
                 **{key:job[key] for key in ('name','status','conclusion','started_at','completed_at')}}
+        self.outer={'id':399,'run_id':100,'run_attempt':1,'head_sha':self.head,
+            'name':'repository-checks','status':'in_progress','conclusion':None,
+            'started_at':'2026-10-16T19:20:00Z','completed_at':None,
+            'check_run_url':f'https://api.github.com/repos/{gate.REPOSITORY}/check-runs/399','steps':[]}
+        self.jobs.append(deepcopy(self.outer))
+        self.checks[399]={'id':399,'head_sha':self.head,'check_suite':{'id':200},'app':{'id':15368},
+            **{key:self.outer[key] for key in ('name','status','conclusion','started_at','completed_at')}}
         self.registration={'id':99,'path':'.github/workflows/repository-checks.yml','state':'active'}
         def get(endpoint):
             if endpoint.startswith(A.PREFIX+'/'):endpoint=endpoint[len(A.PREFIX)+1:]
             return deepcopy(self.object(endpoint))
         self.adapter=A.Adapter(SimpleNamespace(json=get))
         self.adapter._pages=lambda endpoint,field,**kwargs:deepcopy(self.listed if field=='workflow_runs' else self.jobs)
+        self.metadata=self.enterContext(patch.object(self.adapter,'metadata_observation',return_value=None))
+        # The future shared adapter owns this authenticated-type projection.
+        # Its independent tests validate source/row identities; this fixture
+        # proves the Android consumer forwards the complete fresh API record.
+        def inventory(row,observation):
+            return ({'native_nonproducer_intent':observation}
+                if type(observation) is dict and observation.get('kind')=='authenticated-metadata-nonproducer-intent'
+                else row)
+        self.inventory=self.enterContext(patch.object(A,'metadata_inventory_record',side_effect=inventory,create=True))
         self.owner=gate.android()
         self.normal=self.owner.load_policy()['views']
         names=dict.fromkeys(proof['execution'] for view in self.expected['views'] for proof in self.normal[view].values())
@@ -865,6 +881,8 @@ class CurrentAndroidNativeOwnerTests(unittest.TestCase):
         self.owner_plan={'plan':self.expected['owner_plan'],'executions':{name:{} for name in names}}
         self.stack=self.enterContext(__import__('contextlib').ExitStack())
         self.stack.enter_context(patch.object(gate,'SOURCE_CAPABILITY',True))
+        self.bootstrap=self.stack.enter_context(patch.object(gate,'_protected_default',return_value={'default':self.default}))
+        self.stack.enter_context(patch.object(gate,'_current_metadata_policy',return_value=SimpleNamespace(trusted='closed metadata policy')))
         self.actual_source=gate._current_source
         self.source_reader=self.stack.enter_context(patch.object(gate,'_current_source',side_effect=lambda *a,**kw:deepcopy(self.source)))
         self.plan_reader=self.stack.enter_context(patch.object(gate,'candidate_plan',side_effect=lambda *a,**kw:deepcopy(self.expected)))
@@ -962,14 +980,33 @@ class CurrentAndroidNativeOwnerTests(unittest.TestCase):
 
     def test_independently_unselected_owner_requires_exact_skip_and_no_execution(self):
         self.expected['required']=False;self.needs={'android':{'result':'skipped','outputs':{}}}
-        self.jobs=[];self.attempt['referenced_workflows']=[]
+        self.jobs=[deepcopy(self.outer)]
+        metadata=self.A.METADATA_WORKFLOW
+        self.current[metadata]={'mode':'100644','type':'blob','sha':'b'*40}
+        refs=[{'path':gate.REPOSITORY+'/'+metadata+'@'+self.sha,'sha':self.sha,'ref':'refs/pull/17/merge'}]
+        self.attempt['referenced_workflows']=refs;self.run['referenced_workflows']=deepcopy(refs)
         value=self.verify();self.assertFalse(value['executed'])
         for job in ({'name':'android / execute','status':'completed','conclusion':'success'},
                     {'name':'android / execute','status':'completed','conclusion':'failure'}):
-            self.jobs=[job]
+            self.jobs=[deepcopy(self.outer),job]
             with self.assertRaises(ValueError):self.verify()
-        self.jobs=[];self.needs['android']['outputs']={'verified':'true'}
+        self.jobs=[deepcopy(self.outer)];self.needs['android']['outputs']={'verified':'true'}
         with self.assertRaises(ValueError):self.verify()
+
+    def test_unselected_owner_still_requires_actual_outer_App_source_and_attempt(self):
+        self.expected['required']=False;self.needs={'android':{'result':'skipped','outputs':{}}}
+        self.jobs=[deepcopy(self.outer)]
+        for change in ('missing','app','suite','attempt','check','source'):
+            saved=deepcopy((self.jobs,self.checks,self.run,self.attempt,self.listed))
+            if change=='missing':self.jobs=[]
+            elif change=='app':self.checks[399]['app']['id']=123
+            elif change=='suite':self.checks[399]['check_suite']['id']=987
+            elif change=='attempt':self.jobs[0]['run_attempt']=2
+            elif change=='check':self.checks[399]['status']='completed'
+            else:
+                self.run['referenced_workflows']=[];self.attempt['referenced_workflows']=[]
+            with self.subTest(change=change),self.assertRaises(ValueError):self.verify()
+            self.jobs,self.checks,self.run,self.attempt,self.listed=saved
 
     def test_actual_source_helper_checks_API_B_M_D_and_all_four_native_targets(self):
         execution,inputs,A,S=gate._native_modules()
@@ -983,7 +1020,10 @@ class CurrentAndroidNativeOwnerTests(unittest.TestCase):
         default={'trusted-D.py':{'mode':'100644','type':'blob','sha':'f'*40}}
         maps={self.base:before,self.sha:current,self.default:default}
         trees={revision:str(index+6)*40 for index,revision in enumerate(maps)}
+        live_labels=[]
         def get(endpoint):
+            if endpoint.startswith('pulls/'):
+                return {**deepcopy(self.event['pull_request']),'number':17,'state':'open','labels':deepcopy(live_labels)}
             if endpoint.startswith('branches/'):
                 name=endpoint.split('/')[-1]
                 return {'name':name,'protected':True,'commit':{'sha':self.default if name=='main' else self.base}}
@@ -1019,6 +1059,15 @@ class CurrentAndroidNativeOwnerTests(unittest.TestCase):
                 self.assertEqual(source()[2:4],(current,default))
                 self.assertEqual(compatibility.call_args.args,(default,default,'main'))
                 self.assertEqual(handoff.call_args.kwargs['before_sha'],self.base)
+            live_labels.append({'name':'unrelated-label'})
+            self.assertEqual(source()[2:4],(current,default))
+            for labels in ([{'name':'android-long-diagnostics'}],[{'name':'duplicate'},{'name':'duplicate'}],['invalid']):
+                live_labels[:]=labels
+                with self.assertRaises(ValueError):source()
+            live_labels[:]=[]
+            self.event['pull_request']['labels']=[{'name':'android-long-diagnostics'}]
+            with self.assertRaises(ValueError):source()
+            self.event['pull_request']['labels']=[]
             for change in ('job','target','default','root','B','M','branch','mode','mixed'):
                 with self.subTest(change=change):
                     if change=='job':
@@ -1047,14 +1096,208 @@ class CurrentAndroidNativeOwnerTests(unittest.TestCase):
                         with self.assertRaises(ValueError):source()
                         current.clear();current.update(saved)
 
+    def test_only_typed_metadata_nonproducer_may_be_newer_than_current40(self):
+        other=deepcopy(self.run);other.update(id=101,status='queued',conclusion=None,run_started_at=None)
+        self.listed.append(other)
+        record={'kind':'trusted native metadata nonproducer','run_id':101,'source':self.sha}
+        self.metadata.return_value=record
+        self.assertTrue(self.verify()['verified'])
+        self.assertEqual(self.metadata.call_count,4)
+        self.assertEqual(self.metadata.call_args.args[0],other)
+        for result in (None, ValueError('unknown successful source')):
+            self.metadata.reset_mock()
+            if result is None:self.metadata.return_value=None
+            else:self.metadata.side_effect=result
+            with self.subTest(result=type(result).__name__),self.assertRaises(ValueError):self.verify()
+        self.metadata.side_effect=[record,{**record,'source':'f'*40}]
+        with self.assertRaises(ValueError):self.verify()
+
+    def test_only_shared_native_intent_projection_may_ignore_metadata_progress(self):
+        other=deepcopy(self.run);other.update(id=101,status='queued',conclusion=None,run_started_at=None)
+        self.listed.append(other)
+        record={'kind':'authenticated-metadata-nonproducer-intent','run':{'id':101},
+            'source':{'complete':'authenticated native source'},'candidate':{'merge_sha':self.sha}}
+        self.metadata.return_value=record
+        calls=0
+        def source(*args,**kwargs):
+            nonlocal calls
+            calls+=1
+            if calls==2:self.listed[1].update(status='in_progress',updated_at='2026-10-16T19:59:00Z')
+            return deepcopy(self.source)
+        self.source_reader.side_effect=source
+        self.assertTrue(self.verify()['verified'])
+        self.assertEqual(self.metadata.call_count,4)
+        self.assertEqual([call.args[1] for call in self.inventory.call_args_list if call.args[0]['id']==101],[record,record])
+        # Historical completed-marker records keep the raw inventory bookend.
+        self.metadata.return_value={**record,'kind':'historical completed marker'}
+        calls=0;self.listed[1]['status']='queued'
+        with self.assertRaises(ValueError):self.verify()
+
+    def test_future_run_or_mixed_attempt_source_cannot_enter_current_owner(self):
+        for field in ('repository','head_repository','pull_requests','referenced_workflows','run_started_at'):
+            saved=deepcopy(self.attempt)
+            if field=='run_started_at':self.run[field]='2026-10-16T21:00:00Z';self.attempt[field]=self.run[field];self.listed[0][field]=self.run[field]
+            elif field=='repository':self.attempt[field]={'full_name':'foreign/repo','id':123}
+            elif field=='head_repository':self.attempt[field]={'full_name':'foreign/repo','id':123}
+            else:self.attempt[field]=[]
+            with self.subTest(field=field),self.assertRaises(ValueError):self.verify()
+            self.attempt=saved
+
+    def test_repository_graph_is_not_imported_before_default_authentication(self):
+        with patch.object(gate,'_protected_default',side_effect=ValueError('untrusted actualD')), \
+             patch.object(gate,'_native_modules',side_effect=AssertionError('no repository import')) as imports:
+            with self.assertRaises(ValueError):self.verify()
+        imports.assert_not_called()
+
     def test_dispatch_preserves_old14_admission_and_cannot_enable_current40(self):
-        source=SimpleNamespace(entries={})
-        package=SimpleNamespace(validate_tree_wiring=lambda tree:'android-owned-npm5-sync-ci-v1')
-        with patch.object(gate,'packages',return_value=package),patch.object(gate,'_sources',return_value=source), \
-             patch.object(gate,'admit',return_value='legacy') as legacy, \
+        with patch.object(gate,'_source_generation',return_value='android-owned-npm5-sync-ci-v1'), \
              patch.object(gate,'verify_current_owner',side_effect=AssertionError('no unrequested40')):
-            self.assertEqual(gate.admit_repository('/candidate',self.event,self.sha,self.needs,self.environment),'legacy')
-        legacy.assert_called_once()
+            self.assertIsNone(gate.current_source_owner('/candidate',self.event,self.sha,self.needs,self.environment))
+        with patch.object(gate,'_source_generation',return_value=gate.CURRENT_SOURCE_GENERATION), \
+             patch.object(gate,'verify_current_owner',return_value={'verified':True}) as current:
+            self.assertEqual(gate.current_source_owner('/candidate',self.event,self.sha,self.needs,self.environment),{'verified':True})
+        current.assert_called_once()
+
+
+class AndroidDefaultBootstrapTests(unittest.TestCase):
+    def setUp(self):
+        _,_,_,source=gate._native_modules()
+        self.temp=tempfile.TemporaryDirectory(prefix='android-default-bootstrap-');self.addCleanup(self.temp.cleanup)
+        self.root=Path(self.temp.name)
+        for name in sorted(set(source.CONTROLLERS)|set(source.IMPORT_MEMBERS)):
+            path=self.root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes((ROOT/name).read_bytes())
+            path.chmod(0o755 if name=='tests/run-project-tests.py' else 0o644)
+        for command in (('init','--quiet'),('add','--all'),('-c','user.name=Fixture','-c','user.email=fixture@example.invalid',
+                'commit','--quiet','-m','Immutable actual default source')):gate._bootstrap_git(self.root,*command)
+        self.commit=gate._bootstrap_git(self.root,'rev-parse','HEAD').decode().strip()
+        self.tree=gate._bootstrap_git(self.root,'rev-parse','HEAD^{tree}').decode().strip()
+        self.entries=[]
+        for row in gate._bootstrap_git(self.root,'ls-tree','-rz','--full-tree','HEAD').split(b'\0'):
+            if row:
+                header,path=row.split(b'\t');mode,kind,sha=header.decode().split()
+                self.entries.append({'path':path.decode(),'mode':mode,'type':kind,'sha':sha})
+        self.ref={'ref':'refs/heads/main','object':{'type':'commit','sha':self.commit}}
+        self.branch={'name':'main','protected':True,'commit':{'sha':self.commit}}
+        self.api=SimpleNamespace(get=self.get)
+
+    def get(self,endpoint):
+        if endpoint=='':return {'full_name':gate.REPOSITORY,'id':gate.REPOSITORY_ID,'default_branch':'main'}
+        if endpoint=='git/ref/heads/main':return deepcopy(self.ref)
+        if endpoint=='branches/main':return deepcopy(self.branch)
+        if endpoint=='git/commits/'+self.commit:return {'sha':self.commit,'tree':{'sha':self.tree}}
+        if endpoint=='git/trees/'+self.tree+'?recursive=1':return {'sha':self.tree,'truncated':False,'tree':deepcopy(self.entries)}
+        raise AssertionError(endpoint)
+
+    def test_pinned_stdlib_guard_authenticates_real_complete_D_before_exposing_graph(self):
+        context=gate._protected_default(self.root,api=self.api)
+        self.assertEqual(context['default'],self.commit)
+        self.assertEqual(context['admission']['target'],'main')
+        self.assertFalse((self.root/'tools/test-evidence/__pycache__').exists())
+        self.assertNotIn('trusted_android_default_bootstrap',__import__('sys').modules)
+
+    def test_alias_mode_changed_guard_and_untracked_import_never_execute(self):
+        path=self.root/'tools/test-evidence/source_admission.py';raw=path.read_bytes()
+        alias=self.root/'guard-copy'
+        for change in ('guard','alias','mode','shadow','protection','default'):
+            if change=='guard':path.write_bytes(raw+b'\nraise AssertionError("must never execute")\n')
+            elif change=='alias':
+                alias.write_bytes(raw);path.unlink();path.symlink_to(alias)
+            elif change=='mode':path.chmod(0o755)
+            elif change=='shadow':
+                (self.root/'tools/test-evidence/unknown.py').write_text('raise AssertionError("must never import")\n')
+            elif change=='protection':self.branch['protected']=False
+            else:self.ref['object']['sha']='a'*40
+            with self.subTest(change=change),self.assertRaises(ValueError):gate._protected_default(self.root,api=self.api)
+            if path.is_symlink():path.unlink()
+            path.write_bytes(raw);path.chmod(0o644)
+            alias.unlink(missing_ok=True)
+            (self.root/'tools/test-evidence/unknown.py').unlink(missing_ok=True)
+            self.branch['protected']=True;self.ref['object']['sha']=self.commit
+
+
+class AndroidCurrentDispatchTests(unittest.TestCase):
+    """Actual immutable Git catalog dispatch; no repository graph import."""
+    def test_outer_cli_authenticates_current_Android_before_other_router_imports(self):
+        with tempfile.TemporaryDirectory(prefix='android-current-cli-') as directory:
+            event=Path(directory)/'event.json'
+            event.write_text(json.dumps({'pull_request':{'base':{'ref':'android-phone'}}}))
+            with patch.object(checks,'configuration',return_value=({},{})), \
+                 patch.object(checks,'bound_project_owners',return_value=({'android':{}},{})), \
+                 patch.object(checks,'android_policy',return_value=SimpleNamespace(
+                     current_source_owner=lambda *args:(_ for _ in ()).throw(ValueError('untrusted actualD')))), \
+                 patch.object(checks,'package_policy',side_effect=AssertionError('router imported before D')) as packages, \
+                 patch.object(checks,'browser_policy',side_effect=AssertionError('router imported before D')) as browser, \
+                 patch.object(__import__('sys'),'argv',['check.py','verify','--needs-json','{}','--candidate',directory,
+                     '--sha','3'*40,'--event',str(event)]),redirect_stderr(io.StringIO()) as output:
+                self.assertEqual(checks.main(),1)
+            self.assertIn('untrusted actualD',output.getvalue())
+            packages.assert_not_called();browser.assert_not_called()
+
+    def test_fresh_isolated_metadata_policy_import_uses_only_fixed_controller_directory(self):
+        script='''import importlib.util,sys
+from pathlib import Path
+root=Path(sys.argv[1]);directory=str(root/'tools/test-evidence')
+spec=importlib.util.spec_from_file_location('android_policy',root/'tools/repository-checks/android_gate.py')
+gate=importlib.util.module_from_spec(spec);spec.loader.exec_module(gate)
+assert directory not in sys.path and 'producer_workflow' not in sys.modules
+policy=gate._current_metadata_policy(99)
+assert policy.caller_workflow_id==99 and policy.caller_path=='.github/workflows/repository-checks.yml'
+assert directory not in sys.path
+# This source-only checkout need not enroll the future metadata pair yet.
+assert (policy.generations is None)==(policy.sources is None)
+assert policy.generations is None or isinstance(policy.generations,dict) and isinstance(policy.sources,dict)
+assert Path(sys.modules['producer_workflow'].__file__).resolve()==root/'tools/test-evidence/producer_workflow.py'
+'''
+        result=subprocess.run([__import__('sys').executable,'-I','-S','-B','-c',script,str(ROOT)],
+            stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,timeout=20)
+        self.assertEqual(result.returncode,0,result.stderr)
+
+    def test_complete_legacy_and_future_recipes_dispatch_but_mixed_modes_and_catalogs_do_not(self):
+        with tempfile.TemporaryDirectory(prefix='android-current-dispatch-') as directory:
+            root=Path(directory)
+            gate._bootstrap_git(root,'init','--quiet')
+            names=('project-tests','parent-qualification','sync-validation','repository-checks','browser-client','pr-metadata-context')
+            paths=['.github/workflows/'+name+'.yml' for name in names]
+            old={path:gate._blob(('old '+path+'\n').encode()) for path in paths[:5]}
+            future={path:gate._blob(('new '+path+'\n').encode()) for path in paths}
+            catalog={'schema':1,'repository':{'full_name':gate.REPOSITORY,'id':gate.REPOSITORY_ID},
+                'generations':[{'name':'android-owned-npm5-sync-ci-v1','workflows':old},
+                    {'name':gate.CURRENT_SOURCE_GENERATION,'workflows':future}]}
+            catalog_path=root/'.github/package-workflow-generations.json'
+            def write_workflows(prefix,selected):
+                for path in paths:
+                    target=root/path
+                    if target.is_symlink() or target.exists():target.unlink()
+                    if path in selected:
+                        target.parent.mkdir(parents=True,exist_ok=True);target.write_text(prefix+' '+path+'\n');target.chmod(0o644)
+            def commit():
+                gate._bootstrap_git(root,'add','--all')
+                gate._bootstrap_git(root,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid',
+                    'commit','--quiet','--allow-empty','-m','Immutable dispatch fixture')
+                return gate._bootstrap_git(root,'rev-parse','HEAD').decode().strip()
+            write_workflows('old',old);catalog_path.write_text(json.dumps(catalog));before=commit()
+            write_workflows('new',future);current=commit()
+            with patch.object(gate,'_native_modules',side_effect=AssertionError('dispatch must be stdlib-only')):
+                self.assertEqual(gate._source_generation(root,before,root),'android-owned-npm5-sync-ci-v1')
+                self.assertEqual(gate._source_generation(root,current,root),gate.CURRENT_SOURCE_GENERATION)
+                for change in ('missing','mixed','mode','alias'):
+                    write_workflows('new',future);path=root/paths[0]
+                    if change=='missing':path.unlink()
+                    elif change=='mixed':path.write_text('old '+paths[0]+'\n')
+                    elif change=='mode':path.chmod(0o755)
+                    else:path.unlink();path.symlink_to(root/paths[1])
+                    revision=commit()
+                    with self.subTest(change=change),self.assertRaises(ValueError):gate._source_generation(root,revision,root)
+                write_workflows('new',future)
+                for change in ('unknown','duplicate','nonfinite','incomplete'):
+                    value=deepcopy(catalog)
+                    if change=='unknown':value['extra']=True
+                    elif change=='incomplete':value['generations'][1]['workflows'].pop(paths[-1])
+                    raw=json.dumps(value)
+                    if change=='duplicate':raw=raw.replace('"schema": 1','"schema": 1, "schema": 1')
+                    elif change=='nonfinite':raw=raw.replace('"schema": 1','"schema": NaN')
+                    catalog_path.write_text(raw);commit()
+                    with self.subTest(change=change),self.assertRaises(ValueError):gate._source_generation(root,current,root)
 
 
 if __name__ == "__main__":

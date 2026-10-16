@@ -740,6 +740,14 @@ def main() -> int:
             # imports. Authenticate its current owner before loading browser
             # or Android routing modules in this fresh trusted process.
             needs, native_owners = bound_project_owners(needs, args.candidate, event, args.sha)
+            native_android = None
+            if (args.candidate is not None and event is not None and args.sha
+                    and (event.get('pull_request', {}).get('base', {}).get('ref')
+                         in {'android-main','android-vr','android-vr-pico','android-phone'})):
+                # This current-owner bootstrap must precede API/execution and
+                # browser/Android imports. Legacy recipes retain admit below.
+                native_android = android_policy().current_source_owner(
+                    args.candidate,event,args.sha,needs,os.environ)
             direct_plan = None
             packages = package_policy()
             package_plan = None
@@ -771,7 +779,8 @@ def main() -> int:
             if android_required or "android" in needs or any(key.startswith("android_") for key in route_outputs):
                 if args.candidate is None or event is None or not args.sha:
                     raise ValueError("Android verification requires exact candidate and event")
-                android.admit_repository(args.candidate,event,args.sha,needs,os.environ)
+                if native_android is None:
+                    android.admit(args.candidate,event)
                 android_plan = android.candidate_plan(args.candidate, event, args.sha,
                     event_name=os.environ.get("GITHUB_EVENT_NAME", "pull_request"))
             result = verify(needs, native_required(config, event),
