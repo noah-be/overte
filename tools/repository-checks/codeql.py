@@ -16,10 +16,13 @@ https://docs.github.com/en/code-security/reference/code-scanning/workflow-config
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path, PurePosixPath
 import re
+import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -56,6 +59,16 @@ _INERT_CI_JSONS = frozenset({
     ".github/branch-cleanup.json", ".github/issue-policy.json",
     ".github/repository-health.json", ".github/dependency-releases.json",
 })
+# Exact 2.27.2 default extractor discovery at a7057b836bf29767461026718b14d20790b9085f:
+# JS may sniff headers, but these suffixes never produce extracted source. Python
+# recursive discovery follows .py/.pyw or extensionless scripts only. Existing
+# leaves preserve directory-dependent startup/package-entrypoint discovery.
+_PINNED_NATIVE_EXTENSIONS = frozenset({
+    ".c", ".cpp", ".h", ".hpp", ".m", ".mm", ".qml", ".vert", ".frag", ".glsl",
+})
+_NATIVE_BLOB_BYTES = 4 * 1024 ** 2
+_NATIVE_TOTAL_BYTES = 16 * 1024 ** 2
+_NATIVE_BLOB_COUNT = 64
 _GLOBAL_PATHS = {
     "AGENTS.md", ".gitattributes", ".gitignore", ".gitmodules", ".codeqlignore", ".tool-versions",
     "tools/repository-checks/codeql.py", "tools/repository-checks/check.py", "tools/test-evidence/inputs.py",
@@ -118,6 +131,77 @@ def _pinned_ci_metadata(change, base_tree, candidate_tree):
                     and change[side]['type'] == 'blob' for side in ('before', 'after')))
 
 
+def _pinned_native_source(change, base_tree, candidate_tree, read_blob):
+    """A finite existing native leaf is not extracted by either pinned language.
+
+    Raw immutable old AND new bytes are mandatory; a supplied path/tree list is
+    insufficient. Additions/deletions/renames can alter directory discovery and
+    retain full scans. No candidate file is opened, imported or executed here.
+    """
+    path = PurePosixPath(change['path'])
+    pinned = {'mode': '100644', 'type': 'blob', 'sha': _PINNED_RESULTS_WORKFLOW}
+    if (path.suffix not in _PINNED_NATIVE_EXTENSIONS or path.name.startswith('.')
+            or not callable(read_blob)
+            or any(tree.get('.github/workflows/codeql.yml') != pinned for tree in (base_tree, candidate_tree))
+            or any(type(change[side]) is not dict or change[side]['mode'] != '100644'
+                   or change[side]['type'] != 'blob' for side in ('before', 'after'))):
+        return False
+    try:
+        for side in ('before', 'after'):
+            oid = change[side]['sha']
+            raw = read_blob(oid)
+            if type(raw) is not bytes or len(raw) > _NATIVE_BLOB_BYTES or b'\0' in raw:
+                return False
+            header = b'blob ' + str(len(raw)).encode('ascii') + b'\0'
+            algorithm = hashlib.sha1 if len(oid) == 40 else hashlib.sha256
+            if algorithm(header + raw).hexdigest() != oid:
+                return False
+            text = raw.decode('utf-8-sig')
+            # Conservatively decline every shebang, regardless of interpreter,
+            # suffix or executable bit; this is stronger than default discovery.
+            if text.startswith('#!'):
+                return False
+    except (OSError, subprocess.SubprocessError, UnicodeError, ValueError, TypeError):
+        return False
+    return True
+
+
+def _native_blob_reader(root):
+    """Bound immutable Git blobs by declared size, total size, count and SHA.
+
+    This capability is internal to the trusted repository selector. Missing or
+    unsupported objects decline the native exception and retain full analysis.
+    """
+    cache, remaining = {}, _NATIVE_TOTAL_BYTES
+    def read(oid):
+        nonlocal remaining
+        if oid in cache:
+            return cache[oid]
+        if len(cache) >= _NATIVE_BLOB_COUNT or not _OBJECT.fullmatch(oid):
+            raise inputs.InputError('native immutable blob inventory exceeds its bound')
+        # No extractor customization can inherit this new omission. The exact
+        # workflow/configuration is separately checked in both complete trees.
+        if any(name.startswith(('LGTM_INDEX_', 'CODEQL_EXTRACTOR_JAVASCRIPT_OPTION_',
+                                'CODEQL_EXTRACTOR_PYTHON_OPTION_')) for name in os.environ):
+            raise inputs.InputError('native extractor options are unsupported')
+        command = ['git', '--no-replace-objects', 'cat-file']
+        size_raw = subprocess.run([*command, '-s', oid], cwd=root, check=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10).stdout
+        if not re.fullmatch(rb'[0-9]{1,10}\n', size_raw):
+            raise inputs.InputError('native immutable blob size is unavailable')
+        size = int(size_raw)
+        if size > _NATIVE_BLOB_BYTES or size > remaining:
+            raise inputs.InputError('native immutable blob bytes exceed their bound')
+        raw = subprocess.run([*command, 'blob', oid], cwd=root, check=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10).stdout
+        if len(raw) != size:
+            raise inputs.InputError('native immutable blob size changed')
+        remaining -= size
+        cache[oid] = raw
+        return raw
+    return read
+
+
 def _global_input(path: str, pack_roots=()) -> bool:
     relative = PurePosixPath(path)
     name = relative.name.lower()
@@ -168,7 +252,7 @@ def _result(languages, reasons, changes) -> dict:
             "reasons": reasons, "changes": changes}
 
 
-def select_languages(base_tree: dict | None, candidate_tree: dict | None, *, event: str = "pull_request") -> dict:
+def select_languages(base_tree: dict | None, candidate_tree: dict | None, *, event: str = "pull_request", read_blob=None) -> dict:
     """Select from complete trusted inputs.full_tree maps, never a PR file list.
 
     Unknown/malformed inventory and unsupported events request both languages.
@@ -208,13 +292,15 @@ def select_languages(base_tree: dict | None, candidate_tree: dict | None, *, eve
     # its whole directory is shared control, including removed/renamed packs.
     pack_roots = {PurePosixPath(path).parent for path in base_tree.keys() | candidate_tree.keys()
                   if PurePosixPath(path).name.lower() in _PACK_MANIFESTS}
+    for change in changes:
+        if _global_input(change['path'], pack_roots):
+            return _result(LANGUAGES, [{"code": "shared-analysis-control", "path": change['path']}], changes)
     languages, reasons = set(), []
     for change in changes:
         path = change["path"]
-        if _global_input(path, pack_roots):
-            return _result(LANGUAGES, [{"code": "shared-analysis-control", "path": path}], changes)
         inert_metadata = _pinned_ci_metadata(change, base_tree, candidate_tree)
-        if inert_metadata:
+        inert_native = _pinned_native_source(change, base_tree, candidate_tree, read_blob)
+        if inert_metadata or inert_native:
             selected = ()
         elif _pinned_policy_json(change, base_tree, candidate_tree):
             selected = ("python",)
@@ -223,7 +309,8 @@ def select_languages(base_tree: dict | None, candidate_tree: dict | None, *, eve
         if selected is None:
             return _result(LANGUAGES, [{"code": "unknown-analysis-input", "path": path}], changes)
         languages.update(selected)
-        reasons.append({"code": ("reviewed-pinned-ci-metadata" if inert_metadata else
+        reasons.append({"code": ("reviewed-pinned-native-source" if inert_native else
+                                 "reviewed-pinned-ci-metadata" if inert_metadata else
                                  "language-input" if selected else "markdown-only-input"), "path": path})
     return _result(languages, reasons, changes)
 
@@ -240,7 +327,7 @@ def select_repository(root: Path | str, base_sha: str, candidate_sha: str, *, ev
         candidate_tree = inputs.full_tree(root, candidate_sha)
     except (inputs.InputError, OSError):
         return _result(LANGUAGES, [{"code": "unavailable-complete-inventory"}], [])
-    result = select_languages(base_tree, candidate_tree, event=event)
+    result = select_languages(base_tree, candidate_tree, event=event, read_blob=_native_blob_reader(root))
     result["commits"] = {"base": base_sha, "candidate": candidate_sha}
     return result
 

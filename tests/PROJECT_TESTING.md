@@ -1435,3 +1435,24 @@ aliases, mode changes and query-pack inputs cannot inherit this exception.
 YAML remains a JavaScript analysis input. The deployment transition cannot use
 either JSON optimization; both immutable trees must already contain the exact
 pinned workflow, and current selected analyses and findings remain required.
+
+The exact pinned generation also excludes edits to existing ordinary `100644`
+native leaves with these case-sensitive suffixes: `.c`, `.cpp`, `.h`, `.hpp`,
+`.m`, `.mm`, `.qml`, `.vert`, `.frag` and `.glsl`. Both complete immutable
+inventories and both old/new Git blobs are required. The trusted reader bounds
+each blob to 4 MiB, the aggregate to 16 MiB and the inventory to 64 distinct
+blobs, verifies object hashes, and conservatively rejects non-UTF-8/binary or
+shebang content. No candidate source is imported or executed. Missing or
+unsupported proof keeps both scans selected.
+
+The reviewed JavaScript extractor may inspect native file headers, but none of
+these unsupported suffixes produces extracted source; Python default recursive
+discovery follows `.py`/`.pyw` and extensionless scripts. TypeScript's reviewed
+single-file parser cannot read these native bodies indirectly. Existing file
+membership preserves package and startup directory discovery. Additions,
+deletions, renames, executable/mode changes, unknown suffixes, extractor overrides,
+analysis controls, aliases and submodules cannot use this exception. Mixed
+language changes retain their required scans, while the independent required
+result gate recomputes the selection and still requires a successful current
+selector even when no language is selected. Product/native tests remain owned
+by their existing gates; scheduled CodeQL scans remain full.
