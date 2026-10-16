@@ -65,6 +65,20 @@ def workflow_events(source):
     return data.get('on', data.get(True))
 
 
+def sync_condition(legacy, selected):
+    """Admit selected conditions only with the exact complete reviewed caller."""
+    staged = ROOT / 'tools/repository-checks/workflows/sync-ci-selection.yml'
+    if SYNC_VALIDATION_WORKFLOW.read_bytes() != staged.read_bytes():
+        return legacy
+    spec = importlib.util.spec_from_file_location(
+        'sync_condition_packages', ROOT / 'tools/repository-checks/package_checks.py')
+    packages = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(packages)
+    if packages.validate_wiring(ROOT) != 'npm-consumers-sync-ci-v1':
+        raise AssertionError('selected synchronization requires the exact complete generation')
+    return selected
+
+
 def assert_project_caller_routing(case, source):
     """The finite npm successor must bind its whole generation and exact route."""
     template = ROOT / 'tools/repository-checks/workflows/npm-consumers/repository-checks.yml'
@@ -603,7 +617,8 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         steps = yaml.safe_load(source)['jobs']['validate']['steps']
         product = next(step for step in steps if 'build/host-tests-env/bin/python trusted/tools/test-evidence/validate-sync.py'
                        in step.get('run', ''))
-        self.assertEqual(product['if'], "inputs.mode == 'fallback' || (inputs.profile != 'documentation' && inputs.profile != 'tool-dependencies')")
+        self.assertEqual(product['if'], sync_condition(
+            "inputs.mode == 'fallback' || (inputs.profile != 'documentation' && inputs.profile != 'tool-dependencies')", "steps.select.outputs.lane != 'legacy-bounded'"))
         self.assertIn('--mode "$MODE" --profile "$PROFILE"', product['run'])
         self.assertEqual(product['env']['MODE'], '${{ inputs.mode }}')
         # The trusted consumer, rather than a mutable candidate runner, owns
@@ -1058,7 +1073,8 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
                     if 'apt-get' in step.get('run', '') and 'install' in step['run']]
         self.assertEqual(len(installs), 1, 'Both paths must share one prerequisite installation')
         index, install = installs[0]
-        self.assertEqual(install['if'], "inputs.mode == 'fallback' || (inputs.profile != 'documentation' && inputs.profile != 'tool-dependencies')")
+        self.assertEqual(install['if'], sync_condition(
+            "inputs.mode == 'fallback' || (inputs.profile != 'documentation' && inputs.profile != 'tool-dependencies')", "steps.select.outputs.full_host == 'true'"))
         for package in ('qt6-base-dev', 'qt6-base-dev-tools', 'pkg-config',
                         'qml-module-qttest', 'qtdeclarative5-dev-tools'):
             self.assertIn(package, install['run'].split())
@@ -1067,7 +1083,8 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
                       in step.get('run', '')]
         self.assertEqual(len(executions), 1, 'Reuse and fallback share one trusted execution controller')
         self.assertLess(index, executions[0])
-        self.assertEqual(install['if'], steps[executions[0]]['if'])
+        self.assertEqual(steps[executions[0]]['if'], sync_condition(
+            "inputs.mode == 'fallback' || (inputs.profile != 'documentation' && inputs.profile != 'tool-dependencies')", "steps.select.outputs.lane != 'legacy-bounded'"))
 
     def test_reused_product_suites_share_the_prepared_python_interpreter(self):
         import yaml
@@ -1100,7 +1117,8 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
         steps = yaml.safe_load(SYNC_VALIDATION_WORKFLOW.read_text())['jobs']['validate']['steps']
         fallback = next(step for step in steps if 'build/host-tests-env/bin/python trusted/tools/test-evidence/validate-sync.py'
                         in step.get('run', ''))
-        self.assertIn("inputs.mode == 'fallback'", fallback['if'])
+        self.assertEqual(fallback['if'], sync_condition(
+            "inputs.mode == 'fallback' || (inputs.profile != 'documentation' && inputs.profile != 'tool-dependencies')", "steps.select.outputs.lane != 'legacy-bounded'"))
         self.assertNotEqual(fallback.get('working-directory'), 'candidate')
         self.assertNotIn('git config --global', fallback['run'])
         self.assertNotIn('continue-on-error', fallback)
@@ -1194,7 +1212,9 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
         import yaml
         steps = yaml.safe_load(SYNC_VALIDATION_WORKFLOW.read_text())['jobs']['validate']['steps']
         tools = next(step for step in steps if step['name'] == 'Verify bounded synchronization without product setup')
-        self.assertEqual(tools['if'], "inputs.mode == 'reuse' && (inputs.profile == 'documentation' || inputs.profile == 'tool-dependencies')")
+        self.assertEqual(tools['if'], sync_condition(
+            "inputs.mode == 'reuse' && (inputs.profile == 'documentation' || inputs.profile == 'tool-dependencies')",
+            "steps.select.outputs.lane == 'legacy-bounded'"))
         self.assertEqual(tools['run'].split()[0], 'python3')
         self.assertIn('trusted/tools/test-evidence/validate-sync.py', tools['run'])
         self.assertIn('--mode reuse --profile "$PROFILE"', tools['run'])
@@ -1202,10 +1222,13 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
         self.assertNotIn('host-tests-env', tools['run'])
         product = next(step for step in steps if 'build/host-tests-env/bin/python trusted/tools/test-evidence/validate-sync.py'
                        in step.get('run', ''))
-        self.assertIn("inputs.profile != 'tool-dependencies'", product['if'])
+        self.assertEqual(product['if'], sync_condition(
+            "inputs.mode == 'fallback' || (inputs.profile != 'documentation' && inputs.profile != 'tool-dependencies')", "steps.select.outputs.lane != 'legacy-bounded'"))
         for step in steps:
-            if 'apt-get' in step.get('run', '') or step.get('name') in {
-                    'Set up candidate Java', 'Prepare isolated shared and product Python validators'}:
+            if 'apt-get' in step.get('run', '') or step.get('name') == 'Set up candidate Java':
+                self.assertEqual(step['if'], sync_condition(
+                    "inputs.mode == 'fallback' || (inputs.profile != 'documentation' && inputs.profile != 'tool-dependencies')", "steps.select.outputs.full_host == 'true'"))
+            elif step.get('name') == 'Prepare isolated shared and product Python validators':
                 self.assertEqual(step['if'], product['if'])
 
 
