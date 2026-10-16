@@ -58,7 +58,7 @@ CI_POLICY = frozenset({
 # tests/**: those roots also contain real product readers and import candidates.
 CI_ROLLOUT_PATHS = frozenset({
     '.github/android-checks.json', '.github/android-orchestration.json', '.github/android-owner-transfer.json',
-    '.github/attested-runtime.json', '.github/sync-test-reuse.json',
+    '.github/attested-runtime.json', '.github/sync-test-reuse.json', '.github/ci37-runtime.json',
     '.github/workflows/dependency-releases.yml', '.github/workflows/repository-checks.yml',
     '.github/workflows/repository-health.yml', '.github/workflows/sync-test-reuse.yml',
     '.github/workflows/sync-validation.yml',
@@ -82,6 +82,9 @@ CI_ROLLOUT_PATHS = frozenset({
     'tools/test-evidence/sandbox_host_fixture.py', 'tools/test-evidence/sandbox_probe.py',
     'tools/test-evidence/sandbox_shared.py',
     'tools/test-evidence/producer_workflow.py', 'tools/test-evidence/postmerge.py',
+    'tools/test-evidence/ci_profile.py', 'tools/test-evidence/ci-profile-test.py',
+    'tools/test-evidence/runtime_ci.py', 'tools/test-evidence/runtime-ci-test.py',
+    'tools/test-evidence/ci-integration-test.py',
 })
 # These product contracts do not consume the admitted CI inputs. Their source,
 # helpers, fixtures, import/include membership AND definitions are bound below.
@@ -109,6 +112,11 @@ PROGRAM_INPUTS = (
     'tools/test-evidence/sandbox_shared.py',
     'tools/test-evidence/producer_workflow.py',
     'tools/test-evidence/postmerge.py',
+    # The CI37 policy is independently CI-owned data: protected admission binds
+    # its exact ordinary entry and bytes. Including its generation here would
+    # cycle through this file's REVIEWED_PROGRAMS and the complete CI37 tree.
+    'tools/test-evidence/ci_profile.py',
+    'tools/test-evidence/runtime_ci.py',
     'tools/repository-checks/workflows/producers/protected-project-tests.yml',
     'tools/repository-checks/workflows/producers/repository-checks.yml',
     'tools/repository-checks/workflows/producers/parent-qualification.yml',

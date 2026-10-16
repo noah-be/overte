@@ -612,8 +612,8 @@ still changes exactly its caller and callee and retains the approved parent.
 No active workflow or production policy is changed here. Hosted boundary,
 full-profile and final-publisher qualification, the protected runtime epoch and
 reviewed source activation are required before either producer or consumer can
-authorize reuse. Qt-free reusable profiles and child consumers remain separate
-work. A successful lookup with no affected package inputs skips candidate
+authorize reuse. Child consumers remain separate work. A successful lookup
+with no affected package inputs skips candidate
 checkout and Node/Qt setup; affected independent package owners still execute.
 
 The separate source-only CI37 profile is prepared in
@@ -623,8 +623,10 @@ The separate source-only CI37 profile is prepared in
 profile `ubuntu24-ci37-v1`; existing full Qt environment schema 1 and execution
 receipt schema 3 remain unchanged. The exact ordered 37 CI owners, command
 definitions and a conservative immutable executable/import/discovery/lookup
-generation are mandatory. Only eight fixed reviewed workflow/document leaves
-may change bytes; their membership and ordinary modes remain bound. Changed
+generation are mandatory. Only three fixed Markdown leaves (`README.md`,
+`tests/PROJECT_TESTING.md`, `docs/BRANCH_WORKFLOW.md`) may change bytes; their
+membership and ordinary modes remain bound. Every workflow byte remains bound
+because reviewed tests execute some YAML snippets. Changed
 readers, unknown paths, extra commands, control-plane full owners and platform
 suites require the existing full/nonreusable execution route.
 
@@ -646,14 +648,49 @@ and cannot substitute full/quick environment projections. The existing native
 adapter must independently authenticate the original schema-3 receipt and its
 whole-receipt publisher hash before a caller may use that plan.
 
-This packet does not wire the profile into producer, probe, workflow or consumer
-execution. Before integration, the protected context/projection and controller
-inventories must include these exact new policy/readers, actual selected-profile
-before/after probes must pass, and every admission failure must retain the
-existing pre-execution fallback. Source and policy flags remain false. No hosted
-capture, complete-profile qualification, runtime cost or speedup is established.
+The dormant producer independently derives the exact owner from complete source
+inventories before choosing this profile. Its protected projection includes the
+fixed policy/readers; actual selected-profile capture and admission must pass
+before any candidate suite starts. Unsupported CI37 capture selects the existing
+actual fallback once; failures after candidate execution starts remain failures.
+The native publisher still binds the whole original schema-3 receipt. The main
+consumer independently derives both original and current 37-owner plans and uses
+only authenticated original E. It creates no consumer environment or proof.
+
+Source and policy flags remain false. The finite source/definition generation
+must be refreshed after reviewed composition; changed implementation bytes
+conservatively require actual fallback. Active workflows and protected templates
+are unchanged. Existing outer preparation still installs Java, although the
+CI37 adds no prepared Java mount or Java environment/PATH entry; the system
+`/usr` tree remains read-only. The CI37 schema asserts no Java capability.
+The canonical manual diagnostic has a separate fixed `ci37` choice, using the
+same protected source and cleanup checks with exactly 37 commands and actual E
+before/after. Its dedicated diagnostic capture still requires the exact finite
+generation while allowing the source/policy production gates to stay false.
+Its result always has `authority: none`, `production_qualified: false` and
+`reusable: false`. The active manual workflow requires a separately reviewed
+copy before that choice can run. No hosted CI37 capture, qualification, runtime
+cost or speedup is established.
+
+After final source composition, refresh host reader metadata/`REVIEWED_PROGRAMS`
+first, then CI37 definition/generation digests, write the disabled CI37 policy,
+and refresh Android lock-reader anchors last. The exact CI37 JSON is outside
+the product-reader digest. CI37 generation retains the exact Android
+orchestration policy's path/mode/type but omits its SHA to break the second
+cycle. Admission separately requires candidate == trusted == actual protected
+root whole-blob identity; the returned selection binding and sealed controller
+projection retain that SHA. No neighboring policy or reader is exempt.
+
+This initial generation has no normally routed CI37 PR proof class: its three
+variable Markdown leaves use the existing documentation route and skip shared
+host execution. The producer therefore declines an unused descriptor. Other
+CI JSON/helper changes fail the finite generation and use existing actual
+execution. A separately reviewed bounded data class with authenticated immutable
+blob schema admission is needed to make normal original-PR CI37 reuse reachable;
+manual measurement alone does not achieve that optimization.
 The focused offline checks are `python3 tools/test-evidence/ci-profile-test.py`
-and `python3 tools/test-evidence/runtime-ci-test.py`; they use fake identity facts
+and `python3 tools/test-evidence/runtime-ci-test.py`, plus the focused
+`ci-integration-test.py` and fake consumer cases; they use fake identity facts
 and strict negative cases without compiling native fixtures or probing host tools.
 
 The `android-build-inputs` quick suite checks dormant Phone and Pico APK source

@@ -39,8 +39,10 @@ class OriginalCIEnvironmentTests(unittest.TestCase):
             'native':{'family':'system-gcc','target':'x86_64-linux-gnu','version':'13.3.0',
                 'sysroot':{'kind':'verified-compiler-default','root':'/','include_search':['/usr/include'],
                     'search_directories':{name:[{'path':'/usr/lib','present':True}] for name in ('install','programs','libraries')}},
-                'pipeline':{name:{'path':'/usr/bin/'+name,'file':deepcopy(FILE)} for name in ('cc1','cc1plus','collect2','as','ld')},
-                'content':{name:deepcopy(INVENTORY) for name in ('/usr/include','/usr/lib/gcc/x86_64-linux-gnu/13','/usr/share/cmake-3.28')},
+                'pipeline':{name:{'path':('/usr/lib/gcc/x86_64-linux-gnu/13/' if name in ('cc1','cc1plus','collect2')
+                    else '/usr/bin/')+name,'file':deepcopy(FILE)} for name in ('cc1','cc1plus','collect2','as','ld')},
+                'content':{name:deepcopy(INVENTORY) for name in ('/usr/include','/usr/local/include',
+                    '/usr/lib/gcc/x86_64-linux-gnu/13','/usr/share/cmake-3.28')},
                 'crt_stdlib':{name:{'path':'/usr/lib/'+name,'file':deepcopy(FILE)} for name in C._CRT},
                 'linker_scripts':{'/usr/lib/libc.so':{'/usr/lib/libc_nonshared.a':deepcopy(FILE)}}},
             'loader':{'cache':deepcopy(FILE),'libraries':{'/usr/lib/libc.so.6':deepcopy(FILE)}},
@@ -54,6 +56,13 @@ class OriginalCIEnvironmentTests(unittest.TestCase):
         self.environment['tools'].update({name:{'file':deepcopy(FILE)} for name in ('sh','system-python')})
         for name,value in {'node':'v22.23.3','cmake':'cmake version 3.28.3','cc':'cc (Ubuntu) 13.3.0','cxx':'c++ (Ubuntu) 13.3.0'}.items():
             self.environment['tools'][name]['version']=value
+        native=self.environment['native']
+        native['drivers']={name:{'path':'/usr/bin/'+('cc' if name=='cc' else 'c++'),'file':deepcopy(FILE),
+            'language':language,'specs':{'bytes':100,'digest':HASH},
+            'pipeline':{program:deepcopy(native['pipeline'][program]) for program in programs},
+            'include_search':['/usr/include'],'search_directories':deepcopy(native['sysroot']['search_directories']),
+            'crt_stdlib':{item:value['path'] for item,value in native['crt_stdlib'].items()}}
+            for name,(language,programs) in C._DRIVERS.items()}
         self.stack=ExitStack(); self.addCleanup(self.stack.close)
         self.stack.enter_context(patch.object(C.ci_profile,'validate_selection',return_value=self.binding))
         self.stack.enter_context(patch.object(C.ci_profile,'load_policy',return_value=self.policy))
@@ -119,6 +128,37 @@ class OriginalCIEnvironmentTests(unittest.TestCase):
             {'expires':'2026-10-18T13:00:00Z'},{'qualified':'unknown'},{'now':NOW.replace(tzinfo=None)}):
             with self.subTest(times=times),self.assertRaises(C.CIEnvironmentError):self.admit(**times)
 
+    def test_recorded_cmake_gmake_is_mandatory_and_matches_the_actual_make_record(self):
+        self.assertEqual(self.admit()['profile'],C.ci_profile.PROFILE)
+        for mutation in ('missing','bytes','version'):
+            changed=deepcopy(self.environment)
+            if mutation=='missing':changed['tools'].pop('gmake')
+            elif mutation=='bytes':changed['tools']['gmake']['file']['sha256']='sha256:'+'b'*64
+            else:changed['tools']['gmake']['version']='Another Make 1.0'
+            with self.subTest(mutation=mutation),self.assertRaises(C.CIEnvironmentError):self.admit(changed)
+
+    def test_both_real_driver_identities_specs_and_native_searches_are_required(self):
+        for name in C._DRIVERS:
+            for mutation in ('missing','specs','spec-size','tool','language','program','header','search','crt'):
+                changed=deepcopy(self.environment); driver=changed['native']['drivers'][name]
+                if mutation=='missing':changed['native']['drivers'].pop(name)
+                elif mutation=='specs':driver['specs']['digest']='unknown'
+                elif mutation=='spec-size':driver['specs']['bytes']=0
+                elif mutation=='tool':driver['file']['sha256']='sha256:'+'b'*64
+                elif mutation=='language':driver['language']='unreviewed'
+                elif mutation=='program':driver['pipeline'][next(iter(driver['pipeline']))]['path']='/usr/bin/unbound'
+                elif mutation=='header':driver['include_search']=['/usr/unbound/include']
+                elif mutation=='search':driver['search_directories']['libraries'][0]['path']='/usr/another/lib'
+                else:driver['crt_stdlib']['Scrt1.o']='/usr/lib/unbound.o'
+                with self.subTest(driver=name,mutation=mutation),self.assertRaises(C.CIEnvironmentError):self.admit(changed)
+
+    def test_empty_local_header_root_has_a_real_empty_inventory_identity(self):
+        changed=deepcopy(self.environment)
+        changed['native']['content']['/usr/local/include']={'entries':0,'bytes':0,'digest':C.digest([])}
+        self.admit(changed)
+        changed['native']['content']['/usr/local/include']['digest']=HASH
+        with self.assertRaises(C.CIEnvironmentError):self.admit(changed)
+
     def test_same37_plan_uses_original_e_and_cannot_claim_the_omitted23(self):
         tree={'fixture.txt':{'mode':'100644','type':'blob','sha':'a'*40}}
         registry={'schema':1,'control_inputs':['fixture.txt'],'suites':{name:{'command':['python','fixture.py'],
@@ -139,9 +179,91 @@ class OriginalCIEnvironmentTests(unittest.TestCase):
 
 
 class CaptureBoundaryTests(unittest.TestCase):
+    def driver_fixture(self, *, changed=None):
+        paths={'cc':Path('/usr/bin/cc'),'cxx':Path('/usr/bin/c++')}
+        gcc=Path('/usr/lib/gcc/x86_64-linux-gnu/13')
+        pipeline={name:(gcc/name if name in ('cc1','cc1plus','collect2') else Path('/usr/bin')/name)
+            for name in ('cc1','cc1plus','collect2','as','ld')}
+        directories={name:[{'path':'/usr/lib','present':True}] for name in ('install','programs','libraries')}
+        files={name:{'path':'/usr/lib/'+name,'file':deepcopy(FILE)} for name in C._CRT}
+        def query(path,*arguments,**options):
+            option=arguments[0]
+            if changed and (path,option)==changed[:2]:return changed[2]
+            if option=='-dumpmachine':return 'x86_64-linux-gnu'
+            if option=='-dumpfullversion':return '13.3.0'
+            if option=='-print-sysroot':return ''
+            if option=='-dumpspecs':return 'actual fixture specs '+str(path)
+            if option.startswith('-print-prog-name='):return str(pipeline[option.split('=',1)[1]])
+            if option.startswith('-print-file-name='):return files[option.split('=',1)[1]]['path']
+            self.fail('unplanned identity query')
+        with patch.object(C,'_query',side_effect=query) as observed, \
+             patch.object(C,'_path',side_effect=lambda path:Path(path)), \
+             patch.object(C,'_file',return_value=deepcopy(FILE)), \
+             patch.object(C,'_search_directories',return_value=deepcopy(directories)), \
+             patch.object(C,'_include_search',side_effect=lambda driver,language,root:['/usr/local/include','/usr/include']) as headers, \
+             patch.object(Path,'resolve',lambda path,**options:path):
+            value=C._drivers(paths,'x86_64-linux-gnu','13.3.0',gcc,pipeline,directories,files)
+        return value,observed,headers
+
+    def test_both_drivers_capture_actual_specs_and_language_search_queries(self):
+        value,queries,headers=self.driver_fixture()
+        self.assertEqual(set(value),{'cc','cxx'})
+        for name,driver in value.items():
+            raw=('actual fixture specs '+driver['path']).encode()
+            self.assertEqual(driver['specs'],{'bytes':len(raw),'digest':'sha256:'+C.hashlib.sha256(raw).hexdigest()})
+            self.assertIn(unittest.mock.call(Path(driver['path']),'-dumpspecs'),queries.call_args_list)
+            self.assertEqual(driver['crt_stdlib']['Scrt1.o'],'/usr/lib/Scrt1.o')
+        self.assertNotEqual(value['cc']['specs']['digest'],value['cxx']['specs']['digest'])
+        self.assertEqual([call.args[1] for call in headers.call_args_list],['c','c++'])
+
+    def test_both_drivers_reject_unknown_specs_or_alternate_native_dependencies(self):
+        for driver in ('/usr/bin/cc','/usr/bin/c++'):
+            for option,result in (('-dumpspecs',''),('-dumpspecs','a'*1_000_001),
+                    ('-print-prog-name=collect2','/usr/bin/unbound-collect2'),
+                    ('-print-file-name=Scrt1.o','/usr/lib/unbound-startup.o'),
+                    ('-print-sysroot','/usr/unreviewed-sysroot')):
+                with self.subTest(driver=driver,option=option),self.assertRaises(C.CIEnvironmentError):
+                    self.driver_fixture(changed=(Path(driver),option,result))
+
+    def test_default_local_headers_are_bound_but_foreign_include_roots_are_rejected(self):
+        gcc=Path('/usr/lib/gcc/x86_64-linux-gnu/13')
+        for root in ('/usr/local/include','/usr/unbound/include'):
+            output='#include <...> search starts here:\n '+root+'\n /usr/include\nEnd of search list.'
+            with patch.object(C,'_query',return_value=output),patch.object(C,'_path',side_effect=lambda path:Path(path)):
+                if root=='/usr/local/include':
+                    self.assertEqual(C._include_search(Path('/usr/bin/cc'),'c',gcc),[root,'/usr/include'])
+                else:
+                    with self.assertRaises(C.CIEnvironmentError):C._include_search(Path('/usr/bin/cc'),'c',gcc)
+
     def test_shipping_guard_fails_before_any_identity_probe(self):
         with patch.object(C,'_query',side_effect=AssertionError('no queries before source admission')):
             with self.assertRaises(C.CIEnvironmentError):C.capture_ci_environment({}, {}, {}, {})
+
+    def test_fixed_diagnostic_uses_real_finite_guard_with_both_activation_gates_disabled(self):
+        registry=C.inputs.load_registry(C.ROOT/'.github/test-suites.json')
+        entry={'mode':'100644','type':'blob','sha':'a'*40}
+        tree={C.ci_profile.POLICY:dict(entry),'tests/fixture.py':dict(entry)}
+        tree[C.ci_profile.PINNED_SOURCE]=C.ci_profile._pinned_source_entry(C.ROOT)
+        policy=C.ci_profile.load_policy()
+        policy['definition_digest']=C.ci_profile.definition_digest(registry)
+        policy['generation_digest']=C.ci_profile.generation(tree,registry)
+        selected={'suites':list(C.ci_profile.SUITES),'reason':'reviewed-ci-only-inputs',
+            'full_host':False,'include_platform':False}
+        self.assertFalse(C.ci_profile.SOURCE_READY);self.assertFalse(policy['enabled'])
+        with patch.object(C.ci_profile,'load_policy',return_value=policy), \
+             patch.object(C,'_query',side_effect=AssertionError('no real host query in fixture')), \
+             patch.object(C,'_measure_ci_environment',return_value={'actual-measurement-fixture':True}) as measure:
+            self.assertEqual(C.capture_ci_environment_diagnostic(selected,tree,tree,registry),
+                             {'actual-measurement-fixture':True})
+            self.assertEqual(measure.call_args.args[0]['suites'],list(C.ci_profile.SUITES))
+            measure.reset_mock()
+            changed=deepcopy(tree);changed['tests/fixture.py']['sha']='b'*40
+            with self.assertRaises(C.CIEnvironmentError):C.capture_ci_environment_diagnostic(selected,changed,tree,registry)
+            measure.assert_not_called()
+            with self.assertRaises(C.CIEnvironmentError):C.capture_ci_environment(selected,tree,tree,registry)
+            measure.assert_not_called()
+            with self.assertRaises(TypeError):
+                C.capture_ci_environment(selected,tree,tree,registry,_diagnostic=True)
 
     def test_sensitive_overrides_are_rejected_before_tool_or_sysroot_queries(self):
         for name in ('QT_PLUGIN_PATH','OVERTE_QML_TEST_RUNNER','JAVA_HOME','NODE_OPTIONS','PYTHONPATH',
@@ -213,6 +335,32 @@ class CaptureBoundaryTests(unittest.TestCase):
                     (('binary',binary),('archive',archive),('script',script))},Path('/usr/bin/c++'))
             self.assertEqual(readers,[binary])
             self.assertEqual(identities,{str(script):{str(binary):FILE}})
+
+
+class MakeAliasTests(unittest.TestCase):
+    def tools(self, gmake):
+        self.queried=[]
+        def executable(name):
+            if name=='node':return Path('/opt/hostedtoolcache/node/22.23.3/x64/bin/node')
+            if name=='gmake':return Path(gmake)
+            return Path('/usr/bin')/name
+        def query(path,*_arguments):
+            self.queried.append(path)
+            return 'v22.23.3' if path.name=='node' else 'Fixture 1.0'
+        with patch.object(C.runtime,'_checked_executable',side_effect=executable), \
+             patch.object(C,'_path',side_effect=Path),patch.object(C,'_file',return_value=FILE), \
+             patch.object(C,'_query',side_effect=query) as queried:
+            result=C._tools()
+        return result,queried
+
+    def test_cmake_gmake_alias_is_measured_as_the_same_make_executable(self):
+        (paths,identities),_=self.tools('/usr/bin/make')
+        self.assertEqual(paths['gmake'],paths['make'])
+        self.assertEqual(identities['gmake'],identities['make'])
+
+    def test_different_cmake_gmake_target_fails_before_querying_that_driver(self):
+        with self.assertRaises(C.CIEnvironmentError):self.tools('/usr/bin/unbound-gmake')
+        self.assertNotIn(Path('/usr/bin/unbound-gmake'),self.queried)
 
 
 if __name__=='__main__':unittest.main()

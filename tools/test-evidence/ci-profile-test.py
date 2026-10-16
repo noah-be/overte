@@ -18,16 +18,25 @@ class ProfileFixture(unittest.TestCase):
         cls.registry = inputs.load_registry(C.ROOT / ".github/test-suites.json")
 
     def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix="overte-ci37-pinned-source-")
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        pinned = self.root / C.PINNED_SOURCE
+        pinned.parent.mkdir()
+        pinned.write_text('{"reviewed_lock_sources":{"fixture":{"readers":"initial"}}}\n', encoding="utf-8")
         self.entry = {"mode": "100644", "type": "blob", "sha": "a" * 40}
         self.tree = {path: deepcopy(self.entry) for path in (
             C.POLICY, ".github/test-suites.json", "README.md", "tests/PROJECT_TESTING.md",
             "docs/BRANCH_WORKFLOW.md", ".github/workflows/project-tests.yml",
-            ".github/workflows/repository-checks.yml", "tools/branch-policy/check.py",
+            ".github/workflows/repository-checks.yml", ".github/workflows/parent-qualification.yml",
+            ".github/workflows/sync-validation.yml", ".github/workflows/browser-client.yml",
+            ".github/workflows/codeql.yml", "tools/branch-policy/check.py",
             "tools/test-evidence/runtime.py", "tests/run-project-tests.py",
             "tests/native-registration-test.py", "tests/CMakeLists.txt",
             "cmake/macros/SetupHifiTestCase.cmake", "libraries/example/src/Example.cpp",
             "browser-client/package-lock.json",
         )}
+        self.tree[C.PINNED_SOURCE] = C._pinned_source_entry(self.root)
         self.selection = {"suites": list(C.SUITES), "reason": "reviewed-ci-only-inputs",
                           "full_host": False, "include_platform": False}
         self.policy = {"schema": 1, "enabled": False, "profile": C.PROFILE,
@@ -42,7 +51,7 @@ class ProfileFixture(unittest.TestCase):
             self.tree if candidate is None else candidate,
             self.tree if trusted is None else trusted,
             self.registry if registry is None else registry,
-            policy=self.policy, require_enabled=False, **options)
+            policy=self.policy, require_enabled=False, root=self.root, **options)
 
 
 class CIProfileTests(ProfileFixture):
@@ -53,6 +62,7 @@ class CIProfileTests(ProfileFixture):
             "suites": list(C.SUITES), "definition_digest": self.policy["definition_digest"],
             "generation_digest": self.policy["generation_digest"],
             "policy_digest": C.policy_identity(self.policy),
+            "pinned_source": {"path": C.PINNED_SOURCE, **self.tree[C.PINNED_SOURCE]},
         })
         self.assertEqual(len(result["suites"]), 37)
 
@@ -65,13 +75,13 @@ class CIProfileTests(ProfileFixture):
             policy = {**self.policy, "enabled": enabled}
             with self.subTest(source=source_ready, policy=enabled), patch.object(C, "SOURCE_READY", source_ready):
                 with self.assertRaises(C.CIProfileError):
-                    C.validate_selection(self.selection, self.tree, self.tree, self.registry, policy=policy)
+                    C.validate_selection(self.selection, self.tree, self.tree, self.registry, policy=policy,root=self.root)
 
     def test_default_admission_checks_both_reviewed_activation_gates(self):
         policy = {**self.policy, "enabled": True}
         with patch.object(C, "SOURCE_READY", True):
             self.assertEqual(C.validate_selection(self.selection, self.tree, self.tree, self.registry,
-                                                policy=policy)["suites"], list(C.SUITES))
+                                                policy=policy,root=self.root)["suites"], list(C.SUITES))
 
     def test_extra_missing_reordered_product_and_platform_owners_are_rejected(self):
         variants = [list(C.SUITES[:-1]), list(reversed(C.SUITES)),
@@ -121,6 +131,18 @@ class CIProfileTests(ProfileFixture):
         with self.assertRaises(C.CIProfileError):
             self.admit(registry=registry)
 
+    def test_renamed_product_owner_or_changed_host_layer_cannot_fake_complete_registry(self):
+        registry = deepcopy(self.registry)
+        definition = registry["suites"].pop("safe-landing-lifecycle")
+        registry["suites"]["unknown-host-owner"] = definition
+        self.assertEqual(len(registry["suites"]), 60)
+        with self.assertRaises(C.CIProfileError):
+            self.admit(registry=registry)
+        registry = deepcopy(self.registry)
+        registry["suites"]["safe-landing-lifecycle"]["layer"] = "quick"
+        with self.assertRaises(C.CIProfileError):
+            self.admit(registry=registry)
+
     def test_changed_sources_native_registration_and_product_inputs_fail(self):
         for path in ("tools/branch-policy/check.py", "tools/test-evidence/runtime.py",
                      "tests/run-project-tests.py", "tests/native-registration-test.py",
@@ -160,9 +182,8 @@ class CIProfileTests(ProfileFixture):
             with self.subTest(path=path, mode=mode), self.assertRaises(C.CIProfileError):
                 self.admit(candidate=candidate)
 
-    def test_only_exact_reviewed_data_bytes_may_change(self):
-        for path in ("README.md", "tests/PROJECT_TESTING.md", "docs/BRANCH_WORKFLOW.md",
-                     ".github/workflows/project-tests.yml", ".github/workflows/repository-checks.yml"):
+    def test_only_exact_reviewed_documentation_bytes_may_change(self):
+        for path in ("README.md", "tests/PROJECT_TESTING.md", "docs/BRANCH_WORKFLOW.md"):
             candidate = deepcopy(self.tree)
             candidate[path]["sha"] = "b" * 40
             with self.subTest(path=path):
@@ -172,6 +193,15 @@ class CIProfileTests(ProfileFixture):
         candidate["tests/PROJECT_TESTING.mdx"] = deepcopy(self.entry)
         with self.assertRaises(C.CIProfileError):
             self.admit(candidate=candidate)
+
+    def test_all_active_workflow_bytes_remain_executable_generation_inputs(self):
+        for path in (".github/workflows/project-tests.yml", ".github/workflows/repository-checks.yml",
+                     ".github/workflows/parent-qualification.yml", ".github/workflows/sync-validation.yml",
+                     ".github/workflows/browser-client.yml", ".github/workflows/codeql.yml"):
+            candidate = deepcopy(self.tree)
+            candidate[path]["sha"] = "b" * 40
+            with self.subTest(path=path), self.assertRaises(C.CIProfileError):
+                self.admit(candidate=candidate)
 
     def test_drift_in_trusted_generation_or_both_trees_cannot_create_new_admission(self):
         changed = deepcopy(self.tree)
@@ -190,6 +220,61 @@ class CIProfileTests(ProfileFixture):
         candidate.pop(C.POLICY)
         with self.assertRaises(C.CIProfileError):
             self.admit(candidate=candidate, trusted=candidate)
+
+    def test_exact_android_anchor_cycle_converges_and_keeps_complete_pinned_identity(self):
+        first = self.admit()
+        pinned = self.root / C.PINNED_SOURCE
+        pinned.write_text(json.dumps({"reviewed_lock_sources": {"fixture": {
+            "readers": self.policy["generation_digest"]}}}) + "\n", encoding="utf-8")
+        settled = deepcopy(self.tree)
+        settled[C.PINNED_SOURCE] = C._pinned_source_entry(self.root)
+        self.assertNotEqual(settled[C.PINNED_SOURCE], self.tree[C.PINNED_SOURCE])
+        self.assertEqual(C.generation(settled, self.registry), self.policy["generation_digest"])
+        self.assertEqual(C.generation(settled, self.registry), C.generation(self.tree, self.registry))
+        with self.assertRaises(C.CIProfileError):
+            self.admit()  # The actual protected bytes changed; the old pin cannot qualify.
+        with self.assertRaises(C.CIProfileError):
+            self.admit(candidate=settled)  # Candidate/trusted disagreement remains forbidden.
+        current = self.admit(candidate=settled, trusted=settled)
+        self.assertNotEqual(current["pinned_source"], first["pinned_source"])
+        self.assertEqual(current["generation_digest"], first["generation_digest"])
+        settled["tests/native-registration-test.py"]["sha"] = "b" * 40
+        self.assertNotEqual(C.generation(settled, self.registry), self.policy["generation_digest"])
+        with self.assertRaises(C.CIProfileError):
+            self.admit(candidate=settled, trusted=settled)
+
+    def test_pinned_source_is_one_exact_ordinary_leaf_and_both_trees_must_match_actual_bytes(self):
+        candidate = deepcopy(self.tree)
+        candidate[C.PINNED_SOURCE]["sha"] = "b" * 40
+        self.assertEqual(C.generation(candidate,self.registry), self.policy["generation_digest"])
+        with self.assertRaises(C.CIProfileError):self.admit(candidate=candidate,trusted=candidate)
+        for path in (C.PINNED_SOURCE, ".github/unrelated-policy.json"):
+            candidate = deepcopy(self.tree)
+            if path == C.PINNED_SOURCE:
+                candidate.pop(path)
+            else:
+                candidate[path] = deepcopy(self.entry)
+            with self.subTest(path=path),self.assertRaises(C.CIProfileError):self.admit(candidate=candidate)
+
+    def test_pinned_actual_file_alias_nonregular_executable_oversized_and_parent_alias_fail(self):
+        pinned = self.root / C.PINNED_SOURCE
+        original = pinned.read_bytes()
+        pinned.chmod(0o755)
+        with self.assertRaises(C.CIProfileError):self.admit()
+        pinned.chmod(0o644)
+        pinned.write_bytes(b"x" * 1_000_001)
+        with self.assertRaises(C.CIProfileError):self.admit()
+        pinned.unlink();pinned.mkdir()
+        with self.assertRaises(C.CIProfileError):self.admit()
+        pinned.rmdir()
+        target = self.root / "actual.json";target.write_bytes(original)
+        pinned.symlink_to(target)
+        with self.assertRaises(C.CIProfileError):self.admit()
+        pinned.unlink();pinned.parent.rmdir()
+        actual = self.root / "config";actual.mkdir()
+        (actual / pinned.name).write_bytes(original)
+        pinned.parent.symlink_to(actual,target_is_directory=True)
+        with self.assertRaises(C.CIProfileError):self.admit()
 
     def test_package_reason_requires_finite_independent_owner_and_still_binds_lock_bytes(self):
         selected = {**self.selection, "reason": "reviewed-ci-and-package-owners",

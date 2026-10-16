@@ -69,7 +69,10 @@
           "tools/repository-checks/package_checks.py",
           "tools/repository-checks/host_selection.py",
           "tools/repository-checks/workflows/producers/parent-qualification.yml",
-          ".github/package-workflow-generations.json"
+          ".github/package-workflow-generations.json",
+          ".github/ci37-runtime.json",
+          "tools/test-evidence/ci_profile.py",
+          "tools/test-evidence/runtime_ci.py"
         ]
       }
     },
@@ -1299,7 +1302,13 @@
           "tools/repository-checks/workflows/producers/protected-project-tests.yml",
           "tools/repository-checks/workflows/producers/repository-checks.yml",
           "tools/test-evidence/postmerge.py",
-          "tools/repository-checks/workflows/producers/parent-qualification.yml"
+          "tools/repository-checks/workflows/producers/parent-qualification.yml",
+          ".github/ci37-runtime.json",
+          "tools/test-evidence/ci_profile.py",
+          "tools/test-evidence/runtime_ci.py",
+          "tools/test-evidence/ci-profile-test.py",
+          "tools/test-evidence/runtime-ci-test.py",
+          "tools/test-evidence/ci-integration-test.py"
         ]
       }
     },
@@ -1434,7 +1443,10 @@
         "inputs": [],
         "required": [
           "tests/host-selection-test.py",
-          "tools/repository-checks/host_selection.py"
+          "tools/repository-checks/host_selection.py",
+          ".github/ci37-runtime.json",
+          "tools/test-evidence/ci_profile.py",
+          "tools/test-evidence/runtime_ci.py"
         ]
       }
     },

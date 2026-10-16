@@ -15,12 +15,14 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import stat
 
 import inputs
 
 
 ROOT = Path(__file__).resolve().parents[2]
 POLICY = ".github/ci37-runtime.json"
+PINNED_SOURCE = ".github/android-orchestration.json"
 ENVIRONMENT_SCHEMA = 2
 PROFILE = "ubuntu24-ci37-v1"
 # Source-only preparation. Neither changing JSON nor a caller-selected suite
@@ -45,19 +47,25 @@ _PRODUCT_QUICK = frozenset({
     "device-result-schema", "device-jenkins", "desktop-input-protocol",
     "performance-contracts",
 })
+_HOST_SUITES = frozenset({
+    "device-control-plane-full", "safe-landing-lifecycle", "embedded-web-policy",
+    "embedded-web-qml", "web-entity-visibility", "places-native-qml",
+    "account-auth-dispatch", "lod-preferences", "goto-dialog-script",
+    "recorded-voice-native", "recorded-voice-qml", "snapshot-native", "snapshot-qml",
+    "document-tree-native", "obj-material-native", "shared-script-behavior",
+})
 _REASONS = frozenset({"reviewed-ci-only-inputs", "reviewed-ci-and-package-owners"})
 _PACKAGE_LOCKS = frozenset({
     "browser-client/package-lock.json", "script-archive/marketplace/S3Server/package-lock.json",
 })
-# Keep membership and ordinary mode/type for every leaf below. Complete workflow
-# tuple authorization remains the independent package policy's responsibility.
-# These leaves are read as data by the reviewed generation, not executed as
-# suite implementations. Additions and every neighboring path remain bound.
+# Keep membership and ordinary mode/type for these exact documentation leaves.
+# The fixed documentation validator reads Markdown links/headings as data; the
+# policy display check compares a generated text block in PROJECT_TESTING.md.
+# Neither executes documentation snippets. All workflow bytes remain bound:
+# reviewed suite implementations do execute some YAML run snippets.
+# Additions and every neighboring path remain bound.
 _VARIABLE_DATA = frozenset({
-    ".github/workflows/project-tests.yml", ".github/workflows/repository-checks.yml",
-    ".github/workflows/parent-qualification.yml", ".github/workflows/sync-validation.yml",
-    ".github/workflows/browser-client.yml", "README.md", "tests/PROJECT_TESTING.md",
-    "docs/BRANCH_WORKFLOW.md",
+    "README.md", "tests/PROJECT_TESTING.md", "docs/BRANCH_WORKFLOW.md",
 })
 _DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 _FIELDS = frozenset({
@@ -126,6 +134,31 @@ def policy_identity(policy):
     return _digest(_validate_policy(policy))
 
 
+def _pinned_source_entry(root):
+    """Read the one fixed protected leaf that participates in another digest.
+
+    Its complete raw bytes, ordinary mode and every path component are checked.
+    It is never candidate data, a supplied exclusion map or an environment proof.
+    The repository uses SHA1 Git object identities; other object formats fail.
+    """
+    path = Path(root)
+    _require(path.is_absolute() and ".." not in path.parts, "CI37 pinned source requires a fixed protected root")
+    try:
+        current = Path(path.anchor)
+        for component in (*path.parts[1:], *Path(PINNED_SOURCE).parts):
+            current /= component
+            _require(not current.is_symlink(), "CI37 pinned source must not contain aliases")
+        info = current.stat()
+        _require(stat.S_ISREG(info.st_mode) and not info.st_mode & 0o111 and info.st_size <= 1_000_000,
+                 "CI37 pinned source must be a bounded ordinary nonexecutable file")
+        raw = current.read_bytes()
+        _require(len(raw) <= 1_000_000, "CI37 pinned source exceeds its byte bound")
+    except OSError:
+        raise CIProfileError("CI37 pinned source is unavailable") from None
+    header = b"blob " + str(len(raw)).encode("ascii") + b"\0"
+    return {"mode": "100644", "type": "blob", "sha": hashlib.sha1(header + raw).hexdigest()}
+
+
 def definition_digest(registry):
     """Bind commands, contexts, closures, reviewed imports and control inputs."""
     try:
@@ -136,9 +169,9 @@ def definition_digest(registry):
     expected = tuple(name for name, suite in suites.items()
                      if suite["layer"] == "quick" and name not in _PRODUCT_QUICK)
     _require(expected == SUITES, "trusted quick inventory is not the reviewed CI37 generation")
-    _require(len(suites) == 60 and _PRODUCT_QUICK <= suites.keys()
+    _require(suites.keys() == set(SUITES) | _PRODUCT_QUICK | _HOST_SUITES
              and all(suites[name]["layer"] == "quick" for name in _PRODUCT_QUICK)
-             and any(suite["layer"] == "host" for suite in suites.values()),
+             and all(suites[name]["layer"] == "host" for name in _HOST_SUITES),
              "CI37 requires a complete registry with its separate product owners")
     return _digest({"suites": [{"name": name, "definition": suites[name]} for name in SUITES],
                     "registry_inventory": list(suites),
@@ -148,10 +181,11 @@ def definition_digest(registry):
 def generation(tree, registry):
     """Bind an immutable broad source superset and all lookup membership.
 
-    The policy is omitted only to avoid a digest cycle. Admission separately
-    requires identical ordinary candidate/trusted policy entries, and protected
-    controller identity must include the actual trusted policy bytes. This is
-    intentionally broader than a suite input fingerprint or a static call graph.
+    The CI37 policy is omitted to avoid a self-cycle. Only the fixed Android
+    orchestration leaf omits its SHA to break the other reviewed anchor cycle;
+    its path/mode/type remain bound. Admission pins its complete bytes against
+    the actual protected root and both immutable trees. Neither exception can
+    narrow ordinary suite fingerprints or protected controller identity.
     """
     try:
         inputs._validate_tree(tree)
@@ -166,7 +200,7 @@ def generation(tree, registry):
             _require(entry["mode"] == "100644", "CI37 policy must be an ordinary nonexecutable blob")
             continue
         item = {"path": path, **entry}
-        if path in _VARIABLE_DATA:
+        if path in _VARIABLE_DATA or path == PINNED_SOURCE:
             _require(entry["mode"] == "100644", "CI37 reviewed data must remain nonexecutable")
             del item["sha"]
         entries.append(item)
@@ -175,14 +209,14 @@ def generation(tree, registry):
 
 
 def validate_selection(selection, candidate_tree, trusted_tree, registry, *, target="main",
-                       regular=True, unknown=False, policy=None, require_enabled=True):
+                       regular=True, unknown=False, policy=None, require_enabled=True, root=ROOT):
     """Admit only the independently recomputed main CI37 selection and generation.
 
     Production callers leave require_enabled at its default. False is for pure
     source preparation/tests and yields no runtime or execution qualification.
     The independent router still owns changed-path and workflow authorization.
     """
-    value = load_policy() if policy is None else _validate_policy(policy)
+    value = load_policy(root) if policy is None else _validate_policy(policy)
     _require(type(require_enabled) is bool, "invalid CI37 source preparation mode")
     if require_enabled:
         _require(SOURCE_READY and value["enabled"] is True, "CI37 runtime profile is not activated")
@@ -212,6 +246,10 @@ def validate_selection(selection, candidate_tree, trusted_tree, registry, *, tar
     _require(isinstance(old_policy, dict) and old_policy == new_policy
              and old_policy["mode"] == "100644" and old_policy["type"] == "blob",
              "CI37 policy requires identical ordinary trusted and candidate entries")
+    pinned = _pinned_source_entry(root)
+    _require(candidate_tree.get(PINNED_SOURCE) == trusted_tree.get(PINNED_SOURCE) == pinned,
+             "CI37 fixed pinned source differs from the protected root or immutable trees")
     return {"schema": ENVIRONMENT_SCHEMA, "profile": PROFILE, "epoch": value["epoch"],
             "suites": list(SUITES), "definition_digest": definitions,
-            "generation_digest": candidate_generation, "policy_digest": policy_identity(value)}
+            "generation_digest": candidate_generation, "policy_digest": policy_identity(value),
+            "pinned_source": {"path": PINNED_SOURCE, **pinned}}

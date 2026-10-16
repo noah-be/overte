@@ -23,10 +23,12 @@ import inputs
 import runtime
 import sandbox
 import sandbox_host as host
+import ci_profile
 
 ROOT = Path(__file__).resolve().parents[2]
 VENV = Path('/opt/overte-ci/venv')
 PROFILE = 'manual-shared-host-compatibility-v1'
+FULL_ENVIRONMENT = 'ubuntu24-host-qt5-qt6-v1'
 
 
 def sources():
@@ -35,6 +37,8 @@ def sources():
                    *requirements, '.github/test-suites.json', 'tests/platform-profile.json',
                    'tools/test-evidence/sandbox_shared.py', 'tools/test-evidence/sandbox_host.py',
                    'tools/test-evidence/sandbox_host_fixture.py', 'tools/test-evidence/sandbox_probe.py',
+                   'tools/test-evidence/ci_profile.py','tools/test-evidence/runtime_ci.py',ci_profile.POLICY,
+                   ci_profile.PINNED_SOURCE,
                    'tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml',
                    '.github/workflows/shared-sandbox-host-diagnostic.yml'})
 
@@ -81,7 +85,7 @@ def project_policy(destination, names):
     return sandbox._files(destination)
 
 
-def prepared_tools(environment):
+def prepared_tools(environment, *, profile=FULL_ENVIRONMENT):
     """Identify the fixed venv plus only actual versioned hosted tool roots."""
     host.require(VENV.is_dir() and not VENV.is_symlink(), 'fixed prepared shared-host virtualenv is missing')
     config = {}
@@ -94,9 +98,10 @@ def prepared_tools(environment):
                  'prepared venv must use Python3.12 without unbound base packages')
     python = Path(config.get('home', '')).resolve(strict=True).parent
     node = Path(environment.get('QUALIFY_NODE_ROOT', '')).resolve(strict=True)
-    java = Path(environment.get('QUALIFY_JAVA_HOME', '')).resolve(strict=True)
+    host.require(profile in {FULL_ENVIRONMENT,ci_profile.PROFILE}, 'unsupported selected runtime profile')
+    java = None if profile == ci_profile.PROFILE else Path(environment.get('QUALIFY_JAVA_HOME', '')).resolve(strict=True)
     toolchains = []
-    for path in (python, node, java):
+    for path in (python, node, *(() if java is None else (java,))):
         host.require(path.is_absolute() and path.is_dir() and not path.is_symlink(), 'prepared tool installation is unavailable')
         if path.is_relative_to('/opt/hostedtoolcache'):
             host.require(len(path.parts) >= 5, 'hosted tool root is not version-specific')
@@ -106,8 +111,9 @@ def prepared_tools(environment):
             host.require(path == java and path.is_relative_to('/usr/lib/jvm'), 'prepared tool root is outside readonly system inputs')
     host.require((VENV / 'bin/python').resolve(strict=True) == (python / 'bin/python3').resolve(strict=True),
                  'prepared venv does not use the identified Python installation')
-    for executable, arguments, version in ((node / 'bin/node', ['--version'], r'v22\.[0-9]+\.[0-9]+'),
-                                           (java / 'bin/java', ['--version'], r'(?:openjdk|java) 17[. ].*')):
+    queries=[(node/'bin/node',['--version'],r'v22\.[0-9]+\.[0-9]+')]
+    if java is not None:queries.append((java/'bin/java',['--version'],r'(?:openjdk|java) 17[. ].*'))
+    for executable, arguments, version in queries:
         result = host.command([str(executable), *arguments])
         host.require(result.returncode == 0 and re.fullmatch(version, result.stdout.decode().splitlines()[0]),
                      'prepared shared-host tool version is unsupported')
@@ -117,7 +123,7 @@ def prepared_tools(environment):
 def identity_roots(prepared):
     # Java may live under readonly /usr rather than hostedtoolcache; its full
     # prepared JDK still belongs to the protected before/after input identity.
-    return tuple(dict.fromkeys((*prepared[0], prepared[3])))
+    return tuple(dict.fromkeys((*prepared[0], *(() if prepared[3] is None else (prepared[3],)))))
 
 
 def prepared_identity(toolchains):
@@ -162,14 +168,18 @@ def shared_plan(layout, command, prepared, environment):
     toolchains, python, node, java = prepared
     allowed = {'python': str(VENV / 'bin/python'), 'node': str(node / 'bin/node'), 'bash': '/usr/bin/bash'}
     host.require(command and command[0] in allowed, 'shared-host command uses an unsupported executable')
-    plan = sandbox.build_plan(layout, [allowed[command[0]], *command[1:]], environment=environment)
+    quick = java is None
+    plan = sandbox.build_plan(layout, [allowed[command[0]], *command[1:]], environment=environment,
+                              runtime_profile=ci_profile.PROFILE if quick else FULL_ENVIRONMENT)
     # These exact additions are internal to this fixed diagnostic profile.
     # runtime._flags binds the third Git override distinctly; no wildcard and
     # no inherited candidate environment enter the namespace.
-    effective = {'PATH': ':'.join([str(VENV / 'bin'), str(node / 'bin'), str(java / 'bin'), '/usr/bin', '/bin']),
-                 'JAVA_HOME': str(java), 'LD_LIBRARY_PATH': str(python / 'lib'),
+    effective = {'PATH': ':'.join([str(VENV / 'bin'), str(node / 'bin'),
+                                 *([] if quick else [str(java/'bin')]), '/usr/bin', '/bin']),
+                 'LD_LIBRARY_PATH': str(python / 'lib'),
                  'PKG_CONFIG_PATH': str(python / 'lib/pkgconfig'), 'GIT_CONFIG_COUNT': '3',
                  'GIT_CONFIG_KEY_2': 'safe.directory', 'GIT_CONFIG_VALUE_2': '/work'}
+    if not quick:effective['JAVA_HOME']=str(java)
     # Locate the command separator rather than relying on caller argument count.
     split = plan['argv'].index('--')
     argv = plan['argv'][:split]
@@ -202,12 +212,19 @@ def validate_probe(result, binding, uid, gid):
                  and all(type(value) is int and value > 0 and value != outside[name] for name, value in namespaces.items()),
                  'full shared-host namespaces are not independent of the host')
     identity = inputs._environment(observed['environment'])
-    host.require(identity.get('schema') == 1 and identity.get('profile') == 'ubuntu24-host-qt5-qt6-v1'
-                 and re.fullmatch(r'3\.12\.[0-9]+', identity.get('python', {}).get('version', ''))
-                 and identity.get('tools', {}).get('node', {}).get('version', '').startswith('v22.')
+    quick = binding.get('runtime_profile',FULL_ENVIRONMENT) == ci_profile.PROFILE
+    host.require(binding.get('runtime_profile',FULL_ENVIRONMENT) in {FULL_ENVIRONMENT,ci_profile.PROFILE},
+                 'unknown protected selected runtime profile')
+    common = (re.fullmatch(r'3\.12\.[0-9]+', identity.get('python', {}).get('version', ''))
+              and identity.get('tools', {}).get('node', {}).get('version', '').startswith('v22.')
+              and identity.get('system_packages') and identity.get('trusted_execution'))
+    complete = (identity.get('schema') == 2 and identity.get('profile') == ci_profile.PROFILE
+                and identity.get('selection') == binding.get('profile_binding')
+                and not {'qt','glm','java'} & identity.keys()) if quick else (
+                identity.get('schema') == 1 and identity.get('profile') == FULL_ENVIRONMENT
                  and set(identity.get('qt', {}).get('modules', {})) == set(runtime._QT_MODULES)
-                 and set(identity.get('glm', {})) == {'header_digest', 'configuration_digest'}
-                 and identity.get('system_packages') and identity.get('trusted_execution'),
+                 and set(identity.get('glm', {})) == {'header_digest', 'configuration_digest'})
+    host.require(common and complete,
                  'full protected shared-host environment is incomplete')
     status = observed['process']['status']
     host.require(status.get('NoNewPrivs') == '1' and status.get('Uid', '').split() == [str(uid)] * 4
@@ -324,10 +341,18 @@ def run_suites(batch, registry, cancelled, *, report, names=None):
     return [{'name': entry['name'], 'status': entry['status']} for entry in observations]
 
 
-def check_batch(batch, registry, cancelled, installed, *, names=None, admit=None):
+def check_batch(batch, registry, cancelled, installed, *, names=None, admit=None, preexecution_unavailable=None):
     sandbox.verify_snapshot(batch.candidate, batch.snapshot)
     host.require(sandbox._files(batch.policy) == batch.projection, 'protected shared-host projection changed')
-    before = batch.probe(cancelled)
+    try:
+        before = batch.probe(cancelled)
+    except (host.Unavailable, sandbox.SandboxUnavailable) as error:
+        if preexecution_unavailable is None or cancelled:
+            raise
+        # This first probe ran no candidate suite. Descendants still must be
+        # empty before the caller can select its existing actual fallback.
+        batch.empty()
+        raise preexecution_unavailable('selected original environment capture is unavailable') from error
     # Runtime admission happens before any candidate suite. An unsupported E
     # can select nonreusable execution; a started suite failure never can.
     if admit is not None:
@@ -342,7 +367,10 @@ def check_batch(batch, registry, cancelled, installed, *, names=None, admit=None
     return statuses, before, after
 
 
-def run_host():
+def run_host(*, profile=FULL_ENVIRONMENT):
+    host.require(type(profile) is str and profile in {FULL_ENVIRONMENT, ci_profile.PROFILE},
+                 'unsupported manual shared-host profile')
+    quick = profile == ci_profile.PROFILE
     runner = host.host_context(os.environ)
     release = Path('/etc/os-release').read_text(encoding='ascii')
     host.require('ID=ubuntu' in release and 'VERSION_ID="24.04"' in release,
@@ -355,12 +383,22 @@ def run_host():
             host.require(not info.st_mode & 0o6000, 'privileged bubblewrap is outside the shared-host profile')
     uid, gid = host.verify_account(runner)
     names = verify_source(os.environ['GITHUB_SHA'])
-    prepared = prepared_tools(os.environ)
+    prepared = prepared_tools(os.environ, profile=profile) if quick else prepared_tools(os.environ)
     installed = prepared_identity(identity_roots(prepared))
     delegated = host.prepare_delegation()
     registry = inputs.load_registry(ROOT / '.github/test-suites.json')
     host.require(all(entry['environment'] == 'host-qt5-qt6' and entry['command'][0] in {'python', 'node'}
                      for entry in registry['suites'].values()), 'shared-host registry has an unsupported profile')
+    selected = profile_binding = None
+    if quick:
+        # A manual fixed inventory has no PR impact claim. Its complete source
+        # and definitions still need the exact finite CI37 generation. This
+        # diagnostic-only path cannot enable the production runtime profile.
+        selected = {'suites': list(ci_profile.SUITES), 'reason': 'reviewed-ci-only-inputs',
+                    'full_host': False, 'include_platform': False}
+        tree = inputs.full_tree(ROOT, os.environ['GITHUB_SHA'])
+        profile_binding = ci_profile.validate_selection(selected, tree, tree, registry,
+            policy=ci_profile.load_policy(ROOT), require_enabled=False,root=ROOT)
     # This fixed profile runs mandatory shared contracts, never npm Browser,
     # standalone browser journeys, platform profiles, native-ctest or app builds.
     cancelled, handlers = [], {}
@@ -382,6 +420,9 @@ def run_host():
                        'projection': execution.digest(projection),
                        'outside_namespaces': {name: os.stat('/proc/self/ns/' + name).st_ino
                                               for name in ('user', 'mnt', 'pid', 'net', 'ipc', 'uts')}}
+            if quick:
+                binding.update(runtime_profile=ci_profile.PROFILE, selection=selected,
+                               profile_binding=profile_binding, diagnostic_only=True)
             sandbox._write_source(policy, 'context.json', sandbox._canonical({'shared_host': binding}))
             projection = sandbox._files(policy)
             environment = {name: os.environ[name] for name in ('ImageOS', 'ImageVersion', 'RUNNER_ENVIRONMENT')}
@@ -389,7 +430,11 @@ def run_host():
             # The parent retains one immutable snapshot/projection inventory.
             # Each namespace mounts those same root-owned paths readonly and
             # only its own fresh scratch writable. No per-suite 600MB rehash.
-            statuses, before, after = check_batch(batch, registry, cancelled, installed)
+            if quick:
+                statuses, before, after = check_batch(batch, registry, cancelled, installed,
+                                                       names=list(ci_profile.SUITES))
+            else:
+                statuses, before, after = check_batch(batch, registry, cancelled, installed)
             host.require(not cancelled, 'shared-host diagnostic was cancelled')
             result = {'schema': 1, 'status': 'shared-host-diagnostic-passed', 'authority': 'none',
                       'production_qualified': False, 'reusable': False, 'profile': PROFILE, 'binding': binding,
@@ -400,3 +445,8 @@ def run_host():
     finally:
         for signum, handler in handlers.items():
             signal.signal(signum, handler)
+
+
+def run_host_ci37():
+    """Fixed manual CI37 diagnostic; no producer or activation authority."""
+    return run_host(profile=ci_profile.PROFILE)

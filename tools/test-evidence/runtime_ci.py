@@ -31,7 +31,7 @@ _HASH = re.compile(r'sha256:[0-9a-f]{64}\Z')
 _TOOLS = {'bash': ('bash', '--version'), 'git': ('git', '--version'),
     'node': ('node', '--version'), 'cmake': ('cmake', '--version'),
     'ctest': ('ctest', '--version'), 'ninja': ('ninja', '--version'),
-    'make': ('make', '--version'), 'cxx': ('c++', '--version'),
+    'make': ('make', '--version'), 'gmake': ('gmake', '--version'), 'cxx': ('c++', '--version'),
     'cc': ('cc', '--version'), 'assembler': ('as', '--version'),
     'linker': ('ld', '--version'), 'ar': ('ar', '--version'),
     'ranlib': ('ranlib', '--version'), 'sha256sum': ('sha256sum', '--version'),
@@ -40,10 +40,13 @@ _TOOLS = {'bash': ('bash', '--version'), 'git': ('git', '--version'),
 _CRT = ('crt1.o', 'Scrt1.o', 'rcrt1.o', 'gcrt1.o', 'crti.o', 'crtn.o',
         'crtbegin.o', 'crtbeginS.o', 'crtbeginT.o', 'crtend.o', 'crtendS.o',
         'libstdc++.so', 'libgcc_s.so', 'libgcc.a', 'libc.so', 'libm.so', 'libc_nonshared.a')
+_DRIVERS = {'cc': ('c', ('cc1', 'collect2', 'as', 'ld')),
+            'cxx': ('c++', ('cc1plus', 'collect2', 'as', 'ld'))}
+_HEADER_ROOTS = (Path('/usr/include'), Path('/usr/local/include'))
 _LIMITS = ('RLIMIT_AS', 'RLIMIT_CORE', 'RLIMIT_CPU', 'RLIMIT_DATA',
            'RLIMIT_FSIZE', 'RLIMIT_NOFILE', 'RLIMIT_NPROC', 'RLIMIT_STACK')
 _FILES = ('tools/test-evidence/ci_profile.py', 'tools/test-evidence/runtime_ci.py',
-          '.github/ci37-runtime.json')
+          '.github/ci37-runtime.json', ci_profile.PINNED_SOURCE)
 
 
 class CIEnvironmentError(ValueError):
@@ -196,6 +199,10 @@ def _tools():
         path = _path(runtime._checked_executable(command))
         if name != 'node':
             require(path.is_relative_to('/usr'), 'unsupported non-system CI37 tool')
+        if name == 'gmake':
+            # CMake's Unix Makefiles discovery prefers gmake. Resolve the
+            # actual alias independently before querying any different driver.
+            require(path == paths.get('make'), 'CI37 CMake gmake lookup differs from the bound Make executable')
         version = _query(path, *arguments).splitlines()[0]
         require(0 < len(version) <= 500 and not re.search(r'[\x00-\x1f\x7f]', version),
                 'unsupported CI37 tool version')
@@ -273,6 +280,69 @@ def _linker_scripts(files, compiler):
     return result, readers
 
 
+def _include_search(compiler, language, gcc):
+    search = _query(compiler, '-E', '-x', language, '-v', '-', search=True)
+    begin, end = '#include <...> search starts here:', 'End of search list.'
+    require(search.count(begin) == search.count(end) == 1, 'CI37 include discovery is incomplete')
+    headers = [_path(line.strip()) for line in search.split(begin)[1].split(end)[0].strip().splitlines()]
+    require(bool(headers) and all(any(path.is_relative_to(root) for root in (*_HEADER_ROOTS, gcc)) for path in headers),
+            'unsupported CI37 compiler include lookup')
+    return [str(path) for path in headers]
+
+
+def _search_directories(compiler):
+    directories = {}
+    for line in _query(compiler, '-print-search-dirs').splitlines():
+        key, separator, values = line.partition(': ')
+        require(separator and key in {'install', 'programs', 'libraries'} and key not in directories,
+                'unsupported CI37 compiler search directory record')
+        entries = []
+        for value in values.removeprefix('=').split(':'):
+            require(value and Path(value).is_absolute(), 'unknown CI37 compiler search directory')
+            path = Path(value).resolve(strict=False)
+            require(path.is_relative_to('/usr'), 'CI37 compiler search escapes readonly system inputs')
+            require(not path.exists() or path.is_dir(), 'CI37 compiler search contains a non-directory')
+            entries.append({'path': str(path), 'present': path.exists()})
+        directories[key] = entries
+    require(set(directories) == {'install', 'programs', 'libraries'}, 'incomplete CI37 compiler search identity')
+    return directories
+
+
+def _drivers(paths, target, version, gcc, pipeline, directories, files):
+    """Identify both actual drivers; alternate unbound native closures fail."""
+    result = {}
+    for name, (language, programs) in _DRIVERS.items():
+        compiler = paths[name]
+        require(compiler == _path(compiler) and compiler.parent == Path('/usr/bin'),
+                'CI37 compiler driver is outside the supported system installation')
+        require(_query(compiler, '-dumpmachine') == target
+            and _query(compiler, '-dumpfullversion') == version
+            and _query(compiler, '-print-sysroot', empty=True) in ('', '/'),
+            'CI37 C/C++ drivers do not share the supported native toolchain')
+        specs = _query(compiler, '-dumpspecs').encode('utf-8')
+        require(0 < len(specs) <= 1_000_000 and b'\0' not in specs,
+                'CI37 compiler specifications are unavailable or oversized')
+        resolved = {}
+        for program in programs:
+            found = _query(compiler, '-print-prog-name='+program)
+            path = _path(found if Path(found).is_absolute() else runtime._checked_executable(found))
+            require(path == pipeline[program], 'CI37 driver uses an unbound native executable')
+            resolved[program] = {'path': str(path), 'file': _file(path)}
+        search = _search_directories(compiler)
+        require(search == directories, 'CI37 driver uses another native search closure')
+        crt = {}
+        for item in _CRT:
+            found = _query(compiler, '-print-file-name='+item)
+            path = _path(Path(found).resolve(strict=True))
+            require(str(path) == files[item]['path'], 'CI37 driver uses an unbound CRT or standard library')
+            crt[item] = str(path)
+        result[name] = {'path': str(compiler), 'file': _file(compiler), 'language': language,
+            'specs': {'bytes': len(specs), 'digest': 'sha256:'+hashlib.sha256(specs).hexdigest()},
+            'pipeline': resolved, 'include_search': _include_search(compiler, language, gcc),
+            'search_directories': search, 'crt_stdlib': crt}
+    return result
+
+
 def _native(paths):
     compiler = paths['cxx']
     target = _query(compiler, '-dumpmachine')
@@ -291,32 +361,15 @@ def _native(paths):
             'CI37 compiler uses another assembler or linker')
     gcc = pipeline['cc1plus'].parent
     require(gcc == Path('/usr/lib/gcc')/target/version.split('.')[0], 'unsupported CI37 GCC internal root')
-    search = _query(compiler, '-E', '-x', 'c++', '-v', '-', search=True)
-    begin, end = '#include <...> search starts here:', 'End of search list.'
-    require(search.count(begin) == search.count(end) == 1, 'CI37 include discovery is incomplete')
-    headers = [_path(line.strip()) for line in search.split(begin)[1].split(end)[0].strip().splitlines()]
-    require(bool(headers) and all(path.is_relative_to('/usr/include') or path.is_relative_to(gcc) for path in headers),
-            'unsupported CI37 compiler include lookup')
+    require(all(pipeline[name] == gcc/name for name in ('cc1', 'cc1plus', 'collect2')),
+            'CI37 compiler internals escape their complete content inventory')
     # Broad content supersets intentionally avoid an unproven per-suite native
     # package projection. All headers and GCC internals remain conservative.
     cmake_version = re.fullmatch(r'cmake version ([0-9]+\.[0-9]+)\.[0-9]+', _query(paths['cmake'], '--version').splitlines()[0])
     require(cmake_version is not None and paths['cmake'] == Path('/usr/bin/cmake'), 'unsupported CI37 CMake installation')
     modules = Path('/usr/share/cmake-'+cmake_version[1])
-    roots = [Path('/usr/include'), gcc, _path(modules)]
-    directories = {}
-    for line in _query(compiler, '-print-search-dirs').splitlines():
-        key, separator, values = line.partition(': ')
-        require(separator and key in {'install', 'programs', 'libraries'} and key not in directories,
-                'unsupported CI37 compiler search directory record')
-        entries = []
-        for value in values.removeprefix('=').split(':'):
-            require(value and Path(value).is_absolute(), 'unknown CI37 compiler search directory')
-            path = Path(value).resolve(strict=False)
-            require(path.is_relative_to('/usr'), 'CI37 compiler search escapes readonly system inputs')
-            require(not path.exists() or path.is_dir(), 'CI37 compiler search contains a non-directory')
-            entries.append({'path': str(path), 'present': path.exists()})
-        directories[key] = entries
-    require(set(directories) == {'install', 'programs', 'libraries'}, 'incomplete CI37 compiler search identity')
+    roots = [*_HEADER_ROOTS, gcc, _path(modules)]
+    directories = _search_directories(compiler)
     files = {}
     for name in _CRT:
         found = _query(compiler, '-print-file-name='+name)
@@ -324,9 +377,11 @@ def _native(paths):
         require(path.is_relative_to('/usr') and path.is_file(), 'CI37 CRT or standard library is unresolved')
         files[name] = {'path': str(path), 'file': _file(path)}
     scripts, script_readers = _linker_scripts(files,compiler)
+    drivers = _drivers(paths, target, version, gcc, pipeline, directories, files)
     return {'family': 'system-gcc', 'target': target, 'version': version,
-        'sysroot': {'kind': 'verified-compiler-default', 'root': '/', 'include_search': [str(path) for path in headers],
+        'sysroot': {'kind': 'verified-compiler-default', 'root': '/', 'include_search': drivers['cxx']['include_search'],
                     'search_directories': directories},
+        'drivers': drivers,
         'pipeline': {name: {'path': str(path), 'file': _file(path)} for name, path in pipeline.items()},
         'content': {str(path): _inventory(path, (*roots, Path('/usr')), directory_roots=roots) for path in roots},
         'crt_stdlib': files, 'linker_scripts': scripts}, [*pipeline.values(), *script_readers,
@@ -346,10 +401,15 @@ def _process():
         'limits': {name: list(resource.getrlimit(getattr(resource, name))) for name in _LIMITS}}
 
 
-def _capture_ci_environment(selection, candidate_tree, trusted_tree, registry, *, root=ROOT, target='main'):
+def _capture_ci_environment(selection, candidate_tree, trusted_tree, registry, *, root=ROOT, target='main', _diagnostic=False):
     """Actual protected BEFORE/AFTER query; no caller may invent optional tools."""
     binding = ci_profile.validate_selection(selection, candidate_tree, trusted_tree, registry,
-                                            target=target,policy=ci_profile.load_policy(root))
+        target=target,policy=ci_profile.load_policy(root),require_enabled=not _diagnostic,root=root)
+    return _measure_ci_environment(binding,root=root)
+
+
+def _measure_ci_environment(binding, *, root=ROOT):
+    """One exact measurement implementation for gated execution and diagnostics."""
     flags = _flags()
     require(platform.python_implementation() == 'CPython' and re.fullmatch(r'3\.12\.[0-9]+', platform.python_version())
             and Path(sys.prefix) == VENV, 'unsupported CI37 prepared Python')
@@ -387,11 +447,13 @@ def _file_identity(value):
         and type(value['sha256']) is str and _HASH.fullmatch(value['sha256']), 'incomplete CI37 file identity')
 
 
-def _inventory_identity(value):
+def _inventory_identity(value, *, allow_empty=False):
     _fields(value, {'entries', 'bytes', 'digest'})
-    require(type(value['entries']) is int and 0 < value['entries'] <= 150_000
+    require(type(value['entries']) is int and (0 if allow_empty else 1) <= value['entries'] <= 150_000
         and type(value['bytes']) is int and 0 <= value['bytes'] <= 4 * 1024 ** 3
         and type(value['digest']) is str and _HASH.fullmatch(value['digest']), 'incomplete CI37 content inventory')
+    require(value['entries'] != 0 or value['bytes'] == 0 and value['digest'] == digest([]),
+            'empty CI37 content inventory does not identify the actual empty directory')
 
 
 def _recorded_path(value, *, prepared=False):
@@ -412,7 +474,7 @@ def _validate_environment(environment, qualified_at, expires_at, now, selection,
     Changed runtime/source context cannot inherit this separate profile.
     """
     policy = ci_profile.load_policy(root)
-    binding = ci_profile.validate_selection(selection, candidate_tree, trusted_tree, registry,target=target,policy=policy)
+    binding = ci_profile.validate_selection(selection, candidate_tree, trusted_tree, registry,target=target,policy=policy,root=root)
     require(type(now) is datetime and now.tzinfo is not None and now.utcoffset().total_seconds() == 0,
             'CI37 admission requires an independent UTC clock')
     def stamp(value):
@@ -475,8 +537,10 @@ def _validate_environment(environment, qualified_at, expires_at, now, selection,
             require(type(value['version']) is str and 0 < len(value['version']) <= 500
                 and not re.search(r'[\x00-\x1f\x7f]',value['version']), 'invalid recorded CI37 tool identity')
     require(re.fullmatch(r'v22\.[0-9]+\.[0-9]+',environment['tools']['node']['version']), 'unsupported recorded CI37 Node')
+    require(environment['tools']['gmake'] == environment['tools']['make'],
+            'recorded CI37 CMake gmake differs from its bound Make executable')
     native = environment['native']
-    _fields(native, {'family','target','version','sysroot','pipeline','content','crt_stdlib','linker_scripts'})
+    _fields(native, {'family','target','version','sysroot','pipeline','content','crt_stdlib','linker_scripts','drivers'})
     require(native['family'] == 'system-gcc' and native['target'] == 'x86_64-linux-gnu'
         and type(native['version']) is str and re.fullmatch(r'[0-9]+(?:\.[0-9]+)+',native['version']), 'unsupported recorded CI37 compiler')
     require(all(environment['tools'][name]['version'].endswith(' '+native['version']) for name in ('cc','cxx')),
@@ -496,13 +560,42 @@ def _validate_environment(environment, qualified_at, expires_at, now, selection,
     for item in native['pipeline'].values():
         _fields(item, {'path','file'}); _recorded_path(item['path']); _file_identity(item['file'])
     gcc = '/usr/lib/gcc/x86_64-linux-gnu/'+native['version'].split('.')[0]
+    require(all(native['pipeline'][name]['path'] == gcc+'/'+name for name in ('cc1','cc1plus','collect2'))
+        and native['pipeline']['as']['file'] == environment['tools']['assembler']['file']
+        and native['pipeline']['ld']['file'] == environment['tools']['linker']['file'],
+        'recorded CI37 internal executables differ from the bound native toolchain')
     cmake = re.fullmatch(r'cmake version ([0-9]+\.[0-9]+)\.[0-9]+',environment['tools']['cmake']['version'])
-    require(cmake is not None and set(native['content']) == {'/usr/include',gcc,'/usr/share/cmake-'+cmake[1]},
+    require(cmake is not None and set(native['content']) == {*map(str,_HEADER_ROOTS),gcc,'/usr/share/cmake-'+cmake[1]},
             'incomplete recorded CI37 native content union')
-    for value in native['content'].values(): _inventory_identity(value)
+    for path,value in native['content'].items(): _inventory_identity(value,allow_empty=path=='/usr/local/include')
     _fields(native['crt_stdlib'], _CRT)
     for item in native['crt_stdlib'].values():
         _fields(item, {'path','file'}); _recorded_path(item['path']); _file_identity(item['file'])
+    _fields(native['drivers'], _DRIVERS)
+    for name,(language,programs) in _DRIVERS.items():
+        driver = native['drivers'][name]
+        _fields(driver, {'path','file','language','specs','pipeline','include_search','search_directories','crt_stdlib'})
+        _recorded_path(driver['path']); _file_identity(driver['file'])
+        require(Path(driver['path']).parent == Path('/usr/bin') and driver['language'] == language
+            and driver['file'] == environment['tools'][name]['file'], 'recorded CI37 compiler driver differs from its actual tool')
+        _fields(driver['specs'], {'bytes','digest'})
+        require(type(driver['specs']['bytes']) is int and 0 < driver['specs']['bytes'] <= 1_000_000
+            and type(driver['specs']['digest']) is str and _HASH.fullmatch(driver['specs']['digest']),
+            'missing recorded CI37 compiler specifications')
+        _fields(driver['pipeline'], programs)
+        require(all(driver['pipeline'][program] == native['pipeline'][program] for program in programs),
+                'recorded CI37 driver uses an unbound native executable')
+        require(type(driver['include_search']) is list and 0 < len(driver['include_search']) <= 64,
+                'incomplete recorded CI37 driver include search')
+        for path in driver['include_search']:
+            _recorded_path(path)
+            require(any(Path(path).is_relative_to(root) for root in (*_HEADER_ROOTS,Path(gcc))),
+                    'recorded CI37 driver header lookup escapes complete content inventories')
+        require(driver['search_directories'] == native['sysroot']['search_directories']
+            and driver['crt_stdlib'] == {item:value['path'] for item,value in native['crt_stdlib'].items()},
+            'recorded CI37 driver uses another native search or CRT closure')
+    require(native['drivers']['cxx']['include_search'] == native['sysroot']['include_search'],
+            'recorded CI37 C++ include search differs from its bound sysroot')
     require(type(native['linker_scripts']) is dict and 0 < len(native['linker_scripts']) <= len(_CRT),
             'missing recorded CI37 linker script closure')
     for path,references in native['linker_scripts'].items():
@@ -534,14 +627,30 @@ def _validate_environment(environment, qualified_at, expires_at, now, selection,
             'policy_digest': ci_profile.policy_identity(policy)}
 
 
-def capture_ci_environment(*args, **kwargs):
+def capture_ci_environment(selection, candidate_tree, trusted_tree, registry, *, root=ROOT, target='main'):
     """No unknown capture outcome may be represented as a reusable identity."""
     try:
-        return _capture_ci_environment(*args, **kwargs)
+        return _capture_ci_environment(selection,candidate_tree,trusted_tree,registry,root=root,target=target)
     except CIEnvironmentError:
         raise
     except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError, subprocess.SubprocessError) as error:
         raise CIEnvironmentError('CI37 capture is unavailable; actual fallback is required') from error
+
+
+def capture_ci_environment_diagnostic(selection, candidate_tree, trusted_tree, registry, *, root=ROOT, target='main'):
+    """Fixed source-qualified measurement only; never activation, admission or reuse.
+
+    This dedicated diagnostic API retains the exact finite selection, source,
+    command definitions and actual measurement. Only the two activation gates
+    are bypassed; ordinary capture and original-E admission remain gated.
+    """
+    try:
+        return _capture_ci_environment(selection,candidate_tree,trusted_tree,registry,
+                                       root=root,target=target,_diagnostic=True)
+    except CIEnvironmentError:
+        raise
+    except (ValueError,KeyError,TypeError,AttributeError,RuntimeError,OSError,subprocess.SubprocessError) as error:
+        raise CIEnvironmentError('CI37 diagnostic measurement is unavailable') from error
 
 
 def validate_environment(*args, **kwargs):
@@ -566,7 +675,7 @@ def plan_original_reuse(environment, qualified_at, expires_at, now, original_sel
     admission = validate_environment(environment, qualified_at, expires_at, now,
         current_selection, current_tree, trusted_tree, registry, root=root)
     original = ci_profile.validate_selection(original_selection, original_tree, trusted_tree, registry,
-                                             policy=ci_profile.load_policy(root))
+                                             policy=ci_profile.load_policy(root),root=root)
     require(original == admission['selection'] and type(results) is dict
         and set(results) == set(ci_profile.SUITES), 'CI37 original and current owners differ')
     selected = {**registry, 'suites': {name:registry['suites'][name] for name in ci_profile.SUITES}}

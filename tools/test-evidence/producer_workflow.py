@@ -30,6 +30,8 @@ import producer_api
 import sandbox
 import sandbox_host as host
 import sandbox_shared as shared
+import ci_profile
+import runtime_ci
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE = 'tools/repository-checks/workflows/producers/protected-project-tests.yml'
@@ -37,6 +39,7 @@ PRODUCTION_READY = False
 DESCRIPTOR_JOB = 'project / Publish producer descriptor'
 SHARED_JOB = 'project / Shared tests'
 PUBLISH_PREFIX = 'project / Publish final producer '
+FULL_PROFILE = 'ubuntu24-host-qt5-qt6-v1'
 
 
 class PreExecutionUnavailable(host.Unavailable):
@@ -114,6 +117,7 @@ def controller_sources(policy):
     never code loaded by that consumer.
     """
     return sorted({*shared.sources(), *policy.package_policy()._policy_inputs(), *attested._CONSUMER_FILES, TEMPLATE,
+        ci_profile.POLICY, 'tools/test-evidence/ci_profile.py', 'tools/test-evidence/runtime_ci.py',
         *('tools/test-evidence/' + name + '.py' for name in (
             'attested', 'execution', 'inputs', 'runtime', 'sandbox', 'sandbox_host',
             'sandbox_shared', 'producer', 'producer_api', 'producer_workflow')),
@@ -146,8 +150,35 @@ def _controller_identity(policy):
     return protocol.digest(identity)
 
 
+def selection_profile(policy, registry, candidate_tree, base_tree, trusted_tree, *, root=ROOT, target='main'):
+    """Derive the owner from complete immutable inputs, never receipt claims."""
+    inputs._validate_registry(registry)
+    host.require(type(base_tree) is dict and type(trusted_tree) is dict, 'protected selection needs complete base and trusted inputs')
+    inputs._validate_tree(candidate_tree); inputs._validate_tree(base_tree); inputs._validate_tree(trusted_tree)
+    paths = sorted(path for path in base_tree.keys() | candidate_tree.keys()
+                   if base_tree.get(path) != candidate_tree.get(path))
+    regular = bool(paths) and all(entry is None or entry.get('mode') == '100644' and entry.get('type') == 'blob'
+        for path in paths for entry in (base_tree.get(path),candidate_tree.get(path)))
+    selected = policy.select(candidate_tree, paths, regular, base_tree=base_tree, trusted_tree=trusted_tree,
+                             candidate_root=root, trusted_root=root, target=target)
+    names = execution.select_common(registry, selected['suites'])
+    profile = FULL_PROFILE
+    binding = None
+    if selected['full_host'] is not True:
+        try:
+            host.require(all(snapshot.get('.github/test-suites.json') == trusted_tree.get('.github/test-suites.json')
+                for snapshot in (candidate_tree,base_tree)), 'CI37 command registry differs from original trusted policy')
+            binding = ci_profile.validate_selection(selected,candidate_tree,trusted_tree,registry,target=target,
+                regular=regular,unknown=False,policy=ci_profile.load_policy(root),root=root)
+        except (ci_profile.CIProfileError, OSError, ValueError) as error:
+            raise PreExecutionUnavailable('selected CI37 profile has no qualified source admission') from error
+        profile = ci_profile.PROFILE
+    host.require(bool(names), 'protected shared owner has no selected suites')
+    return {'selection':selected,'profile':profile,'suites':names,'binding':binding}
+
+
 def prepare(candidate, event, environment, adapter):
-    """Independently select a supported full-host owner and source generation."""
+    """Independently select a supported protected owner and source generation."""
     number, identifier = _native(environment)
     binding, refs = adapter.current(number)
     host.require(binding['merge_sha'] == environment['GITHUB_SHA'] and binding['base_ref'] == 'main'
@@ -159,11 +190,17 @@ def prepare(candidate, event, environment, adapter):
     registry = inputs.load_registry(ROOT / '.github/test-suites.json')
     if policy.additional_suites(policy.candidate_registry(candidate), registry):
         raise PreExecutionUnavailable('new candidate commands need existing monotonic full execution')
-    selected = policy.candidate_selection(candidate, event, binding['merge_sha'])
-    if selected['full_host'] is not True or execution.platform_suites(candidate, registry['suites']):
+    package_plan = policy.package_policy().candidate_plan(candidate,event,binding['merge_sha'])
+    if package_plan['host_mode'] != 'full':
+        raise PreExecutionUnavailable('the actual required route has no shared host owner')
+    selected = policy.candidate_selection(candidate, event, binding['merge_sha'],package_plan['plan'])
+    if execution.platform_suites(candidate, registry['suites']):
         raise PreExecutionUnavailable('selected profile needs existing nonreusable execution')
-    names = execution.select_common(registry, selected['suites'])
-    host.require(bool(names), 'protected shared owner has no selected suites')
+    prepared_selection = selection_profile(policy,registry,inputs.full_tree(candidate,binding['merge_sha']),
+        inputs.full_tree(candidate,binding['base_sha']),inputs.full_tree(ROOT,refs['default']),root=ROOT,target='main')
+    if prepared_selection['selection'] != selected:
+        raise PreExecutionUnavailable('independent package/host owner needs existing actual execution')
+    names = prepared_selection['suites']
     plan = {'owners': {'shared-host': {'kind': 'shared', 'suites': names,
               'include_platform': selected['include_platform'], 'platform': {}}}}
     blob = sandbox._git(ROOT, 'ls-tree', '-z', refs['default'], '--', TEMPLATE).split(b'\t')[0].split()[-1].decode()
@@ -187,6 +224,8 @@ def prepare(candidate, event, environment, adapter):
         {'shared-host': SHARED_JOB}, PUBLISH_PREFIX)
     producer_api._policy(api_policy, plan, number)
     result = {'number': number, 'run_id': identifier, 'binding': binding, 'refs': refs, 'selected': selected,
+              'profile':prepared_selection['profile'],
+              'profile_binding':prepared_selection['binding'],
               'registry': registry, 'plan': plan, 'policy': api_policy, 'git_context': expected_git_context(adapter, binding)}
     _bookend(result, adapter)
     return result
@@ -252,19 +291,25 @@ def _descriptor(context, adapter, run):
 def protected_receipt(batch, context, cancelled, installed):
     """Root-owned observation only; no failure after execution can become fallback."""
     started = utc_seconds()
+    tree = inputs.full_tree(batch.candidate,context['binding']['merge_sha'])
+    trusted_tree = inputs.full_tree(ROOT,context['refs']['default'])
     def admit(environment):
         now = datetime.now(timezone.utc)
         try:
-            attested.validate_environment(environment, utc_seconds(now), utc_seconds(now + timedelta(hours=24)),
-                                         now, root=ROOT, isolated=True)
-        except attested.AttestedReuseUnavailable as error:
-            raise PreExecutionUnavailable('original full-host environment has no qualified admission') from error
+            if context.get('profile',FULL_PROFILE) == ci_profile.PROFILE:
+                runtime_ci.validate_environment(environment,utc_seconds(now),utc_seconds(now+timedelta(hours=24)),
+                    now,context['selected'],tree,trusted_tree,context['registry'],root=ROOT)
+            else:
+                attested.validate_environment(environment, utc_seconds(now), utc_seconds(now + timedelta(hours=24)),
+                                             now, root=ROOT, isolated=True)
+        except (attested.AttestedReuseUnavailable, runtime_ci.CIEnvironmentError) as error:
+            raise PreExecutionUnavailable('original selected environment has no qualified admission') from error
+    options = {'preexecution_unavailable':PreExecutionUnavailable} if context.get('profile') == ci_profile.PROFILE else {}
     statuses, before, after = shared.check_batch(batch, context['registry'], cancelled, installed,
-        names=context['plan']['owners']['shared-host']['suites'], admit=admit)
+        names=context['plan']['owners']['shared-host']['suites'], admit=admit, **options)
     host.require(not cancelled and before == after, 'protected execution did not finish successfully')
     original = git_context(batch.snapshot)
     host.require(original == context['git_context'], 'actual materialized Git context differs from immutable API source')
-    tree = inputs.full_tree(batch.candidate, context['binding']['merge_sha'])
     names = [entry['name'] for entry in statuses]
     receipt = {'schema': 3, 'producer': execution.PRODUCER, 'candidate_commit': context['binding']['merge_sha'],
         'candidate_tree': context['binding']['merge_tree'], 'git_context': original, 'environment': before, 'reusable': True,
@@ -300,7 +345,11 @@ def publication(context, descriptor, receipt, run, now, descriptor_expires_at):
     qualified = utc_seconds(now)
     expires = utc_seconds(min(now + timedelta(seconds=context['policy'].producer.max_age_seconds),
                               protocol._time(descriptor_expires_at)))
-    attested.validate_environment(receipt['environment'], qualified, expires, now, root=ROOT, isolated=True)
+    if context.get('profile',FULL_PROFILE) == ci_profile.PROFILE:
+        runtime_ci.validate_environment(receipt['environment'],qualified,expires,now,context['selected'],
+            tree,inputs.full_tree(ROOT,context['refs']['default']),context['registry'],root=ROOT)
+    else:
+        attested.validate_environment(receipt['environment'], qualified, expires, now, root=ROOT, isolated=True)
     value = {'schema': 1, 'producer': 'overte-producer-aggregate-v1', 'descriptor_digest': descriptor['descriptor_digest'],
         'results': {'shared-host': {'status': 'passed', 'job_id': owner.job_id, 'attempt': 1, 'receipt': receipt}},
         'qualified_at': qualified, 'expires_at': expires}
@@ -379,8 +428,6 @@ def shared_execution(candidate, event, environment, adapter):
     current, _ = adapter.current(number)
     host.require(current['merge_sha'] == environment['GITHUB_SHA'], 'native source moved before protected materialization')
     uid, gid = host.verify_account(int(environment['SUDO_UID']))
-    prepared = shared.prepared_tools(environment)
-    installed = shared.prepared_identity(shared.identity_roots(prepared))
     delegated = host.prepare_delegation()
     cancelled, handlers = [], {}
     try:
@@ -397,11 +444,20 @@ def shared_execution(candidate, event, environment, adapter):
             # our root-owned pristine index/config, never checkout Git config.
             snapshot = shared.materialize_source(current['merge_sha'], snapshot_path, repository=candidate)
             context = prepare(snapshot_path, event, environment, adapter)
+            try:
+                prepared = shared.prepared_tools(environment,profile=context['profile'])
+                installed = shared.prepared_identity(shared.identity_roots(prepared))
+            except (host.Unavailable,OSError) as error:
+                if context['profile'] != ci_profile.PROFILE:
+                    raise
+                raise PreExecutionUnavailable('selected CI37 prepared tools are unavailable') from error
             run = current_run(context, adapter, 'shared')
             _descriptor(context, adapter, run)
             projection = shared.project_policy(policy_path, shared.sources())
             binding = {'source': context['binding']['merge_sha'], 'run_id': context['run_id'], 'run_attempt': 1,
                 'profile': shared.PROFILE, 'snapshot': snapshot['digest'], 'git_context': snapshot['git_context'],
+                'runtime_profile':context['profile'],'selection':context['selected'],
+                'profile_binding':context['profile_binding'],
                 'registry': execution.digest(context['registry']), 'prepared': installed, 'projection': execution.digest(projection),
                 'outside_namespaces': {name: os.stat('/proc/self/ns/' + name).st_ino for name in ('user', 'mnt', 'pid', 'net', 'ipc', 'uts')}}
             sandbox._write_source(policy_path, 'context.json', sandbox._canonical({'shared_host': binding}))

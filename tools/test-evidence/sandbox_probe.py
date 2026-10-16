@@ -99,6 +99,39 @@ def measure_boundary():
             "runtime_compatibility": "unqualified"}
 
 
+def shared_environment(binding):
+    """Capture only the fixed protected profile; manual output has no authority."""
+    runtime_profile = binding.get('runtime_profile','ubuntu24-host-qt5-qt6-v1')
+    diagnostic = binding.get('diagnostic_only',False)
+    if type(diagnostic) is not bool:
+        raise ValueError('unsupported diagnostic capture context')
+    if runtime_profile == 'ubuntu24-ci37-v1':
+        # The absolute protected script owns this import root. Boundary-only
+        # -I mode never enters this profile or imports its expanded closure.
+        import ci_profile
+        import inputs
+        import runtime_ci
+        source = binding.get('source')
+        if not isinstance(source,str) or not re.fullmatch(r'[0-9a-f]{40}',source):
+            raise ValueError('CI37 protected source identity is unavailable')
+        tree = inputs.full_tree('/work',source)
+        policy = Path('/overte-policy')/ci_profile.POLICY
+        raw = policy.read_bytes()
+        entry = tree.get(ci_profile.POLICY)
+        if entry != {'mode':'100644','type':'blob','sha':hashlib.sha1(
+                b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()}:
+            raise ValueError('CI37 candidate policy differs from protected policy')
+        registry = inputs.load_registry(Path('/overte-policy/.github/test-suites.json'))
+        capture = runtime_ci.capture_ci_environment_diagnostic if diagnostic else runtime_ci.capture_ci_environment
+        environment = capture(binding['selection'],tree,tree,registry,root=Path('/overte-policy'))
+        if environment['selection'] != binding.get('profile_binding'):
+            raise ValueError('CI37 actual capture differs from root-selected owner')
+        return environment
+    if runtime_profile == 'ubuntu24-host-qt5-qt6-v1' and not diagnostic:
+        return runtime.capture_host_environment()
+    raise ValueError('unknown protected shared runtime profile')
+
+
 def measure_shared_host():
     """Full actual E from protected policy, after real empty-scope gating."""
     control = json.loads(Path("/overte-policy/context.json").read_bytes())
@@ -127,7 +160,7 @@ def measure_shared_host():
         raise ValueError("shared-host private loopback is not initialized")
     # No local-process fallback: an unknown interpreter/package/tool/Qt/GLM/
     # requirements/controller identity fails the entire manual diagnostic.
-    environment = runtime.capture_host_environment()
+    environment = shared_environment(binding)
     return {"schema": 1, "authority": "none", "measurement": "manual-shared-host-compatibility-v1",
             "binding": binding, "environment": environment, "process": process_observation(),
             "mounts": mounts, "namespaces": {name: os.stat("/proc/self/ns/" + name).st_ino

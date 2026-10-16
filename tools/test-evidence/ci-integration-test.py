@@ -1,0 +1,294 @@
+#!/usr/bin/env python3
+"""Fake selected-profile routing; no host queries, namespaces or workloads."""
+from contextlib import ExitStack
+from copy import deepcopy
+import hashlib
+import importlib.util
+import io
+import json
+import os
+from pathlib import Path
+import stat
+from types import SimpleNamespace
+import tempfile
+import unittest
+from unittest.mock import Mock, patch
+
+import ci_profile as C
+import inputs
+import producer_workflow as P
+import sandbox
+import sandbox_host as H
+import sandbox_shared as S
+
+
+class SelectionIntegrationTests(unittest.TestCase):
+    def setUp(self):
+        self.registry = inputs.load_registry(C.ROOT/'.github/test-suites.json')
+        paths = {C.POLICY,'.github/test-suites.json','README.md','.github/workflows/project-tests.yml'}
+        self.tree = {path:{'mode':'100644','type':'blob','sha':'a'*40} for path in paths}
+        self.tree[C.PINNED_SOURCE]=C._pinned_source_entry(C.ROOT)
+        self.base = deepcopy(self.tree); self.base['README.md']['sha']='b'*40
+        self.selected = {'suites':list(C.SUITES),'reason':'reviewed-ci-only-inputs',
+                         'full_host':False,'include_platform':False}
+        self.policy = {'schema':1,'enabled':True,'profile':C.PROFILE,'epoch':'ci37-integration-fixture',
+            'not_before':'2026-10-16T00:00:00Z','max_age_seconds':259200,'suites':list(C.SUITES),
+            'definition_digest':C.definition_digest(self.registry),'generation_digest':C.generation(self.tree,self.registry)}
+        self.router = SimpleNamespace(select=Mock(side_effect=lambda *_a,**_k:deepcopy(self.selected)))
+        self.stack=ExitStack(); self.addCleanup(self.stack.close)
+        self.stack.enter_context(patch.object(C,'load_policy',return_value=self.policy))
+        self.stack.enter_context(patch.object(C,'SOURCE_READY',True))
+
+    def prepare(self, tree=None, base=None, registry=None):
+        return P.selection_profile(self.router,self.registry if registry is None else registry,
+            self.tree if tree is None else tree,self.base if base is None else base,self.base)
+
+    def test_actual_finite_guard_follows_independently_reconstructed_complete_delta(self):
+        result=self.prepare()
+        self.assertEqual(result['profile'],C.PROFILE)
+        self.assertEqual(result['suites'],list(C.SUITES))
+        self.assertEqual(result['binding']['generation_digest'],self.policy['generation_digest'])
+        args,options=self.router.select.call_args
+        self.assertEqual(args,(self.tree,['README.md'],True))
+        self.assertEqual(options['base_tree'],self.base)
+        self.assertEqual(options['trusted_tree'],self.base)
+        self.assertEqual(options['target'],'main')
+
+    def test_disabled_generation_workflow_lookup_and_registry_drift_fall_back_before_execution(self):
+        for change in ('disabled','source','generation','workflow','new-lookup','registry','policy'):
+            tree=deepcopy(self.tree); registry=deepcopy(self.registry); policy=deepcopy(self.policy)
+            if change=='disabled':policy['enabled']=False
+            elif change=='generation':policy['generation_digest']='sha256:'+'0'*64
+            elif change=='workflow':tree['.github/workflows/project-tests.yml']['sha']='c'*40
+            elif change=='new-lookup':tree['tools/test-evidence/shadow.py']=deepcopy(tree['README.md'])
+            elif change=='registry':del registry['suites']['snapshot-native']
+            elif change=='policy':tree[C.POLICY]['sha']='c'*40
+            with self.subTest(change=change),patch.object(C,'load_policy',return_value=policy), \
+                 patch.object(C,'SOURCE_READY',change!='source'),self.assertRaises(P.PreExecutionUnavailable):
+                self.prepare(tree=tree,registry=registry)
+
+    def test_full_owner_and_control_plane_subset_keep_original_environment_path(self):
+        for names in (list(self.registry['suites']),[*C.SUITES,'device-control-plane-full']):
+            self.selected={'suites':names,'reason':'full-fixture','full_host':True,'include_platform':True}
+            with patch.object(C,'validate_selection',side_effect=AssertionError('full owner uses original E')):
+                result=self.prepare()
+            self.assertEqual(result['profile'],P.FULL_PROFILE)
+            self.assertIsNone(result['binding'])
+            self.assertEqual(set(result['suites']),set(names))
+
+    def test_platform_extra_or_nonregular_owner_cannot_be_relabelled_ci37(self):
+        for kind in ('platform','extra','symlink','empty'):
+            self.selected={'suites':list(C.SUITES),'reason':'reviewed-ci-only-inputs',
+                           'full_host':False,'include_platform':kind=='platform'}
+            tree=deepcopy(self.tree); base=self.base
+            if kind=='extra':self.selected['suites'].append('snapshot-native')
+            elif kind=='symlink':tree['README.md']['mode']='120000'
+            elif kind=='empty':base=tree
+            with self.subTest(kind=kind),self.assertRaises(P.PreExecutionUnavailable):self.prepare(tree,base)
+
+    def test_existing_markdown_route_declines_an_unused_protected_descriptor(self):
+        package=P._host_policy().package_policy()
+        checks=package.load('ci37_documentation_route','tools/repository-checks/check.py')
+        config,branches=checks.configuration()
+        repo={'full_name':'noah-l-frank/overte','id':1319052603}
+        event={'repository':repo,'pull_request':{'base':{'ref':'main','repo':repo},
+            'head':{'ref':'fix/main/documentation','repo':repo}}}
+        paths=sorted(C._VARIABLE_DATA)
+        route=checks.plan(event,paths,config,branches)
+        planned=package.select(paths,legacy_mode=route['mode'])
+        self.assertEqual(planned['host_mode'],'documentation')
+        policy=SimpleNamespace(additional_suites=Mock(return_value=[]),candidate_registry=Mock(return_value=self.registry),
+            package_policy=Mock(return_value=SimpleNamespace(candidate_plan=Mock(return_value=planned))),
+            candidate_selection=Mock(side_effect=AssertionError('documentation has no shared host job')))
+        binding={'merge_sha':'a'*40,'base_ref':'main','head_ref':'fix/main/documentation'}
+        adapter=SimpleNamespace(current=Mock(return_value=(binding,{'default':'b'*40,'default_ref':'main'})))
+        with (patch.object(P,'_native',return_value=(17,19)),patch.object(P,'_event_binding'),
+              patch.object(P.execution,'checkout_identity',return_value=('b'*40,'c'*40)),
+              patch.object(P,'_host_policy',return_value=policy),patch.object(P.inputs,'load_registry',return_value=self.registry),
+              self.assertRaises(P.PreExecutionUnavailable)):
+            P.prepare(Path('/unexecuted'),event,{'GITHUB_SHA':'a'*40,'GITHUB_HEAD_REF':'fix/main/documentation'},adapter)
+        policy.candidate_selection.assert_not_called()
+
+
+class ExecutionIntegrationTests(unittest.TestCase):
+    def batch(self,probe):
+        return SimpleNamespace(candidate=Path('/fixture'),snapshot={},policy=Path('/policy'),projection={},
+            protected=Path('/protected'),prepared=((),None,None,None),probe=probe,empty=Mock())
+
+    def check_patches(self):
+        stack=ExitStack();self.addCleanup(stack.close)
+        stack.enter_context(patch.object(sandbox,'verify_snapshot'))
+        stack.enter_context(patch.object(sandbox,'_files',return_value={}))
+        stack.enter_context(patch.object(S,'prepared_identity',return_value={}))
+        return stack
+
+    def test_only_initial_ci37_probe_failure_can_select_existing_fallback(self):
+        self.check_patches()
+        for phase in ('before','suite','after','cancelled'):
+            probe=Mock(side_effect=H.Unavailable('capture unavailable') if phase in ('before','cancelled')
+                       else [{'E':1},H.Unavailable('after capture unavailable')])
+            batch=self.batch(probe)
+            with patch.object(S,'run_suites',side_effect=H.Unavailable('suite failure') if phase=='suite' else [[]]) as run:
+                with self.subTest(phase=phase),self.assertRaises(H.Unavailable) as caught:
+                    S.check_batch(batch,{},[15] if phase=='cancelled' else [],{},
+                                  preexecution_unavailable=P.PreExecutionUnavailable)
+                self.assertEqual(type(caught.exception),P.PreExecutionUnavailable if phase=='before' else H.Unavailable)
+                self.assertEqual(run.call_count,0 if phase in ('before','cancelled') else 1)
+                self.assertEqual(probe.call_count,2 if phase=='after' else 1)
+                if phase=='before':batch.empty.assert_called_once()
+
+    def test_admission_precedes_37_commands_and_post_measurement_follows_empty_scope(self):
+        self.check_patches(); events=[]
+        batch=self.batch(lambda _:events.append('probe') or {'actual':1})
+        batch.empty=lambda:events.append('empty')
+        names=list(C.SUITES)
+        with patch.object(S,'run_suites',side_effect=lambda *a,**k:events.append(('suites',k['names'])) or []) as run:
+            statuses,before,after=S.check_batch(batch,{},[],{},names=names,
+                admit=lambda e:events.append(('admit',e)),preexecution_unavailable=P.PreExecutionUnavailable)
+        self.assertEqual(events,['probe',('admit',{'actual':1}),('suites',names),'empty','probe'])
+        self.assertEqual(before,after);self.assertEqual(statuses,[]);run.assert_called_once()
+
+    def test_ci37_plan_omits_qt_java_and_rejects_inherited_lookup_overrides(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            roots=[Path(temporary)/name for name in ('candidate','scratch','policy','venv','protected')]
+            for root in roots:root.mkdir()
+            (roots[0]/'.git').mkdir()
+            layout=sandbox.Layout(*roots)
+            prepared=((),Path('/opt/hostedtoolcache/Python/3.12.15/x64'),
+                         Path('/opt/hostedtoolcache/node/22.23.3/x64'),None)
+            plan=S.shared_plan(layout,['python','tests/fake.py'],prepared,{})
+            argv=plan['argv'];values={argv[i+1]:argv[i+2] for i,v in enumerate(argv) if v=='--setenv'}
+            self.assertFalse({'JAVA_HOME','QT_QPA_PLATFORM','QT_QUICK_BACKEND','OVERTE_QML_TEST_RUNNER'} & values.keys())
+            self.assertEqual(values['PATH'],'/opt/overte-ci/venv/bin:/opt/hostedtoolcache/node/22.23.3/x64/bin:/usr/bin:/bin')
+            self.assertEqual(S.identity_roots(prepared),())
+            for key in ('JAVA_HOME','QT_QPA_PLATFORM','CXX','PATH'):
+                with self.subTest(key=key),self.assertRaises(sandbox.SandboxUnavailable):
+                    S.shared_plan(layout,['python','fake.py'],prepared,{key:'unreviewed'})
+
+    def test_root_receipt_selects_ci37_admission_before_any_candidate_command(self):
+        events=[];registry=inputs.load_registry(C.ROOT/'.github/test-suites.json')
+        tree={path:{'mode':'100644','type':'blob','sha':'a'*40}
+              for definition in registry['suites'].values() for path in definition['closure']['required']}
+        context={'profile':C.PROFILE,'selected':{'suites':list(C.SUITES)},'registry':registry,
+            'refs':{'default':'b'*40},'binding':{'merge_sha':'a'*40,'merge_tree':'c'*40},'git_context':{},
+            'plan':{'owners':{'shared-host':{'suites':list(C.SUITES),'include_platform':False}}}}
+        batch=SimpleNamespace(candidate=Path('/candidate'),snapshot={})
+        def check(*a,**k):
+            self.assertIs(k['preexecution_unavailable'],P.PreExecutionUnavailable)
+            events.append('capture');k['admit']({'real':'original E'});events.append('candidate suites')
+            return ([{'name':name,'status':'passed'} for name in C.SUITES],{'real':'original E'},{'real':'original E'})
+        with (patch.object(P.inputs,'full_tree',return_value=tree),patch.object(P,'git_context',return_value={}),
+              patch.object(P.execution,'validate_receipt'),patch.object(P.shared,'check_batch',side_effect=check),
+              patch.object(P.runtime_ci,'validate_environment',side_effect=lambda *a,**k:events.append('admit')) as admit,
+              patch.object(P.attested,'validate_environment',side_effect=AssertionError('no full E'))):
+            receipt=P.protected_receipt(batch,context,[],{})
+        self.assertEqual(events,['capture','admit','candidate suites'])
+        self.assertEqual(receipt['schema'],3);self.assertEqual(receipt['requested_suites'],list(C.SUITES))
+        self.assertEqual(admit.call_args.args[4],context['selected'])
+
+
+class ProbeAndManualIntegrationTests(unittest.TestCase):
+    def setUp(self):
+        spec=importlib.util.spec_from_file_location('ci37_probe_fixture',Path(__file__).with_name('sandbox_probe.py'))
+        self.probe=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.probe)
+
+    def test_full_capture_remains_exact_default_and_unknown_profiles_never_probe(self):
+        with patch.object(self.probe.runtime,'capture_host_environment',return_value={'full':'original'}) as capture:
+            self.assertEqual(self.probe.shared_environment({}),{'full':'original'})
+            for binding in ({'runtime_profile':'unknown'},{'diagnostic_only':1},{'diagnostic_only':True}):
+                with self.subTest(binding=binding),self.assertRaises(ValueError):self.probe.shared_environment(binding)
+            capture.assert_called_once()
+
+    def test_protected_probe_cannot_choose_manual_diagnostic_capture_implicitly(self):
+        import runtime_ci
+        raw=b'fixed protected policy'
+        entry={'mode':'100644','type':'blob','sha':hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()}
+        tree={C.POLICY:entry};binding={'runtime_profile':C.PROFILE,'source':'a'*40,'selection':{'suites':list(C.SUITES)},
+                                     'profile_binding':{'fixed':'binding'}}
+        with (patch.object(inputs,'full_tree',return_value=tree),patch.object(inputs,'load_registry',return_value={}),
+              patch.object(Path,'read_bytes',return_value=raw),
+              patch.object(runtime_ci,'capture_ci_environment',return_value={'selection':binding['profile_binding']}) as production,
+              patch.object(runtime_ci,'capture_ci_environment_diagnostic',return_value={'selection':binding['profile_binding']}) as diagnostic):
+            self.probe.shared_environment(binding)
+            production.assert_called_once();diagnostic.assert_not_called()
+            self.probe.shared_environment({**binding,'diagnostic_only':True})
+            diagnostic.assert_called_once()
+            for mutation in ({'diagnostic_only':'true'},{'source':'HEAD'},{'profile_binding':{'forged':True}}):
+                with self.subTest(mutation=mutation),self.assertRaises(ValueError):
+                    self.probe.shared_environment({**binding,**mutation})
+            tree[C.POLICY]['sha']='0'*40
+            with self.assertRaises(ValueError):self.probe.shared_environment(binding)
+
+    def test_fixed_manual_cli_retains_full_diagnostic_and_never_calls_producer(self):
+        result={'schema':1,'authority':'none','production_qualified':False,'reusable':False}
+        with (patch.object(S,'run_host_ci37',return_value=result) as quick,
+              patch.object(S,'run_host',return_value=result) as full,
+              patch.object(P,'shared_execution',side_effect=AssertionError('no producer')),
+              patch.object(H.sys,'stdout',new_callable=io.StringIO)):
+            self.assertEqual(H.main(['--profile','ci37']),0);quick.assert_called_once();full.assert_not_called()
+            self.assertEqual(H.main(['--profile','shared-host']),0);full.assert_called_once()
+        with patch.object(H,'host_context') as context,self.assertRaises(H.Unavailable):S.run_host(profile='unknown')
+        context.assert_not_called()
+
+    def test_manual_ci37_retains_complete_source_guard_and_exact_fixed_inventory(self):
+        registry=inputs.load_registry(C.ROOT/'.github/test-suites.json')
+        tree={path:{'mode':'100644','type':'blob','sha':'a'*40} for path in (C.POLICY,'.github/test-suites.json')}
+        tree[C.PINNED_SOURCE]=C._pinned_source_entry(C.ROOT)
+        policy={'schema':1,'enabled':False,'profile':C.PROFILE,'epoch':'manual-ci37-fixture',
+            'not_before':'2026-10-16T00:00:00Z','max_age_seconds':259200,'suites':list(C.SUITES),
+            'definition_digest':C.definition_digest(registry),'generation_digest':C.generation(tree,registry)}
+        real_stat,real_read=Path.stat,Path.read_text
+        fixed={'/usr/bin/bwrap','/usr/bin/unshare','/usr/bin/python3','/usr/bin/sudo'}
+        def fake_stat(path,*a,**k):
+            return SimpleNamespace(st_mode=stat.S_IFREG|0o755,st_uid=0) if str(path) in fixed else real_stat(path,*a,**k)
+        def fake_read(path,*a,**k):
+            return 'ID=ubuntu\nVERSION_ID="24.04"\n' if str(path)=='/etc/os-release' else real_read(path,*a,**k)
+        made=[]
+        def batch(*a):
+            value=SimpleNamespace(binding=a[5],proofs=['fixed before/after'],protected=a[0]);made.append(value);return value
+        def check(*a,**k):
+            self.assertEqual(k['names'],list(C.SUITES))
+            return ([{'name':name,'status':'passed'} for name in k['names']],{'actual':'E'},{'actual':'E'})
+        with (patch.dict(os.environ,{'GITHUB_SHA':'a'*40,'GITHUB_RUN_ID':'17','GITHUB_RUN_ATTEMPT':'1',
+                                    'ImageOS':'ubuntu24','ImageVersion':'20261012.1','RUNNER_ENVIRONMENT':'github-hosted'}),
+              patch.object(H,'host_context',return_value=1001) as context,
+              patch.object(H,'verify_account',return_value=(2001,2001)),patch.object(H,'prepare_delegation'),
+              patch.object(Path,'stat',fake_stat),patch.object(Path,'read_text',fake_read),
+              patch.object(S,'verify_source',return_value=['protected sources']),
+              patch.object(S,'prepared_tools',return_value=((),None,None,None)) as prepared,
+              patch.object(S,'prepared_identity',return_value={}),patch.object(inputs,'load_registry',return_value=registry),
+              patch.object(inputs,'full_tree',return_value=tree),patch.object(C,'load_policy',return_value=policy),
+              patch.object(C,'SOURCE_READY',False),patch.object(S,'materialize_source',return_value={'digest':'fixed','git_context':{}}),
+              patch.object(S,'project_policy',return_value={}),patch.object(S,'Batch',side_effect=batch),
+              patch.object(S,'check_batch',side_effect=check) as checked,patch.object(S.execution,'_write_receipt')):
+            result=S.run_host_ci37()
+            context.assert_called_once();checked.assert_called_once()
+            self.assertEqual(prepared.call_args.kwargs,{'profile':C.PROFILE})
+            self.assertEqual(made[0].binding['selection']['suites'],list(C.SUITES))
+            self.assertIs(made[0].binding['diagnostic_only'],True)
+            self.assertEqual(result['authority'],'none');self.assertIs(result['production_qualified'],False)
+            self.assertIs(result['reusable'],False);self.assertEqual(len(result['suites']),37)
+            checked.reset_mock();tree['new-lookup.py']=deepcopy(tree[C.POLICY])
+            with self.assertRaises(C.CIProfileError):S.run_host_ci37()
+            checked.assert_not_called()
+
+    def test_canonical_manual_ci37_omits_java_qt_setup_and_preserves_full_preparation(self):
+        import yaml
+        canonical=yaml.safe_load((C.ROOT/'tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml').read_bytes())
+        # The active copy deliberately remains the independently reviewed Java
+        # fix until root review authorizes copying the canonical diagnostic.
+        active=yaml.safe_load((C.ROOT/'.github/workflows/shared-sandbox-host-diagnostic.yml').read_bytes())
+        steps={step['name']:step for step in canonical['jobs']['boundary-diagnostic']['steps']}
+        original={step['name']:step for step in active['jobs']['boundary-diagnostic']['steps']}
+        for name in ('Set up prepared shared-host Java','Install existing mandatory portable host contract prerequisites'):
+            self.assertEqual(steps[name],original[name])
+            self.assertEqual(steps[name]['if'],"inputs.profile == 'shared-host'")
+        quick=steps['Prepare the fixed Qt-free CI37 diagnostic tools']
+        self.assertEqual(quick['if'],"inputs.profile == 'ci37'")
+        self.assertIn('cmake ninja-build make g++',quick['run'])
+        self.assertNotIn('JAVA',quick['run']);self.assertNotIn('qml-module',quick['run']);self.assertNotIn('libglm',quick['run'])
+        self.assertIn('root:root',quick['run']);self.assertIn('go-w',quick['run'])
+
+
+if __name__=='__main__':
+    unittest.main()

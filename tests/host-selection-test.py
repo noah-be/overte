@@ -621,8 +621,9 @@ class HostSelectionTests(unittest.TestCase):
         self.assertTrue(selected['full_host'])
 
     def test_exact_ci_admissions_do_not_waive_neighboring_tests_or_runtime_readers(self):
-        self.assertEqual(len(HOST.CI_ROLLOUT_PATHS),44)
+        self.assertEqual(len(HOST.CI_ROLLOUT_PATHS),50)
         for path in ('tools/test-evidence/new-reader.py','tools/test-evidence/postmerge_extra.py',
+                     'tools/test-evidence/runtime_ci_extra.py', '.github/ci37-runtime-extra.json',
                      'tests/project-suite-self-test-extra.py',
                      '.github/workflows/repository-checks-extra.yml'):
             self.assertTrue(self.selected([path])['include_platform'],path)
@@ -639,6 +640,9 @@ class HostSelectionTests(unittest.TestCase):
                  'tools/test-evidence/sandbox_host_fixture.py', 'tools/test-evidence/sandbox_probe.py',
                  'tools/test-evidence/sandbox_shared.py',
                  'tools/test-evidence/producer_workflow.py', 'tools/test-evidence/postmerge.py',
+                 '.github/ci37-runtime.json', 'tools/test-evidence/ci_profile.py',
+                 'tools/test-evidence/ci-profile-test.py', 'tools/test-evidence/runtime_ci.py',
+                 'tools/test-evidence/runtime-ci-test.py', 'tools/test-evidence/ci-integration-test.py',
                  'tools/repository-checks/workflows/producers/protected-project-tests.yml',
                  'tools/repository-checks/workflows/producers/repository-checks.yml',
                  'tools/repository-checks/workflows/producers/parent-qualification.yml')
@@ -650,6 +654,8 @@ class HostSelectionTests(unittest.TestCase):
                      'tools/test-evidence/sandbox_host.py', 'tools/test-evidence/sandbox_host_fixture.py',
                      'tools/test-evidence/sandbox_probe.py', 'tools/test-evidence/sandbox_shared.py',
                      'tools/test-evidence/producer_workflow.py', 'tools/test-evidence/postmerge.py',
+                     'tools/test-evidence/ci_profile.py',
+                     'tools/test-evidence/runtime_ci.py',
                      'tools/repository-checks/workflows/producers/protected-project-tests.yml',
                      'tools/repository-checks/workflows/producers/repository-checks.yml',
                      'tools/repository-checks/workflows/producers/parent-qualification.yml'):
