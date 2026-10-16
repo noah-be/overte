@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -1798,6 +1799,104 @@ class SharedHostPreparedExternalInputsTests(unittest.TestCase):
 
     def identity(self):
         return SHARED.prepared_identity((self.java,), external_inputs=SHARED.prepared_external_inputs(self.prepared))
+
+    def freeze_parent(self, *, unsafe_ancestor=False):
+        original = os.fstat
+        target = self.java.parent.stat()
+        def protected(descriptor):
+            info = original(descriptor)
+            values = list(info)
+            is_target = (info.st_dev, info.st_ino) == (target.st_dev, target.st_ino)
+            values[4] = 1001 if is_target and self.base in self.foreign else 0
+            if not is_target:
+                values[0] &= ~0o022
+                if unsafe_ancestor:
+                    values[0] |= 0o022
+            return os.stat_result(values)
+        with patch.object(SHARED.os, 'geteuid', return_value=0), patch.object(SHARED.os, 'fstat', protected):
+            SHARED.freeze_prepared_java_parent(self.java)
+
+    def test_fixed_java_parent_is_frozen_before_certificate_admission(self):
+        # The actual hosted-image builder applies chmod -R 777 /usr/lib/jvm.
+        # Trusted provisioning has already frozen the selected JDK itself.
+        self.base.chmod(0o777)
+        before = self.java.stat()
+        with self.assertRaisesRegex(H.Unavailable, 'parent is aliased or mutable'):
+            SHARED.prepared_external_inputs(self.prepared)
+        self.freeze_parent()
+        self.assertEqual(stat.S_IMODE(self.base.stat().st_mode), 0o755)
+        self.assertEqual(self.java.stat(), before)
+        self.assertEqual(SHARED.prepared_external_inputs(self.prepared), (self.target,))
+
+    def test_java_parent_freeze_changes_no_already_protected_directory(self):
+        self.base.chmod(0o750)
+        with patch.object(SHARED.os, 'fchmod') as chmod:
+            self.freeze_parent()
+        chmod.assert_not_called()
+        self.assertEqual(stat.S_IMODE(self.base.stat().st_mode), 0o750)
+
+    def test_java_parent_freeze_rejects_foreign_ownership_without_repair(self):
+        self.base.chmod(0o777)
+        self.foreign.add(self.base)
+        with patch.object(SHARED.os, 'fchmod') as chmod, self.assertRaises(H.Unavailable):
+            self.freeze_parent()
+        chmod.assert_not_called()
+        self.assertEqual(stat.S_IMODE(self.base.stat().st_mode), 0o777)
+
+    def test_java_parent_freeze_rejects_nonroot_and_unfrozen_jdk(self):
+        with patch.object(SHARED.os, 'geteuid', return_value=1001), \
+                patch.object(SHARED.os, 'fchmod') as chmod, self.assertRaises(H.Unavailable):
+            SHARED.freeze_prepared_java_parent(self.java)
+        chmod.assert_not_called()
+        self.java.chmod(0o777)
+        with patch.object(SHARED.os, 'fchmod') as chmod, self.assertRaises(H.Unavailable):
+            self.freeze_parent()
+        chmod.assert_not_called()
+
+    def test_unselected_or_absent_java_parent_is_never_opened_or_mutated(self):
+        with patch.object(SHARED.os, 'open') as opened, patch.object(SHARED.os, 'fchmod') as chmod:
+            SHARED.freeze_prepared_java_parent(None)
+            SHARED.freeze_prepared_java_parent(self.base / 'other-jdk')
+        opened.assert_not_called()
+        chmod.assert_not_called()
+
+    def test_java_parent_freeze_rejects_mutable_ancestors_without_repair(self):
+        self.base.chmod(0o777)
+        with patch.object(SHARED.os, 'fchmod') as chmod, self.assertRaises(H.Unavailable):
+            self.freeze_parent(unsafe_ancestor=True)
+        chmod.assert_not_called()
+        self.assertEqual(stat.S_IMODE(self.base.stat().st_mode), 0o777)
+
+    def test_java_parent_freeze_rejects_an_aliased_parent_without_repair(self):
+        actual = self.base / 'actual-parent'
+        (actual / 'jdk').mkdir(parents=True)
+        alias = self.base / 'parent-alias'
+        alias.symlink_to(actual, target_is_directory=True)
+        selected = alias / 'jdk'
+        with patch.object(self, 'java', selected), patch.object(SHARED, '_TEMURIN17_HOME', selected), \
+                patch.object(SHARED.os, 'fchmod') as chmod, self.assertRaises(H.Unavailable):
+            self.freeze_parent()
+        chmod.assert_not_called()
+
+    def test_java_parent_replacement_is_rejected_before_and_after_mode_change(self):
+        original_stat, original_chmod = os.stat, os.fchmod
+        for phase in ('before', 'after'):
+            self.base.chmod(0o777)
+            reads = []
+            def replaced(path, *args, **kwargs):
+                info = original_stat(path, *args, **kwargs)
+                if kwargs.get('dir_fd') is not None and path == self.base.name:
+                    reads.append(path)
+                    if phase == 'before' or len(reads) == 2:
+                        values = list(info)
+                        values[1] += 1
+                        return os.stat_result(values)
+                return info
+            with self.subTest(phase=phase), patch.object(SHARED.os, 'stat', replaced), \
+                    patch.object(SHARED.os, 'fchmod', wraps=original_chmod) as chmod, \
+                    self.assertRaisesRegex(H.Unavailable, 'parent changed'):
+                self.freeze_parent()
+            self.assertEqual(chmod.call_count, 0 if phase == 'before' else 1)
 
     def test_generic_identity_still_rejects_external_java_alias(self):
         with self.assertRaisesRegex(H.Unavailable, 'prepared tool alias escapes readonly mounts'):
