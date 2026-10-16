@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "repository": "noah-l-frank/overte",
+  "repositoryId": 1319052603,
+  "activationTargets": ["apple-ios"],
+  "reviewedSource": "52f1cc38180e96cdfd8049a4be93517961ae7dbd",
+  "legacy": {
+    ".github/workflows/ios-build-qualification.yml": {
+      "mode": "100644",
+      "type": "blob",
+      "oid": "aac9051e1bc89fe71e2f1be4331706f9acfe5b38"
+    },
+    ".github/workflows/ios-integrated.yml": {
+      "mode": "100644",
+      "type": "blob",
+      "oid": "1004d282c847655be7deafced0108ee291e8250c"
+    },
+    ".github/workflows/ios-qt-source.yml": {
+      "mode": "100644",
+      "type": "blob",
+      "oid": "15689cd66fd4a4b74e79553c31bc80b9e3c7024f"
+    },
+    "ios/tests/run-tests.sh": {
+      "mode": "100755",
+      "type": "blob",
+      "oid": "d8b0f32ae6a404b73e39e2d606faeeb1508075ca"
+    },
+    "ios/ci/host-test-network.sh": {
+      "mode": "100755",
+      "type": "blob",
+      "oid": "b3f391387d705974a957174e625bd137ee9d8460"
+    },
+    "tests/requirements-host.txt": {
+      "mode": "100644",
+      "type": "blob",
+      "oid": "4d29ce8105d1bbf125e92756ad8142c9b5f23295"
+    }
+  },
+  "nextTemplate": "tools/ios-build-qualification/host-workflow.yml"
+}

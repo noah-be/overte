@@ -1,0 +1,230 @@
+# Canonical manual-only boundary diagnostic. Never a required evidence producer.
+name: Shared sandbox host diagnostic
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Fixed manual diagnostic, never reusable PR evidence
+        type: choice
+        options: [boundary, shared-host, ci37]
+        default: boundary
+permissions:
+  contents: read
+concurrency:
+  group: shared-sandbox-host-diagnostic
+  cancel-in-progress: false
+jobs:
+  boundary-diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Reject unsupported source context before any provisioning
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = noah-l-frank/overte
+          test "$GITHUB_REPOSITORY_ID" = 1319052603
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          test "$GITHUB_REF" = refs/heads/main
+          test "$GITHUB_WORKFLOW_REF" = 'noah-l-frank/overte/.github/workflows/shared-sandbox-host-diagnostic.yml@refs/heads/main'
+          test "$GITHUB_WORKFLOW_SHA" = "$GITHUB_SHA"
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$ImageOS" = ubuntu24
+          case "$DIAGNOSTIC_PROFILE" in boundary|shared-host|ci37) ;; *) exit 1 ;; esac
+        env:
+          DIAGNOSTIC_PROFILE: ${{ inputs.profile }}
+      - name: Check out only the immutable trusted diagnostic source
+        if: inputs.profile == 'boundary'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: noah-l-frank/overte
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /.github/shared-sandbox.json
+            /.github/workflows/shared-sandbox-host-diagnostic.yml
+            /tools/test-evidence/
+            /tools/repository-checks/workflows/shared-sandbox-host-diagnostic.yml
+            /tests/requirements-host.txt
+            /tests/requirements-repository.txt
+            /tools/sbom/requirements-validation.txt
+      - name: Check out complete immutable main source for selected shared contracts
+        if: inputs.profile != 'boundary'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: noah-l-frank/overte
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Set up prepared shared-host Python
+        if: inputs.profile != 'boundary'
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Set up prepared shared-host Node
+        if: inputs.profile != 'boundary'
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '22'
+      - name: Set up prepared shared-host Java
+        if: inputs.profile == 'shared-host'
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install existing mandatory portable host contract prerequisites
+        if: inputs.profile == 'shared-host'
+        run: |
+          set -euo pipefail
+          sudo -n /usr/bin/apt-get update
+          sudo -n /usr/bin/apt-get install --no-install-recommends -y \
+            cmake ninja-build \
+            qml-module-qttest qtdeclarative5-dev-tools qt6-base-dev qt6-base-dev-tools libglm-dev \
+            qtdeclarative5-dev qml-module-qtquick2 qml-module-qtquick-controls2 qml-module-qtquick-layouts qml-module-qtquick-window2 \
+            qt6-declarative-dev qt6-declarative-dev-tools qt6-webchannel-dev libqt5webchannel5-dev \
+            qml-module-qt-labs-folderlistmodel qml6-module-qt-labs-folderlistmodel \
+            qml6-module-qtqml qml6-module-qtqml-models qml6-module-qtqml-workerscript \
+            qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts \
+            qml6-module-qtquick-templates qml6-module-qtquick-window \
+            qml6-module-qt-labs-settings qml6-module-qtquick-dialogs qml6-module-qttest
+          for tool in bash cmake ctest c++ git jq ninja pkg-config unshare; do
+            test -x "/usr/bin/$tool" || { printf 'Missing fixed system prerequisite: %s\n' "$tool" >&2; exit 1; }
+          done
+          test ! -e /opt/overte-ci
+          sudo -n /usr/bin/install -d -m 755 -o "$UID" /opt/overte-ci
+          python3 -m venv /opt/overte-ci/venv
+          /opt/overte-ci/venv/bin/python -m pip install --disable-pip-version-check -r tests/requirements-host.txt
+          # Freeze only the actual versioned prepared installations. The
+          # namespace never receives the remainder of the hosted tool cache.
+          PYTHON_ROOT="$(python3 -c 'import sys; print(sys.base_prefix)')"
+          NODE_ROOT="$(node -p 'require("path").dirname(require("path").dirname(process.execPath))')"
+          test -n "$JAVA_HOME"
+          # The hosted Java cache is an alias to its actual system JDK.
+          JAVA_HOME="$(readlink -e -- "$JAVA_HOME")"
+          python3 -I - "$PYTHON_ROOT" "$NODE_ROOT" "$JAVA_HOME" <<'PYROOTS'
+          from pathlib import Path
+          import re
+          import sys
+          roots = [Path('/opt/overte-ci'), *(Path(value) for value in sys.argv[1:])]
+          assert len(roots) == 4 and len(set(roots)) == 4, 'ambiguous prepared tool roots'
+          for index, path in enumerate(roots):
+              assert path.is_absolute() and path.is_dir() and not path.is_symlink()
+              assert path == path.resolve(strict=True), 'prepared tool root contains an alias'
+              if index in (1, 2):
+                  assert path.is_relative_to('/opt/hostedtoolcache') and len(path.parts) == 6
+                  assert path.parts[3] == ('Python' if index == 1 else 'node')
+                  assert re.fullmatch(r'3[.]12[.][0-9]+' if index == 1 else r'22[.][0-9]+[.][0-9]+', path.parts[4])
+              elif index == 3:
+                  assert (path == Path('/usr/lib/jvm/temurin-17-jdk-amd64')
+                          or path.is_relative_to('/opt/hostedtoolcache') and len(path.parts) == 6
+                          and path.parts[3] == 'Java_Temurin-Hotspot_jdk'
+                          and re.fullmatch(r'17[.][0-9]+[.][0-9]+-[0-9]+', path.parts[4])
+                          and path.parts[5] == 'x64')
+          assert all(not left.is_relative_to(right) and not right.is_relative_to(left)
+                     for i, left in enumerate(roots) for right in roots[i + 1:])
+          PYROOTS
+          sudo -n /usr/bin/chown -hR root:root -- /opt/overte-ci "$PYTHON_ROOT" "$NODE_ROOT" "$JAVA_HOME"
+          # Preserve executable/read bits and do not follow descendant aliases.
+          sudo -n /usr/bin/chmod -R go-w -- /opt/overte-ci "$PYTHON_ROOT" "$NODE_ROOT" "$JAVA_HOME"
+      - name: Prepare the fixed Qt-free CI37 diagnostic tools
+        if: inputs.profile == 'ci37'
+        run: |
+          set -euo pipefail
+          missing=()
+          if ! test -x /usr/bin/cmake || ! test -x /usr/bin/ctest; then missing+=(cmake); fi
+          if ! test -x /usr/bin/ninja; then missing+=(ninja-build); fi
+          if ! test -x /usr/bin/make || ! test -x /usr/bin/gmake; then missing+=(make); fi
+          if ! test -x /usr/bin/g++ || ! test -x /usr/bin/gcc || ! test -x /usr/bin/c++ || ! test -x /usr/bin/cc; then missing+=(g++); fi
+          if ((${#missing[@]})); then
+            sudo -n /usr/bin/apt-get update
+            sudo -n /usr/bin/apt-get install --no-install-recommends -y "${missing[@]}"
+          fi
+          for tool in bash cmake ctest c++ cc gcc g++ git jq ninja make gmake as ld ar ranlib sha256sum env ldd dpkg-query unshare; do
+            test -x "/usr/bin/$tool" || { printf 'Missing fixed system prerequisite: %s\n' "$tool" >&2; exit 1; }
+          done
+          test ! -e /opt/overte-ci
+          sudo -n /usr/bin/install -d -m 755 -o "$UID" /opt/overte-ci
+          python3 -m venv /opt/overte-ci/venv
+          /opt/overte-ci/venv/bin/python -m pip install --disable-pip-version-check -r tests/requirements-host.txt
+          PYTHON_ROOT="$(python3 -c 'import sys; print(sys.base_prefix)')"
+          NODE_ROOT="$(node -p 'require("path").dirname(require("path").dirname(process.execPath))')"
+          python3 -I - "$PYTHON_ROOT" "$NODE_ROOT" <<'PYROOTS'
+          from pathlib import Path
+          import re
+          import sys
+          roots = [Path('/opt/overte-ci'), *(Path(value) for value in sys.argv[1:])]
+          assert len(roots) == 3 and len(set(roots)) == 3, 'ambiguous CI37 prepared tool roots'
+          for index, path in enumerate(roots):
+              assert path.is_absolute() and path.is_dir() and not path.is_symlink()
+              assert path == path.resolve(strict=True), 'CI37 prepared tool root contains an alias'
+              if index:
+                  assert path.is_relative_to('/opt/hostedtoolcache') and len(path.parts) == 6
+                  assert path.parts[3] == ('Python' if index == 1 else 'node')
+                  assert re.fullmatch(r'3[.]12[.][0-9]+' if index == 1 else r'22[.][0-9]+[.][0-9]+', path.parts[4])
+          assert all(not left.is_relative_to(right) and not right.is_relative_to(left)
+                     for i, left in enumerate(roots) for right in roots[i + 1:])
+          PYROOTS
+          sudo -n /usr/bin/chown -hR root:root -- /opt/overte-ci "$PYTHON_ROOT" "$NODE_ROOT"
+          sudo -n /usr/bin/chmod -R go-w -- /opt/overte-ci "$PYTHON_ROOT" "$NODE_ROOT"
+      - name: Ensure the required namespace tool is available
+        run: |
+          set -euo pipefail
+          if ! test -x /usr/bin/bwrap; then
+            sudo -n /usr/bin/apt-get update
+            sudo -n /usr/bin/apt-get install --yes --no-install-recommends bubblewrap
+          fi
+      - name: Provision the fixed disposable diagnostic account
+        id: account
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$ImageOS" = ubuntu24
+          if getent passwd overte-ci-qualification >/dev/null; then
+            echo 'The fixed disposable account already exists; host is unavailable.' >&2
+            exit 1
+          fi
+          sudo -n /usr/sbin/useradd --system --no-create-home --shell /usr/sbin/nologin overte-ci-qualification
+          echo 'created=true' >> "$GITHUB_OUTPUT"
+          # Match the existing disposable Ubuntu host namespace prerequisite.
+          # No application, SDK or device builds are fetched or launched.
+          sudo -n /usr/sbin/sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Measure real boundary attacks and kernel-owned scope cleanup
+        run: |
+          set -euo pipefail
+          mkdir -m 700 "$RUNNER_TEMP/shared-sandbox-diagnostic"
+          lifetime=120
+          NODE_ROOT=''
+          if test "$DIAGNOSTIC_PROFILE" != boundary; then
+            lifetime=2400
+            NODE_ROOT="$(node -p 'require("path").dirname(require("path").dirname(process.execPath))')"
+          fi
+          sudo -n /usr/bin/systemd-run --wait --pipe --collect --quiet --service-type=exec \
+            --expand-environment=no --property=Delegate=yes \
+            --property=KillMode=control-group --property=TimeoutStopSec=10s --property=SendSIGKILL=yes \
+            --property=UMask=0022 --property="RuntimeMaxSec=${lifetime}s" \
+            --unit="overte-shared-qualification-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.service" \
+            /usr/bin/env -i \
+            PATH=/usr/bin:/bin LANG=C.UTF-8 SUDO_UID="$UID" \
+            GITHUB_ACTIONS=true GITHUB_EVENT_NAME="$GITHUB_EVENT_NAME" \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" GITHUB_REPOSITORY_ID="$GITHUB_REPOSITORY_ID" \
+            GITHUB_REF="$GITHUB_REF" GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" GITHUB_SHA="$GITHUB_SHA" \
+            GITHUB_WORKFLOW_SHA="$GITHUB_WORKFLOW_SHA" \
+            GITHUB_RUN_ID="$GITHUB_RUN_ID" GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+            RUNNER_ENVIRONMENT="$RUNNER_ENVIRONMENT" ImageOS="$ImageOS" ImageVersion="$ImageVersion" \
+            QUALIFY_GITHUB_ENV="$GITHUB_ENV" QUALIFY_GITHUB_OUTPUT="$GITHUB_OUTPUT" \
+            QUALIFY_NODE_ROOT="$NODE_ROOT" QUALIFY_JAVA_HOME="${JAVA_HOME:-}" \
+            /usr/bin/python3 -I "$GITHUB_WORKSPACE/tools/test-evidence/sandbox_host.py" --profile "$DIAGNOSTIC_PROFILE" \
+            | /usr/bin/tee "$RUNNER_TEMP/shared-sandbox-diagnostic/result.json" > /dev/null
+        env:
+          DIAGNOSTIC_PROFILE: ${{ inputs.profile }}
+      - name: Remove only the disposable account created by this job
+        if: always() && steps.account.outputs.created == 'true'
+        run: sudo -n /usr/sbin/userdel overte-ci-qualification
+      - name: Preserve diagnostic result without treating it as reusable evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: shared-sandbox-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/shared-sandbox-diagnostic/result.json
+          if-no-files-found: warn
+          retention-days: 7

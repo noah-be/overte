@@ -4,28 +4,14 @@ on:
   pull_request:
     paths:
       - 'browser-direct-client/**'
-      - 'libraries/networking/**'
-      - 'libraries/shared/src/shared/WebRTC.h'
-      - 'assignment-client/**'
-      - 'domain-server/**'
-      - 'cmake/macros/TargetDataChannel.cmake'
-      - 'tests/browser-direct-transport/**'
-      - '.github/workflows/browser-direct-client.yml'
-      - '.github/native-tests.json'
-      - 'tools/native-tests/select.py'
+      - '!browser-direct-client/**/*.md'
+      - '!browser-direct-client/**/*.mdx'
   push:
     branches: ['main']
     paths:
       - 'browser-direct-client/**'
-      - 'libraries/networking/**'
-      - 'libraries/shared/src/shared/WebRTC.h'
-      - 'assignment-client/**'
-      - 'domain-server/**'
-      - 'cmake/macros/TargetDataChannel.cmake'
-      - 'tests/browser-direct-transport/**'
-      - '.github/workflows/browser-direct-client.yml'
-      - '.github/native-tests.json'
-      - 'tools/native-tests/select.py'
+      - '!browser-direct-client/**/*.md'
+      - '!browser-direct-client/**/*.mdx'
   workflow_dispatch:
 
 permissions:

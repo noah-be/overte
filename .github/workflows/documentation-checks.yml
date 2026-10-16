@@ -2,8 +2,6 @@ name: Documentation checks
 
 on:
   workflow_call:
-  push:
-    branches: [main, android-phone, android-vr-pico, apple-ios]
   schedule:
     - cron: "31 4 * * 1"
   workflow_dispatch:
