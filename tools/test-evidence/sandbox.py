@@ -15,6 +15,7 @@ import json
 import os
 from pathlib import Path
 import re
+import resource
 import selectors
 import signal
 import stat
@@ -132,7 +133,7 @@ def contract(root=ROOT):
     return {**value, "digest": "sha256:" + hashlib.sha256(_canonical(value)).hexdigest()}
 
 
-def _git(candidate, *arguments, input_bytes=None, limit=2_000_000, index_result=False):
+def _git(candidate, *arguments, input_bytes=None, limit=2_000_000, index_result=False, timeout=10, bounded=False):
     # Do not inherit candidate/user Git configuration, helpers, replacement
     # objects, lazy fetch or pager behavior into an outside-sandbox process.
     environment = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
@@ -143,6 +144,8 @@ def _git(candidate, *arguments, input_bytes=None, limit=2_000_000, index_result=
                "-c", "protocol.allow=never", "-c", "core.pager=cat", "-c", "maintenance.auto=false",
                "-c", "gc.auto=0", *arguments]
     _require(type(limit) is int and 0 < limit <= 16_000_000, "protected Git output bound is unsupported")
+    _require(type(timeout) in (int, float) and 0 < timeout <= 120 and type(bounded) is bool,
+             "protected Git process bounds are unsupported")
     _require(index_result is False or (index_result is True and len(arguments) == 2
              and arguments[0] == "read-tree" and _SHA.fullmatch(arguments[1])), "private Git index request is unsupported")
     _require(input_bytes is None or (type(input_bytes) is bytes and len(input_bytes) <= 16_000_000),
@@ -164,10 +167,12 @@ def _git(candidate, *arguments, input_bytes=None, limit=2_000_000, index_result=
                 process = subprocess.Popen([*command[:1], "--git-dir", str(control), *command[1:]], cwd=control,
                                            env=environment, stdin=incoming, stdout=subprocess.PIPE,
                                            stderr=subprocess.DEVNULL, close_fds=True, start_new_session=True)
-                output, deadline = bytearray(), time.monotonic() + 10
+                output, deadline = bytearray(), time.monotonic() + timeout
                 selector = selectors.DefaultSelector()
                 selector.register(process.stdout, selectors.EVENT_READ)
                 try:
+                    if bounded:
+                        _git_limits(process.pid)
                     while selector.get_map():
                         _require(time.monotonic() < deadline, "protected immutable Git read timed out")
                         for key, _ in selector.select(0.02):
@@ -186,7 +191,10 @@ def _git(candidate, *arguments, input_bytes=None, limit=2_000_000, index_result=
                     return bytes(output)
                 finally:
                     if process.poll() is None:
-                        os.killpg(process.pid, signal.SIGKILL)
+                        try:
+                            os.killpg(process.pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
                     process.wait(timeout=3)
                     process.stdout.close()
                     selector.close()
@@ -213,16 +221,26 @@ def pristine_git_identity(candidate, revision):
         _require(not (metadata / name).exists() and not (metadata / name).is_symlink(),
                  "candidate Git metadata requires unsupported external or partial objects")
     _require(not any((metadata / "objects/pack").glob("*.promisor")), "candidate Git objects may require a fetch")
+    return _raw_commit_identity(candidate, revision)
+
+
+def _raw_commit_identity(candidate, revision, *, deadline=None):
     # cat-file returns the actual commit body; replace refs/grafts must not
     # redefine its tree or ordered parents. No checkout filters are executed.
-    size = _git(candidate, "cat-file", "-s", revision).strip()
+    def read(*arguments, **kwargs):
+        if deadline is not None:
+            remaining = deadline - time.monotonic()
+            _require(remaining > 0, "snapshot identity deadline exceeded")
+            kwargs["timeout"] = min(10, remaining)
+        return _git(candidate, *arguments, **kwargs)
+    size = read("cat-file", "-s", revision).strip()
     _require(len(size) <= 10 and re.fullmatch(rb"[0-9]+", size) and 0 < int(size) <= 1_000_000,
              "candidate commit object exceeds its bounded source metadata size")
-    commit = _git(candidate, "cat-file", "commit", revision)
+    commit = read("cat-file", "commit", revision)
     _require(len(commit) == int(size), "candidate commit object changed during inspection")
     # This is Git's public object identity, not a security hash. Ask the fixed
     # protected Git binary to check it without writing any object or metadata.
-    observed = _git(candidate, "hash-object", "-t", "commit", "--stdin", input_bytes=commit).strip()
+    observed = read("hash-object", "-t", "commit", "--stdin", input_bytes=commit).strip()
     _require(re.fullmatch(rb"[0-9a-f]{40}", observed) and observed.decode("ascii") == revision,
              "candidate commit object hash differs")
     try:
@@ -244,29 +262,41 @@ def _snapshot_path(name):
     return name
 
 
-def _files(root):
+def _file_hash(path, *, deadline=None):
+    digest = hashlib.sha256()
+    with path.open("rb") as incoming:
+        while block := incoming.read(65536):
+            _require(deadline is None or time.monotonic() < deadline, "snapshot file digest deadline exceeded")
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _files(root, *, streamed=False, deadline=None):
     """Complete negative inventory, including metadata; never follow aliases."""
-    result = {}
+    result, total = {}, 0
+    maximum, count = (65 * 1024 * 1024, 65536) if streamed else (16_000_000, 20000)
     info = root.lstat()
     _require(info.st_uid == os.geteuid() and stat.S_IMODE(info.st_mode) == 0o755,
              "snapshot root is not a private ordinary directory")
     for directory, children, names in os.walk(root, followlinks=False):
         for name in children + names:
+            _require(deadline is None or time.monotonic() < deadline, "snapshot inventory deadline exceeded")
             path = Path(directory) / name
             info = path.lstat()
-            _require(len(result) < 20000, "snapshot inventory exceeds bound")
+            _require(len(result) < count, "snapshot inventory exceeds bound")
             _require(not stat.S_ISLNK(info.st_mode) and info.st_uid == os.geteuid(),
                      "snapshot contains an alias or foreign-owned entry")
             if stat.S_ISDIR(info.st_mode):
                 _require(stat.S_IMODE(info.st_mode) == 0o755, "snapshot directory is mutable or unsupported")
                 result[path.relative_to(root).as_posix()] = {"directory": True}
                 continue
-            _require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_size <= 16_000_000
+            _require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_size <= maximum
                      and stat.S_IMODE(info.st_mode) in {0o444, 0o555}, "snapshot file is not private immutable ordinary source")
+            total += info.st_size
+            _require(not streamed or total <= 4 * 1024 ** 3, "snapshot filesystem byte budget exceeded")
             result[path.relative_to(root).as_posix()] = {
                 "mode": stat.S_IMODE(info.st_mode), "size": info.st_size,
-                "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
-            _require(len(result) <= 20000, "snapshot inventory exceeds bound")
+                "sha256": _file_hash(path, deadline=deadline)}
     return result
 
 
@@ -276,6 +306,263 @@ def _write_source(root, name, data, executable=False):
     with path.open("xb") as target:
         target.write(data)
     path.chmod(0o555 if executable else 0o444)
+
+
+_STREAMED_PROFILE = "streamed-candidate-source-v1"
+_STREAMED_OBJECTS = 32768
+_STREAMED_BYTES = 2 * 1024 ** 3
+_STREAMED_BLOB = 64 * 1024 ** 2
+_STREAMED_SECONDS = 300
+
+
+def _git_limits(pid):
+    # Install the limits before sending any object request to the idle reader.
+    # The helper is Linux-only and fails closed if prlimit is unavailable.
+    resource.prlimit(pid, resource.RLIMIT_AS, (512 * 1024 ** 2,) * 2)
+    resource.prlimit(pid, resource.RLIMIT_CPU, (120, 120))
+    resource.prlimit(pid, resource.RLIMIT_NOFILE, (64, 64))
+
+
+class _StreamedObjects:
+    """One protected Git reader; bounded chunks and one fetch per object ID."""
+    def __init__(self, candidate, spool, destination, deadline):
+        self.spool, self.destination, self.deadline = spool, destination, deadline
+        self.objects, self.buffer, self.total, self.metadata = {}, bytearray(), 0, 0
+        self.body_hashes, self.stored = {}, {}
+        control = spool / "control"
+        control.mkdir()
+        for name in ("objects", "refs"):
+            (control / name).mkdir()
+        (control / "HEAD").write_text("ref: refs/heads/main\n", encoding="ascii")
+        (control / "config").write_text("[core]\nbare = true\nrepositoryformatversion = 0\n", encoding="ascii")
+        command = ["/usr/bin/git", "--git-dir", str(control), "--no-replace-objects", "-c", "core.hooksPath=/dev/null",
+                   "-c", "core.fsmonitor=false", "-c", "protocol.allow=never", "-c", "maintenance.auto=false", "-c", "gc.auto=0",
+                   "-c", "core.deltaBaseCacheLimit=16m", "-c", "core.packedGitLimit=128m", "-c", "core.packedGitWindowSize=16m",
+                   "cat-file", "--batch"]
+        environment = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "GIT_CONFIG_NOSYSTEM": "1",
+                       "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_NO_REPLACE_OBJECTS": "1", "GIT_NO_LAZY_FETCH": "1",
+                       "GIT_TERMINAL_PROMPT": "0", "GIT_OBJECT_DIRECTORY": str(candidate / ".git/objects")}
+        self.process = subprocess.Popen(command, cwd=control, env=environment, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                        stderr=subprocess.DEVNULL, close_fds=True, start_new_session=True)
+        self.selector = selectors.DefaultSelector()
+        try:
+            _git_limits(self.process.pid)
+            self.selector.register(self.process.stdout, selectors.EVENT_READ)
+        except BaseException:
+            self.close()
+            raise
+
+    def close(self):
+        if self.process.poll() is None:
+            try:
+                os.killpg(self.process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        self.process.wait(timeout=3)
+        self.process.stdin.close()
+        self.process.stdout.close()
+        self.selector.close()
+
+    def fill(self):
+        remaining = self.deadline - time.monotonic()
+        _require(remaining > 0, "streamed snapshot deadline exceeded")
+        if self.selector.select(min(0.05, remaining)):
+            block = os.read(self.process.stdout.fileno(), 65536)
+            _require(block, "protected streamed Git reader ended early")
+            self.buffer.extend(block)
+
+    def take(self, size):
+        while len(self.buffer) < size:
+            self.fill()
+        result = bytes(self.buffer[:size])
+        del self.buffer[:size]
+        return result
+
+    def read(self, oid, kind):
+        if oid in self.objects:
+            _require(self.objects[oid][0] == kind, "streamed snapshot object type differs")
+            return self.objects[oid][1:]
+        _require(type(oid) is str and _SHA.fullmatch(oid) and len(self.objects) < _STREAMED_OBJECTS,
+                 "streamed snapshot object inventory exceeds bound")
+        _require(os.write(self.process.stdin.fileno(), (oid + "\n").encode("ascii")) == 41, "Git object request failed")
+        while b"\n" not in self.buffer:
+            _require(len(self.buffer) <= 160, "Git object response header exceeds bound")
+            self.fill()
+        length = self.buffer.index(b"\n")
+        _require(length <= 160, "Git object response header exceeds bound")
+        fields = self.take(length + 1).strip().split(b" ")
+        _require(len(fields) == 3 and fields[:2] == [oid.encode("ascii"), kind.encode("ascii")]
+                 and re.fullmatch(rb"[0-9]{1,10}", fields[2]), "Git object response has wrong identity or type")
+        size = int(fields[2])
+        maximum = _STREAMED_BLOB if kind == "blob" else 4 * 1024 ** 2 if kind == "tree" else 1_000_000
+        self.total += size
+        if kind != "blob":
+            self.metadata += size
+        _require(size <= maximum and self.total <= _STREAMED_BYTES and self.metadata <= 32 * 1024 ** 2,
+                 "streamed snapshot object byte budget exceeded")
+        raw = self.spool / (kind + "-" + oid)
+        target = self.destination / ".git/objects" / oid[:2] / oid[2:]
+        target.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+        compressor = zlib.compressobj(1)
+        body_hash, stored_hash, stored_size = hashlib.sha256(), hashlib.sha256(), 0
+        with raw.open("xb") as output, target.open("xb") as packed:
+            def store(block):
+                nonlocal stored_size
+                _require(packed.write(block) == len(block), "private object write was incomplete")
+                stored_hash.update(block)
+                stored_size += len(block)
+            store(compressor.compress(kind.encode("ascii") + b" " + str(size).encode("ascii") + b"\0"))
+            remaining = size
+            while remaining:
+                block = self.take(min(65536, remaining))
+                _require(output.write(block) == len(block), "private source spool write was incomplete")
+                body_hash.update(block)
+                store(compressor.compress(block))
+                remaining -= len(block)
+            store(compressor.flush())
+        target.chmod(0o444)
+        _require(self.take(1) == b"\n", "Git object response has invalid framing")
+        self.objects[oid] = (kind, raw, size)
+        self.body_hashes[oid] = body_hash.hexdigest()
+        self.stored[target.relative_to(self.destination).as_posix()] = {
+            "mode": 0o444, "size": stored_size, "sha256": stored_hash.hexdigest()}
+        return raw, size
+
+    def verify(self, candidate):
+        # Three bounded Git invocations hash private ordinary spool files. No
+        # checkout/filter executes, and no blob is loaded into Python memory.
+        for kind in ("commit", "tree", "blob"):
+            items = [(oid, path) for oid, (actual, path, _size) in self.objects.items() if actual == kind]
+            if not items:
+                continue
+            paths = "".join(str(path) + "\n" for _oid, path in items).encode("ascii")
+            remaining = self.deadline - time.monotonic()
+            _require(remaining > 0, "streamed snapshot verification deadline exceeded")
+            observed = _git(candidate, "hash-object", "-t", kind, "--no-filters", "--stdin-paths", input_bytes=paths,
+                            limit=len(items) * 41, timeout=min(120, remaining), bounded=True)
+            _require(observed.splitlines() == [oid.encode("ascii") for oid, _path in items], "streamed object hash differs")
+
+
+def materialize_candidate_snapshot(candidate, revision, destination, *, context_revisions=()):
+    """Prepare source only; this does not authorize execution or evidence.
+
+    Only explicitly named commits and their complete trees enter the private
+    object store. Raw ordered parents remain truthful; every included commit
+    with an omitted parent is marked as a shallow boundary. Never traverse or
+    silently fabricate unavailable history. The legacy diagnostic is unchanged.
+    """
+    candidate, destination = _directory(candidate), _directory(destination)
+    _require(not any(destination.iterdir()) and not destination.is_relative_to(candidate)
+             and not candidate.is_relative_to(destination), "snapshot destination must be private, empty and disjoint")
+    _require(type(context_revisions) is tuple and len(context_revisions) <= 7,
+             "streamed Git context requires at most eight explicit commits")
+    revisions = (revision, *context_revisions)
+    _require(all(type(oid) is str and _SHA.fullmatch(oid) and set(oid) != {"0"} for oid in revisions)
+             and len(set(revisions)) == len(revisions), "streamed Git context contains invalid or duplicate revisions")
+    metadata = _directory(candidate / ".git")
+    for name in ("objects", "objects/pack", "objects/info"):
+        _directory(metadata / name)
+    for name in ("objects/info/alternates", "objects/info/http-alternates", "info/grafts"):
+        _require(not (metadata / name).exists() and not (metadata / name).is_symlink(), "external Git objects are unsupported")
+    _require(not any((metadata / "objects/pack").glob("*.promisor")), "lazy Git objects are unsupported")
+    if (metadata / "shallow").exists() or (metadata / "shallow").is_symlink():
+        raw = _source(metadata, "shallow")
+        _require(raw and all(re.fullmatch(rb"[0-9a-f]{40}", row) for row in raw.splitlines()), "source shallow metadata is unsupported")
+    deadline = time.monotonic() + _STREAMED_SECONDS
+    commits, trees, source_files, expanded, materialized = {}, {}, {}, 0, 0
+    with tempfile.TemporaryDirectory(prefix="overte-streamed-objects-", dir="/tmp") as directory:
+        reader = _StreamedObjects(candidate, Path(directory), destination, deadline)
+        try:
+            def tree(oid, prefix="", write=False):
+                nonlocal expanded, materialized
+                _require(prefix.count("/") < 128, "streamed snapshot nesting exceeds bound")
+                if oid not in trees:
+                    path, _size = reader.read(oid, "tree")
+                    data, entries, names, position = path.read_bytes(), [], set(), 0
+                    while position < len(data):
+                        end = data.find(b"\0", position)
+                        _require(end >= position and end + 21 <= len(data), "streamed tree entry is incomplete")
+                        header = data[position:end]
+                        mode, separator, raw_name = header.partition(b" ")
+                        try:
+                            name = raw_name.decode("utf-8")
+                        except UnicodeError as error:
+                            raise SandboxUnavailable("streamed tree path is unsupported") from error
+                        _require(separator and name not in names and "/" not in name, "streamed tree entry is ambiguous")
+                        names.add(name)
+                        _snapshot_path(name)
+                        _require(mode in {b"40000", b"100644", b"100755"}, "streamed tree contains symlink, gitlink or unsupported mode")
+                        entries.append((mode, name, data[end + 1:end + 21].hex()))
+                        position = end + 21
+                    trees[oid] = entries
+                for mode, name, child in trees[oid]:
+                    expanded += 1
+                    _require(expanded <= 65536, "streamed tree expansion exceeds bound")
+                    relative = _snapshot_path(prefix + name)
+                    if mode == b"40000":
+                        if write:
+                            (destination / relative).mkdir(mode=0o755)
+                            source_files[relative] = {"directory": True}
+                        tree(child, relative + "/", write)
+                    else:
+                        raw, size = reader.read(child, "blob")
+                        if write:
+                            materialized += size
+                            _require(materialized <= 1024 ** 3, "materialized source exceeds byte budget")
+                            with raw.open("rb") as incoming, (destination / relative).open("xb") as output:
+                                while block := incoming.read(65536):
+                                    _require(time.monotonic() < deadline, "source materialization deadline exceeded")
+                                    output.write(block)
+                            (destination / relative).chmod(0o555 if mode == b"100755" else 0o444)
+                            source_files[relative] = {"mode": 0o555 if mode == b"100755" else 0o444,
+                                                      "size": size, "sha256": reader.body_hashes[child]}
+            for oid in revisions:
+                path, _size = reader.read(oid, "commit")
+                header = path.read_bytes().split(b"\n\n", 1)[0].splitlines()
+                _require(header and re.fullmatch(rb"tree [0-9a-f]{40}", header[0]), "streamed commit tree is unsupported")
+                parents = []
+                for row in header[1:]:
+                    if row.startswith(b"parent "):
+                        _require(re.fullmatch(rb"parent [0-9a-f]{40}", row), "streamed commit parent is unsupported")
+                        parents.append(row[7:].decode("ascii"))
+                commits[oid] = {"commit": oid, "tree": header[0][5:].decode("ascii"), "parents": parents}
+                tree(commits[oid]["tree"], write=oid == revision)
+            reader.verify(candidate)
+            objects = len(reader.objects)
+            stored = dict(reader.stored)
+        finally:
+            reader.close()
+    _require(not (destination / "build").exists(), "private build mount would hide tracked source inputs")
+    (destination / "build").mkdir(mode=0o755)
+    source_files["build"] = {"directory": True}
+    expected_files = dict(source_files)
+    expected_files.update(stored)
+    for path in stored:
+        expected_files[str(Path(path).parent)] = {"directory": True}
+    expected_files[".git"] = {"directory": True}
+    expected_files[".git/objects"] = {"directory": True}
+    for name in (".git/objects/pack", ".git/objects/info", ".git/refs"):
+        (destination / name).mkdir(parents=True, exist_ok=True, mode=0o755)
+        expected_files[name] = {"directory": True}
+    def metadata_file(name, body):
+        _write_source(destination, name, body)
+        expected_files[name] = {"mode": 0o444, "size": len(body), "sha256": hashlib.sha256(body).hexdigest()}
+    shallow = sorted(oid for oid, item in commits.items() if set(item["parents"]) - commits.keys())
+    metadata_file(".git/HEAD", (revision + "\n").encode("ascii"))
+    metadata_file(".git/config", b"[core]\nrepositoryformatversion = 0\nbare = false\nfilemode = true\n")
+    if shallow:
+        metadata_file(".git/shallow", ("\n".join(shallow) + "\n").encode("ascii"))
+    remaining = deadline - time.monotonic()
+    _require(remaining > 0, "streamed snapshot index deadline exceeded")
+    metadata_file(".git/index", _git(destination, "read-tree", revision, index_result=True,
+                  limit=8_000_000, timeout=min(120, remaining), bounded=True))
+    _require(_files(destination, streamed=True, deadline=deadline) == expected_files,
+             "materialized source or private Git bytes differ from the verified object stream")
+    value = {"profile": _STREAMED_PROFILE, "identity": commits[revision], "objects": objects,
+             "git_context": {"commits": commits, "shallow": shallow},
+             "files": expected_files}
+    value["digest"] = "sha256:" + hashlib.sha256(_canonical(value)).hexdigest()
+    return value
 
 
 def materialize_snapshot(candidate, revision, destination):
@@ -378,6 +665,28 @@ def materialize_snapshot(candidate, revision, destination):
 def verify_snapshot(destination, expected):
     """Only the protected parent's retained inventory is a valid comparator."""
     destination = _directory(destination)
+    if "profile" in expected:
+        deadline = time.monotonic() + _STREAMED_SECONDS
+        _require(expected["profile"] == _STREAMED_PROFILE, "unknown snapshot profile")
+        unsigned = {name: value for name, value in expected.items() if name != "digest"}
+        _require(expected.get("digest") == "sha256:" + hashlib.sha256(_canonical(unsigned)).hexdigest(),
+                 "streamed snapshot context digest differs")
+        _require(_files(destination, streamed=True, deadline=deadline) == expected["files"],
+                 "immutable snapshot or its negative inventory changed")
+        context = expected["git_context"]
+        _require(type(context) is dict and set(context) == {"commits", "shallow"} and type(context["commits"]) is dict
+                 and 0 < len(context["commits"]) <= 8 and expected["identity"] == context["commits"].get(expected["identity"]["commit"]),
+                 "streamed snapshot Git context is incomplete")
+        commits = context["commits"]
+        for oid, identity in commits.items():
+            _require(type(oid) is str and _SHA.fullmatch(oid) and _raw_commit_identity(destination, oid, deadline=deadline) == identity,
+                     "streamed snapshot commit or ordered parents changed")
+        shallow = sorted(oid for oid, identity in commits.items() if set(identity["parents"]) - commits.keys())
+        _require(context["shallow"] == shallow, "streamed snapshot has an untruthful history boundary")
+        path = destination / ".git/shallow"
+        _require(path.read_bytes() == ("\n".join(shallow) + "\n").encode("ascii") if shallow else not path.exists(),
+                 "streamed snapshot shallow metadata changed")
+        return
     _require(_files(destination) == expected["files"], "immutable snapshot or its negative inventory changed")
     _require(pristine_git_identity(destination, expected["identity"]["commit"]) == expected["identity"],
              "private pristine Git identity changed")

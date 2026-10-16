@@ -440,6 +440,28 @@ The private index matches the immutable tree; a fixed in-sandbox Git status
 must be clean. A tracked `build` path is rejected because its writable mount
 would hide source inputs. Complete histories above 4,096 objects or 64 MB are
 unsupported by this bounded diagnostic materializer.
+The separate `materialize_candidate_snapshot()` source helper supports larger
+ordinary candidates without changing that fixed diagnostic. It streams each
+unique Git object once, verifies public object IDs with protected Git, and
+retains the pristine index and complete source/metadata negative inventory.
+Materialized source and stored-object hashes must match the verified stream;
+corrupted copies cannot become their own trusted inventory baseline.
+Limits are 64 MiB per blob, 1 GiB materialized source, 2 GiB unique object bodies,
+32,768 objects, 65,536 expanded/inventory entries and 300 seconds. The Git reader
+has a 512 MiB address-space limit; tree/commit metadata and Python stream chunks
+have separate fixed bounds. Unsupported sizes, aliases, modes or unavailable
+process limits fail rather than produce a partial successful snapshot.
+
+The caller names at most eight immutable commits. Only those commits and their
+complete ordinary trees enter the private Git store; the helper never walks
+unbounded ancestry or fetches objects. Each included commit with an omitted
+parent is explicitly marked in `.git/shallow`, while its raw ordered parents
+remain unchanged. The retained snapshot digest binds that exact Git context as
+well as the files. Future execution receipts and suite fingerprints must bind
+this context before Git-sensitive suites can reuse results: equal file trees
+alone are insufficient. This helper authorizes no execution or reusable proof;
+actual shared-suite compatibility, complete runtime capture and protected
+publication still require qualification.
 Only exact trusted probe/runtime source enters a separate read-only projection;
 candidate policy code cannot replace it. The hosted workload is a fixed real-Git
 fixture, never an application build or arbitrary PR command.
