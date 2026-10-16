@@ -229,11 +229,12 @@ def compatibility(base, default, target, *, read_actual, actual_imports):
             'target or default platform declaration is not enrolled')
     # Every recursive requirement include is a reviewed ordinary member; a new
     # include cannot make setup read a file outside the pre-import commitment.
-    seen=set()
+    seen=set(); active=set()
     def requirement(name):
         require(name in CONTROLLERS, 'requirement include is outside the reviewed graph')
+        require(name not in active, 'requirement include cycle is forbidden')
         if name in seen: return
-        seen.add(name)
+        seen.add(name); active.add(name)
         require(len(seen)<=20, 'requirement graph exceeds bound')
         raw, observed=read_actual(name)
         require(observed==base.get(name)==default.get(name), 'requirement source differs')
@@ -241,11 +242,22 @@ def compatibility(base, default, target, *, read_actual, actual_imports):
             line=line.split('#',1)[0].strip()
             if not line: continue
             if line.startswith('-r '):
-                relative=Path(name).parent / line[3:].strip()
-                require(not relative.is_absolute() and '..' not in relative.parts, 'requirement include escapes root')
-                requirement(relative.as_posix())
+                relative=line[3:].strip()
+                require(relative and not relative.startswith('/') and '\\' not in relative
+                        and not any(ord(c)<32 or ord(c)==127 for c in relative), 'invalid requirement include')
+                # Includes are relative to their declaring file. Normalize only
+                # lexically; no filesystem aliases or new readers are admitted.
+                parts=name.split('/')[:-1]
+                for part in relative.split('/'):
+                    if part in {'','.'}: continue
+                    if part=='..':
+                        require(parts, 'requirement include escapes root')
+                        parts.pop()
+                    else: parts.append(part)
+                requirement('/'.join(parts))
             else:
                 require(re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*==[A-Za-z0-9][A-Za-z0-9_.+!-]*',line), 'requirement is not an exact reviewed pin')
+        active.remove(name)
     requirement('tests/requirements-host.txt')
     identity = {}
     for name in CONTROLLERS:

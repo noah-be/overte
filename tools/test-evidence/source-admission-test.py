@@ -132,9 +132,29 @@ class SourceAdmissionTests(SourceFixture,unittest.TestCase):
                 return (body,S.ordinary(S.blob_id(body),mode)) if name==S.SELF else self.read(name)
             with self.assertRaises(S.SourceUnavailable): self.admit(read_actual=read)
     def test_recursive_requirement_escape_new_reader_and_unpinned_install_are_rejected(self):
-        for raw in (b'-r ../outside.txt\n',b'-r new-extra.txt\n',b'pytest>=8\n',b'--extra-index-url https://example.invalid\n'):
+        requirements=('tests/requirements-host.txt','tests/requirements-repository.txt','tools/sbom/requirements-validation.txt')
+        for name in requirements:
+            self.put(name,(ROOT/name).read_bytes())
+        observed=[]
+        def read(name):
+            observed.append(name)
+            return self.read(name)
+        self.assertEqual(self.admit(read_actual=read)['target'],self.target)
+        self.assertTrue(set(requirements).issubset(observed))
+        for raw in (b'-r ../outside.txt\n',b'-r new-extra.txt\n',b'-r /tools/sbom/requirements-validation.txt\n',
+                    b'-r ../../tools/sbom/requirements-validation.txt\n',b'pytest>=8\n',
+                    b'--extra-index-url https://example.invalid\n',b'-r requirements-host.txt\n'):
             with self.subTest(raw=raw):
                 self.put('tests/requirements-host.txt',raw)
+                with self.assertRaises(S.SourceUnavailable): self.admit()
+        for name in requirements:
+            self.put(name,(ROOT/name).read_bytes())
+        self.put('tests/requirements-repository.txt',b'-r requirements-host.txt\n')
+        with self.assertRaises(S.SourceUnavailable): self.admit()
+        self.put('tests/requirements-repository.txt',(ROOT/'tests/requirements-repository.txt').read_bytes())
+        for mode in ('100755','120000'):
+            with self.subTest(included_mode=mode):
+                self.base['tools/sbom/requirements-validation.txt']['mode']=mode
                 with self.assertRaises(S.SourceUnavailable): self.admit()
     def test_integrated_controller_reconstructs_actual_D_bytes_and_rejects_any_S_drift(self):
         import postmerge
