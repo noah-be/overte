@@ -3,6 +3,7 @@
 
 from copy import deepcopy
 from contextlib import ExitStack
+import hashlib
 import io
 import json
 import os
@@ -1763,7 +1764,19 @@ class ProtectedSelectedProducerTests(unittest.TestCase):
         self.assertEqual(new['jobs']['producer-publication']['name'],
             'Publish final producer ${{ needs.project-tests.outputs.receipt_sha256 }}')
         active=(H.ROOT/'.github/workflows/project-tests.yml').read_bytes()
-        self.assertNotEqual(active,(H.ROOT/p.TEMPLATE).read_bytes())
+        packages=p._host_policy().package_policy()
+        generation=packages.validate_wiring(H.ROOT)
+        installed={'protected-producer-metadata-ci-v1','protected-producer-seven-target-ci-v1'}
+        canonical=(H.ROOT/p.TEMPLATE).read_bytes()
+        identity=hashlib.sha1(b'blob '+str(len(canonical)).encode()+b'\0'+canonical).hexdigest()
+        approved=[row for row in packages.workflow_generations() if row['name'] in installed
+                  and row['workflows']['.github/workflows/project-tests.yml']['sha']==identity]
+        self.assertTrue(approved,'canonical producer must belong to an exact complete reviewed generation')
+        self.assertTrue(all(set(row['workflows'])==set(packages.METADATA_WORKFLOW_PATHS) for row in approved))
+        if active==canonical:
+            self.assertIn(generation,{row['name'] for row in approved})
+        else:
+            self.assertNotEqual(active,canonical)
 
 class SharedHostPreparedExternalInputsTests(unittest.TestCase):
     """Real temporary aliases and bytes with fake protected-root ownership."""

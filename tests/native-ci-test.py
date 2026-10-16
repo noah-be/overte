@@ -341,7 +341,8 @@ class WorkflowCostTests(unittest.TestCase):
             jobs = yaml.safe_load(caller)['jobs']
             generation = load('native_complete_workflow_contract',
                               'tests/workflow-contract-test.py').reviewed_package_generation()
-            metadata = generation in ('npm-consumers-metadata-edits-v1', 'android-owned-npm5-sync-ci-v1')
+            metadata = generation in ('npm-consumers-metadata-edits-v1', 'android-owned-npm5-sync-ci-v1',
+                                      'protected-producer-metadata-ci-v1', 'protected-producer-seven-target-ci-v1')
             condition = "needs.route.outputs.native != 'skip'"
             if metadata:
                 condition = "needs.route.outputs.metadata_only != 'true' && " + condition

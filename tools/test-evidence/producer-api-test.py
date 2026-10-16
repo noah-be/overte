@@ -1817,7 +1817,16 @@ class MainConsumerSourceTests(unittest.TestCase):
     def test_prospective_parent_keeps_existing_job_and_has_no_false_qualification_on_reuse(self):
         import postmerge as C
         import yaml
-        old=yaml.safe_load((C.ROOT/'.github/workflows/parent-qualification.yml').read_text())
+        # The baseline is an immutable reviewed legacy recipe. Reading the
+        # active successor here would prepend its reuse condition twice after
+        # the exact workflow installation.
+        baseline=C.ROOT/'tools/repository-checks/workflows/host/parent-qualification.yml'
+        legacy=next(row for row in C.producer._host_policy().package_policy().workflow_generations()
+                    if row['name']=='android-owned-npm5-sync-ci-v1')
+        raw=baseline.read_bytes()
+        self.assertEqual(hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest(),
+                         legacy['workflows']['.github/workflows/parent-qualification.yml']['sha'])
+        old=yaml.safe_load(raw)
         new=yaml.safe_load((C.ROOT/C.TEMPLATE).read_text())
         self.assertEqual(set(new['jobs']),{'qualify-parent'})
         job=new['jobs']['qualify-parent'];self.assertEqual(job['name'],old['jobs']['qualify-parent']['name'])

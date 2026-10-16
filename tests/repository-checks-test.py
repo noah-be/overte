@@ -634,16 +634,20 @@ class AggregateTests(unittest.TestCase):
         metadata_callers = {
             'npm-consumers-metadata-edits-v1': 'metadata-edits/repository-checks.yml',
             'android-owned-npm5-sync-ci-v1': 'android-owned/repository-checks.yml',
+            'protected-producer-metadata-ci-v1': 'producers/repository-checks.yml',
+            'protected-producer-seven-target-ci-v1': 'producers/repository-checks.yml',
         }
         metadata = generation in metadata_callers
         if metadata:
             self.assertEqual(source, (ROOT / 'tools/repository-checks/workflows' / metadata_callers[generation]).read_text())
-        if generation == 'android-owned-npm5-sync-ci-v1':
+        protected = generation in ('protected-producer-metadata-ci-v1', 'protected-producer-seven-target-ci-v1')
+        if generation == 'android-owned-npm5-sync-ci-v1' or protected:
             spec = importlib.util.spec_from_file_location('aggregate_android_generation',
                 ROOT / 'tools/repository-checks/android_gate.py')
             android = importlib.util.module_from_spec(spec); spec.loader.exec_module(android)
             tree = {}
-            for relative in (*PACKAGES.CONSUMER_WORKFLOW_PATHS, '.github/workflows/android-required.yml'):
+            paths = PACKAGES.METADATA_WORKFLOW_PATHS if protected else PACKAGES.CONSUMER_WORKFLOW_PATHS
+            for relative in (*paths, '.github/workflows/android-required.yml'):
                 path = ROOT / relative
                 self.assertTrue(path.is_file() and not path.is_symlink() and not path.stat().st_mode & 0o111)
                 tree[relative] = android._blob(path.read_bytes())
