@@ -141,7 +141,8 @@ class MetadataEditTests(unittest.TestCase):
                 path.write_text(raw)
                 with self.subTest(raw=raw[:35]):
                     self.assertEqual(CHECKS.classify_metadata_event(path, 'pull_request'),
-                        {'kind': 'pr-metadata-classification', 'qualification': False, 'metadata_only': 'false'})
+                        {'kind': 'pr-metadata-classification', 'qualification': False,
+                         'metadata_edit': False, 'metadata_only': 'false'})
             path.unlink()
             self.assertEqual(CHECKS.classify_metadata_event(path, 'pull_request')['metadata_only'], 'false')
 
@@ -158,8 +159,28 @@ class MetadataEditTests(unittest.TestCase):
                     redirect_stdout(io.StringIO()) as printed:
                 self.assertEqual(CHECKS.main(), 0)
             config.assert_not_called(); plan.assert_not_called(); verify.assert_not_called()
-            self.assertEqual(output.read_text(), 'metadata_only=true\n')
-            self.assertIs(json.loads(printed.getvalue())['qualification'], False)
+            self.assertEqual(output.read_text(), 'metadata_only=false\n')
+            classification = json.loads(printed.getvalue())
+            self.assertIs(classification['qualification'], False)
+            self.assertIs(classification['metadata_edit'], True)
+
+    def test_complete_text_edit_cannot_preserve_unverified_old_policy_success(self):
+        # Strict checks may retain a canonical success on H while trusted main
+        # changes P1 -> P2 without changing a child PR's base B or source H.
+        # Even a complete server event cannot authenticate that old result.
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / 'event.json'
+            for changes in ({'title': {'from': 'Old'}}, {'body': {'from': 'Old'}},
+                            {'title': {'from': 'Old'}, 'body': {'from': 'Old'}}):
+                payload = self.edited(changes)
+                payload['pull_request']['base']['ref'] = 'android-phone'
+                original = deepcopy(payload)
+                path.write_text(json.dumps(payload))
+                result = CHECKS.classify_metadata_event(path, 'pull_request')
+                self.assertIs(result['metadata_edit'], True)
+                self.assertEqual(result['metadata_only'], 'false')
+                self.assertIs(result['qualification'], False)
+                self.assertEqual(json.loads(path.read_text()), original)
 
     def test_actual_classifier_failure_is_nonzero_and_emits_no_metadata_output(self):
         from contextlib import redirect_stderr
