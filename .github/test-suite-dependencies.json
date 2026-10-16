@@ -197,7 +197,7 @@
       "setup": [
         "host-full"
       ],
-      "reviewed_reader_digest": "sha256:fd77ee4853ccd068765a9e8649d06aa8d0429bb86590c2cbff3d4a55143fe047",
+      "reviewed_reader_digest": "sha256:2059c2575ed1a4b4a77064429615f8e878bd82d1680e9c5a4108fac042dc2395",
       "native_independent_paths": [
         ".github/android-checks.json",
         ".github/android-orchestration.json",
