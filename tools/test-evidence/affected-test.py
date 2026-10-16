@@ -231,7 +231,7 @@ class ShippingPolicyTests(unittest.TestCase):
         self.assertEqual(len(selected['suites']),60)
         self.assertEqual(selected['reason'],'protected-dependencies-unavailable')
 
-    def test_eight_reviewed_product_owners_share_only_the_fixed_complete_lookup_proof(self):
+    def test_reviewed_product_owners_share_only_the_fixed_complete_lookup_proof(self):
         _,registry,raw,base=self.shipping_context()
         candidate=deepcopy(base);candidate['tools/test-evidence/sandbox_host.py']=blob(b'changed CI')
         plan=inputs.plan_affected(registry,raw,base,candidate,base)
@@ -263,12 +263,68 @@ class ShippingPolicyTests(unittest.TestCase):
     def test_javascript_and_performance_component_data_cannot_use_ci_byte_exemptions(self):
         _,_,raw,base=self.shipping_context()
         paths=json.loads(raw)['suites']['device-control-plane-full']['native_independent_paths']
-        for path in ('tests/javascript/README.md','tests/performance/README.md'):
+        for path in ('tests/javascript/README.md','tests/performance/README.md',
+                     'tests/safe-landing/README.md','tests/mocha/README.md','server-console/README.md',
+                     'unpublishedScripts/README.md','tools/jsdoc/README.md'):
             old=deepcopy(base);old[path]=blob(b'old fixture contract')
             new=deepcopy(old);new[path]=blob(b'changed fixture contract')
             with self.subTest(path=path):
                 self.assertNotEqual(inputs.device_reader_digest(old,[*paths,path]),
                                     inputs.device_reader_digest(new,[*paths,path]))
+
+    def test_fixed_ci_subjects_bind_all_three_trees_without_coupling_product_owners(self):
+        _,registry,raw,base=self.shipping_context()
+        candidate=deepcopy(base);candidate['tools/test-evidence/sandbox_host.py']=blob(b'changed CI')
+        plan=inputs.plan_affected(registry,raw,base,candidate,base)
+        self.assertTrue(set(inputs._AFFECTED_SUBJECTS).issubset(plan['omitted']))
+        self.assertEqual(len(plan['required']),32)
+        for name,subjects in inputs._AFFECTED_SUBJECTS.items():
+            for subject in subjects:
+                for shape in ('changed','removed','historical','executable'):
+                    old=deepcopy(base);new=deepcopy(candidate)
+                    if shape=='removed':new.pop(subject)
+                    elif shape=='executable':new[subject]=dict(new[subject],
+                        mode='100644' if new[subject]['mode']=='100755' else '100755')
+                    else:
+                        new[subject]=blob(b'changed exact subject')
+                        if shape=='historical':old[subject]=deepcopy(new[subject])
+                    with self.subTest(owner=name,subject=subject,shape=shape):
+                        lookup_change = subject=='tools/test-evidence/producer.py' and shape in {'removed','executable'}
+                        if subject in inputs.AFFECTED_AUTHORITY or lookup_change:
+                            with self.assertRaises(inputs.InputError):
+                                inputs.plan_affected(registry,raw,old,new,base)
+                        else:
+                            selected=inputs.plan_affected(registry,raw,old,new,base)
+                            self.assertIn(name,selected['required'])
+        # This CI unit-test leaf is independent of the actual product tests.
+        changed=deepcopy(candidate);changed['tests/unittest-runner-test.py']=blob(b'changed CI regression')
+        selected=inputs.plan_affected(registry,raw,base,changed,base)
+        self.assertIn('python-test-runner',selected['required'])
+        self.assertIn('device-control-plane-full',selected['omitted'])
+        self.assertTrue(inputs._AFFECTED_PRODUCT_SUITES.issubset(selected['omitted']))
+
+    def test_fixed_ci_subject_policy_cannot_supply_unknown_owners_or_subject_maps(self):
+        _,registry,raw,base=self.shipping_context()
+        value=json.loads(raw)
+        for shape in ('unknown-owner','candidate-scope','alternate-subjects','extra-map','missing-native'):
+            changed=deepcopy(value);definitions=deepcopy(registry)
+            if shape=='unknown-owner':changed['suites']['producer-api']['kind']='reviewed-subject-inventory'
+            elif shape in {'candidate-scope','alternate-subjects'}:
+                if shape=='candidate-scope':definitions['suites']['python-test-runner']['scope']='candidate'
+                else:definitions['suites']['python-test-runner']['closure']['required']=['tests/unittest-runner-test.py']
+                changed['registry_digest']=inputs._suite_definition_digest(definitions)
+                changed['suites']['python-test-runner']['definition_digest']=inputs._suite_definition_digest(definitions['suites']['python-test-runner'])
+            elif shape=='extra-map':changed['suites']['python-test-runner']['subjects']=['arbitrary.py']
+            else:
+                entry=changed['suites']['device-control-plane-full']
+                changed['suites']['device-control-plane-full']={k:entry[k] for k in ('kind','definition_digest','setup')}
+                changed['suites']['device-control-plane-full']['kind']='repository'
+            with self.subTest(shape=shape),self.assertRaises(inputs.InputError):
+                inputs._validate_dependencies(changed,definitions)
+        candidate=deepcopy(base);candidate['tools/test-evidence/sandbox_host.py']=blob(b'changed CI')
+        candidate['tests/unittest-extra-runner-test.py']=blob(b'unknown neighbor')
+        plan=inputs.plan_affected(registry,raw,base,candidate,base)
+        self.assertIn('python-test-runner',plan['required'])
 
     def test_unknown_root_import_shadow_cannot_inherit_any_omission(self):
         _,registry,raw,base=self.shipping_context()

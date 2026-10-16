@@ -2,7 +2,7 @@
   "schema": 1,
   "suites": {
     "producer-proof": {
-      "kind": "repository",
+      "kind": "reviewed-subject-inventory",
       "definition_digest": "sha256:2fe79fff0533c60d6812d91132f2537813002609ec414215b46728fd3c1c1e8f",
       "setup": [
         "host-full"
@@ -30,7 +30,7 @@
       ]
     },
     "python-test-runner": {
-      "kind": "repository",
+      "kind": "reviewed-subject-inventory",
       "definition_digest": "sha256:78c9deab9d4a97125b5f9550230893b895ab90357c269aa239e964d40a8737c3",
       "setup": [
         "host-full"
@@ -171,21 +171,21 @@
       ]
     },
     "project-coverage": {
-      "kind": "repository",
+      "kind": "reviewed-subject-inventory",
       "definition_digest": "sha256:8690af50d55f45663b038f03b4f4e5e675f4303bf52557893615d0575ddf6e16",
       "setup": [
         "host-full"
       ]
     },
     "codeql-remediation": {
-      "kind": "repository",
+      "kind": "reviewed-product-inventory",
       "definition_digest": "sha256:ade3de4ef9ca9f45317c54142e4db1c6caa10512be9f56957cf72380b0650e4a",
       "setup": [
         "host-full"
       ]
     },
     "javascript-behavior": {
-      "kind": "repository",
+      "kind": "reviewed-product-inventory",
       "definition_digest": "sha256:a4aeb5081f74c142579f1b3da0d4d3512e6c1b7ef86c1ca5c59f06aa1dddc87c",
       "setup": [
         "host-full"
@@ -197,7 +197,7 @@
       "setup": [
         "host-full"
       ],
-      "reviewed_reader_digest": "sha256:fd8f5994b6699b6e78ce6cc4a6bfc381eb9d6a7ec4f487dd3b8c3fb611ef443a",
+      "reviewed_reader_digest": "sha256:233002ae9c8da3a354ad1c2827043b33d56df5b3f8880bd7031cc39f53a4ad69",
       "native_independent_paths": [
         ".github/android-checks.json",
         ".github/android-orchestration.json",
@@ -625,14 +625,14 @@
       ]
     },
     "safe-landing-lifecycle": {
-      "kind": "repository",
+      "kind": "reviewed-product-inventory",
       "definition_digest": "sha256:7174d2314ab623d58fb6e7bc5d4aa45c858efdecd7907e2981b52de98479adba",
       "setup": [
         "host-full"
       ]
     },
     "embedded-web-policy": {
-      "kind": "repository",
+      "kind": "reviewed-product-inventory",
       "definition_digest": "sha256:8ccd672f46a88f457922c3ad80f0292254386ebb288e197c76dfe06b630195ad",
       "setup": [
         "host-full"
@@ -664,7 +664,7 @@
       ]
     },
     "account-auth-dispatch": {
-      "kind": "repository",
+      "kind": "reviewed-product-inventory",
       "definition_digest": "sha256:7f3122fb55a0e817114250d14027b788a4b0796d53a57cc8bb60ebdb6a5cbd72",
       "setup": [
         "host-full"
@@ -701,7 +701,7 @@
       ]
     },
     "snapshot-native": {
-      "kind": "repository",
+      "kind": "reviewed-product-inventory",
       "definition_digest": "sha256:2c7ae202d7c8de42547b5a5f2edafd571d1cbb5952fc4e1c23ff373a07a29183",
       "setup": [
         "host-full"
@@ -717,14 +717,14 @@
       ]
     },
     "document-tree-native": {
-      "kind": "repository",
+      "kind": "reviewed-product-inventory",
       "definition_digest": "sha256:4100e4a3d2c63c01bc4243e24492c6a6eb9b85197d5743d08debad6d046e372d",
       "setup": [
         "host-full"
       ]
     },
     "obj-material-native": {
-      "kind": "repository",
+      "kind": "reviewed-product-inventory",
       "definition_digest": "sha256:ec28f1b60731f42db3e1da60b8b7e51fd779bc267dd9e0b35d08e9de8a16a183",
       "setup": [
         "host-full"
@@ -738,7 +738,7 @@
       ]
     },
     "native-registration": {
-      "kind": "repository",
+      "kind": "reviewed-subject-inventory",
       "definition_digest": "sha256:e3fc70e9202c0ad0b0cd9bd2b025dd297a20dae9ce360bb6728efb0f1d6eb0e9",
       "setup": [
         "host-full"
@@ -759,7 +759,7 @@
       ]
     },
     "desktop-input-protocol": {
-      "kind": "repository",
+      "kind": "reviewed-product-inventory",
       "definition_digest": "sha256:05c5a38f26185c98e6e5cafb1f0119acb72f631a43c3a3d78949e2bc64d3d3ec",
       "setup": [
         "host-full"
@@ -773,7 +773,7 @@
       ]
     },
     "server-console-behavior": {
-      "kind": "repository",
+      "kind": "reviewed-product-inventory",
       "definition_digest": "sha256:7b50e3d7a6e5fae35b21f81739ee2f67c91296ba8a5dc82a6e21df4dbb04a430",
       "setup": [
         "host-full"

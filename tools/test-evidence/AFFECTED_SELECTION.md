@@ -34,10 +34,12 @@ exemptions. The dependency policy itself keeps path/mode/type while its exact
 raw bytes are separately authenticated across all three trees, avoiding a
 self-referential digest.
 
-Eight independently reviewed owners also use this complete lookup identity:
+The fixed reviewed product owners also use this complete lookup identity:
 web entity visibility, LOD preferences, goto dialog script, recorded voice native,
-shared script behavior, device result schema, device Jenkins regressions and
-performance contracts. Their actual helpers/native/QML/data readers are inside
+shared script behavior, device result schema, device Jenkins regressions,
+performance contracts, SafeLanding, embedded web policy, account auth dispatch,
+snapshot native, document tree, OBJ materials, CodeQL remediation, virtual
+baton JavaScript, desktop input protocol and server console behavior. Their actual helpers/native/QML/data readers are inside
 the mandatory components. Complete `tests/javascript` and `tests/performance`
 components override CI document exceptions too. Each row binds its own complete
 suite definition and required subjects; only these fixed content-scoped owner
@@ -45,6 +47,21 @@ names may reference the shared identity. No row supplies another inventory or
 an exclusion list. Shared dependencies currently make these rows conservative
 on product changes, while unrelated CI controller changes can omit them. Device
 Jenkins regression selection does not start a live Jenkins or device job.
+
+Complete SafeLanding, Mocha, server-console, unpublished-script and JSDoc trees
+also override the finite CI byte exceptions. Four fixed CI owners use a
+separate subject rule: project coverage, native registration, the Python
+unittest runner regressions and authenticated producer protocol. Their exact source subjects must match protected,
+base and candidate bytes/modes; the policy cannot supply replacement subjects.
+This keeps a changed CI regression selected without coupling every product
+owner to its bytes. The coverage/native registration fixtures retain real CMake
+and child-directory membership. The generic runner retains every actual child,
+clock, cancellation and empty-discovery check.
+
+A smaller owner set cannot replace an existing route with broader preparation.
+Existing Qt-free selections remain authoritative until an equally narrow setup
+context for a subset is independently established. The protected producer still
+declines unsupported subsets before preparation; no CI37 identity is relabeled.
 
 Added import candidates anywhere and root-level import contents also
 invalidate the protected lookup review. This initial reader digest is broad:

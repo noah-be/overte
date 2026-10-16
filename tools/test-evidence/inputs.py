@@ -410,7 +410,23 @@ _AFFECTED_PRODUCT_SUITES = frozenset({
     'web-entity-visibility', 'lod-preferences', 'goto-dialog-script',
     'recorded-voice-native', 'shared-script-behavior', 'device-result-schema',
     'device-jenkins', 'performance-contracts',
+    'safe-landing-lifecycle',
+    'embedded-web-policy',
+    'account-auth-dispatch',
+    'snapshot-native',
+    'document-tree-native',
+    'obj-material-native',
+    'codeql-remediation',
+    'javascript-behavior',
+    'desktop-input-protocol',
+    'server-console-behavior',
 })
+_AFFECTED_SUBJECTS = {
+    'producer-proof': ('tools/test-evidence/producer.py', 'tools/test-evidence/producer-test.py', 'tools/test-evidence/execution.py', 'tools/test-evidence/inputs.py', 'tools/test-evidence/runtime.py'),
+    'project-coverage': ('tests/project-coverage-test.py',),
+    'native-registration': ('tests/native-registration-test.py',),
+    'python-test-runner': ('tests/unittest-runner-test.py', 'tests/run-unittest-suite.py'),
+}
 _AFFECTED_SHARED_PROFILE = {'mode': '100644', 'type': 'blob',
                             'sha': 'd63537504c20204de9d35d9be61da72a56df59c3'}
 _DEVICE_INPUTS = (
@@ -424,6 +440,9 @@ _DEVICE_INPUTS = (
     'android', 'android/**',
     'ios', 'ios/**',
     'tests/javascript', 'tests/javascript/**', 'tests/performance', 'tests/performance/**',
+    'tests/safe-landing', 'tests/safe-landing/**', 'tests/mocha', 'tests/mocha/**',
+    'server-console', 'server-console/**', 'unpublishedScripts', 'unpublishedScripts/**',
+    'tools/jsdoc', 'tools/jsdoc/**',
 )
 
 
@@ -483,7 +502,7 @@ def _validate_dependencies(value, registry):
         if not isinstance(row, dict) or set(row) not in (
                 {'kind', 'definition_digest', 'setup'},
                 {'kind', 'definition_digest', 'setup', 'reviewed_reader_digest', 'native_independent_paths'}) \
-                or type(row['kind']) is not str or row['kind'] not in {'repository', 'reviewed-patterns', 'device-control-plane', 'reviewed-product-inventory'} \
+                or type(row['kind']) is not str or row['kind'] not in {'repository', 'reviewed-patterns', 'device-control-plane', 'reviewed-product-inventory', 'reviewed-subject-inventory'} \
                 or row['definition_digest'] != _suite_definition_digest(suite) \
                 or not isinstance(row['setup'], list) or not row['setup'] \
                 or any(type(item) is not str or item not in _AFFECTED_SETUP for item in row['setup']) \
@@ -497,6 +516,10 @@ def _validate_dependencies(value, registry):
         if row['kind'] == 'reviewed-product-inventory' and (name not in _AFFECTED_PRODUCT_SUITES
                 or suite['scope'] != 'content' or row['setup'] != ['host-full']):
             raise InputError('unsupported reviewed product inventory owner')
+        if row['kind'] == 'reviewed-subject-inventory' and (name not in _AFFECTED_SUBJECTS
+                or suite['scope'] != 'content' or row['setup'] != ['host-full']
+                or tuple(suite['closure']['required']) != _AFFECTED_SUBJECTS[name]):
+            raise InputError('unsupported reviewed fixed-subject owner')
         if row['kind'] == 'device-control-plane':
             if name != 'device-control-plane-full' or suite['scope'] != 'content' \
                     or suite['command'][:5] != ['python', 'tests/device/run_control_plane_tests.py', '--profile', 'full', '--require-qml'] \
@@ -510,7 +533,8 @@ def _validate_dependencies(value, registry):
                 raise InputError('native lookup independence requires finite exact protected leaves')
         elif 'reviewed_reader_digest' in row or 'native_independent_paths' in row:
             raise InputError('reader identity belongs only to the fixed device owner')
-    if any(row['kind'] == 'reviewed-product-inventory' for row in value['suites'].values()) \
+    if any(row['kind'] in {'reviewed-product-inventory', 'reviewed-subject-inventory'}
+           for row in value['suites'].values()) \
             and value['suites'].get('device-control-plane-full', {}).get('kind') != 'device-control-plane':
         raise InputError('reviewed product owners require the fixed complete native inventory')
     return value
@@ -599,6 +623,15 @@ def plan_affected(registry, dependency_bytes, base_tree, candidate_tree, trusted
             unaffected = native_unchanged and all(all(path in tree for path in suite['closure']['required'])
                                                  for tree in (base_tree, candidate_tree))
             reason = 'unchanged-reviewed-product-components' if unaffected else 'product-component-or-reader-not-reviewed'
+        elif row['kind'] == 'reviewed-subject-inventory':
+            # Required[] is normally an existence check. These fixed CI readers
+            # also need every actual subject's bytes/mode in all three trees,
+            # since the shared native inventory omits independent CI leaf bytes.
+            unaffected = native_unchanged and all(
+                path in trusted_tree and all(tree.get(path) == trusted_tree[path]
+                    for tree in (base_tree, candidate_tree))
+                for path in _AFFECTED_SUBJECTS[name])
+            reason = 'unchanged-reviewed-fixed-subjects' if unaffected else 'fixed-subject-or-reader-not-reviewed'
         if unaffected:
             omitted.append(name)
         else:
