@@ -50,6 +50,8 @@ REVIEWED_SANDBOX_CI_PATHS = (
     "tools/test-evidence/postmerge.py",
     "tools/repository-checks/workflows/producers/repository-checks.yml",
     "tools/repository-checks/workflows/producers/parent-qualification.yml",
+    "tools/repository-checks/workflows/producers/protected-project-tests-android-platform.yml",
+    "tools/repository-checks/workflows/producers/parent-qualification-android-platform.yml",
 )
 
 
@@ -248,6 +250,8 @@ class ImmutableInputTests(unittest.TestCase):
         for relative in (".github/shared-sandbox-extra.json",
                          ".github/workflows/shared-sandbox-host-extra.yml",
                          "tools/repository-checks/workflows/shared-sandbox-extra.yml",
+                         "tools/repository-checks/workflows/producers/protected-project-tests-android-platform-extra.yml",
+                         "tools/repository-checks/workflows/producers/parent-qualification-android-platform-extra.yml",
                          "tools/test-evidence/sandbox_extra.py",
                          "tools/test-evidence/sandbox_native.h"):
             with self.subTest(path=relative):

@@ -86,6 +86,8 @@ INDEPENDENT_HOST_PATHS = frozenset({
     "tools/repository-checks/workflows/producers/protected-project-tests.yml",
     "tools/repository-checks/workflows/producers/repository-checks.yml",
     "tools/repository-checks/workflows/producers/parent-qualification.yml",
+    "tools/repository-checks/workflows/producers/protected-project-tests-android-platform.yml",
+    "tools/repository-checks/workflows/producers/parent-qualification-android-platform.yml",
     ".github/workflows/android-required.yml",
     ".github/android-owner-transfer.json",
     "tests/android-owner-transfer-test.py",

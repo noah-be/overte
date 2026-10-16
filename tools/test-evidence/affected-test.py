@@ -281,6 +281,8 @@ class ShippingPolicyTests(unittest.TestCase):
             'tools/repository-checks/workflows/producers/legacy/parent-qualification-metadata-v1.yml',
             'tools/repository-checks/workflows/producers/legacy/protected-project-tests-metadata-v1.yml',
             'tools/repository-checks/workflows/producers/legacy/repository-checks-metadata-v1.yml',
+            'tools/repository-checks/workflows/producers/protected-project-tests-android-platform.yml',
+            'tools/repository-checks/workflows/producers/parent-qualification-android-platform.yml',
         }
         self.assertTrue(paths <= set(json.loads(raw)['suites']['device-control-plane-full']['native_independent_paths']))
         candidate=deepcopy(base)

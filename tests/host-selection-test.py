@@ -796,7 +796,9 @@ class HostSelectionTests(unittest.TestCase):
                  'tools/test-evidence/runtime-ci-test.py', 'tools/test-evidence/ci-integration-test.py',
                  'tools/repository-checks/workflows/producers/protected-project-tests.yml',
                  'tools/repository-checks/workflows/producers/repository-checks.yml',
-                 'tools/repository-checks/workflows/producers/parent-qualification.yml')
+                 'tools/repository-checks/workflows/producers/parent-qualification.yml',
+                 'tools/repository-checks/workflows/producers/protected-project-tests-android-platform.yml',
+                 'tools/repository-checks/workflows/producers/parent-qualification-android-platform.yml')
         selected = self.selected(paths)
         self.assertEqual(set(selected['suites']), self.ci_quick)
         self.assertFalse(selected['include_platform'])
@@ -809,7 +811,9 @@ class HostSelectionTests(unittest.TestCase):
                      'tools/test-evidence/runtime_ci.py',
                      'tools/repository-checks/workflows/producers/protected-project-tests.yml',
                      'tools/repository-checks/workflows/producers/repository-checks.yml',
-                     'tools/repository-checks/workflows/producers/parent-qualification.yml'):
+                     'tools/repository-checks/workflows/producers/parent-qualification.yml',
+                     'tools/repository-checks/workflows/producers/protected-project-tests-android-platform.yml',
+                     'tools/repository-checks/workflows/producers/parent-qualification-android-platform.yml'):
             candidate = copy_git_tree(self.tree)
             candidate[path] = {'mode': '100644', 'type': 'blob', 'sha': 'b' * 40}
             with self.subTest(controller=path):
