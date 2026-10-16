@@ -21,6 +21,8 @@ jobs:
           test "$GITHUB_REF" = refs/heads/main
           test "$GITHUB_WORKFLOW_REF" = 'noah-l-frank/overte/.github/workflows/shared-sandbox-host-diagnostic.yml@refs/heads/main'
           test "$GITHUB_WORKFLOW_SHA" = "$GITHUB_SHA"
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$ImageOS" = ubuntu24
       - name: Check out only the immutable trusted diagnostic source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -55,7 +57,7 @@ jobs:
           sudo -n /usr/sbin/useradd --system --no-create-home --shell /usr/sbin/nologin overte-ci-qualification
           echo 'created=true' >> "$GITHUB_OUTPUT"
           # Match the existing disposable Ubuntu host namespace prerequisite.
-          # No packages, toolchains, candidate code or product builds are fetched.
+          # No application toolchains, candidate code or product builds are fetched.
           sudo -n /usr/sbin/sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Measure real boundary attacks and kernel-owned scope cleanup
         run: |
