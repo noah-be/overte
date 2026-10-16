@@ -1,12 +1,44 @@
 name: Automatic branch cleanup
 
-# Only the trusted main checkout supplies executable code. The PR event is a
-# wake-up signal; candidate trees and downloaded artifacts are never executed.
-on: # zizmor: ignore[dangerous-triggers] Merged-PR notification runs only trusted main cleanup code.
+# Only trusted main supplies executable code. Closed PRs assess current work;
+# finite push/manual completions cheaply retry current closed-PR heads after CI holds.
+# Candidate trees and downloaded artifacts are never executed.
+on: # zizmor: ignore[dangerous-triggers] PR and finite completion notifications run only trusted main cleanup code.
   pull_request_target:
     types: [closed]
+  workflow_run:
+    workflows:
+      - Android tests
+      - Android VR integration tests
+      - Branch synchronization
+      - Owned atomic settings diagnostic
+      - Direct browser client
+      - CodeQL
+      - Dependency release policy
+      - Documentation checks
+      - iOS bootstrap
+      - Parent qualification
+      - Shared project CI
+      - Workflow security
+      - Shared sandbox host diagnostic
+      - Android Phone trusted build
+      - Android Phone emulator acceptance
+      - Android Phone release candidate
+      - Browser client
+      - Issue intake
+      - Prepare native baseline
+      - Pico 4 trusted build
+      - Pico 4 device acceptance
+      - Pico 4 release candidate
+      - Repository checks
+      - Repository Health Doctor
+      - Sync test reuse
+      - Sync validation
+    types: [completed]
+    branches: [main, android-main, android-phone, android-vr, android-vr-pico, apple-main, apple-ios]
   schedule:
-    - cron: "*/5 * * * *"
+    # Offset from the documented top-of-hour scheduler load; still four per hour.
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
     inputs:
       mode:
@@ -30,12 +62,19 @@ jobs:
     if: >-
       github.repository == 'noah-l-frank/overte' &&
       github.repository_id == '1319052603' &&
-      (github.event_name != 'pull_request_target' || github.event.pull_request.merged == true)
+      github.workflow_ref == 'noah-l-frank/overte/.github/workflows/branch-cleanup.yml@refs/heads/main' &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.event == 'push' ||
+       (github.event.workflow_run.event == 'workflow_dispatch' &&
+        ((github.event.workflow_run.workflow_id == 386334598 && github.event.workflow_run.head_branch == 'main') ||
+         contains(fromJSON('[330869250,330869251,330556274,340529251,372770820,371274083,373796501,359712487,331326815,357615945,367914894,330643004,330644216,330643006,330551824,366778169,350430503,350930894,350930895]'), github.event.workflow_run.workflow_id))))
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    env:
+      BRANCH_CLEANUP_IMMUTABLE_CACHE: '1'
     permissions:
       contents: write
       actions: read
+      checks: read
       deployments: read
       pull-requests: read
       issues: read
@@ -54,11 +93,76 @@ jobs:
           sparse-checkout-cone-mode: false
           sparse-checkout: |
             /tools/branch-cleanup/
+            /tools/branch-policy/check.py
             /.github/branch-cleanup.json
             /.github/branch-policy.json
+            /.github/repository-checks.json
+
+      - name: Check current closed-PR hints after an authenticated completion
+        id: retry
+        if: github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/branch-cleanup"
+          python3 tools/branch-cleanup/cleanup.py retry \
+            --event "$GITHUB_EVENT_PATH" --output "$GITHUB_OUTPUT" \
+            --report "$RUNNER_TEMP/branch-cleanup/retry.json"
+
+      - name: Create repository-scoped history integration token
+        id: history-token
+        if: >-
+          github.event_name != 'workflow_run' &&
+          vars.BRANCH_SYNC_APP_CLIENT_ID != '' &&
+          (github.event_name != 'workflow_dispatch' || inputs.mode == 'apply')
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
+        with:
+          client-id: ${{ vars.BRANCH_SYNC_APP_CLIENT_ID }}
+          private-key: ${{ secrets.BRANCH_SYNC_APP_PRIVATE_KEY }}
+          owner: noah-l-frank
+          repositories: overte
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Assess adopted work and maintain checked history PRs
+        id: history
+        if: github.event_name != 'workflow_run'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ADOPTION_APP_TOKEN: ${{ steps.history-token.outputs.token }}
+          ADOPTION_APP_SLUG: ${{ steps.history-token.outputs.app-slug }}
+          ADOPTION_APPLY: ${{ github.event_name != 'workflow_dispatch' || inputs.mode == 'apply' }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/branch-cleanup"
+          mode_args=()
+          if [[ "$ADOPTION_APPLY" == true ]]; then
+            mode_args=(--apply)
+          fi
+          python3 tools/branch-cleanup/adoption.py \
+            --report "$RUNNER_TEMP/branch-cleanup/adoption.json" "${mode_args[@]}"
+
+      - name: Refresh trusted main after a history-only main merge
+        if: steps.history.outputs.main_advanced == 'true' && steps.history.outputs.deferred != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: noah-l-frank/overte
+          ref: main
+          persist-credentials: false
+          fetch-depth: 1
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /tools/branch-cleanup/
+            /tools/branch-policy/check.py
+            /.github/branch-cleanup.json
+            /.github/branch-policy.json
+            /.github/repository-checks.json
 
       - name: Plan from current GitHub state
         id: plan
+        if: steps.history.outputs.deferred != 'true' && (github.event_name != 'workflow_run' || steps.retry.outputs.retry == 'true')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -123,5 +227,7 @@ jobs:
           path: |
             ${{ runner.temp }}/branch-cleanup/plan.json
             ${{ runner.temp }}/branch-cleanup/report.json
+            ${{ runner.temp }}/branch-cleanup/adoption.json
+            ${{ runner.temp }}/branch-cleanup/retry.json
           if-no-files-found: warn
           retention-days: 14

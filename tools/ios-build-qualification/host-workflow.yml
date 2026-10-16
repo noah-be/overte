@@ -1,0 +1,202 @@
+name: iOS device build qualification
+on:
+  pull_request:
+    branches:
+    - apple-ios
+    types:
+    - opened
+    - reopened
+    - synchronize
+    - edited
+    - ready_for_review
+permissions:
+  contents: read
+concurrency:
+  group: ios-device-qualification-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+jobs:
+  route:
+    name: Select iOS application qualification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    outputs:
+      required: ${{ steps.plan.outputs.required }}
+      host_required: ${{ steps.plan.outputs.host_required }}
+      generation: ${{ steps.plan.outputs.generation }}
+      selection: ${{ steps.plan.outputs.selection }}
+      host_inputs: ${{ steps.plan.outputs.host_inputs }}
+      source: ${{ steps.plan.outputs.source }}
+      tree: ${{ steps.plan.outputs.tree }}
+      base: ${{ steps.plan.outputs.base }}
+      head: ${{ steps.plan.outputs.head }}
+      reason: ${{ steps.plan.outputs.reason }}
+    steps:
+    - name: Check out trusted verifier
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.event.repository.default_branch }}
+        path: trusted
+        persist-credentials: false
+    - name: Read exact candidate tree
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        path: candidate
+        fetch-depth: 2
+        persist-credentials: false
+    - name: Select qualification from exact merge candidate
+      id: plan
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: python3 trusted/tools/ios-build-qualification/check.py route --event "$GITHUB_EVENT_PATH" --candidate
+        candidate --sha "$GITHUB_SHA" --output "$GITHUB_OUTPUT"
+    - name: Inspect prior failed iOS build before compiling
+      if: steps.plan.outputs.required == 'true'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: python3 trusted/tools/ios-build-qualification/history.py status --output "$RUNNER_TEMP/ios-build-history.json"
+    - name: Retain prior build diagnosis
+      if: steps.plan.outputs.required == 'true'
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      with:
+        name: ios-prior-build-diagnosis-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/ios-build-history.json
+        if-no-files-found: error
+        retention-days: 14
+  host:
+    name: iOS host contracts
+    needs: route
+    if: needs.route.outputs.host_required == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+    - name: Check out exact merge candidate
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.sha }}
+        path: candidate
+        fetch-depth: 2
+        persist-credentials: false
+    - name: Check out trusted host owner
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.event.repository.default_branch }}
+        path: trusted
+        persist-credentials: false
+    - name: Set up the required host Node runtime
+      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+      with:
+        node-version: 22
+    - name: Install host contract dependencies
+      run: |-
+        sudo apt-get update -qq
+        sudo apt-get install -y --no-install-recommends qt6-base-dev pkg-config libvulkan-dev libglm-dev qt6-declarative-dev qt6-declarative-dev-tools qt6-webchannel-dev python3-venv \
+          qml6-module-qtqml qml6-module-qtqml-models qml6-module-qtqml-workerscript \
+          qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts \
+          qml6-module-qtquick-templates qml6-module-qtquick-window \
+          qml6-module-qt-labs-settings qml6-module-qt-labs-folderlistmodel qml6-module-qtquick-dialogs qml6-module-qttest
+    - name: Prepare isolated host evidence validators
+      env:
+        GH_TOKEN: ""
+        GITHUB_TOKEN: ""
+      run: |-
+        python3 -m venv build/ios-host-tests-env
+        build/ios-host-tests-env/bin/python -m pip install --disable-pip-version-check -r candidate/tests/requirements-host.txt
+        echo "$GITHUB_WORKSPACE/build/ios-host-tests-env/bin" >> "$GITHUB_PATH"
+    - name: Run iOS host contracts
+      env:
+        OVERTE_QML_TEST_RUNNER: /usr/lib/qt6/bin/qmltestrunner
+        OVERTE_HOST_TEST_NETWORK_RUNNER: ${{ github.workspace }}/candidate/ios/ci/host-test-network.sh
+      run: python3 trusted/tools/ios-build-qualification/host.py run --event "$GITHUB_EVENT_PATH" --candidate candidate --sha "$GITHUB_SHA"
+  qt:
+    needs:
+    - route
+    - host
+    if: needs.route.outputs.required == 'true'
+    uses: ./.github/workflows/ios-qt-source.yml
+    permissions:
+      contents: read
+      actions: write
+    with:
+      preserve_reusable_data: true
+  client:
+    needs:
+    - route
+    - host
+    - qt
+    if: needs.route.outputs.required == 'true'
+    uses: ./.github/workflows/ios-integrated.yml
+    permissions:
+      contents: read
+      actions: write
+    with:
+      validated_host_contracts_sha: ${{ needs.route.outputs.source }}
+      macos_runner: macos-26
+      preserve_reusable_data: true
+      qt_host_cache_key: ${{ needs.qt.outputs.qt_host_cache_key }}
+      qt_ios_cache_key: ${{ needs.qt.outputs.qt_ios_cache_key }}
+      qt_host_artifact_prefix: ${{ needs.qt.outputs.qt_host_artifact_prefix }}
+      qt_ios_artifact_prefix: ${{ needs.qt.outputs.qt_ios_artifact_prefix }}
+      e2e_test_build: true
+      e2e_bundle_id: org.overte.interface.e2e
+  ios-device-build:
+    name: ios-device-build
+    if: always()
+    needs:
+    - route
+    - host
+    - qt
+    - client
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    steps:
+    - name: Check out trusted verifier
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.event.repository.default_branch }}
+        path: trusted
+        persist-credentials: false
+    - name: Read exact independent candidate metadata
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.sha }}
+        path: candidate
+        fetch-depth: 2
+        persist-credentials: false
+        sparse-checkout: .github
+    - name: Download this run's physical-device IPA
+      if: needs.route.outputs.required == 'true' && needs.client.result == 'success'
+      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+      with:
+        name: ${{ github.run_number }}-overte-ios-integrated-e2e-unsigned-${{ github.run_id }}
+        path: qualification-artifact
+    - name: Read actual build job results
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: gh api --paginate "repos/noah-l-frank/overte/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" --jq ".jobs[]"
+        | jq -s . > "$RUNNER_TEMP/ios-build-jobs.json"
+    - name: Read authenticated current attempt metadata
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: gh api "repos/noah-l-frank/overte/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" > "$RUNNER_TEMP/ios-build-run.json"
+    - name: Require selected jobs and verify exact IPA provenance
+      env:
+        GH_TOKEN: ${{ github.token }}
+        QUALIFICATION_NEEDS: ${{ toJSON(needs) }}
+      run: |-
+        python3 -c 'import os,pathlib; pathlib.Path(os.environ["RUNNER_TEMP"],"ios-build-needs.json").write_text(os.environ["QUALIFICATION_NEEDS"])'
+        python3 trusted/tools/ios-build-qualification/check.py verify --event "$GITHUB_EVENT_PATH" --candidate candidate --run-metadata "$RUNNER_TEMP/ios-build-run.json" --needs "$RUNNER_TEMP/ios-build-needs.json" --jobs "$RUNNER_TEMP/ios-build-jobs.json" --source "$GITHUB_SHA" --build-number "$GITHUB_RUN_NUMBER" --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" --artifacts qualification-artifact --output qualification/ios-build-evidence.json
+    - name: Upload qualified build evidence
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      with:
+        name: ios-build-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+        path: qualification/ios-build-evidence.json
+        if-no-files-found: error
+        retention-days: 30

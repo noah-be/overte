@@ -531,7 +531,7 @@ class WorkflowContractTests(unittest.TestCase):
 
     def test_yaml_shape_schedule_dispatch_and_pr_paths(self):
         self.assertRegex(self.source, r"(?m)^name: Repository Health Doctor$")
-        self.assertIn('cron: "17 2,8,14,20 * * *"', self.source)
+        self.assertIn('cron: "17 0,6,12,18 * * *"', self.source)
         self.assertIn('timezone: "Europe/Berlin"', self.source)
         self.assertIn('--when-idle --event "$HEALTH_EVENT"', self.source)
         self.assertIn("workflow_dispatch:", self.source)
