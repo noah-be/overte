@@ -908,8 +908,12 @@ def native_parent_evidence(api, config, request, now=None):
         tree_sha, parent = controller.full_tree(adapter, request.parent_sha)
         _, previous = controller.full_tree(adapter, binding['base_sha'])
         policy = controller.producer._host_policy()
-        A.require(policy.package_policy().validate_tree_wiring(parent) in controller.GENERATIONS
-            and parent.get('.github/workflows/parent-qualification.yml') == local.get(controller.TEMPLATE),
+        generation=policy.package_policy().validate_tree_wiring(parent)
+        future=generation==controller.producer.PLATFORM_GENERATION
+        parent_template=controller.producer.PLATFORM_PARENT_TEMPLATE if future else controller.TEMPLATE
+        project_template=controller.producer.project_template(policy,parent)
+        A.require(generation in controller.GENERATIONS
+            and parent.get('.github/workflows/parent-qualification.yml') == local.get(parent_template),
             'native parent workflow is not a complete trusted consumer recipe')
         source = controller.integrated_controller(policy, previous, parent, local, request.parent, ROOT)
         registry = controller.inputs.load_registry(ROOT / '.github/test-suites.json')
@@ -922,9 +926,14 @@ def native_parent_evidence(api, config, request, now=None):
             root=ROOT, target=request.parent, read_blob=read_blob)
         selected = profile['selection']
         affected = controller._affected_receipt_selection(profile, registry, request.parent)
-        A.require(controller.source_admission.shared_platform_supported(selected, request.parent,
-            parent.get(controller.source_admission.PROFILE)), 'native parent product ownership is unavailable')
-        plan, api_policy = controller._policy(policy, registry, binding, source, adapter, ROOT, selected)
+        partition=controller.producer.platform_partition(policy,profile,registry,parent,previous,local,
+            target=request.parent,root=ROOT,read_blob=read_blob)
+        if partition is None:
+            A.require(controller.source_admission.shared_platform_supported(selected, request.parent,
+                parent.get(controller.source_admission.PROFILE)), 'native parent product ownership is unavailable')
+        owner=controller.producer.common_owner(profile,partition)
+        plan, api_policy = controller._policy(policy, registry, binding, source, adapter, ROOT, selected,
+            common_owner=owner,template=project_template)
         snapshot = adapter.capture_integrated(push_id, plan, api_policy, now=now)
         A.require(snapshot.references == references, 'native parent integration changed before proof selection')
         original_tree, original = controller.full_tree(adapter, snapshot.binding['merge_sha'])
@@ -932,21 +941,28 @@ def native_parent_evidence(api, config, request, now=None):
             and controller.producer.selection_profile(policy, registry, original, previous, context,
                 root=ROOT, target=request.parent, read_blob=read_blob) == profile,
             'native original source differs from exact parent inputs')
+        A.require(controller.producer.platform_partition(policy,profile,registry,original,previous,local,
+            target=request.parent,root=ROOT,read_blob=read_blob)==partition,
+            'native original and current parent platform ownership differs')
         authority = P.select_authority(snapshot.observations, snapshot.binding, plan, api_policy.producer,
             inventory_complete=snapshot.inventory_complete, now=now)
         A.require(authority['state'] == 'proof-required', 'native parent original producer is unresolved')
         observation = next(item for item in snapshot.observations if item.run.run_id == authority['run_id'])
+        platform_observation=(controller.original_platform_owner(adapter,observation.run,partition,now=clock())
+            if partition is not None else None)
         raw, facts = adapter._artifact(observation.run, 'aggregate',
             snapshot.artifact_inventories[authority['run_id']], now, snapshot.binding['head_sha'])
         aggregate = P.read_artifact(raw, 'aggregate', facts, observation.run, now=now)
         receipt = aggregate.get('results', {}).get('shared-host', {}).get('receipt')
-        A.require(type(receipt) is dict and receipt.get('schema') == 3, 'native parent schema3 receipt unavailable')
+        A.require(type(receipt) is dict and receipt.get('schema') == api_policy.producer.required_execution_schema,
+            'native parent versioned original receipt unavailable')
         git_context = controller.producer.expected_git_context(adapter, snapshot.binding)
         controller.execution.validate_receipt(receipt, registry, original,
             require_all=profile['profile'] != controller.ci_profile.PROFILE and not affected,
             expected_git_context=git_context)
         A.require(receipt['requested_suites'] == selected['suites']
-            and receipt['include_platform'] == selected['include_platform'], 'native parent selected owner differs')
+            and receipt['include_platform'] == owner['include_platform']
+            and (partition is None or receipt['platform_results']=={}), 'native parent selected owner differs')
         environment = receipt['environment']
         if profile['profile'] == controller.ci_profile.PROFILE:
             admission = controller.runtime_ci.validate_environment(environment, aggregate.get('qualified_at'),
@@ -955,8 +971,13 @@ def native_parent_evidence(api, config, request, now=None):
         else:
             admission = controller.attested.validate_environment(environment, aggregate.get('qualified_at'),
                 aggregate.get('expires_at'), now, root=ROOT, isolated=True)
-        shared = P.SharedContext(registry, original, environment, snapshot.binding['merge_sha'], tree_sha, git_context)
+        retained=controller.producer.retained_receipt_source(receipt,snapshot.binding,adapter,registry,selected,
+            authority['run_id'],root=ROOT)
+        shared = P.SharedContext(registry, original, environment, snapshot.binding['merge_sha'], tree_sha, git_context,retained)
         verified = adapter.verify_integrated(push_id, plan, api_policy, {'shared-host': shared}, clock=clock)
+        if partition is not None:
+            A.require(controller.original_platform_owner(adapter,observation.run,partition,now=clock())==platform_observation,
+                'native original Android platform job changed during common proof verification')
         A.require(verified['integration'] == references['integration']
             and verified['receipt_sha256'] == hashlib.sha256(P.canonical(receipt)).hexdigest()
             and verified['aggregate_digest'] == aggregate['aggregate_digest']
@@ -964,6 +985,9 @@ def native_parent_evidence(api, config, request, now=None):
                 <= int(config['evidence_max_age_hours']) * 3600,
             'native parent whole proof or allowed lifetime changed')
         _, candidate = controller.full_tree(adapter, request.merge_sha)
+        A.require(candidate.get(controller.source_admission.PROFILE)==controller.source_admission.ordinary(
+            controller.source_admission.TARGET_PROFILES[request.base]),
+            'current child platform declaration needs its actual known owner')
         A.require(all(entry['mode'] in {'100644', '100755'} and entry['type'] == 'blob'
             for tree in (parent, candidate) for entry in tree.values()), 'native parent reuse requires ordinary complete inputs')
         candidate_plan = controller.inputs.plan_reuse(registry, parent, candidate, receipt['results'], environment, environment)
@@ -971,6 +995,10 @@ def native_parent_evidence(api, config, request, now=None):
         A.require(final == (child_binding, child_refs, local)
             and _native_parent_run(controller, adapter, request, clock()) == (push_id, push_inventory)
             and controller.integrated_controller(policy, previous, parent, local, request.parent, ROOT) == source
+            and controller.producer.retained_receipt_source(receipt,snapshot.binding,adapter,registry,selected,authority['run_id'],root=ROOT)==retained
+            and controller.producer.platform_partition(policy,profile,registry,parent,previous,local,
+                target=request.parent,root=ROOT,read_blob=read_blob)==partition
+            and (partition is None or controller.original_platform_owner(adapter,observation.run,partition,now=clock())==platform_observation)
             and clock() < P._time(verified['expires_at']),
             'native parent/default/source context changed before completion')
         A.require(bool(candidate_plan['reused']), 'native parent has no matching child suite source')
@@ -978,7 +1006,9 @@ def native_parent_evidence(api, config, request, now=None):
             'parent_tree': tree_sha, 'original_commit': snapshot.binding['merge_sha'], 'original_git_context': git_context,
             'qualified_at': verified['qualified_at'], 'expires_at': verified['expires_at'],
             'environment': environment, 'results': {'conclusion': 'success', 'suites': receipt['results']},
-            'original_proof': verified, 'runtime_admission': admission, 'candidate_plan': candidate_plan,
+            'child_platform_profile':candidate[controller.source_admission.PROFILE], 'platform_reused':False,
+            'original_platform_observation':platform_observation,
+            'original_proof': verified, 'original_protected_source':retained, 'runtime_admission': admission, 'candidate_plan': candidate_plan,
             'parent_inputs': parent, 'candidate_inputs': candidate})
     except EvidenceError:
         raise
