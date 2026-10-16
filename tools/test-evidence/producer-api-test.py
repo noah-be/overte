@@ -1580,13 +1580,17 @@ class MainConsumerSourceTests(unittest.TestCase):
         current={g['name']:g['workflows'] for g in manifest}
         blob=subprocess.check_output(['git','hash-object','--stdin'],input=(C.ROOT/C.TEMPLATE).read_bytes()).decode().strip()
         for before,after in (('android-owned-npm5-sync-ci-v1','postmerge-original-e-v1'),
-                              ('protected-shared-producer-v1','protected-producer-postmerge-original-e-v1')):
+                              ('protected-shared-producer-v1','protected-producer-postmerge-original-e-v1'),
+                              ('protected-shared-producer-v1','protected-producer-ci37-v1')):
             self.assertEqual(set(current[after]),set(current[before]))
             changed=['.github/workflows/parent-qualification.yml']
-            if after=='protected-producer-postmerge-original-e-v1':
+            if after in {'protected-producer-postmerge-original-e-v1','protected-producer-ci37-v1'}:
                 changed.insert(0,'.github/workflows/project-tests.yml')
-                project_blob=subprocess.check_output(['git','hash-object','--stdin'],
-                    input=(C.ROOT/C.producer.TEMPLATE).read_bytes()).decode().strip()
+                source = (C.ROOT/'tools/repository-checks/workflows/producers/legacy/protected-project-tests-postmerge-v1.yml'
+                          if after=='protected-producer-postmerge-original-e-v1' else C.ROOT/C.producer.TEMPLATE)
+                project_blob=subprocess.check_output(['git','hash-object','--stdin'],input=source.read_bytes()).decode().strip()
+                if after=='protected-producer-postmerge-original-e-v1':
+                    self.assertEqual(project_blob,'861db7b76a11b9b8772e91cb24ec7cb9d918e339')
                 self.assertEqual(current[after]['.github/workflows/project-tests.yml']['sha'],project_blob)
             self.assertEqual([p for p in current[after] if current[after][p]!=current[before][p]],changed)
             self.assertEqual(current[after]['.github/workflows/parent-qualification.yml']['sha'],blob)

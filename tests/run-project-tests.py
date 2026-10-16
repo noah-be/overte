@@ -342,12 +342,13 @@ def run_suites(args: argparse.Namespace, suites: list[Suite], cancelled: list[in
             command.extend(("--timeout-seconds", str(timeout)))
         if suite.name == "native-ctest" and args.native_build_dir:
             command.append(str(args.native_build_dir))
+        print(f"RUNNING {suite.name}", flush=True)
         started = time.monotonic()
         returncode, output, message = run_command(command, timeout, cancelled)
         duration = time.monotonic() - started
         status = "passed" if returncode == 0 else "failed"
         message = message or ("" if returncode == 0 else f"exit code {returncode}")
-        print(f"{status.upper():7} {suite.name:<24} {duration:7.3f}s")
+        print(f"{status.upper():7} {suite.name:<24} {duration:7.3f}s", flush=True)
         if status == "failed":
             print(output.rstrip(), file=sys.stderr)
         result = dict(name=suite.name, status=status, message=message, output=output, time=duration)
@@ -360,10 +361,10 @@ def run_suites(args: argparse.Namespace, suites: list[Suite], cancelled: list[in
     elapsed = time.monotonic() - overall_started
     if args.junit:
         write_junit(args.junit, results, elapsed)
-        print(f"JUnit: {args.junit}")
+        print(f"JUnit: {args.junit}", flush=True)
     passed = sum(item["status"] == "passed" for item in results)
     failed = sum(item["status"] == "failed" for item in results)
-    print(f"Overte project suite: {passed} passed, {failed} failed ({elapsed:.2f}s)")
+    print(f"Overte project suite: {passed} passed, {failed} failed ({elapsed:.2f}s)", flush=True)
     return 128 + cancelled[0] if cancelled else 1 if failed else 0
 
 

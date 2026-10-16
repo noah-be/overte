@@ -305,7 +305,9 @@ class ProtectedProducerOrderingTests(unittest.TestCase):
         raw = Path('/raw-actions-checkout')
         environment = {'SUDO_UID': '1001', 'GITHUB_SHA': 'a'*40, 'ImageOS': 'ubuntu24',
                        'ImageVersion': 'fixture', 'RUNNER_ENVIRONMENT': 'github-hosted'}
-        context = {'binding': {'merge_sha': 'a'*40}, 'run_id': 17, 'registry': {'suites': {}}}
+        context = {'binding': {'merge_sha': 'a'*40}, 'run_id': 17, 'registry': {'suites': {}},
+                   'profile': producer.FULL_PROFILE, 'profile_binding': None,
+                   'selected': {'suites': [], 'full_host': True, 'include_platform': True}}
         snapshot = {'digest': 'snapshot-fixture', 'git_context': {'fixture': True}}
         destination = []
         def materialize(revision, path, *, repository):
