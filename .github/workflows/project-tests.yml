@@ -140,8 +140,7 @@ jobs:
       id: host
       env:
         EXPECTED_PLAN: ${{ needs.route.outputs.package_plan }}
-      run: python3 trusted/tools/repository-checks/host_selection.py --candidate candidate
-        --event "$GITHUB_EVENT_PATH" --sha "$GITHUB_SHA" --expected-plan "$EXPECTED_PLAN"
+      run: python3 trusted/tools/repository-checks/android_handoff.py --candidate candidate
         --select-only --output "$GITHUB_OUTPUT"
     - name: Install QML and portable C++ contract prerequisites
       if: steps.host.outputs.full_host == 'true'
@@ -176,9 +175,9 @@ jobs:
         EXPECTED_PLAN: ${{ needs.route.outputs.package_plan }}
       run: |
         set -euo pipefail
-        build/host-tests-env/bin/python trusted/tools/repository-checks/host_selection.py \
-          --candidate candidate --event "$GITHUB_EVENT_PATH" --sha "$GITHUB_SHA" \
-          --expected-plan "$EXPECTED_PLAN" --junit build/test-results/project-tests.xml
+        build/host-tests-env/bin/python trusted/tools/repository-checks/android_handoff.py \
+          --candidate candidate --junit build/test-results/project-tests.xml \
+          --receipt build/test-results/owned-project-execution.json
     - name: Upload test report
       if: always()
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
@@ -186,6 +185,7 @@ jobs:
         name: project-test-results
         path: |
           build/test-results/project-tests.xml
+          build/test-results/owned-project-execution.json
           candidate/build/test-results/device-e2e-control-plane.xml
           candidate/build/test-results/device-self-tests.json
         if-no-files-found: warn

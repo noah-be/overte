@@ -1,3 +1,4 @@
+# Dormant successor; protect exact source admission before workflow deployment.
 name: CodeQL
 
 on:
@@ -6,6 +7,7 @@ on:
     paths-ignore:
       - "**/*.md"
   pull_request:
+    types: [opened, reopened, synchronize, edited]
     branches: [main, apple-main, apple-ios, android-main, android-phone, android-vr, android-vr-pico]
   schedule:
     - cron: "17 3 * * 4"
@@ -14,7 +16,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: codeql-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # A text edit must never cancel current qualification or replace its result.
+  group: codeql-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body) && github.run_id || 'qualification' }}
   cancel-in-progress: true
 
 jobs:
@@ -23,6 +26,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
+      metadata_only: ${{ steps.event.outputs.metadata_only }}
       languages: ${{ steps.plan.outputs.languages }}
       scan: ${{ steps.plan.outputs.scan }}
     steps:
@@ -36,7 +40,14 @@ jobs:
             tools/repository-checks
             tools/test-evidence
 
+      - name: Recognize only complete title or body edit events
+        id: event
+        run: >-
+          python3 trusted/tools/repository-checks/check.py metadata-event
+          --event "$GITHUB_EVENT_PATH" --event-name "$GITHUB_EVENT_NAME" --output "$GITHUB_OUTPUT"
+
       - name: Read the exact candidate inventory
+        if: steps.event.outputs.metadata_only != 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: candidate
@@ -45,6 +56,7 @@ jobs:
           sparse-checkout: .github
 
       - name: Select complete affected language analyses
+        if: steps.event.outputs.metadata_only != 'true'
         id: plan
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
@@ -69,9 +81,9 @@ jobs:
           PY
 
   analyze:
-    name: CodeQL (${{ matrix.language }})
+    name: ${{ needs.select.result == 'success' && needs.select.outputs.metadata_only == 'true' && 'CodeQL (metadata unchanged)' || format('CodeQL ({0})', matrix.language) }}
     needs: select
-    if: needs.select.outputs.scan == 'true'
+    if: needs.select.outputs.metadata_only != 'true' && needs.select.outputs.scan == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -100,8 +112,8 @@ jobs:
           category: "/language:${{ matrix.language }}"
 
   codeql-checks:
-    name: codeql-security-results
-    if: always()
+    name: ${{ needs.select.result == 'success' && needs.select.outputs.metadata_only == 'true' && 'codeql-security-results (metadata unchanged)' || 'codeql-security-results' }}
+    if: always() && (needs.select.result != 'success' || needs.select.outputs.metadata_only != 'true')
     needs: [select, analyze]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
