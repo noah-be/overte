@@ -63,7 +63,7 @@ def tool_dependency_projects(paths: list[str], regular: bool) -> tuple[str, ...]
 
 
 def metadata_edit(event: dict, event_name: str) -> bool:
-    """Recognize an event-only omission, never a successful qualification.
+    """Recognize a PR text edit, without authorizing qualification omission.
 
     GitHub reports retargets in changes.base. Admit only the complete known
     title/body shapes; a future edit field or incomplete event keeps the normal
@@ -100,7 +100,14 @@ def metadata_edit(event: dict, event_name: str) -> bool:
 
 
 def classify_metadata_event(path: Path, event_name: str) -> dict:
-    """Malformed metadata is normal qualification, including duplicate JSON."""
+    """Classify text edits while retaining normal qualification without proof.
+
+    A source-head check can remain green when the trusted default-branch policy
+    changes without changing a child PR's base or head. Event shape therefore
+    cannot prove that the current merge candidate and policy were qualified.
+    Omission must remain unavailable until an authenticated qualification owner
+    verifies that complete context; this classifier never supplies such proof.
+    """
     def unique(pairs):
         result = {}
         for key, value in pairs:
@@ -117,7 +124,7 @@ def classify_metadata_event(path: Path, event_name: str) -> dict:
     except (ValueError, OSError, TypeError, AttributeError):
         metadata = False
     return {"kind": "pr-metadata-classification", "qualification": False,
-            "metadata_only": "true" if metadata else "false"}
+            "metadata_edit": metadata, "metadata_only": "false"}
 
 
 def configuration(root: Path = ROOT) -> tuple[dict, dict]:
