@@ -2058,6 +2058,11 @@ class NativeRetainedParentEvidenceTests(unittest.TestCase):
         self.addCleanup(holder.doCleanups);holder.setUp()
         source=holder.f if getattr(self,'ci_original',False) else holder
         self.source=source;self.root=source.root;self.registry=source.registry
+        # The real immutable fixture below is original protected default D,
+        # even when this suite runs from an Android child checkout. Its parent
+        # and current-child maps receive their independently pinned profiles.
+        self.assertEqual(C.source_admission.blob_id(
+            (self.root/C.source_admission.PROFILE).read_bytes()),C.source_admission.SHARED_PROFILE)
         if getattr(self,'ci_original',False):
             policy=json.loads((self.root/C.ci_profile.POLICY).read_bytes())
             policy['not_before']='2026-10-15T00:00:00Z'

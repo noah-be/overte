@@ -184,6 +184,10 @@ class AffectedProtectedAdmissionTests(unittest.TestCase):
                 required.update(row['path'] for row in inputs.selected_entries(
                     source,inputs._import_patterns(imports['roots'])))
         cls.base={path:dict(entry) for path,entry in source.items() if path in required}
+        # This complete synthetic schema1 repository models protected main,
+        # independently of the child checkout running this test. Android's
+        # actual 13/19-owner declarations remain covered by the target fixtures.
+        cls.base['tests/platform-profile.json']=deepcopy(inputs._AFFECTED_SHARED_PROFILE)
         graph['lookup_digest']=inputs.affected_lookup_digest(cls.base)
         native=graph['suites']['device-control-plane-full']
         native['reviewed_reader_digest']=inputs.device_reader_digest(cls.base,native['native_independent_paths'])
