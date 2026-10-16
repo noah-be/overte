@@ -396,7 +396,7 @@ class HostSelectionTests(unittest.TestCase):
         self.assertTrue(selected['full_host'])
 
     def test_exact_ci_admissions_do_not_waive_neighboring_tests_or_runtime_readers(self):
-        self.assertEqual(len(HOST.CI_ROLLOUT_PATHS),41)
+        self.assertEqual(len(HOST.CI_ROLLOUT_PATHS),42)
         for path in ('tools/test-evidence/new-reader.py','tests/project-suite-self-test-extra.py',
                      '.github/workflows/repository-checks-extra.yml'):
             self.assertTrue(self.selected([path])['include_platform'],path)
