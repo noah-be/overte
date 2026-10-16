@@ -387,7 +387,7 @@ _METADATA_OUTER_RECIPES = {
 }
 
 
-def metadata_outer_jobs(adapter, run_id, binding, current, local, security, *, root=ROOT):
+def metadata_outer_jobs(adapter, run_id, binding, current, local, security, *, shared_receipt=None, root=ROOT):
     """Authenticate actual same-M checker jobs, independently of old PASS text."""
     run = adapter._object(f'actions/runs/{run_id}/attempts/1')
     jobs = adapter._pages(f'actions/runs/{run_id}/attempts/1/jobs', 'jobs')
@@ -405,6 +405,57 @@ def metadata_outer_jobs(adapter, run_id, binding, current, local, security, *, r
     A.require(not any(isinstance(job.get('name'), str) and
         job['name'].startswith(('direct-browser', 'browser-client')) and job.get('conclusion') != 'skipped'
         for job in jobs), 'metadata initial class cannot retain a browser owner')
+    delegated = set()
+    publication = None
+    generation = producer._host_policy().package_policy().validate_tree_wiring(current)
+    if generation == 'protected-producer-seven-target-ci-v1' and shared_receipt is not None:
+        # This is an observation used on both sides of verify_metadata's full
+        # adapter.verify call below. It never supplies standalone proof. Bind
+        # the conditional owner facts to the ACTUAL completed native whole hash;
+        # the unchanged original aggregate protocol authenticates its complete
+        # source, schema3 runtime, descriptor, jobs, results and artifacts.
+        A.require(type(shared_receipt) is dict and shared_receipt.get('schema') == 3
+            and shared_receipt.get('candidate_commit') == binding['merge_sha']
+            and shared_receipt.get('candidate_tree') == binding['merge_tree']
+            and shared_receipt.get('reusable') is True
+            and type(shared_receipt.get('requested_suites')) is list
+            and type(shared_receipt.get('results')) is dict
+            and set(shared_receipt['results']) == set(shared_receipt['requested_suites'])
+            and all(type(value) is dict and value.get('status') == 'passed'
+                    for value in shared_receipt['results'].values()),
+            'metadata delegated commands have no original successful schema3 receipt')
+        commitment = hashlib.sha256(P.canonical(shared_receipt)).hexdigest()
+        publishers = [job for job in jobs if isinstance(job.get('name'), str)
+                      and job['name'].startswith(producer.PUBLISH_PREFIX)]
+        A.require(len(publishers) == 1 and publishers[0]['name'] == producer.PUBLISH_PREFIX + commitment,
+                  'metadata delegated commands differ from the native whole receipt')
+        publication = adapter._job(publishers[0], run, 15368, final_name=publishers[0]['name'])
+        A.require(publication.status == 'completed' and publication.conclusion == 'success'
+            and publication.started_at is not None and publication.completed_at is not None,
+            'metadata delegated owner was not natively published')
+        delegated = set(shared_receipt['results'])
+    fallback = None
+    if generation == 'protected-producer-seven-target-ci-v1':
+        # Static analyzers remain parallel. The separate same-M unit job is
+        # required only when the original native shared owner lacks contracts.
+        matches = [job for job in jobs if job.get('name') == 'workflow-contracts']
+        A.require(len(matches) == 1, 'metadata original contract fallback job is missing or ambiguous')
+        job = matches[0]
+        fact = adapter._job(job, run, 15368, final_name='workflow-contracts')
+        expected = 'success' if security == 'true' and 'workflow-contracts' not in delegated else 'skipped'
+        A.require(fact.status == 'completed' and fact.conclusion == expected,
+                  'metadata original contract fallback did not follow its actual owner')
+        if expected == 'success':
+            labels = [step for step in job.get('steps', []) if type(step) is dict
+                      and step.get('name') == 'Verify remaining workflow contracts']
+            A.require(publication is not None
+                and P._time(publication.completed_at) <= P._time(fact.started_at)
+                and len(labels) == 1 and labels[0].get('status') == 'completed'
+                and labels[0].get('conclusion') == 'success'
+                and P._time(fact.started_at) <= P._time(labels[0].get('started_at'))
+                <= P._time(labels[0].get('completed_at')) <= P._time(fact.completed_at),
+                'metadata original fallback contract command did not succeed')
+        fallback = {'job': job, 'native': vars(fact)}
     retained = {}
     for path, (name, steps) in _METADATA_OUTER_RECIPES.items():
         required = path.endswith('/documentation-checks.yml') or security == 'true'
@@ -415,6 +466,19 @@ def metadata_outer_jobs(adapter, run_id, binding, current, local, security, *, r
             continue
         A.require(current.get(path) == local.get(path) and current.get(path, {}).get('mode') == '100644',
                   'metadata checker workflow differs from current reviewed recipe')
+        if path.endswith('/documentation-checks.yml') and DOCUMENTATION_SUITES <= delegated:
+            # A skipped reusable caller has its caller name, not the nested
+            # callee's job name. Require exactly that native skipped record.
+            candidates = [job for job in jobs if job.get('name') in {'documentation', name}]
+            A.require(len(candidates) == 1 and candidates[0].get('name') == 'documentation',
+                      'metadata delegated documentation native job is ambiguous')
+            job = candidates[0]
+            fact = adapter._job(job, run, 15368, final_name='documentation')
+            A.require(fact.status == 'completed' and fact.conclusion == 'skipped',
+                      'metadata delegated documentation must be precisely skipped')
+            retained[path] = {'job': job, 'native': vars(fact),
+                'shared_suites': sorted(DOCUMENTATION_SUITES), 'publication': vars(publication)}
+            continue
         matching = [item for item in references if type(item) is dict and item.get('path') ==
             A.REPOSITORY + '/' + path + '@' + binding['merge_sha']]
         A.require(len(matching) == 1 and matching[0].get('sha') == binding['merge_sha']
@@ -430,13 +494,20 @@ def metadata_outer_jobs(adapter, run_id, binding, current, local, security, *, r
                   'metadata checker native steps unavailable')
         for label in steps:
             matching = [step for step in job['steps'] if step.get('name') == label]
+            delegated_contract = (generation == 'protected-producer-seven-target-ci-v1'
+                and path.endswith('/workflow-security.yml')
+                and label == 'Verify fail-closed workflow contracts')
+            expected = 'skipped' if delegated_contract else 'success'
             A.require(len(matching) == 1 and matching[0].get('status') == 'completed'
-                and matching[0].get('conclusion') == 'success'
-                and P._time(fact.started_at) <= P._time(matching[0].get('started_at'))
-                <= P._time(matching[0].get('completed_at')) <= P._time(fact.completed_at),
+                and matching[0].get('conclusion') == expected
+                and (delegated_contract or P._time(fact.started_at) <= P._time(matching[0].get('started_at'))
+                     <= P._time(matching[0].get('completed_at')) <= P._time(fact.completed_at)),
                 'metadata checker command did not succeed in its authenticated job')
         retained[path] = {'job': job, 'native': vars(fact), 'reference': source_reference}
-    return {'run': run, 'jobs': jobs, 'retained': retained}
+    result = {'run': run, 'jobs': jobs, 'retained': retained}
+    if fallback is not None:
+        result['contract_fallback'] = fallback
+    return result
 
 
 def verify_metadata(event, environment, adapter, *, root=ROOT, clock=lambda: datetime.now(timezone.utc)):
@@ -457,7 +528,8 @@ def verify_metadata(event, environment, adapter, *, root=ROOT, clock=lambda: dat
         and tree_sha == binding['merge_tree'], 'metadata actual trusted source differs from protected main')
     policy = producer._host_policy()
     package = policy.package_policy()
-    A.require(package.validate_tree_wiring(current) == 'protected-producer-metadata-ci-v1',
+    A.require(package.validate_tree_wiring(current) in {
+        'protected-producer-metadata-ci-v1', 'protected-producer-seven-target-ci-v1'},
               'metadata requires the exact complete six-file source generation')
     controller = original_controller(policy, previous, local, root)
     registry = inputs.load_registry(Path(root) / '.github/test-suites.json')
@@ -497,14 +569,14 @@ def verify_metadata(event, environment, adapter, *, root=ROOT, clock=lambda: dat
         reused = inputs.plan_reuse(registry, current, current, receipt['results'], environment_original, environment_original)
         _require_full_reuse_partition(reused,registry,selected,affected)
     outer_before = metadata_outer_jobs(adapter, observation.run.run_id, binding, current, local,
-                                       owners['route']['security'], root=root)
+                                       owners['route']['security'], shared_receipt=receipt, root=root)
     context = P.SharedContext(registry, current, environment_original, binding['merge_sha'], tree_sha, original_git)
     verified = adapter.verify(native['number'], plan, api_policy, {'shared-host': context}, clock=clock)
     A.require(verified['run_id'] == observation.run.run_id
         and verified['receipt_sha256'] == hashlib.sha256(P.canonical(receipt)).hexdigest()
         and verified['aggregate_digest'] == aggregate['aggregate_digest']
         and metadata_outer_jobs(adapter, observation.run.run_id, binding, current, local,
-                                owners['route']['security'], root=root) == outer_before
+                                owners['route']['security'], shared_receipt=receipt, root=root) == outer_before
         and adapter.current(native['number']) == (binding, refs) and clock() < P._time(verified['expires_at']),
         'metadata original execution or current source changed')
     A.require(_source_qualified() and helper.SOURCE_READY is True

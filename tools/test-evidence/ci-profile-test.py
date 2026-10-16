@@ -466,8 +466,10 @@ class DiagnosticActualSourceTests(unittest.TestCase):
         self.write('.github/test-suites.json',json.dumps(self.registry).encode())
         self.write(C.PINNED_SOURCE,(C.ROOT/C.PINNED_SOURCE).read_bytes())
         self.write(C.DATA_PATH,(C.ROOT/C.DATA_PATH).read_bytes())
-        self.policy={**C.load_policy(),'enabled':True,'generation_digest':'sha256:'+'f'*64,
-                     'definition_digest':C.definition_digest(self.registry)}
+        self.policy={key:value for key,value in C.load_policy().items() if key!='generation_kind'}
+        self.policy.update(enabled=True,generation_digest='sha256:'+'f'*64,
+                           epoch='diagnostic-legacy-whole-tree-fixture',
+                           definition_digest=C.definition_digest(self.registry))
         self.write(C.POLICY,json.dumps(self.policy).encode())
         self.git('init','-q','--initial-branch=main')
         self.git('config','user.name','Diagnostic fixture');self.git('config','user.email','fixture@example.invalid')

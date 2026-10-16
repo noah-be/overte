@@ -1018,7 +1018,11 @@ def assert_reviewed_host_selection(case, source):
     execution = next(step for step in steps if step['name'] == 'Run independently selected host contracts')
     case.assertIn('--select-only --output "$GITHUB_OUTPUT"', selection['run'])
     controller = 'android_handoff.py' if android_owned else 'host_selection.py'
-    case.assertIn('build/host-tests-env/bin/python trusted/tools/repository-checks/' + controller, execution['run'])
+    if protected_owner:
+        launcher = 'build/host-tests-env/bin/python -B trusted/tools/repository-checks/'
+        case.assertIn(launcher + controller, execution['run'])
+    else:
+        case.assertIn('build/host-tests-env/bin/python trusted/tools/repository-checks/' + controller, execution['run'])
     for step in (selection, execution):
         case.assertIn('--candidate candidate', step['run'])
         if not android_owned:
@@ -1048,7 +1052,7 @@ def assert_reviewed_host_selection(case, source):
         case.assertEqual(execution['if'], "steps.protected.outputs.protected_executed != 'true'")
         protected_step = next(step for step in steps
                               if step['name'] == 'Execute the selected protected shared owner')
-        case.assertEqual(protected_step['if'], "needs.route.outputs.protected_full == 'true'")
+        case.assertEqual(protected_step['if'], "needs.route.outputs.protected_full == 'true' && steps.protected-source.outputs.admitted == 'true'")
         case.assertIn('producer_workflow.py" shared', protected_step['run'])
         case.assertEqual(jobs['producer-publication']['name'],
                          'Publish final producer ${{ needs.project-tests.outputs.receipt_sha256 }}')
@@ -1064,6 +1068,57 @@ def assert_reviewed_host_selection(case, source):
 
 
 class ProjectWorkflowContracts(unittest.TestCase):
+    def test_prospective_seven_target_recipes_require_the_complete_canonical_generation(self):
+        spec = importlib.util.spec_from_file_location(
+            'prospective_workflow_contract_packages', ROOT / 'tools/repository-checks/package_checks.py')
+        packages = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(packages)
+        sources = {
+            '.github/workflows/project-tests.yml': 'producers/protected-project-tests.yml',
+            '.github/workflows/parent-qualification.yml': 'producers/parent-qualification.yml',
+            '.github/workflows/repository-checks.yml': 'producers/repository-checks.yml',
+            '.github/workflows/sync-validation.yml': 'sync-ci-selection.yml',
+            '.github/workflows/browser-client.yml': 'npm-consumers/browser-client.yml',
+            '.github/workflows/pr-metadata-context.yml': 'metadata-edits/pr-metadata-context.yml',
+        }
+        tree = {}
+        for target, relative in sources.items():
+            path = ROOT / 'tools/repository-checks/workflows' / relative
+            self.assertFalse(path.is_symlink())
+            self.assertEqual(path.stat().st_mode & 0o777, 0o644)
+            raw = path.read_bytes()
+            tree[target] = {'mode': '100644', 'type': 'blob',
+                'sha': hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()}
+        generation = packages.validate_tree_wiring(tree)
+        self.assertEqual(generation, 'protected-producer-seven-target-ci-v1')
+        project = (ROOT / 'tools/repository-checks/workflows/producers/protected-project-tests.yml').read_text()
+        caller = (ROOT / 'tools/repository-checks/workflows/producers/repository-checks.yml').read_text()
+        # Model installation only after independently validating all six actual
+        # canonical blobs. The active legacy tuple is not rewritten by a test.
+        with mock.patch.object(sys.modules[__name__], 'reviewed_package_generation', return_value=generation):
+            assert_reviewed_host_selection(self, project)
+            self.assertEqual(assert_project_caller_routing(self, caller), 'package_host_mode')
+            with self.assertRaises(AssertionError):
+                assert_project_caller_routing(self, caller + '\n# unreviewed caller\n')
+
+    def test_security_deferral_keeps_every_other_security_check_selected(self):
+        workflow = workflow_data((WORKFLOW_DIRECTORY / 'workflow-security.yml').read_text())
+        self.assertEqual(workflow_events((WORKFLOW_DIRECTORY / 'workflow-security.yml').read_text())['workflow_call'],
+            {'inputs': {'defer_workflow_contracts': {'type': 'boolean', 'default': False,
+                'description': 'Exact caller verifies contracts after the shared owner; this input grants no test authority'}}})
+        steps = workflow['jobs']['static-analysis']['steps']
+        self.assertNotIn('if', workflow['jobs']['static-analysis'])
+        for name, command in (('Verify immutable action references', 'python3 tools/workflow-security/check-action-pins.py'),
+                ('Lint workflow syntax and runner labels', 'actionlint -config-file .github/actionlint.yaml -no-color'),
+                ('Audit workflow security', 'zizmor --min-severity medium .github/workflows'),
+                ('Scan workflow files for secrets with redacted output', 'gitleaks dir --redact=100 --no-banner --no-color .github')):
+            step = next(step for step in steps if step['name'] == name)
+            self.assertEqual(step['run'], command)
+            self.assertNotIn('defer_workflow_contracts', step.get('if', ''))
+        contract = next(step for step in steps if step['name'] == 'Verify fail-closed workflow contracts')
+        self.assertEqual(contract['if'], 'always() && inputs.defer_workflow_contracts != true')
+        self.assertEqual(contract['run'], 'PYTHONDONTWRITEBYTECODE=1 python3 tests/workflow-contract-test.py')
+
     def test_reviewed_host_selection_rejects_foreign_workflow_bytes(self):
         for relative in ('host/project-tests.yml', 'android-owned/project-tests.yml',
                          'producers/protected-project-tests.yml'):

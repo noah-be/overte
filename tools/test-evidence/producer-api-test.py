@@ -1332,10 +1332,10 @@ class MainConsumerTests(unittest.TestCase):
         self.registry = old.registry
         self.tree = deepcopy(old.tree)
         generations = json.loads((postmerge.ROOT / '.github/package-workflow-generations.json').read_text())['generations']
-        self.generation_name = getattr(self,'generation_name','protected-producer-metadata-ci-v1')
+        self.generation_name = getattr(self,'generation_name','protected-producer-seven-target-ci-v1')
         generation = next(item for item in generations if item['name'] == self.generation_name)
         self.generations = {item['name']:deepcopy(item['workflows']) for item in generations}
-        if self.generation_name == 'protected-producer-metadata-ci-v1':
+        if self.generation_name in {'protected-producer-metadata-ci-v1','protected-producer-seven-target-ci-v1'}:
             # Derive the actual prospective native tuple from its reviewed
             # sources. A stale hard-coded historical tuple must not hide a
             # missing admission of the installed producer generation.
@@ -1345,6 +1345,13 @@ class MainConsumerTests(unittest.TestCase):
                 '.github/workflows/sync-validation.yml':'.github/workflows/sync-validation.yml',
                 '.github/workflows/browser-client.yml':'.github/workflows/browser-client.yml',
                 A.METADATA_WORKFLOW:'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml'}
+            if self.generation_name == 'protected-producer-metadata-ci-v1':
+                sources.update({'.github/workflows/project-tests.yml':
+                    'tools/repository-checks/workflows/producers/legacy/protected-project-tests-metadata-v1.yml',
+                    '.github/workflows/repository-checks.yml':
+                    'tools/repository-checks/workflows/producers/legacy/repository-checks-metadata-v1.yml',
+                    '.github/workflows/parent-qualification.yml':
+                    'tools/repository-checks/workflows/producers/legacy/parent-qualification-metadata-v1.yml'})
             workflows={}
             for target,relative in sources.items():
                 path=postmerge.ROOT/relative
@@ -1359,7 +1366,7 @@ class MainConsumerTests(unittest.TestCase):
         self.tree.update(workflows)
         self.tree[postmerge.TEMPLATE] = deepcopy(self.tree['.github/workflows/parent-qualification.yml'])
         self.tree['.github/test-suites.json'] = {'mode':'100644','type':'blob','sha':'1'*40}
-        self.tree['tests/platform-profile.json'] = {'mode':'100644','type':'blob','sha':'2'*40}
+        self.tree['tests/platform-profile.json'] = postmerge.source_admission.ordinary(postmerge.source_admission.SHARED_PROFILE)
         self.previous = deepcopy(self.tree)
         self.case.generation = {path:self.tree[path] for path in A.WORKFLOWS}
         self.case.pp = replace(self.case.pp, workflow_blob=self.tree['.github/workflows/project-tests.yml']['sha'], required_execution_schema=3)
@@ -1398,6 +1405,9 @@ class MainConsumerTests(unittest.TestCase):
                 'selection':{'suites':list(self.registry['suites']),'full_host':True,
                     'include_platform':True,'reason':'fixture-full-owner'}}),
             patch.object(postmerge,'original_controller',return_value=self.case.pp.controller_digest),
+            # The actual64-source enrollment is tested separately; this tiny
+            # native receipt fixture supplies only its admitted controller ID.
+            patch.object(postmerge,'integrated_controller',return_value=self.case.pp.controller_digest),
             patch.object(postmerge,'_policy',return_value=(self.case.plan,self.case.policy)),
             patch.object(postmerge.attested,'validate_environment',return_value={'environment_digest':'sha256:'+'1'*64,'policy':{'epoch':'fixture'}}),
             patch.object(postmerge.execution,'capture_execution_environment',side_effect=AssertionError('unused consumer E')),
@@ -1451,9 +1461,9 @@ class MainConsumerTests(unittest.TestCase):
             self.case.aggregate,self.case.artifacts,self.case.archives = original
 
     def test_current_canonical_producer_generation_reaches_original_native_commitment(self):
-        self.assertEqual(self.real_package.validate_tree_wiring(self.tree),'protected-producer-metadata-ci-v1')
+        self.assertEqual(self.real_package.validate_tree_wiring(self.tree),'protected-producer-seven-target-ci-v1')
         self.assertEqual(self.tree['.github/workflows/project-tests.yml']['sha'],
-                         self.generations['protected-producer-metadata-ci-v1']['.github/workflows/project-tests.yml']['sha'])
+                         self.generations['protected-producer-seven-target-ci-v1']['.github/workflows/project-tests.yml']['sha'])
         value=self.lookup()
         self.assertTrue(value['reused'],value)
         proof=value['proof']
@@ -1668,7 +1678,7 @@ class MainCI37ConsumerTests(unittest.TestCase):
             value=self.lookup()
         self.assertTrue(value['reused'],value)
         self.assertEqual([call.args[1] for call in source.call_args_list],
-            [self.case.integrated,self.case.binding['base_sha'],self.case.binding['merge_sha']])
+            [self.case.integrated,self.case.integrated,self.case.binding['base_sha'],self.case.binding['merge_sha']])
         proof=value['proof']
         self.assertEqual(proof['reused_suites'],list(self.module.ci_profile.SUITES))
         self.assertEqual(proof['executed_suites'],[])
@@ -1754,7 +1764,8 @@ class MainCI37ConsumerTests(unittest.TestCase):
 
 class MainConsumerSourceTests(unittest.TestCase):
     def test_previous_complete_consumer_generations_remain_reusable(self):
-        for generation in ('postmerge-original-e-v1','protected-producer-postmerge-original-e-v1','protected-producer-ci37-v1'):
+        for generation in ('postmerge-original-e-v1','protected-producer-postmerge-original-e-v1',
+                           'protected-producer-ci37-v1','protected-producer-metadata-ci-v1'):
             fixture=MainConsumerTests();fixture.generation_name=generation
             try:
                 fixture.setUp()
@@ -1888,7 +1899,7 @@ class MainConsumerSourceTests(unittest.TestCase):
             self.assertEqual([p for p in current[after] if current[after][p]!=current[before][p]],changed)
             self.assertEqual(current[after]['.github/workflows/parent-qualification.yml']['sha'],
                              '84d98cac819755f98eecffba847e0bbcf667a6ca')
-        latest=current['protected-producer-metadata-ci-v1']
+        latest=current['protected-producer-seven-target-ci-v1']
         self.assertEqual(latest['.github/workflows/parent-qualification.yml']['sha'],blob)
         for active,template in (
                 ('.github/workflows/project-tests.yml',C.producer.TEMPLATE),
@@ -1975,14 +1986,24 @@ class MetadataRetentionConsumerTests(unittest.TestCase):
         real_host = C.producer._host_policy()
         real_package = real_host.package_policy()
         generations = real_package.workflow_generations()
-        self.assertEqual(len(generations), 20)
-        generation = next(row for row in generations if row["name"] == "protected-producer-metadata-ci-v1")
+        self.assertEqual(len(generations), 21)
+        self.generation_name = getattr(self, 'generation_name', 'protected-producer-metadata-ci-v1')
+        generation = next(row for row in generations if row["name"] == self.generation_name)
         sources = {".github/workflows/project-tests.yml": C.producer.TEMPLATE,
             ".github/workflows/repository-checks.yml": "tools/repository-checks/workflows/producers/repository-checks.yml",
             ".github/workflows/parent-qualification.yml": C.TEMPLATE,
             ".github/workflows/sync-validation.yml": ".github/workflows/sync-validation.yml",
             ".github/workflows/browser-client.yml": ".github/workflows/browser-client.yml",
             A.METADATA_WORKFLOW: "tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml"}
+        if self.generation_name == 'protected-producer-metadata-ci-v1':
+            sources.update({'.github/workflows/project-tests.yml':
+                'tools/repository-checks/workflows/producers/legacy/protected-project-tests-metadata-v1.yml',
+                '.github/workflows/repository-checks.yml':
+                'tools/repository-checks/workflows/producers/legacy/repository-checks-metadata-v1.yml',
+                '.github/workflows/parent-qualification.yml':
+                'tools/repository-checks/workflows/producers/legacy/parent-qualification-metadata-v1.yml'})
+        for name in getattr(self, 'extra_registry_names', ()):
+            self.registry['suites'][name] = deepcopy(next(iter(self.registry['suites'].values())))
         def blob(relative):
             path = C.ROOT / relative
             self.assertFalse(path.is_symlink())
@@ -2043,7 +2064,8 @@ class MetadataRetentionConsumerTests(unittest.TestCase):
         c.generation = {path: c.tree[path] for path in A.WORKFLOWS}
         self.git = C.producer.expected_git_context(self.adapter, c.binding)
         self.receipt = deepcopy(c.aggregate["results"]["shared-host"]["receipt"])
-        self.receipt.update(schema=3, git_context=self.git, environment=FIXTURES.isolated_codec_environment())
+        self.receipt.update(schema=3, git_context=self.git, environment=FIXTURES.isolated_codec_environment(),
+                            requested_suites=list(self.registry['suites']))
         self.receipt["results"] = {name: {"status": "passed", "fingerprint": P.inputs.suite_fingerprint(
             self.registry, name, c.tree, self.receipt["environment"])} for name in self.registry["suites"]}
         self.receipt = FIXTURES.signed(self.receipt, "receipt_digest")
@@ -2181,6 +2203,138 @@ class MetadataRetentionConsumerTests(unittest.TestCase):
                 self.verify(clock=lambda: P._time(c.aggregate["expires_at"]) if expired else NOW)
             self.assertEqual(original.call_count, 1)
             self.assertEqual(reads, 2)
+
+
+
+class NativeDelegatedMetadataTests(unittest.TestCase):
+    """Exact21 completed native publication plus real aggregate/API checks.
+
+    The additional named commands use the same small fixture closure; this is
+    an owner-admission regression, not execution or shipping qualification.
+    """
+    def setUp(self):
+        self.fixture = MetadataRetentionConsumerTests('runTest')
+        self.fixture.generation_name = 'protected-producer-seven-target-ci-v1'
+        self.fixture.extra_registry_names = ('documentation-contracts', 'documentation',
+                                             'policy-consistency', 'workflow-contracts')
+        self.fixture.setUp(); self.addCleanup(self.fixture.doCleanups)
+        f = self.fixture
+        self.module, self.case, self.adapter = f.module, f.case, f.adapter
+        self.docs = next(job for job in self.case.jobs[100]
+                         if job['name'] == 'documentation / documentation')
+        self.docs.update(name='documentation', conclusion='skipped', started_at=None,
+                         completed_at=None, steps=[])
+        self.security = next(job for job in self.case.jobs[100]
+                            if job['name'] == 'workflow-security / Actionlint, Zizmor, and Gitleaks')
+        self.contract = next(step for step in self.security['steps']
+                             if step['name'] == 'Verify fail-closed workflow contracts')
+        self.contract.update(conclusion='skipped', started_at=None, completed_at=None)
+        self.fallback = f.job(170, 100, 'workflow-contracts', skipped=True)
+        self.case.jobs[100].append(self.fallback)
+
+    def verify(self):
+        return self.fixture.verify()
+
+    def test_exact21_retains_actual_shared_docs_and_only_delegated_contract_step(self):
+        value = self.verify()
+        self.assertEqual(value['metadata_only'], 'true')
+        self.assertTrue(value['original_proof']['verified'])
+        self.assertEqual(value['original_proof']['receipt_sha256'],
+                         hashlib.sha256(P.canonical(self.fixture.receipt)).hexdigest())
+        docs = value['retained_checker_jobs']['.github/workflows/documentation-checks.yml']
+        self.assertEqual(docs['shared_suites'], sorted(self.module.DOCUMENTATION_SUITES))
+        self.assertEqual(docs['native']['conclusion'], 'skipped')
+        self.module.execution.capture_execution_environment.assert_not_called()
+        self.module.execution.execute.assert_not_called()
+
+    def test_delegated_docs_still_need_exact_skipped_native_record(self):
+        for mutation in ({'conclusion': 'failure'}, {'conclusion': 'success'},
+                         {'name': 'documentation / documentation'}, {'run_attempt': 2}):
+            before = deepcopy(self.docs); self.docs.update(mutation)
+            with self.subTest(mutation=mutation), self.assertRaises(P.ProtocolError): self.verify()
+            self.docs.clear(); self.docs.update(before)
+        self.case.jobs[100].append(deepcopy(self.docs))
+        with self.assertRaises(P.ProtocolError): self.verify()
+
+    def test_only_workflow_contract_step_may_be_skipped_or_failed(self):
+        for step in self.security['steps']:
+            if step is self.contract:
+                step['conclusion'] = 'failure'
+                with self.assertRaises(P.ProtocolError): self.verify()
+                step['conclusion'] = 'skipped'
+                continue
+            for state in ('skipped', 'failure', 'cancelled'):
+                step['conclusion'] = state
+                with self.subTest(step=step['name'], state=state), self.assertRaises(P.ProtocolError): self.verify()
+            step['conclusion'] = 'success'
+
+    def test_a_missing_or_changed_native_whole_receipt_never_delegates(self):
+        publisher = next(job for job in self.case.jobs[100]
+                         if job['name'].startswith(self.module.producer.PUBLISH_PREFIX))
+        before = deepcopy(publisher)
+        for mutation in ({'name': self.module.producer.PUBLISH_PREFIX + 'f' * 64},
+                         {'conclusion': 'failure'}, {'status': 'in_progress', 'conclusion': None}):
+            publisher.update(mutation)
+            with self.subTest(mutation=mutation), self.assertRaises(P.ProtocolError): self.verify()
+            publisher.clear(); publisher.update(before)
+        changed = deepcopy(self.fixture.receipt)
+        changed['results']['documentation']['status'] = 'failed'
+        with self.assertRaises(P.ProtocolError):
+            self.module.metadata_outer_jobs(self.adapter, 100, self.case.binding,
+                self.case.tree, self.case.previous, 'true', shared_receipt=changed)
+
+    def test_native_contract_owner_requires_exact_skipped_fallback_job(self):
+        for state in ('success', 'failure', 'cancelled', None):
+            self.fallback['conclusion'] = state
+            with self.subTest(state=state), self.assertRaises(P.ProtocolError): self.verify()
+        self.fallback['conclusion'] = 'skipped'
+        self.case.jobs[100].remove(self.fallback)
+        with self.assertRaises(P.ProtocolError): self.verify()
+
+    def test_a_real_fallback_contract_is_required_when_the_shared_owner_lacks_it(self):
+        f = self.fixture
+        del f.registry['suites']['workflow-contracts']
+        f.selected['suites'].remove('workflow-contracts')
+        f.selected['selection']['suites'].remove('workflow-contracts')
+        c = self.case
+        self.assertEqual(c.plan['owners']['shared-host']['suites'], f.selected['selection']['suites'])
+        receipt = deepcopy(f.receipt)
+        receipt['requested_suites'].remove('workflow-contracts')
+        del receipt['results']['workflow-contracts']
+        f.receipt = FIXTURES.signed(receipt, 'receipt_digest')
+        c.aggregate['results']['shared-host']['receipt'] = f.receipt
+        f.run = replace(f.run, final_publisher=replace(f.run.final_publisher,
+            receipt_sha256=hashlib.sha256(P.canonical(f.receipt)).hexdigest()))
+        c.aggregate['descriptor_digest'] = P.descriptor(c.binding,c.plan,c.pp,f.run)['descriptor_digest']
+        c.aggregate = FIXTURES.signed(c.aggregate, 'aggregate_digest')
+        extras = [job for job in c.jobs[100] if job['name'] in {
+            'native','android','project / tool-dependencies','project / package-checks',
+            'documentation','workflow-security / Actionlint, Zizmor, and Gitleaks','workflow-contracts'}]
+        c.add_run(f.run)
+        c.jobs[100].extend(extras)
+        for path in self.module._METADATA_OUTER_RECIPES:
+            c.runs[100]['referenced_workflows'].append(f.reference(path))
+        replacement = f.job(170, 100, 'workflow-contracts', steps=('Verify remaining workflow contracts',), late=True)
+        self.fallback.clear(); self.fallback.update(replacement)
+        with self.assertRaises(P.ProtocolError): self.verify()  # Before final publication is not this route.
+        self.fallback.update(started_at='2026-10-15T10:04:46Z', completed_at='2026-10-15T10:04:49Z')
+        self.fallback['steps'][0].update(started_at='2026-10-15T10:04:46Z', completed_at='2026-10-15T10:04:49Z')
+        self.assertEqual(self.verify()['metadata_only'], 'true')
+        self.fallback['steps'][0]['conclusion'] = 'failure'
+        with self.assertRaises(P.ProtocolError): self.verify()
+
+    def test_missing_receipt_cannot_make_skipped_checker_jobs_authoritative(self):
+        with self.assertRaises(P.ProtocolError):
+            self.module.metadata_outer_jobs(self.adapter, 100, self.case.binding,
+                self.case.tree, self.case.previous, 'true')
+
+    def test_newer_attempt_or_final_source_drift_still_rejects_retention(self):
+        self.case.runs[100]['run_attempt'] = 2
+        with self.assertRaises(P.ProtocolError): self.verify()
+        self.case.runs[100]['run_attempt'] = 1
+        path = '.github/workflows/workflow-security.yml'
+        self.case.previous[path]['sha'] = 'f' * 40
+        with self.assertRaises(P.ProtocolError): self.verify()
 
 
 class DocumentationPushOwnerTests(unittest.TestCase):

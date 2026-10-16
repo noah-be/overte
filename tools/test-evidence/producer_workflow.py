@@ -728,7 +728,7 @@ def shared_execution(candidate, event, environment, adapter):
                 raise PreExecutionUnavailable('selected CI37 prepared tools are unavailable') from error
             run = current_run(context, adapter, 'shared')
             _descriptor(context, adapter, run)
-            projection = shared.project_policy(policy_path, shared.sources())
+            projection = shared.project_policy(policy_path, shared.sources(), trusted_source=context['refs']['default'])
             binding = {'source': context['binding']['merge_sha'], 'run_id': context['run_id'], 'run_attempt': 1,
                 'profile': shared.PROFILE, 'snapshot': snapshot['digest'], 'git_context': snapshot['git_context'],
                 'runtime_profile':context['profile'],'selection':context['selected'],

@@ -42,6 +42,7 @@ _PROTECTED_ROUTE_GENERATIONS = frozenset({
     'protected-producer-postmerge-original-e-v1',
     'protected-producer-ci37-v1',
     'protected-producer-metadata-ci-v1',
+    'protected-producer-seven-target-ci-v1',
 })
 
 
@@ -140,7 +141,7 @@ def workflow_generations():
             or type(document["repository"].get("id")) is not int:
         raise ValueError("invalid trusted package workflow-generation policy")
     generations = document["generations"]
-    if not isinstance(generations, list) or not 1 <= len(generations) <= 20:
+    if not isinstance(generations, list) or not 1 <= len(generations) <= 21:
         raise ValueError("invalid trusted package workflow-generation inventory")
     names, tuples = set(), set()
     for generation in generations:

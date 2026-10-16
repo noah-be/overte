@@ -296,6 +296,8 @@ def _protected_producer_transition(tree, paths, base_tree, trusted_tree, target)
             ('postmerge-original-e-v1', 'protected-producer-metadata-ci-v1', metadata_endpoints,
              set(policy.METADATA_WORKFLOW_PATHS), False),
             ('android-owned-npm5-sync-ci-v1', 'protected-producer-metadata-ci-v1', joint_endpoints,
+             set(policy.METADATA_WORKFLOW_PATHS), True),
+            ('android-owned-npm5-sync-ci-v1', 'protected-producer-seven-target-ci-v1', joint_endpoints,
              set(policy.METADATA_WORKFLOW_PATHS), True)):
         previous, producer = generations.get(old_name, {}), generations.get(new_name, {})
         if set(paths) != endpoints or set(previous) != consumers or set(producer) != candidate_paths \

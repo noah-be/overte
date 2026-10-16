@@ -138,7 +138,7 @@ class RequiredAndroidTests(unittest.TestCase):
         packages = gate.packages()
         name = ("shared-receipt-v1" if producer else "packages-v1") + ("-direct" if direct else "") + "-android"
         if owned:
-            name = "protected-producer-metadata-ci-v1" if protected else "android-owned-npm5-sync-ci-v1"
+            name = "protected-producer-seven-target-ci-v1" if protected else "android-owned-npm5-sync-ci-v1"
         generation = next(item for item in packages.workflow_generations() if item["name"] == name)
         paths = list((ROOT / "tools/repository-checks/workflows").rglob("*.yml"))
         contents = {gate._blob(path.read_bytes())["sha"]: path.read_bytes() for path in paths}

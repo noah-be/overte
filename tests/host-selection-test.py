@@ -136,12 +136,12 @@ class HostSelectionTests(unittest.TestCase):
         self.assertFalse(HOST._protected_producer_transition(drift,paths,previous,previous,'main'))
         self.assertFalse(HOST._protected_producer_transition(candidate,paths,previous,candidate,'main'))
 
-    def metadata_joint_transition(self):
+    def metadata_joint_transition(self, producer_name="protected-producer-metadata-ci-v1"):
         generations={row['name']:row['workflows'] for row in HOST.package_policy().workflow_generations()}
         previous,candidate=copy_git_tree(self.tree),copy_git_tree(self.tree)
         previous.pop('.github/workflows/pr-metadata-context.yml',None)
         previous.update(deepcopy(generations['android-owned-npm5-sync-ci-v1']))
-        candidate.update(deepcopy(generations['protected-producer-metadata-ci-v1']))
+        candidate.update(deepcopy(generations[producer_name]))
         previous['.github/workflows/codeql.yml']={'mode':'100644','type':'blob',
             'sha':'6d55d0fe4e9edc86204c66e1fa3967681793a2cd'}
         candidate['.github/workflows/codeql.yml']={'mode':'100644','type':'blob',
@@ -150,59 +150,64 @@ class HostSelectionTests(unittest.TestCase):
         return previous,candidate,paths
 
     def test_actual_legacy_generation_and_pinned_codeql_joint_installation_selects_one_full_owner(self):
-        previous,candidate,paths=self.metadata_joint_transition()
-        expected=['.github/workflows/codeql.yml','.github/workflows/parent-qualification.yml',
-            '.github/workflows/pr-metadata-context.yml','.github/workflows/project-tests.yml',
-            '.github/workflows/repository-checks.yml']
-        self.assertEqual(paths,expected)
-        # These literal active identities were independently read from protected
-        # 5a9f18be and reviewed967d. Keep this fixture useful after deployment too.
-        manifest={g['name']:g['workflows'] for g in HOST.package_policy().workflow_generations()}
-        old=manifest['android-owned-npm5-sync-ci-v1']
-        self.assertEqual(old['.github/workflows/repository-checks.yml']['sha'],
-                         '55de6bec71c06a6ac4c942098da0b121ef33da2e')
-        self.assertEqual(old['.github/workflows/project-tests.yml']['sha'],
-                         'c2e0c310996fa860f9b1418667d05b03b7154e89')
-        self.assertEqual(old['.github/workflows/parent-qualification.yml']['sha'],
-                         '6d2d342e4b63d9e60602451157d13854bd52dde7')
-        self.assertTrue(all(previous.get(p)==entry for p,entry in old.items()))
-        self.assertTrue(all(previous.get(p)==candidate.get(p) for p in previous.keys() | candidate.keys() if p not in expected))
-        result=self.selected(paths,tree=candidate,trusted_tree=previous,base_tree=previous)
-        self.assertEqual(result,{'suites':list(self.registry['suites']),
-            'reason':'reviewed-protected-producer-transition','full_host':True,'include_platform':True})
+        for producer_name in ("protected-producer-metadata-ci-v1", "protected-producer-seven-target-ci-v1"):
+            with self.subTest(producer_name=producer_name):
+                previous,candidate,paths=self.metadata_joint_transition(producer_name)
+                expected=['.github/workflows/codeql.yml','.github/workflows/parent-qualification.yml',
+                    '.github/workflows/pr-metadata-context.yml','.github/workflows/project-tests.yml',
+                    '.github/workflows/repository-checks.yml']
+                self.assertEqual(paths,expected)
+                # These literal active identities were independently read from protected
+                # 5a9f18be and reviewed967d. Keep this fixture useful after deployment too.
+                manifest={g['name']:g['workflows'] for g in HOST.package_policy().workflow_generations()}
+                old=manifest['android-owned-npm5-sync-ci-v1']
+                self.assertEqual(old['.github/workflows/repository-checks.yml']['sha'],
+                                 '55de6bec71c06a6ac4c942098da0b121ef33da2e')
+                self.assertEqual(old['.github/workflows/project-tests.yml']['sha'],
+                                 'c2e0c310996fa860f9b1418667d05b03b7154e89')
+                self.assertEqual(old['.github/workflows/parent-qualification.yml']['sha'],
+                                 '6d2d342e4b63d9e60602451157d13854bd52dde7')
+                self.assertTrue(all(previous.get(p)==entry for p,entry in old.items()))
+                self.assertTrue(all(previous.get(p)==candidate.get(p) for p in previous.keys() | candidate.keys() if p not in expected))
+                result=self.selected(paths,tree=candidate,trusted_tree=previous,base_tree=previous)
+                self.assertEqual(result,{'suites':list(self.registry['suites']),
+                    'reason':'reviewed-protected-producer-transition','full_host':True,'include_platform':True})
 
     def test_joint_installation_rejects_every_endpoint_mutation_and_unreviewed_combination(self):
-        previous,candidate,paths=self.metadata_joint_transition()
-        for side in ('base','candidate'):
-            for path in paths:
-                for mutation in (None,{'mode':'100755','type':'blob','sha':'a'*40},
-                        {'mode':'120000','type':'blob','sha':'a'*40},
-                        {'mode':'160000','type':'commit','sha':'a'*40},
-                        {'mode':'100644','type':'blob','sha':'a'*40}):
-                    old,new=copy_git_tree(previous),copy_git_tree(candidate)
-                    target=old if side=='base' else new
-                    if mutation is None:target.pop(path,None)
-                    else:target[path]=mutation
-                    if old==previous and new==candidate:continue
-                    with self.subTest(side=side,path=path,mutation=mutation):
-                        self.assertFalse(HOST._protected_producer_transition(new,paths,old,old,'main'))
-        for target in ('apple-main','apple-ios','android-main','android-phone','android-vr','android-vr-pico'):
-            self.assertFalse(HOST._protected_producer_transition(candidate,paths,previous,previous,target))
-        for changed in (paths[:-1],paths+paths[:1],paths+['.github/branch-cleanup.json']):
-            self.assertFalse(HOST._protected_producer_transition(candidate,changed,previous,previous,'main'))
-        hidden=copy_git_tree(candidate)
-        hidden['tools/test-evidence/producer_workflow.py']={'mode':'100644','type':'blob','sha':'a'*40}
-        self.assertFalse(HOST._protected_producer_transition(hidden,paths,previous,previous,'main'))
-        self.assertFalse(HOST._protected_producer_transition(candidate,paths,previous,candidate,'main'))
-        # Neither a preexisting metadata source nor an old approved producer
-        # tuple may be used to broaden the actual14 joint deployment.
-        old=copy_git_tree(previous)
-        old['.github/workflows/pr-metadata-context.yml']=candidate['.github/workflows/pr-metadata-context.yml'].copy()
-        self.assertFalse(HOST._protected_producer_transition(candidate,paths,old,old,'main'))
-        old=copy_git_tree(previous)
-        old.update(next(g['workflows'] for g in HOST.package_policy().workflow_generations()
-                        if g['name']=='postmerge-original-e-v1'))
-        self.assertFalse(HOST._protected_producer_transition(candidate,paths,old,old,'main'))
+        for producer_name in ("protected-producer-metadata-ci-v1", "protected-producer-seven-target-ci-v1"):
+            with self.subTest(producer_name=producer_name):
+                previous,candidate,paths=self.metadata_joint_transition(producer_name)
+                for side in ('base','candidate'):
+                    for path in paths:
+                        for mutation in (None,{'mode':'100755','type':'blob','sha':'a'*40},
+                                {'mode':'120000','type':'blob','sha':'a'*40},
+                                {'mode':'160000','type':'commit','sha':'a'*40},
+                                {'mode':'100644','type':'blob','sha':'a'*40}):
+                            old,new=copy_git_tree(previous),copy_git_tree(candidate)
+                            target=old if side=='base' else new
+                            if mutation is None:target.pop(path,None)
+                            else:target[path]=mutation
+                            if old==previous and new==candidate:continue
+                            with self.subTest(side=side,path=path,mutation=mutation):
+                                self.assertFalse(HOST._protected_producer_transition(new,paths,old,old,'main'))
+                for target in ('apple-main','apple-ios','android-main','android-phone','android-vr','android-vr-pico'):
+                    self.assertFalse(HOST._protected_producer_transition(candidate,paths,previous,previous,target))
+                for changed in (paths[:-1],paths+paths[:1],paths+['.github/branch-cleanup.json']):
+                    self.assertFalse(HOST._protected_producer_transition(candidate,changed,previous,previous,'main'))
+                hidden=copy_git_tree(candidate)
+                hidden['tools/test-evidence/producer_workflow.py']={'mode':'100644','type':'blob','sha':'a'*40}
+                self.assertFalse(HOST._protected_producer_transition(hidden,paths,previous,previous,'main'))
+                self.assertFalse(HOST._protected_producer_transition(candidate,paths,previous,candidate,'main'))
+                # Neither a preexisting metadata source nor an old approved producer
+                # tuple may be used to broaden the actual14 joint deployment.
+                old=copy_git_tree(previous)
+                old['.github/workflows/pr-metadata-context.yml']=candidate['.github/workflows/pr-metadata-context.yml'].copy()
+                self.assertFalse(HOST._protected_producer_transition(candidate,paths,old,old,'main'))
+                old=copy_git_tree(previous)
+                old.update(next(g['workflows'] for g in HOST.package_policy().workflow_generations()
+                                if g['name']=='postmerge-original-e-v1'))
+                self.assertFalse(HOST._protected_producer_transition(candidate,paths,old,old,'main'))
+
     def test_producer_transition_requires_main_complete_inventory_and_current_trusted_base(self):
         previous, candidate, paths = self.producer_transition()
         for mutation in ('child', 'unknown', 'nonregular', 'missing-base', 'missing-trusted',
@@ -864,7 +869,7 @@ class HostSelectionTests(unittest.TestCase):
         previous, candidate = self.tree, self.tree
         package_policy = HOST.package_policy()
         if transition:
-            previous, candidate, plan['paths'] = (self.metadata_joint_transition() if transition == 'metadata-joint'
+            previous, candidate, plan['paths'] = (self.metadata_joint_transition('protected-producer-seven-target-ci-v1' if transition == 'seven-joint' else 'protected-producer-metadata-ci-v1') if transition in ('metadata-joint', 'seven-joint')
                 else self.metadata_transition() if transition == 'metadata' else self.producer_transition())
             plan['base'] = 'd'*40
         proposed=deepcopy(self.registry)
@@ -946,17 +951,18 @@ class HostSelectionTests(unittest.TestCase):
         self.assertEqual([suite[0] for suite in controller.run_suites.call_args.args[1]],list(self.registry['suites']))
 
     def test_joint_metadata_codeql_installation_cli_qualifies_one_complete_owner(self):
-        result,controller=self.cli(transition='metadata-joint',select_only=True)
-        self.assertEqual(result,0)
-        self.assertEqual(controller.selection_output,'full_host=true\ncomplete_receipt=true\n')
-        self.assertEqual(controller.selection_report['selection']['reason'],'reviewed-protected-producer-transition')
-        self.assertEqual(controller.selection_report['omitted_suites'],[])
-        controller.run_suites.assert_not_called()
-        result,controller=self.cli(transition='metadata-joint')
-        self.assertEqual(result,0)
-        controller.run_suites.assert_called_once()
-        self.assertEqual([suite[0] for suite in controller.run_suites.call_args.args[1]],list(self.registry['suites']))
-
+        for transition in ("metadata-joint", "seven-joint"):
+            with self.subTest(transition=transition):
+                result,controller=self.cli(transition=transition,select_only=True)
+                self.assertEqual(result,0)
+                self.assertEqual(controller.selection_output,'full_host=true\ncomplete_receipt=true\n')
+                self.assertEqual(controller.selection_report['selection']['reason'],'reviewed-protected-producer-transition')
+                self.assertEqual(controller.selection_report['omitted_suites'],[])
+                controller.run_suites.assert_not_called()
+                result,controller=self.cli(transition=transition)
+                self.assertEqual(result,0)
+                controller.run_suites.assert_called_once()
+                self.assertEqual([suite[0] for suite in controller.run_suites.call_args.args[1]],list(self.registry['suites']))
     def test_new_candidate_host_command_forces_prerequisites_before_execution(self):
         result,controller=self.cli(new_command=True,select_only=True)
         self.assertEqual(result,0)

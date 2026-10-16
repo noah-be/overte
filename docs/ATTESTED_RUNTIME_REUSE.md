@@ -49,27 +49,57 @@ protected before/after runtime measurements, kernel-confirmed empty scopes or
 final publication. Policy denial before suites selects existing actual
 execution. Started-suite, cleanup and post-measurement failures remain failures.
 
-Actual hosted boundary and complete shared-suite compatibility must precede
-installing the protected workflow endpoints. This source preparation supplies
-neither a qualified image nor a qualification timestamp. The enabled policy and
-source flags must be included in the original execution's runtime/controller identity.
-The manual diagnostic records environment digests and suite/cleanup results;
-it does not call the future enabled isolated admission policy. Its success alone
-therefore cannot qualify that policy. The first authenticated native producer
-must admit its actual original environment before starting any suite and must
-complete protected execution/publication before reuse can be claimed. No earlier
-native receipt is needed to attempt this first execution. A successful legacy
-fallback does not establish this qualification; installation acceptance requires
-the genuine protected receipt and native whole-receipt publisher commitment.
+The first exact reviewed installation can perform the first qualification. It
+needs no previous native receipt or duplicate manual full/CI37 run. The producer
+must admit its actual original environment before any suite, complete protected
+execution, compare the original before/after environment, confirm empty kernel
+scopes and publish the native whole-receipt commitment. A successful legacy
+fallback is valid existing execution but does not qualify protected reuse or
+satisfy installation acceptance. Source preparation supplies no qualified image
+or qualification timestamp.
+
+The Qt-free CI37 production policy uses the separate
+`ci37-protected-controller-v1` namespace and explicit controller epoch. It binds
+the exact 37 definitions, complete registry and actual protected default-source
+controller/import closure. A root-owned immutable manifest independently binds
+the complete protected source tree and commit; the probe authenticates the
+projected controller bytes before deriving that generation. Candidate tree
+entries never supply the trusted default source. Candidate fingerprints retain
+their complete input closures, while an ordinary changed CI test does not need
+a new fixed whole-candidate generation certificate. Policy, platform, membership
+or unknown lookup differences still decline before execution.
 
 The manual `ci37` diagnostic independently binds its actual immutable protected
-source, complete registry and actual policy bytes in the parent and read-only
-probe. Its distinct `ci37-actual-source-diagnostic-v1` selection measures that
-source while production policy pins the prospective installed workflow tree.
-It does not modify that policy or supply production admission authority. Even
-when both generation digests coincide, production validation rejects the
-diagnostic selection. The ordinary producer and original-E consumer always
-require the shipping production generation.
+source, complete registry and policy bytes in the parent and read-only probe.
+Its distinct `ci37-actual-source-diagnostic-v1` selection supplies no production
+admission or reuse authority, including when generation digests coincide. It
+cannot replace the first native publisher proof. The legacy whole-tree CI37
+policy shape remains separately validated; it is not silently interpreted as
+the controller-source policy.
+
+The seven-target workflow generation requires the reviewed helper/controller
+source on each protected target before native installation there. A candidate
+cannot enroll its own missing trusted-base helpers. Source-only propagation
+preserves child product/profile differences and all required checks. Android
+platform suites remain separate required owners; unsupported profiles select
+actual execution rather than relabeling shared results.
+
+On a main PR, independently selected full-environment affected subsets retain
+that original full environment and exact selected suite results. The complete
+registry, definitions, graph, immutable delta and controller source must still
+validate independently. CI37 and full profiles are not projected onto each
+other. Reuse retains the original recorded environment; consumers do not
+measure an unused VM environment.
+
+In that exact generation, the current native publisher can own the three
+documentation suites and the workflow-contract suite only after their actual
+successful schema3 results and original native API proof are verified. The
+standalone documentation job then skips. Actionlint, Zizmor and Gitleaks still
+start in parallel; their success is independently required. The contract step
+is deferred, and an actual same-candidate fallback contract job runs after the
+project when the native owner is absent. A claim flag alone proves nothing;
+failed or cancelled projects do not start extra fallback work. Earlier workflow
+generations retain their existing standalone checks.
 
 ## Admission is separate from producer authentication
 

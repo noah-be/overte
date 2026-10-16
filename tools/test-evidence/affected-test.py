@@ -149,6 +149,21 @@ class ShippingPolicyTests(unittest.TestCase):
         for path in ('tools/test-evidence/affected-test.py','tools/test-evidence/AFFECTED_SELECTION.md'):
             tree[path]=blob((root/path).read_bytes())
         tree[inputs.AFFECTED_POLICY]=blob(raw)
+        # Both the source PR and its exact installed successor run this test.
+        # Authenticate the actual complete deployed tuple before constructing
+        # the distinct approved preinstallation B; do not bind R to B instead S.
+        generations=json.loads((root/'.github/package-workflow-generations.json').read_bytes())['generations']
+        previous=next(row['workflows'] for row in generations if row['name']=='android-owned-npm5-sync-ci-v1')
+        future=next(row['workflows'] for row in generations if row['name']=='protected-producer-seven-target-ci-v1')
+        endpoint='.github/workflows/pr-metadata-context.yml'
+        approved=future if endpoint in tree else previous
+        self.assertTrue(all(tree.get(path)==entry for path,entry in approved.items()))
+        self.assertEqual(tree['.github/workflows/codeql.yml']['sha'],
+            '3a273057a38255ca368d3028594fb94227ba7c3b' if endpoint in tree
+            else '6d55d0fe4e9edc86204c66e1fa3967681793a2cd')
+        tree.update(deepcopy(previous));tree.pop(endpoint,None)
+        tree['.github/workflows/codeql.yml']=dict(mode='100644',type='blob',
+            sha='6d55d0fe4e9edc86204c66e1fa3967681793a2cd')
         return root,registry,raw,tree
 
     def shipping_context(self):
@@ -160,8 +175,8 @@ class ShippingPolicyTests(unittest.TestCase):
         """
         root,registry,raw,tree=self.source_context()
         generations=json.loads((root/'.github/package-workflow-generations.json').read_bytes())['generations']
-        self.assertEqual(len(generations),20)
-        self.assertEqual(generations[-1]['name'],'protected-producer-metadata-ci-v1')
+        self.assertEqual(len(generations),21)
+        self.assertEqual(generations[-1]['name'],'protected-producer-seven-target-ci-v1')
         workflows=generations[-1]['workflows']
         templates={
             '.github/workflows/project-tests.yml':'tools/repository-checks/workflows/producers/protected-project-tests.yml',
@@ -248,7 +263,7 @@ class ShippingPolicyTests(unittest.TestCase):
                 'fixed-subject-or-reader-not-reviewed' if name in inputs._AFFECTED_SUBJECTS
                 else 'product-component-or-reader-not-reviewed')
 
-    def test_exact_seven_metadata_bytes_are_independent_but_membership_and_modes_are_bound(self):
+    def test_exact_metadata_and_source_reader_bytes_are_independent_but_membership_and_modes_are_bound(self):
         _,registry,raw,base=self.bounded_context()
         paths={
             'tools/repository-checks/metadata_context.py',
@@ -258,6 +273,12 @@ class ShippingPolicyTests(unittest.TestCase):
             'tools/repository-checks/workflows/producers/legacy/repository-checks-protected-ci-v1.yml',
             'tools/repository-checks/workflows/producers/legacy/parent-qualification-postmerge-v1.yml',
             'tools/repository-checks/workflows/producers/legacy/protected-project-tests-ci37-v1.yml',
+            '.github/workflows/documentation-push-owner.yml',
+            'tools/test-evidence/source_admission.py',
+            'tools/test-evidence/source-admission-test.py',
+            'tools/repository-checks/workflows/producers/legacy/parent-qualification-metadata-v1.yml',
+            'tools/repository-checks/workflows/producers/legacy/protected-project-tests-metadata-v1.yml',
+            'tools/repository-checks/workflows/producers/legacy/repository-checks-metadata-v1.yml',
         }
         self.assertTrue(paths <= set(json.loads(raw)['suites']['device-control-plane-full']['native_independent_paths']))
         candidate=deepcopy(base)
@@ -554,7 +575,13 @@ class DependencyPolicyRoutingTests(unittest.TestCase):
             'tools/repository-checks/workflows/metadata-edits/codeql-metadata.yml',
             'tools/repository-checks/workflows/producers/legacy/repository-checks-protected-ci-v1.yml',
             'tools/repository-checks/workflows/producers/legacy/parent-qualification-postmerge-v1.yml',
-            'tools/repository-checks/workflows/producers/legacy/protected-project-tests-ci37-v1.yml'}
+            'tools/repository-checks/workflows/producers/legacy/protected-project-tests-ci37-v1.yml',
+            '.github/workflows/documentation-push-owner.yml',
+            'tools/test-evidence/source_admission.py',
+            'tools/test-evidence/source-admission-test.py',
+            'tools/repository-checks/workflows/producers/legacy/parent-qualification-metadata-v1.yml',
+            'tools/repository-checks/workflows/producers/legacy/protected-project-tests-metadata-v1.yml',
+            'tools/repository-checks/workflows/producers/legacy/repository-checks-metadata-v1.yml',}
         for path in paths:
             with self.subTest(path=path):
                 entry=ios.Entry(path,'100644','blob','a'*40)
