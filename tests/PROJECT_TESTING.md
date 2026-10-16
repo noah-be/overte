@@ -440,8 +440,30 @@ The private index matches the immutable tree; a fixed in-sandbox Git status
 must be clean. A tracked `build` path is rejected because its writable mount
 would hide source inputs. Complete histories above 4,096 objects or 64 MB are
 unsupported by this bounded diagnostic materializer.
+The separate `materialize_candidate_snapshot()` source helper supports larger
+ordinary candidates without changing that fixed diagnostic. It streams each
+unique Git object once, verifies public object IDs with protected Git, and
+retains the pristine index and complete source/metadata negative inventory.
+Materialized source and stored-object hashes must match the verified stream;
+corrupted copies cannot become their own trusted inventory baseline.
+Limits are 64 MiB per blob, 1 GiB materialized source, 2 GiB unique object bodies,
+32,768 objects, 65,536 expanded/inventory entries and 300 seconds. The Git reader
+has a 512 MiB address-space limit; tree/commit metadata and Python stream chunks
+have separate fixed bounds. Unsupported sizes, aliases, modes or unavailable
+process limits fail rather than produce a partial successful snapshot.
+
+The caller names at most eight immutable commits. Only those commits and their
+complete ordinary trees enter the private Git store; the helper never walks
+unbounded ancestry or fetches objects. Each included commit with an omitted
+parent is explicitly marked in `.git/shallow`, while its raw ordered parents
+remain unchanged. The retained snapshot digest binds that exact Git context as
+well as the files. Future execution receipts and suite fingerprints must bind
+this context before Git-sensitive suites can reuse results: equal file trees
+alone are insufficient. This helper authorizes no execution or reusable proof;
+actual shared-suite compatibility, complete runtime capture and protected
+publication still require qualification.
 Only exact trusted probe/runtime source enters a separate read-only projection;
-candidate policy code cannot replace it. The hosted workload is a fixed real-Git
+candidate policy code cannot replace it. The boundary profile workload is a fixed real-Git
 fixture, never an application build or arbitrary PR command.
 
 A root-owned sibling guardian holds the actual cgroup kill/events descriptors
@@ -455,6 +477,46 @@ host environment identity. Production launch/post-capture remain denied.
 Live Ubuntu qualification, complete shared-host suite/toolchain compatibility,
 publisher credential isolation and authenticated reuse publication remain
 required before any successful result can authorize reuse.
+
+The same dispatch-only workflow offers a finite `boundary` or `shared-host`
+profile, defaulting to the unchanged fixed boundary fixture. `shared-host`
+prepares the existing Python 3.12 host virtualenv, Node 22, JDK 17, Qt 5/6 and
+GLM prerequisites and seals their actual versioned installations. It accepts
+no revision, suite list, command or environment input. Only its own immutable
+protected-main source executes, using the streamed snapshot and its explicit
+shallow commit/ordered-parent context. Matching the canonical depth-2 checkout,
+only the target and its at most seven immediate ordered parents enter the private
+Git store; missing grandparents remain explicit shallow boundaries. The ordinary production executor,
+post-capture and all reuse/Android activation guards remain disabled.
+
+The shared-host adapter calls the existing trusted process controller with the
+complete common registry commands, preserving QML assertions and the 900-second
+`device-control-plane-full` deadline. It runs no standalone Browser product,
+journey, SDK, device or application build. Each independent command receives a
+fresh writable scratch directory, private namespaces, an independent low host
+UID and a root-owned scope/guardian. Prepared inputs and source stay read-only;
+source/projection inventories are verified around the whole batch rather than
+rehashing the complete repository for each suite. The Git exception is exactly
+`safe.directory=/work`, with a distinct captured runtime flag; wildcard or
+ambient Git settings remain rejected. Candidate output is bounded and encoded;
+private root-owned reports and command files are outside the namespace.
+
+Separate protected probes must capture the complete actual
+`runtime.capture_host_environment()` before work and after every prior scope
+has kernel-confirmed cleanup. Unknown/mismatching E, failed/missing/cancelled
+commands or changed prepared/source inputs fail the diagnostic. Local tests
+use real Git fixtures and fake suite launches only; they establish neither
+privileged Ubuntu compatibility nor a complete runtime measurement. Even a
+future hosted diagnostic pass has `authority=none` and `reusable=false`.
+Authenticated producer/publisher provenance remains a separate prerequisite.
+
+The account check accepts only sudo's complete single stdout denial line with
+empty stderr. sudo 1.9.15's successful zero-command listing can exit 0: its
+[privilege display](https://github.com/sudo-project/sudo/blob/SUDO_1_9_15p5/plugins/sudoers/display.c#L499)
+returns success, and the [frontend](https://github.com/sudo-project/sudo/blob/SUDO_1_9_15p5/src/sudo.c#L1251)
+maps that to exit 0. Grant listings, extra text and policy/authentication errors
+remain unsupported; failure diagnostics expose only public counts, hashes and
+classification markers.
 
 The `android-build-inputs` quick suite checks dormant Phone and Pico APK source
 planning with real immutable Git histories, including standalone npm locks,

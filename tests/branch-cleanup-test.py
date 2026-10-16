@@ -2157,6 +2157,263 @@ class CleanupPreflightTests(unittest.TestCase):
             self.assertEqual(json.loads(self.report.read_text())["error"], str(error))
 
 
+class TerminalRetryTests(unittest.TestCase):
+    def setUp(self):
+        self.module = load_cleanup()
+        self.github = self.module.Github()
+        self.policy = json.loads(POLICY_PATH.read_text())
+        self.revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+        self.repository = {"id": 1319052603, "full_name": FORK}
+        self.rows = [{"name": name, "sha": self.revision, "protected": True} for name in sorted(PERMANENT)]
+        self.branch = "fix/main/earlier-closed-source"
+        self.rows.append({"name": self.branch, "sha": "a" * 40, "protected": False})
+        self.closed = {self.branch: [self.closed_pr(self.branch, "main", "a" * 40)]}
+        self.open_prs, self.active, self.requests = [], [], []
+        self.runs = {700: self.push_run(700, 350930890)}
+        self.signal = {"action": "completed", "repository": self.repository,
+                       "workflow_run": copy.deepcopy(self.runs[700])}
+        self.source_changes, self.reference_changes = {}, {}
+        self.integrated = True
+        self.enterContext(mock.patch.object(self.github, "get", side_effect=self.response))
+        self.enterContext(mock.patch.dict(os.environ, {"GITHUB_RUN_ID": "999"}))
+
+    def closed_pr(self, branch, target, sha):
+        return {"number": 13, "state": "closed", "closed_at": "2026-10-16T04:29:46Z", "labels": [],
+                "head": {"ref": branch, "sha": sha, "repo": self.repository},
+                "base": {"ref": target, "repo": self.repository}}
+
+    def push_run(self, identifier, workflow, target="main"):
+        name, filename = self.module.TERMINAL_WORKFLOWS[workflow]
+        return {"id": identifier, "run_attempt": 1, "workflow_id": workflow, "event": "push",
+                "status": "completed", "conclusion": "success", "head_branch": target,
+                "head_sha": self.revision, "name": name, "path": ".github/workflows/" + filename,
+                "repository": self.repository, "head_repository": self.repository, "pull_requests": []}
+
+    def response(self, suffix="", paginate=False):
+        self.requests.append((suffix, paginate))
+        if not suffix:
+            return {**self.repository, "default_branch": "main", "delete_branch_on_merge": False}
+        if suffix == "branches?per_page=100":
+            self.assertTrue(paginate)
+            return [{**row, "commit": {"sha": row["sha"]}} for row in copy.deepcopy(self.rows)]
+        if suffix.startswith("actions/runs/"):
+            return copy.deepcopy(self.runs[int(suffix.rsplit("/", 1)[1])])
+        if suffix.startswith("actions/workflows/"):
+            identifier = int(suffix.rsplit("/", 1)[1])
+            name, filename = self.module.TERMINAL_WORKFLOWS[identifier]
+            return {"id": identifier, "name": name, "path": ".github/workflows/" + filename}
+        if suffix.startswith("contents/.github/workflows?"):
+            return []
+        if suffix.startswith("contents/.github/workflows/"):
+            path = suffix.split("?", 1)[0][9:]
+            name = next(name for name, filename in self.module.TERMINAL_WORKFLOWS.values()
+                        if path.endswith("/" + filename))
+            raw = self.source_changes.get(path, ("name: " + name + "\non:\n  push:\n").encode())
+            return {"path": path, "type": "file", "sha": hashlib.sha1(
+                b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest(), "size": len(raw),
+                "encoding": "base64", "content": base64.b64encode(raw).decode()}
+        if suffix == "pulls?state=open&per_page=100":
+            self.assertTrue(paginate)
+            return copy.deepcopy(self.open_prs)
+        if suffix.startswith(("pulls?state=closed&", "pulls?state=all&")):
+            self.assertTrue(paginate)
+            query = self.module.urllib.parse.parse_qs(suffix.split("?", 1)[1])
+            branch = query["head"][0].removeprefix("noah-l-frank:")
+            return copy.deepcopy(self.closed.get(branch, []))
+        if suffix.startswith("actions/runs?status="):
+            state = self.module.urllib.parse.parse_qs(suffix.split("?", 1)[1])["status"][0]
+            runs = [run for run in self.active if run.get("status") == state]
+            return {"total_count": len(runs), "workflow_runs": copy.deepcopy(runs)}
+        if suffix.startswith("git/ref/heads/"):
+            target = self.module.urllib.parse.unquote(suffix.removeprefix("git/ref/heads/"))
+            sha = self.reference_changes.get(target, next(row["sha"] for row in self.rows if row["name"] == target))
+            return {"ref": "refs/heads/" + target, "object": {"type": "commit", "sha": sha}}
+        if suffix.startswith("compare/"):
+            first = suffix[8:].split("...", 1)[0]
+            return {"status": "ahead" if self.integrated else "diverged", "behind_by": 0 if self.integrated else 1,
+                    "merge_base_commit": {"sha": first}}
+        if suffix.startswith("rules/branches/"):
+            return [{"type": "deletion"}, {"type": "non_fast_forward"}]
+        if suffix in ("deployments?per_page=100", "releases?per_page=100", "issues?state=open&per_page=100"):
+            return []
+        raise AssertionError("unregistered cleanup API request: " + suffix)
+
+    def retry(self, run=700):
+        self.signal["workflow_run"] = copy.deepcopy(self.runs[run])
+        return self.module.terminal_retry(self.github, self.policy, self.signal)
+
+    def test_real_api_context_and_older_closed_heads_produce_only_a_hint(self):
+        self.closed[self.branch].insert(0, self.closed_pr(self.branch, "main", "b" * 40))
+        result = self.retry()
+        self.assertTrue(result["retry"])
+        self.assertEqual(result["hint_count"], 1)
+        self.assertNotIn("candidates", result)
+        self.assertNotIn("candidate_count", result)
+        self.assertEqual(self.signal["workflow_run"]["pull_requests"], [])
+        self.assertTrue(any("state=closed&head=noah-l-frank%3A" in path and paginated
+                            for path, paginated in self.requests))
+
+    def test_any_current_push_completion_survives_reversed_delivery_and_pending_replacement(self):
+        self.runs[701] = self.push_run(701, 349116380)
+        for order in ((700, 701), (701, 700)):
+            for identifier in order:
+                with self.subTest(order=order, identifier=identifier):
+                    self.assertTrue(self.retry(identifier)["retry"])
+        # The existing mutex serializes actual retirement; subsequent callbacks
+        # see the changed resource, not an event-election winner or durable pass.
+        self.rows = [row for row in self.rows if row["name"] != self.branch]
+        for identifier in (701, 700):
+            self.assertFalse(self.retry(identifier)["retry"])
+
+    def test_parent_leaf_and_codeql_callbacks_cover_all_seven_actual_targets(self):
+        scopes = {"main": "main", "android-main": "android", "android-phone": "android-phone",
+                  "android-vr": "android-vr", "android-vr-pico": "android-pico", "apple-main": "apple", "apple-ios": "ios"}
+        for target, scope in scopes.items():
+            branch = "fix/" + scope + "/earlier-source"
+            self.rows = [row for row in self.rows if row["protected"]]
+            self.rows.append({"name": branch, "sha": "a" * 40, "protected": False})
+            self.closed = {branch: [self.closed_pr(branch, target, "a" * 40)]}
+            workflow = 330551824 if target in {"android-phone", "android-vr-pico", "apple-ios"} else 350930890
+            self.runs[700] = self.push_run(700, workflow, target)
+            with self.subTest(target=target):
+                self.assertTrue(self.retry()["retry"])
+
+    def test_all_actual_activity_states_and_old_source_native_runs_hold_retry(self):
+        for state in ("queued", "in_progress", "waiting", "pending", "requested"):
+            self.active = [{"id": 800, "status": state, "path": ".github/workflows/native-tests.yml",
+                            "head_branch": "main", "head_sha": "f" * 40, "pull_requests": []}]
+            with self.subTest(state=state):
+                self.assertFalse(self.retry()["retry"])
+        self.active.clear()
+        self.assertTrue(self.retry()["retry"])
+
+    def test_active_manual_or_pr_relationship_is_checked_beyond_trigger_names(self):
+        self.active = [{"id": 800, "status": "in_progress", "event": "workflow_dispatch",
+                        "path": ".github/workflows/unlisted-device-diagnostic.yml", "head_branch": "test/ios/elsewhere",
+                        "head_sha": "f" * 40, "pull_requests": [{"base": {"ref": "main"}}]}]
+        self.assertFalse(self.retry()["retry"])
+        self.active[0]["pull_requests"] = []
+        self.assertTrue(self.retry()["retry"])
+
+    def test_missing_exact_closed_head_and_keep_open_or_explicit_holds_do_not_retry(self):
+        original = copy.deepcopy(self.closed)
+        for closed in ({}, {self.branch: [self.closed_pr(self.branch, "main", "b" * 40)]}):
+            self.closed = closed
+            self.assertFalse(self.retry()["retry"])
+        self.closed = original
+        self.closed[self.branch][0]["labels"] = [{"name": "keep-branch"}]
+        self.assertFalse(self.retry()["retry"])
+        self.closed = copy.deepcopy(original)
+        self.open_prs = [{"head": {"ref": self.branch, "repo": self.repository},
+                          "base": {"ref": "main", "repo": self.repository}}]
+        self.assertFalse(self.retry()["retry"])
+        self.open_prs.clear()
+        self.policy["holds"][self.branch] = "unfinished local work"
+        self.assertFalse(self.retry()["retry"])
+
+    def test_closed_unintegrated_hint_never_substitutes_for_the_full_ancestry_plan(self):
+        self.integrated = False
+        self.assertTrue(self.retry()["retry"])
+        plan = self.module.make_plan(self.github, self.policy)
+        self.assertEqual(plan["candidate_count"], 0)
+        self.assertEqual(plan["held"][self.branch], ["not_fully_integrated"])
+
+    def test_terminal_failure_can_wake_but_cannot_prove_integration(self):
+        self.runs[700]["conclusion"] = "failure"
+        self.integrated = False
+        self.assertTrue(self.retry()["retry"])
+        self.assertEqual(self.module.make_plan(self.github, self.policy)["candidate_count"], 0)
+
+    def test_foreign_repositories_events_and_workflow_identities_fail_closed(self):
+        original = copy.deepcopy(self.runs[700])
+        variants = [dict(event="pull_request"), dict(event="workflow_dispatch"), dict(status="in_progress"),
+                    dict(workflow_id=123), dict(path=".github/workflows/branch-cleanup.yml"),
+                    dict(name="spoofed owner"), dict(head_branch="test/main/not-permanent"),
+                    dict(repository={"id": 1, "full_name": "overte-org/overte"}),
+                    dict(head_repository={"id": 1, "full_name": "foreign/fork"})]
+        for changes in variants:
+            self.runs[700] = dict(copy.deepcopy(original), **changes)
+            with self.subTest(changes=changes), self.assertRaises(self.module.CleanupError):
+                self.retry()
+        self.runs[700] = original
+        self.signal["repository"] = {"id": 1, "full_name": "foreign/fork"}
+        with self.assertRaises(self.module.CleanupError):
+            self.retry()
+
+    def test_stale_callback_and_target_movement_do_not_retry(self):
+        self.runs[700]["head_sha"] = "f" * 40
+        self.assertEqual(self.retry()["reason"], "terminal_source_not_current")
+        self.runs[700]["head_sha"] = self.revision
+        self.reference_changes["main"] = "f" * 40
+        self.assertEqual(self.retry()["reason"], "terminal_target_changed")
+
+    def test_payload_cannot_impersonate_the_actual_api_attempt_or_source(self):
+        for field, value in (("run_attempt", 2), ("head_sha", "f" * 40), ("name", "spoofed owner")):
+            self.signal["workflow_run"] = copy.deepcopy(self.runs[700])
+            self.signal["workflow_run"][field] = value
+            with self.subTest(field=field), self.assertRaises(self.module.CleanupError):
+                self.module.terminal_retry(self.github, self.policy, self.signal)
+
+    def test_changed_workflow_source_name_or_corrupt_blob_cannot_start_a_retry(self):
+        self.source_changes[self.runs[700]["path"]] = b"name: Unreviewed owner\non: push\n"
+        with self.assertRaisesRegex(self.module.CleanupError, "source_name_changed"):
+            self.retry()
+        self.source_changes.clear()
+        original = self.response
+        def corrupt(suffix="", paginate=False):
+            value = original(suffix, paginate)
+            if suffix.startswith("contents/.github/workflows/"):
+                value["sha"] = "f" * 40
+            return value
+        with mock.patch.object(self.github, "get", side_effect=corrupt), \
+                self.assertRaisesRegex(self.module.CleanupError, "blob_mismatch"):
+            self.retry()
+
+    def test_incomplete_activity_inventory_never_means_quiet(self):
+        original = self.response
+        def incomplete(suffix="", paginate=False):
+            return {"total_count": 1, "workflow_runs": []} if suffix.startswith("actions/runs?status=") else original(suffix, paginate)
+        with mock.patch.object(self.github, "get", side_effect=incomplete), mock.patch.object(self.module.time, "sleep"), \
+                self.assertRaisesRegex(self.module.CleanupError, "active_run_listing_incomplete"):
+            self.retry()
+
+    def cli_retry(self, event_name="workflow_run"):
+        with tempfile.TemporaryDirectory(prefix="cleanup-terminal-cli-") as temporary:
+            directory = Path(temporary)
+            event, output, report = (directory / name for name in ("event.json", "output", "retry.json"))
+            event.write_text(json.dumps(self.signal))
+            context = {"GITHUB_ACTIONS": "true", "GITHUB_REPOSITORY": FORK, "GITHUB_REPOSITORY_ID": "1319052603",
+                       "GITHUB_EVENT_NAME": event_name, "GITHUB_RUN_ID": "999",
+                       "GITHUB_WORKFLOW_REF": FORK + "/.github/workflows/branch-cleanup.yml@refs/heads/main"}
+            with mock.patch.dict(os.environ, context, clear=True), mock.patch.object(self.module, "Github", return_value=self.github), \
+                    mock.patch.object(sys, "argv", [str(SCRIPT), "retry", "--event", str(event), "--output", str(output), "--report", str(report)]), \
+                    mock.patch.object(self.module, "make_plan", side_effect=AssertionError("hint cannot authorize a plan")), \
+                    mock.patch.object(self.module, "GitStore", side_effect=AssertionError("preflight cannot touch backup or refs")):
+                code = self.module.main()
+            return code, json.loads(report.read_text()), output.read_text() if output.exists() else ""
+
+    def test_read_only_retry_cli_never_plans_backs_up_or_deletes(self):
+        code, result, output = self.cli_retry()
+        self.assertEqual((code, output), (0, "retry=true\n"))
+        self.assertEqual((result["status"], result["deleted"]), ("retry-ready", []))
+        self.assertNotIn("backup_artifact_id", result)
+        self.rows = [row for row in self.rows if row["name"] != self.branch]
+        code, result, output = self.cli_retry()
+        self.assertEqual((code, output, result["status"]), (0, "retry=false\n", "retry-held"))
+
+    def test_stale_trusted_checkout_or_wrong_runner_event_never_outputs_retry_authority(self):
+        code, result, output = self.cli_retry(event_name="workflow_dispatch")
+        self.assertEqual((code, output, result["status"]), (1, "", "blocked"))
+        for row in self.rows:
+            if row["name"] == "main":
+                row["sha"] = "f" * 40
+        self.runs[700]["head_sha"] = "f" * 40
+        self.signal["workflow_run"] = copy.deepcopy(self.runs[700])
+        code, result, output = self.cli_retry()
+        self.assertEqual((code, output, result["status"]), (0, "retry=false\n", "deferred"))
+        self.assertEqual(result["deleted"], [])
+
+
 class WorkflowSafetyTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -2214,13 +2471,32 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn("inputs.mode == 'apply'", token)
         self.assertIn("github.workflow_ref == 'noah-l-frank/overte/.github/workflows/branch-cleanup.yml@refs/heads/main'", self.source)
 
-    def test_closed_pr_manual_and_bounded_schedule_replace_ci_completion_fanout(self):
-        self.assertNotIn("  workflow_run:", self.source)
+    def test_closed_manual_schedule_and_finite_push_retry_keep_trusted_execution(self):
+        module = load_cleanup()
+        retry = self.source.split("  workflow_run:\n", 1)[1].split("  schedule:", 1)[0]
+        names = re.findall(r"^      - (.+)$", retry, re.M)
+        self.assertEqual(set(names), {name for name, _ in module.TERMINAL_WORKFLOWS.values()})
+        self.assertEqual(len(names), 12)
+        self.assertIn("types: [completed]", retry)
+        branches = re.search(r"branches: \[([^]]+)\]", retry).group(1).split(", ")
+        self.assertEqual(set(branches), PERMANENT)
         self.assertIn("  pull_request_target:\n    types: [closed]", self.source)
         self.assertIn('cron: "7,22,37,52 * * * *"', self.source)
         self.assertIn("  workflow_dispatch:", self.source)
         self.assertNotIn("github.event.workflow_run.head_sha", self.source)
         self.assertNotIn("github.event.workflow_run.conclusion", self.source)
+
+    def test_terminal_preflight_precedes_token_and_adoption_and_can_only_gate_full_plan(self):
+        retry = self.source.index("cleanup.py retry")
+        token = self.source.index("- name: Create repository-scoped history integration token")
+        history = self.source.index("- name: Assess adopted work and maintain checked history PRs")
+        plan = self.source.index("- name: Plan from current GitHub state")
+        self.assertLess(retry, token)
+        self.assertLess(token, history)
+        for block in (self.source[token:history], self.source[history:plan]):
+            self.assertIn("github.event_name != 'workflow_run'", block)
+        self.assertIn("steps.retry.outputs.retry == 'true'", self.source[plan:])
+        self.assertIn("github.event.workflow_run.event == 'push'", self.source)
 
     def test_preflight_adoption_deferral_skips_plan_and_existing_zero_candidate_dependents(self):
         plan = self.source.split("- name: Plan from current GitHub state", 1)[1].split("- name: Build and verify", 1)[0]
@@ -2228,7 +2504,7 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertEqual(self.source.count("fromJSON(steps.plan.outputs.candidate_count || '0') > 0"), 3)
         self.assertIn("if: always()", self.source.split("- name: Retain plan and outcome", 1)[1])
 
-    def test_legacy_inflight_context_still_requires_trusted_main_after_trigger_removal(self):
+    def test_terminal_context_still_requires_trusted_main(self):
         module = load_cleanup()
         context = {
             "GITHUB_ACTIONS": "true", "GITHUB_REPOSITORY": FORK,

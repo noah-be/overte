@@ -61,6 +61,9 @@ class ProducerProtocolTests(unittest.TestCase):
             "completed_at": "2026-10-15T10:02:50Z",
         }
         self.receipt = signed(self.receipt, "receipt_digest")
+        final = P.AuthenticatedJob(130, 1, "completed", "success", "2026-10-15T10:03:30Z", "2026-10-15T10:04:45Z")
+        self.run = replace(self.run, final_publisher=P.AuthenticatedPublication(
+            final, hashlib.sha256(P.canonical(self.receipt)).hexdigest()))
         self.descriptor = P.descriptor(self.binding, self.plan, self.policy, self.run)
         self.aggregate = signed({
             "schema": 1, "producer": "overte-producer-aggregate-v1", "descriptor_digest": self.descriptor["descriptor_digest"],
@@ -103,7 +106,7 @@ class ProducerProtocolTests(unittest.TestCase):
                        attempt_started_at="2026-10-15T10:04:00Z", status=status, conclusion=conclusion,
                        publisher=replace(self.run.publisher, job_id=run_id + 10, attempt=attempt,
                                          started_at="2026-10-15T10:04:00Z", completed_at="2026-10-15T10:04:40Z"),
-                       owners={})
+                       owners={}, final_publisher=None)
 
     def test_valid_complete_proof_preserves_original_expiry_and_runs_no_candidate_commands(self):
         with patch.object(P.execution, "execute", side_effect=AssertionError("proof validation must not execute candidate")), \
@@ -112,6 +115,8 @@ class ProducerProtocolTests(unittest.TestCase):
         self.assertTrue(result["verified"])
         self.assertEqual(result["expires_at"], self.aggregate["expires_at"])
         self.assertEqual(result["qualified_at"], self.aggregate["qualified_at"])
+        self.assertEqual(result["final_publisher_job_id"], 130)
+        self.assertEqual(result["receipt_sha256"], hashlib.sha256(P.execution.canonical_json(self.receipt)).hexdigest())
         self.assertEqual(self.select()["state"], "proof-required", "run success alone is not a verified result")
 
     def test_workflow_source_commit_remains_distinct_from_tested_merge_candidate(self):
@@ -304,7 +309,96 @@ class ProducerProtocolTests(unittest.TestCase):
         receipt = self.aggregate["results"]["shared-host"]["receipt"]
         receipt.update(include_platform=True, platform_results={"product": {"status": "passed", "command": ["python", "tests/product.py"]}})
         self.aggregate["results"]["shared-host"]["receipt"] = signed(receipt, "receipt_digest")
+        self.run = replace(self.run, final_publisher=replace(self.run.final_publisher, receipt_sha256=hashlib.sha256(
+            P.canonical(self.aggregate["results"]["shared-host"]["receipt"])).hexdigest()))
         self.assertTrue(self.verify(signed(self.aggregate, "aggregate_digest"))["verified"])
+
+    def test_early_descriptor_has_no_final_publication_dependency_but_aggregate_does(self):
+        early = replace(self.run, final_publisher=None)
+        self.assertEqual(P.descriptor(self.binding, self.plan, self.policy, early), self.descriptor)
+        self.assertEqual(self.select([self.observation(early)])["state"], "proof-required")
+        with self.assertRaisesRegex(P.ProtocolError, "final publisher is missing"):
+            self.verify(observations=[self.observation(early)])
+
+    def test_final_publication_fact_is_not_a_mapping_or_multiple_commitments(self):
+        fact = self.run.final_publisher
+        for value in (fact.__dict__, [fact], (fact,), {"shared-host": fact}, {"first": fact, "second": fact}):
+            with self.subTest(value=value), self.assertRaises(P.ProtocolError):
+                self.verify(observations=[self.observation(replace(self.run, final_publisher=value))])
+
+    def test_final_publication_requires_exact_whole_receipt_hash_not_its_self_digest(self):
+        for digest in ("", "a" * 63, "A" * 64, "sha256:" + "a" * 64,
+                       self.receipt["receipt_digest"].removeprefix("sha256:"), "0" * 64):
+            with self.subTest(digest=digest), self.assertRaises(P.ProtocolError):
+                actual = replace(self.run, final_publisher=replace(self.run.final_publisher, receipt_sha256=digest))
+                self.verify(observations=[self.observation(actual)])
+
+    def test_sibling_candidate_can_resign_a_valid_receipt_but_cannot_change_protected_commitment(self):
+        altered = deepcopy(self.aggregate)
+        receipt = altered["results"]["shared-host"]["receipt"]
+        receipt["started_at"] = "2026-10-15T10:02:11Z"
+        altered["results"]["shared-host"]["receipt"] = signed(receipt, "receipt_digest")
+        P.execution.validate_receipt(altered["results"]["shared-host"]["receipt"], self.registry, self.tree)
+        with self.assertRaisesRegex(P.ProtocolError, "authenticated final publisher commitment"):
+            self.verify(signed(altered, "aggregate_digest"))
+        self.assertTrue(self.verify()["verified"])
+
+    def test_final_publication_requires_a_distinct_successful_complete_current_attempt_job(self):
+        final = self.run.final_publisher
+        jobs = [replace(final.job, job_id=self.run.publisher.job_id),
+                replace(final.job, job_id=self.run.owners["shared-host"].job_id),
+                replace(final.job, attempt=2), replace(final.job, conclusion="failure"),
+                replace(final.job, conclusion="skipped"), replace(final.job, status="in_progress", conclusion=None),
+                replace(final.job, started_at=None, completed_at=None), replace(final.job, completed_at=None),
+                None]
+        for job in jobs:
+            with self.subTest(job=job), self.assertRaises(P.ProtocolError):
+                actual = replace(self.run, final_publisher=replace(final, job=job))
+                self.verify(observations=[self.observation(actual)])
+
+    def test_final_publisher_starts_after_owner_and_covers_qualification_and_artifact_creation(self):
+        final = self.run.final_publisher
+        for job in (replace(final.job, started_at="2026-10-15T10:02:59Z"),
+                    replace(final.job, started_at="2026-10-15T10:04:10Z"),
+                    replace(final.job, completed_at="2026-10-15T10:04:20Z")):
+            with self.subTest(job=job), self.assertRaises(P.ProtocolError):
+                actual = replace(self.run, final_publisher=replace(final, job=job))
+                self.verify(observations=[self.observation(actual)])
+        _, facts = self.artifact(self.aggregate, "aggregate")
+        with self.assertRaisesRegex(P.ProtocolError, "actual time window"):
+            self.verify(facts=replace(facts, created_at="2026-10-15T10:04:46Z"))
+
+    def test_final_publisher_id_hash_and_timing_are_stable_across_both_api_bookends(self):
+        final = self.run.final_publisher
+        for changed in (None, replace(final, receipt_sha256="0" * 64),
+                        replace(final, job=replace(final.job, job_id=131)),
+                        replace(final, job=replace(final.job, completed_at="2026-10-15T10:04:46Z"))):
+            with self.subTest(changed=changed), self.assertRaisesRegex(P.ProtocolError, "final publisher is missing or changed"):
+                self.verify(final=[self.observation(replace(self.run, final_publisher=changed))])
+
+    def test_final_publication_rejects_multiple_selected_shared_owners(self):
+        self.plan["owners"]["second-host"] = deepcopy(self.plan["owners"]["shared-host"])
+        self.run = replace(self.run, owners={**self.run.owners, "second-host": replace(self.run.owners["shared-host"], job_id=121)})
+        self.descriptor = P.descriptor(self.binding, self.plan, self.policy, self.run)
+        value = deepcopy(self.aggregate)
+        value["descriptor_digest"] = self.descriptor["descriptor_digest"]
+        value["results"]["second-host"] = {**deepcopy(value["results"]["shared-host"]), "job_id": 121}
+        with self.assertRaisesRegex(P.ProtocolError, "exactly one shared execution owner"):
+            self.verify(signed(value, "aggregate_digest"), contexts={"shared-host": self.context, "second-host": self.context})
+
+    def test_final_publication_cannot_turn_a_successful_rerun_into_original_execution(self):
+        final = self.run.final_publisher
+        self.run = replace(self.run, attempt=2, latest_attempt=2,
+                           publisher=replace(self.run.publisher, attempt=2),
+                           owners={name: replace(job, attempt=2) for name, job in self.run.owners.items()},
+                           final_publisher=replace(final, job=replace(final.job, attempt=2)))
+        self.descriptor = P.descriptor(self.binding, self.plan, self.policy, self.run)
+        value = deepcopy(self.aggregate)
+        value["descriptor_digest"] = self.descriptor["descriptor_digest"]
+        value["results"]["shared-host"]["attempt"] = 2
+        self.assertEqual(self.select()["state"], "proof-required")
+        with self.assertRaisesRegex(P.ProtocolError, "original first execution attempt"):
+            self.verify(signed(value, "aggregate_digest"))
 
     def test_unimplemented_owner_kinds_and_relay_fields_remain_explicitly_no_reuse(self):
         self.plan["owners"]["shared-host"]["kind"] = "native"

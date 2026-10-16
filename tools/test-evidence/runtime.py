@@ -211,11 +211,18 @@ def _flags() -> dict[str, str]:
     if sys._xoptions:
         raise _fail("unsupported Python interpreter options prevent reusable evidence")
     git_names = {name for name in os.environ if name.startswith("GIT_CONFIG")}
-    if git_names and (git_names != set(_FIXED_GIT_OVERRIDES) or any(
-        os.environ[name] != value for name, value in _FIXED_GIT_OVERRIDES.items()
-    )):
+    # The manual shared-host diagnostic has immutable root-owned source at
+    # exactly /work. Bind its one safe-directory exception distinctly; retain
+    # the ordinary two-setting profile and reject wildcard/ambient additions.
+    safe_work = {**_FIXED_GIT_OVERRIDES, "GIT_CONFIG_COUNT": "3",
+                 "GIT_CONFIG_KEY_2": "safe.directory", "GIT_CONFIG_VALUE_2": "/work"}
+    git_profile = next((label for values, label in (
+        (_FIXED_GIT_OVERRIDES, "maintenance-disabled"),
+        (safe_work, "maintenance-disabled-safe-work"),
+    ) if git_names == set(values) and all(os.environ[name] == value for name, value in values.items())), None)
+    if git_names and git_profile is None:
         raise _fail("unsupported Git process overrides prevent reusable evidence")
-    allowed = set(_CHOICES) | {"OVERTE_QML_TEST_RUNNER", "PKG_CONFIG_PATH", "LD_LIBRARY_PATH"} | set(_FIXED_GIT_OVERRIDES)
+    allowed = set(_CHOICES) | {"OVERTE_QML_TEST_RUNNER", "PKG_CONFIG_PATH", "LD_LIBRARY_PATH"} | set(safe_work)
     for name in os.environ:
         if name not in allowed and (
             name in _UNSUPPORTED_VARIABLES or name.startswith(_SENSITIVE_PREFIXES)
@@ -232,7 +239,7 @@ def _flags() -> dict[str, str]:
         ):
             raise _fail("unsupported host executable search paths prevent reusable evidence")
     flags = {}
-    flags["git_process_overrides"] = "maintenance-disabled" if git_names else "none"
+    flags["git_process_overrides"] = git_profile if git_names else "none"
     flags["JAVA_HOME"] = "identified-jdk" if java_home else "path"
     for name, (choices, default) in _CHOICES.items():
         value = os.environ.get(name, default)

@@ -172,6 +172,16 @@ class RuntimeIdentityTests(unittest.TestCase):
             with self.subTest(overrides=overrides), self.assertRaises(RUNTIME.RuntimeIdentityError):
                 self.capture(overrides)
 
+    def test_shared_immutable_git_exception_is_exact_and_distinct(self):
+        values = dict(RUNTIME._FIXED_GIT_OVERRIDES) | {"GIT_CONFIG_COUNT": "3", "GIT_CONFIG_KEY_2": "safe.directory",
+                                                    "GIT_CONFIG_VALUE_2": "/work"}
+        identity = self.capture(values)
+        self.assertEqual(identity["flags"]["git_process_overrides"], "maintenance-disabled-safe-work")
+        for key, value in (("GIT_CONFIG_VALUE_2", "*"), ("GIT_CONFIG_VALUE_2", "/work/elsewhere"),
+                           ("GIT_CONFIG_KEY_2", "include.path"), ("GIT_CONFIG_COUNT", "2")):
+            with self.subTest(key=key, value=value), self.assertRaises(RUNTIME.RuntimeIdentityError):
+                self.capture(values | {key: value})
+
     def test_standard_hosted_path_allows_only_the_identified_system_jdk_directory(self):
         java_home = Path("/usr/lib/jvm/temurin-17-jdk-amd64")
         standard_path = ":".join((

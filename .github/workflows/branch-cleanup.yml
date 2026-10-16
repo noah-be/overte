@@ -1,11 +1,27 @@
 name: Automatic branch cleanup
 
-# Only trusted main supplies executable code. A closed PR wakes one assessment;
-# the bounded schedule retries CI holds without a completion-event fanout.
+# Only trusted main supplies executable code. Closed PRs assess current work;
+# finite push completions cheaply retry exact closed-PR heads after CI holds.
 # Candidate trees and downloaded artifacts are never executed.
-on: # zizmor: ignore[dangerous-triggers] Closed PR notifications run only trusted main cleanup code.
+on: # zizmor: ignore[dangerous-triggers] PR and push-completion notifications run only trusted main cleanup code.
   pull_request_target:
     types: [closed]
+  workflow_run:
+    workflows:
+      - Android tests
+      - Android VR integration tests
+      - Branch synchronization
+      - Owned atomic settings diagnostic
+      - Direct browser client
+      - CodeQL
+      - Dependency release policy
+      - Documentation checks
+      - iOS bootstrap
+      - Parent qualification
+      - Shared project CI
+      - Workflow security
+    types: [completed]
+    branches: [main, android-main, android-phone, android-vr, android-vr-pico, apple-main, apple-ios]
   schedule:
     # Offset from the documented top-of-hour scheduler load; still four per hour.
     - cron: "7,22,37,52 * * * *"
@@ -32,7 +48,8 @@ jobs:
     if: >-
       github.repository == 'noah-l-frank/overte' &&
       github.repository_id == '1319052603' &&
-      github.workflow_ref == 'noah-l-frank/overte/.github/workflows/branch-cleanup.yml@refs/heads/main'
+      github.workflow_ref == 'noah-l-frank/overte/.github/workflows/branch-cleanup.yml@refs/heads/main' &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.event == 'push')
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
@@ -64,9 +81,22 @@ jobs:
             /.github/branch-policy.json
             /.github/repository-checks.json
 
+      - name: Check current closed-PR hints after an authenticated push completion
+        id: retry
+        if: github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/branch-cleanup"
+          python3 tools/branch-cleanup/cleanup.py retry \
+            --event "$GITHUB_EVENT_PATH" --output "$GITHUB_OUTPUT" \
+            --report "$RUNNER_TEMP/branch-cleanup/retry.json"
+
       - name: Create repository-scoped history integration token
         id: history-token
         if: >-
+          github.event_name != 'workflow_run' &&
           vars.BRANCH_SYNC_APP_CLIENT_ID != '' &&
           (github.event_name != 'workflow_dispatch' || inputs.mode == 'apply')
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
@@ -80,6 +110,7 @@ jobs:
 
       - name: Assess adopted work and maintain checked history PRs
         id: history
+        if: github.event_name != 'workflow_run'
         env:
           GH_TOKEN: ${{ github.token }}
           ADOPTION_APP_TOKEN: ${{ steps.history-token.outputs.token }}
@@ -114,7 +145,7 @@ jobs:
 
       - name: Plan from current GitHub state
         id: plan
-        if: steps.history.outputs.deferred != 'true'
+        if: steps.history.outputs.deferred != 'true' && (github.event_name != 'workflow_run' || steps.retry.outputs.retry == 'true')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -180,5 +211,6 @@ jobs:
             ${{ runner.temp }}/branch-cleanup/plan.json
             ${{ runner.temp }}/branch-cleanup/report.json
             ${{ runner.temp }}/branch-cleanup/adoption.json
+            ${{ runner.temp }}/branch-cleanup/retry.json
           if-no-files-found: warn
           retention-days: 14

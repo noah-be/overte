@@ -52,6 +52,19 @@ class AuthenticatedJob:
 
 
 @dataclass(frozen=True)
+class AuthenticatedPublication:
+    """Native final-job facts read by the trusted adapter, never artifact claims.
+
+    receipt_sha256 is the lowercase hexadecimal SHA256 of the complete canonical
+    shared execution receipt, including its receipt_digest field. The adapter
+    must authenticate this commitment in the approved native job name and bind
+    that job to this exact run, original attempt, check app and workflow source.
+    """
+    job: AuthenticatedJob
+    receipt_sha256: str
+
+
+@dataclass(frozen=True)
 class AuthenticatedRun:
     repository: str
     repository_id: int
@@ -69,6 +82,7 @@ class AuthenticatedRun:
     conclusion: str | None
     publisher: AuthenticatedJob | None
     owners: dict[str, AuthenticatedJob]
+    final_publisher: AuthenticatedPublication | None = None
 
 
 @dataclass(frozen=True)
@@ -232,7 +246,13 @@ def _run(run, policy, *, require_latest=True):
         _time(run.attempt_started_at)
     if not isinstance(run.owners, dict):
         raise ProtocolError("actual owner job facts are unavailable")
-    for job in [run.publisher, *run.owners.values()]:
+    if run.final_publisher is not None and (
+            not isinstance(run.final_publisher, AuthenticatedPublication)
+            or not isinstance(run.final_publisher.receipt_sha256, str)
+            or re.fullmatch(r"[0-9a-f]{64}", run.final_publisher.receipt_sha256) is None):
+        raise ProtocolError("final publisher commitment is not an authenticated complete-receipt hash")
+    final_job = run.final_publisher.job if run.final_publisher is not None else None
+    for job in [run.publisher, *run.owners.values(), final_job]:
         if job is None:
             continue
         if not isinstance(job, AuthenticatedJob) or job.attempt != run.attempt:
@@ -388,6 +408,13 @@ def verify_aggregate(raw, artifact, binding, plan, policy, observations, *, inve
         raise ProtocolError("latest producer is missing, pending, failed or changed")
     selected = next(item for item in final_observations if (item.run.run_id, item.run.attempt) == (last["run_id"], last["attempt"]))
     run = selected.run
+    initial = next(item for item in observations if (item.run.run_id, item.run.attempt) == (first["run_id"], first["attempt"]))
+    if run.final_publisher is None or initial.run.final_publisher != run.final_publisher:
+        raise ProtocolError("authenticated final publisher is missing or changed during verification")
+    if run.attempt != 1 or run.latest_attempt != 1:
+        raise ProtocolError("final publication requires the original first execution attempt")
+    if len(plan["owners"]) != 1 or next(iter(plan["owners"].values()))["kind"] != "shared":
+        raise ProtocolError("final publication supports exactly one shared execution owner")
     descriptor_value = read_artifact(selected.descriptor_archive, "descriptor", selected.descriptor_artifact, run, now=now)
     validate_descriptor(descriptor_value, binding, plan, policy, run)
     value = read_artifact(raw, "aggregate", artifact, run, now=now)
@@ -410,6 +437,12 @@ def verify_aggregate(raw, artifact, binding, plan, policy, observations, *, inve
         raise ProtocolError("trusted descriptor publishing job did not complete successfully")
     if not _time(run.publisher.started_at) <= _time(selected.descriptor_artifact.created_at) <= _time(run.publisher.completed_at):
         raise ProtocolError("descriptor was not published by its early bound job")
+    final_job = run.final_publisher.job
+    if (final_job is None or final_job.job_id in {run.publisher.job_id, *(job.job_id for job in run.owners.values())}
+            or final_job.status != "completed" or final_job.conclusion != "success"
+            or final_job.started_at is None or final_job.completed_at is None
+            or not _time(final_job.started_at) <= qualified <= _time(artifact.created_at) <= _time(final_job.completed_at)):
+        raise ProtocolError("aggregate is not bound to a distinct successful final publishing job and its actual time window")
     for name, owner in plan["owners"].items():
         result, job = value["results"][name], run.owners[name]
         _fields(result, {"status", "job_id", "attempt", "receipt"})
@@ -417,7 +450,8 @@ def verify_aggregate(raw, artifact, binding, plan, policy, observations, *, inve
         _positive(result["attempt"])
         if result["status"] != "passed" or result["job_id"] != job.job_id or result["attempt"] != run.attempt \
                 or job.status != "completed" or job.conclusion != "success" or job.started_at is None or job.completed_at is None \
-                or _time(job.started_at) < _time(run.publisher.completed_at) or _time(job.completed_at) > qualified:
+                or _time(job.started_at) < _time(run.publisher.completed_at) or _time(job.completed_at) > qualified \
+                or _time(job.completed_at) > _time(final_job.started_at):
             raise ProtocolError("selected owner lacks complete current-attempt successful execution")
         if owner["kind"] != "shared" or not isinstance(contexts.get(name), SharedContext):
             raise ProtocolError("selected owner has no implemented complete inner-receipt validator")
@@ -437,6 +471,9 @@ def verify_aggregate(raw, artifact, binding, plan, policy, observations, *, inve
                 raise ProtocolError("shared source, selected suites, platform or actual runtime differs from trusted facts")
         except (inputs.InputError, execution.ExecutionError, KeyError, TypeError) as error:
             raise ProtocolError("shared execution receipt does not establish complete original proof") from error
+        if hashlib.sha256(canonical(receipt)).hexdigest() != run.final_publisher.receipt_sha256:
+            raise ProtocolError("shared receipt differs from the authenticated final publisher commitment")
     return {"verified": True, "run_id": run.run_id, "attempt": run.attempt,
+            "final_publisher_job_id": final_job.job_id, "receipt_sha256": run.final_publisher.receipt_sha256,
             "descriptor_digest": descriptor_value["descriptor_digest"], "aggregate_digest": value["aggregate_digest"],
             "qualified_at": value["qualified_at"], "expires_at": value["expires_at"]}

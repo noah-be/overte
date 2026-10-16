@@ -37,6 +37,22 @@ SCOPES = {
 }
 KINDS = {"feature", "fix", "docs", "refactor", "test", "tests", "task", "ci", "sync", "reconcile", "promote", "build"}
 SHA = re.compile(r"^[0-9a-f]{40}$")
+# A completion is a wake-up only. These are the declared branch-push owners in
+# the seven protected inventories, including legacy owners awaiting propagation.
+TERMINAL_WORKFLOWS = {
+    330519645: ("Android tests", "android-tests.yml"),
+    331117401: ("Android VR integration tests", "android-vr-tests.yml"),
+    340529251: ("Branch synchronization", "branch-sync.yml"),
+    372770820: ("Owned atomic settings diagnostic", "browser-client-atomic-settings.yml"),
+    373796501: ("Direct browser client", "browser-direct-client.yml"),
+    349116380: ("CodeQL", "codeql.yml"),
+    359712487: ("Dependency release policy", "dependency-releases.yml"),
+    331326815: ("Documentation checks", "documentation-checks.yml"),
+    330869252: ("iOS bootstrap", "ios-bootstrap.yml"),
+    350930890: ("Parent qualification", "parent-qualification.yml"),
+    330551824: ("Shared project CI", "project-tests.yml"),
+    347471831: ("Workflow security", "workflow-security.yml"),
+}
 
 
 class CleanupError(RuntimeError):
@@ -141,8 +157,7 @@ def scope_target(branch):
     return SCOPES.get(parts[1])
 
 
-def select_candidates(branches, policy, comparisons, holds=None):
-    validate_policy(policy)
+def branch_inventory(branches):
     require(isinstance(branches, list) and all(
         isinstance(row, dict) and valid_branch(row.get("name"))
         and isinstance(row.get("sha"), str) and SHA.fullmatch(row["sha"])
@@ -151,6 +166,12 @@ def select_candidates(branches, policy, comparisons, holds=None):
     require(len(indexed) == len(branches), "duplicate_remote_branch")
     require(PERMANENT <= indexed.keys(), "permanent_branch_missing")
     require(all(indexed[name].get("protected") is True for name in PERMANENT), "permanent_branch_unprotected")
+    return indexed
+
+
+def select_candidates(branches, policy, comparisons, holds=None):
+    validate_policy(policy)
+    indexed = branch_inventory(branches)
     result, held = [], {}
     for name, row in sorted(indexed.items()):
         reasons = list((holds or {}).get(name, []))
@@ -709,6 +730,102 @@ def make_plan(github, policy):
             "candidates": candidates, "held": held, "candidate_count": len(candidates)}
 
 
+def same_repository(value):
+    return (isinstance(value, dict) and value.get("full_name") == REPOSITORY
+            and type(value.get("id")) is int and value["id"] == REPOSITORY_ID)
+
+
+def terminal_run(github, event):
+    """Authenticate a finite push notification; its conclusion proves no integration."""
+    require(isinstance(event, dict) and event.get("action") == "completed"
+            and same_repository(event.get("repository")), "invalid_terminal_event_repository")
+    signal = event.get("workflow_run")
+    require(isinstance(signal, dict) and type(signal.get("id")) is int and signal["id"] > 0
+            and type(signal.get("run_attempt")) is int and signal["run_attempt"] > 0
+            and same_repository(signal.get("head_repository")),
+            "invalid_terminal_run_identity")
+    actual = github.get("actions/runs/" + str(signal["id"]))
+    fields = ("id", "run_attempt", "workflow_id", "event", "status", "head_branch", "head_sha", "name")
+    require(isinstance(actual, dict) and all(actual.get(key) == signal.get(key) for key in fields)
+            and type(actual.get("id")) is int and type(actual.get("run_attempt")) is int
+            and type(actual.get("workflow_id")) is int and actual["workflow_id"] in TERMINAL_WORKFLOWS
+            and same_repository(actual.get("repository")) and same_repository(actual.get("head_repository"))
+            and actual.get("event") == "push" and actual.get("status") == "completed"
+            and isinstance(actual.get("conclusion"), str) and bool(actual["conclusion"])
+            and actual.get("head_branch") in PERMANENT and isinstance(actual.get("head_sha"), str)
+            and SHA.fullmatch(actual["head_sha"]), "invalid_terminal_push_run")
+    name, filename = TERMINAL_WORKFLOWS[actual["workflow_id"]]
+    path = ".github/workflows/" + filename
+    require(actual.get("name") == name and actual.get("path") == path,
+            "unreviewed_terminal_workflow")
+    workflow = github.get("actions/workflows/" + str(actual["workflow_id"]))
+    require(isinstance(workflow, dict) and workflow.get("id") == actual["workflow_id"]
+            and workflow.get("name") == name and workflow.get("path") == path,
+            "terminal_workflow_registration_changed")
+    return actual
+
+
+def terminal_retry(github, policy, event):
+    """Return a fresh closed-PR hint, never a deletion plan or ancestry proof.
+
+    Any authenticated completion may retry after activity clears. Electing a
+    latest event loses wake-ups when delivery and pending replacement reorder.
+    """
+    validate_policy(policy)
+    github.verify_owner()
+    actual = terminal_run(github, event)
+    indexed = branch_inventory(github.branches())
+    target, revision = actual["head_branch"], actual["head_sha"]
+    result = {"retry": False, "source_sha": indexed["main"]["sha"], "target": target,
+              "trigger_run": actual["id"], "trigger_attempt": actual["run_attempt"], "hint_count": 0}
+    if indexed[target]["sha"] != revision:
+        return dict(result, reason="terminal_source_not_current")
+    path = actual["path"]
+    endpoint = "contents/" + path + "?ref=" + revision
+    content = github.get(endpoint)
+    ImmutableReadCache.validate(ImmutableReadCache.request(endpoint, False), content)
+    import base64
+    source = base64.b64decode(re.sub(rb"[ \t\r\n]", b"", content["content"].encode("ascii"))).decode("utf-8")
+    name = actual["name"]
+    names = "|".join(re.escape(value) for value in (name, "'" + name + "'", '"' + name + '"'))
+    require(len(re.findall(r"(?m)^name:[ \t]*(?:" + names + r")[ \t]*(?:#.*)?$", source)) == 1,
+            "terminal_workflow_source_name_changed")
+    held = github.open_pr_holds(set(indexed))
+    hints = []
+    for branch, row in sorted(indexed.items()):
+        if (row["protected"] or branch in PERMANENT or branch in policy["holds"]
+                or branch in held or scope_target(branch) != target):
+            continue
+        head = urllib.parse.quote("noah-l-frank:" + branch, safe="")
+        prs = github.get("pulls?state=closed&head=" + head + "&base="
+                         + urllib.parse.quote(target, safe="") + "&per_page=100", paginate=True)
+        require(isinstance(prs, list) and all(isinstance(pr, dict)
+                and isinstance(pr.get("head"), dict) and isinstance(pr.get("base"), dict) for pr in prs),
+                "invalid_terminal_closed_pr_inventory")
+        # Earlier closed PRs can remain CI-held across later merges. The event's
+        # pull_requests array is not an inventory of these current topic refs.
+        if any(pr.get("state") == "closed" and isinstance(pr.get("closed_at"), str) and pr["closed_at"]
+               and same_repository(pr.get("head", {}).get("repo"))
+               and same_repository(pr.get("base", {}).get("repo"))
+               and pr["head"].get("ref") == branch and pr["head"].get("sha") == row["sha"]
+               and pr["base"].get("ref") == target for pr in prs):
+            hints.append({"branch": branch, "sha": row["sha"], "base": target, "base_sha": revision})
+    if not hints:
+        return dict(result, reason="no_current_closed_pr_hint")
+    activity = github.activity_holds(hints, policy)
+    hints = [row for row in hints if row["branch"] not in activity]
+    if not hints:
+        return dict(result, reason="terminal_candidates_still_held")
+    reference = github.get("git/ref/heads/" + urllib.parse.quote(target, safe=""))
+    require(isinstance(reference, dict) and reference.get("ref") == "refs/heads/" + target
+            and isinstance(reference.get("object"), dict) and reference["object"].get("type") == "commit"
+            and isinstance(reference["object"].get("sha"), str) and SHA.fullmatch(reference["object"]["sha"]),
+            "invalid_terminal_current_target")
+    if reference["object"]["sha"] != revision:
+        return dict(result, reason="terminal_target_changed")
+    return dict(result, retry=True, hint_count=len(hints), reason="current_closed_pr_retry")
+
+
 class GitStore:
     def __init__(self, path):
         self.path = Path(path)
@@ -867,6 +984,10 @@ def summary(report):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
+    retry_parser = sub.add_parser("retry")
+    retry_parser.add_argument("--event", type=Path, required=True)
+    retry_parser.add_argument("--output", type=Path, required=True)
+    retry_parser.add_argument("--report", type=Path, required=True)
     plan_parser = sub.add_parser("plan")
     plan_parser.add_argument("--output", type=Path, required=True)
     plan_parser.add_argument("--report", type=Path, required=True)
@@ -885,7 +1006,13 @@ def main():
     github = Github()
     report = {"repository": REPOSITORY, "status": "started", "deleted": []}
     try:
-        if args.command == "plan":
+        if args.command == "retry":
+            trusted_runtime()
+            require(os.environ.get("GITHUB_EVENT_NAME") == "workflow_run", "invalid_terminal_runner_event")
+            result = terminal_retry(github, policy, json.loads(args.event.read_text()))
+            verify_current_checkout(root, result["source_sha"], github)
+            report.update(result, status="retry-ready" if result["retry"] else "retry-held")
+        elif args.command == "plan":
             plan = make_plan(github, policy)
             if os.environ.get("GITHUB_ACTIONS") == "true":
                 verify_current_checkout(root, plan["source_sha"], github)
@@ -971,6 +1098,9 @@ def main():
         summary(report)
         print("Branch cleanup stopped; inspect its redacted report.")
         return 1
+    if args.command == "retry":
+        with args.output.open("a") as out:
+            out.write("retry=" + str(report["status"] == "retry-ready" and report.get("retry") is True).lower() + "\n")
     if args.command == "plan" and os.environ.get("GITHUB_OUTPUT"):
         with Path(os.environ["GITHUB_OUTPUT"]).open("a") as out:
             out.write("candidate_count=" + str(report["candidate_count"]) + "\n")
