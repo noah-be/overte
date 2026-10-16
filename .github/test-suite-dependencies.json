@@ -197,7 +197,7 @@
       "setup": [
         "host-full"
       ],
-      "reviewed_reader_digest": "sha256:2059c2575ed1a4b4a77064429615f8e878bd82d1680e9c5a4108fac042dc2395",
+      "reviewed_reader_digest": "sha256:336afc05ab679032fef4e91053bee32548110aee7ce0223d6f9c5cfb7c6f7760",
       "native_independent_paths": [
         ".github/android-checks.json",
         ".github/android-orchestration.json",
@@ -864,5 +864,5 @@
     }
   },
   "registry_digest": "sha256:02ab9737123fbf9e319ed0c5155e0d3bfe4682cbba52e100ade069c58714e6a4",
-  "lookup_digest": "sha256:2a807ab061a549a078e631f5105d2d58303e8649531a155b0c9bbe39a64a5ac4"
+  "lookup_digest": "sha256:8f7c1196b5f491da11285e0973450066b0e273f2fe0ffab4f8a94becf65b2c45"
 }
