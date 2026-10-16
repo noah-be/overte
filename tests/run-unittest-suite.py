@@ -19,6 +19,10 @@ import time
 import unittest
 
 
+# Keep diagnostic timing independent of test fixtures patching time functions.
+_case_clock_ns = time.perf_counter_ns
+
+
 def cases(suite):
     for item in suite:
         if isinstance(item, unittest.TestSuite):
@@ -49,10 +53,21 @@ class RecordingResult(unittest.TextTestResult):
         super().__init__(*args, **kwargs)
         self.executed_ids = []
         self.fixture_skips = []
+        self.case_durations = []
+        self._started_ns = {}
 
     def startTest(self, test):
         self.executed_ids.append(test.id())
+        self._started_ns[id(test)] = _case_clock_ns()
         super().startTest(test)
+
+    def stopTest(self, test):
+        started = self._started_ns.pop(id(test), None)
+        if started is not None:
+            self.case_durations.append({
+                "id": test.id(), "seconds": max(0.0, (_case_clock_ns() - started) / 1_000_000_000),
+            })
+        super().stopTest(test)
 
     def addSkip(self, test, reason):
         # setUpModule/setUpClass may skip a whole fixture without startTest calls.
@@ -104,6 +119,9 @@ def worker(manifest_path: Path) -> int:
     report = {
         "schema": 1, "loaded_ids": loaded, "ran": result.testsRun,
         "executed_ids": result.executed_ids, "fixture_skipped_ids": fixture_skipped,
+        # Diagnostic case lifecycle only; excludes module/class setup and
+        # interpreter startup. This never affects success or timeout decisions.
+        "case_durations": result.case_durations,
         "failures": len(result.failures), "errors": len(result.errors),
         "skipped": len(result.skipped), "successful": successful,
     }
