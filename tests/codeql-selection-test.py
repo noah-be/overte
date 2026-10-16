@@ -398,6 +398,80 @@ class LanguageSelectionTests(unittest.TestCase):
                     self.assertEqual(plan["reasons"][0]["code"], "unavailable-complete-inventory")
 
 
+class NpmLockSelectionTests(unittest.TestCase):
+    def trees(self, workflow=None):
+        before = reviewed_tree()
+        before['.github/workflows/codeql.yml']['sha'] = workflow or CODEQL._PINNED_RESULTS_WORKFLOW
+        before.update({path: entry() for path in CODEQL._PINNED_NPM_LOCKS})
+        after = deepcopy(before)
+        for path in CODEQL._PINNED_NPM_LOCKS:
+            after[path] = entry('b')
+        return before, after
+
+    def test_only_two_existing_lockfiles_omit_analysis_under_both_pinned_recipes(self):
+        self.assertEqual(CODEQL._PINNED_NPM_LOCKS, {
+            'browser-client/package-lock.json', 'script-archive/marketplace/S3Server/package-lock.json'})
+        for workflow in (CODEQL._PINNED_RESULTS_WORKFLOW, CODEQL._METADATA_RESULTS_WORKFLOW):
+            for event in ('pull_request', 'push'):
+                before, after = self.trees(workflow)
+                with self.subTest(workflow=workflow, event=event):
+                    plan = CODEQL.select_languages(before, after, event=event)
+                    self.assertEqual(plan['languages'], [])
+                    self.assertEqual(plan['reasons'], [{'code': 'reviewed-pinned-npm-lock', 'path': path}
+                                                       for path in sorted(CODEQL._PINNED_NPM_LOCKS)])
+
+    def test_lockfiles_cannot_hide_source_manifests_or_unknown_neighbors(self):
+        for path, expected in (
+                ('browser-client/main.ts', ['javascript-typescript']),
+                ('tools/helper.py', ['python']),
+                ('browser-client/package.json', ['javascript-typescript']),
+                ('script-archive/marketplace/S3Server/package.json', ['javascript-typescript']),
+                ('other/package-lock.json', ['javascript-typescript']),
+                ('browser-client/package-lock.json.backup', list(CODEQL.LANGUAGES)),
+                ('.github/codeql/custom.ql', list(CODEQL.LANGUAGES))):
+            before, after = self.trees()
+            after[path] = entry('c')
+            with self.subTest(path=path):
+                self.assertEqual(CODEQL.select_languages(before, after)['languages'], expected)
+
+    def test_membership_modes_and_aliases_require_conservative_checks(self):
+        for path in CODEQL._PINNED_NPM_LOCKS:
+            for mutation in ('added', 'deleted', 'renamed', 'before-mode', 'after-mode', 'alias', 'gitlink'):
+                before, after = self.trees()
+                if mutation == 'added': del before[path]
+                elif mutation == 'deleted': del after[path]
+                elif mutation == 'renamed': after[path + '.other.json'] = after.pop(path)
+                elif mutation == 'before-mode': before[path] = entry(mode='100755')
+                elif mutation == 'after-mode': after[path] = entry('b', '100755')
+                else: after[path] = entry('b', '120000' if mutation == 'alias' else '160000')
+                expected = list(CODEQL.LANGUAGES) if mutation in ('alias', 'gitlink') else ['javascript-typescript']
+                with self.subTest(path=path, mutation=mutation):
+                    self.assertEqual(CODEQL.select_languages(before, after)['languages'], expected)
+
+    def test_pins_configuration_packs_and_unchanged_aliases_precede_lock_exceptions(self):
+        for workflow in (CODEQL._REVIEWED_CONTROLS['.github/workflows/codeql.yml'], CODEQL._SELECTIVE_WORKFLOW,
+                         CODEQL._RESULTS_WORKFLOW, CODEQL._RETARGET_RESULTS_WORKFLOW):
+            before, after = self.trees(workflow)
+            self.assertEqual(CODEQL.select_languages(before, after)['languages'], ['javascript-typescript'])
+        for path, mode in (('.github/codeql/codeql-config.yml', '100644'), ('qlpack.yml', '100644'),
+                           ('unchanged/source.py', '120000'), ('unchanged/submodule', '160000')):
+            before, after = self.trees()
+            if path in before: after[path] = entry('c', mode)
+            else: before[path] = after[path] = entry(mode=mode)
+            with self.subTest(path=path):
+                self.assertTrue(CODEQL.select_languages(before, after)['full_scan'])
+        before, after = self.trees()
+        after['.github/workflows/codeql.yml']['sha'] = CODEQL._METADATA_RESULTS_WORKFLOW
+        self.assertTrue(CODEQL.select_languages(before, after)['full_scan'])
+
+    def test_unknown_context_and_schedule_keep_full_analysis(self):
+        before, after = self.trees()
+        for event in ('schedule', 'workflow_dispatch', 'pull_request_target', 'unknown'):
+            self.assertTrue(CODEQL.select_languages(before, after, event=event)['full_scan'])
+        for left, right in ((None, after), (before, None), ({}, after)):
+            self.assertTrue(CODEQL.select_languages(left, right)['full_scan'])
+
+
 class PythonControlSelectionTests(unittest.TestCase):
     controls = ('tools/repository-checks/check.py', 'tools/repository-checks/codeql.py',
                 'tools/test-evidence/inputs.py')
@@ -879,6 +953,38 @@ class SelectedResultTests(unittest.TestCase):
         self.alerts = [{'number': 9, 'state': 'open', 'tool': {'name': 'CodeQL'}}]
         self.instances = {9: [{'ref': self.env['GITHUB_REF'], 'commit_sha': self.candidate,
             'category': '/language:python', 'state': 'open', 'analysis_key': RESULTS.ANALYSIS_KEY}]}
+        with self.assertRaisesRegex(RESULTS.ResultError, 'open CodeQL finding'): self.verify()
+
+    def test_lock_only_real_git_still_requires_a_fresh_successful_native_selector(self):
+        path = 'browser-client/package-lock.json'
+        self.pinned_policy_candidate(path, existing_sources={path: '{"lockfileVersion":3,"packages":{}}\n'})
+        self.env['CODEQL_EXPECTED_LANGUAGES'] = '[]'
+        selector = deepcopy(self.jobs[-1])
+        self.jobs, self.analyses = [selector], []
+        self.assertEqual(self.verify()['languages'], [])
+        self.assertFalse(any('/code-scanning/' in call for call in self.api.calls))
+        for mutation in ('missing', 'failure', 'skipped', 'stale-head', 'wrong-attempt', 'duplicate'):
+            self.jobs = [deepcopy(selector)]
+            if mutation == 'missing': self.jobs.clear()
+            elif mutation in ('failure', 'skipped'): self.jobs[0]['conclusion'] = mutation
+            elif mutation == 'stale-head': self.jobs[0]['head_sha'] = self.base
+            elif mutation == 'wrong-attempt': self.jobs[0]['run_attempt'] = 2
+            else: self.jobs.append(deepcopy(selector))
+            with self.subTest(mutation=mutation), self.assertRaises(RESULTS.ResultError): self.verify()
+
+    def test_lock_change_with_javascript_still_checks_current_analysis_and_findings(self):
+        path = 'script-archive/marketplace/S3Server/package-lock.json'
+        self.pinned_policy_candidate(path, {'browser/main.ts': 'const changed = true;\n'},
+                                     existing_sources={path: '{"lockfileVersion":3,"packages":{}}\n'})
+        self.env['CODEQL_EXPECTED_LANGUAGES'] = '[]'
+        with self.assertRaises(RESULTS.ResultError): self.verify()
+        self.env['CODEQL_EXPECTED_LANGUAGES'] = '["javascript-typescript"]'
+        self.jobs[0]['name'] = 'CodeQL (javascript-typescript)'
+        self.analyses[0].update(environment='{"language":"javascript-typescript"}', category='/language:javascript-typescript')
+        self.assertEqual(self.verify()['languages'], ['javascript-typescript'])
+        self.alerts = [{'number': 9, 'state': 'open', 'tool': {'name': 'CodeQL'}}]
+        self.instances = {9: [{'ref': self.env['GITHUB_REF'], 'commit_sha': self.candidate,
+            'category': '/language:javascript-typescript', 'state': 'open', 'analysis_key': RESULTS.ANALYSIS_KEY}]}
         with self.assertRaisesRegex(RESULTS.ResultError, 'open CodeQL finding'): self.verify()
 
     def test_pinned_policy_json_uses_python_results_bound_to_actual_candidate_and_extractor(self):

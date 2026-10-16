@@ -64,6 +64,12 @@ _INERT_CI_JSONS = frozenset({
     ".github/branch-cleanup.json", ".github/issue-policy.json",
     ".github/repository-health.json", ".github/dependency-releases.json",
 })
+# The pinned no-build extractors do not read these dependency resolution files.
+# Their independent npm owners still require package/security/function checks.
+_PINNED_NPM_LOCKS = frozenset({
+    "browser-client/package-lock.json",
+    "script-archive/marketplace/S3Server/package-lock.json",
+})
 # Exact 2.27.2 default extractor discovery at a7057b836bf29767461026718b14d20790b9085f:
 # JS may sniff headers, but these suffixes never produce extracted source. Python
 # recursive discovery follows .py/.pyw or extensionless scripts only. Existing
@@ -145,6 +151,21 @@ def _pinned_ci_metadata(change, base_tree, candidate_tree):
     Whole-tree aliases, packs and actual analysis controls are checked first.
     """
     return (change['path'] in _INERT_CI_JSONS
+            and all(tree.get('.github/workflows/codeql.yml') in pinned_workflow_entries()
+                    for tree in (base_tree, candidate_tree))
+            and all(isinstance(change[side], dict) and change[side]['mode'] == '100644'
+                    and change[side]['type'] == 'blob' for side in ('before', 'after')))
+
+
+def _pinned_npm_lock(change, base_tree, candidate_tree):
+    """Two existing ordinary lockfiles supply no pinned analysis inputs.
+
+    AutoBuild's JSON allowlist excludes package-lock.json. Dependency discovery
+    reads package.json, and its resolver consumes that parsed manifest without
+    reading npm locks. Python does not extract these leaves. Whole-tree packs,
+    aliases and changed analysis configuration are rejected before this proof.
+    """
+    return (change['path'] in _PINNED_NPM_LOCKS
             and all(tree.get('.github/workflows/codeql.yml') in pinned_workflow_entries()
                     for tree in (base_tree, candidate_tree))
             and all(isinstance(change[side], dict) and change[side]['mode'] == '100644'
@@ -340,8 +361,9 @@ def select_languages(base_tree: dict | None, candidate_tree: dict | None, *, eve
     for change in changes:
         path = change["path"]
         inert_metadata = _pinned_ci_metadata(change, base_tree, candidate_tree)
+        inert_lock = _pinned_npm_lock(change, base_tree, candidate_tree)
         inert_native = _pinned_native_source(change, base_tree, candidate_tree, read_blob)
-        if inert_metadata or inert_native:
+        if inert_metadata or inert_lock or inert_native:
             selected = ()
         elif _pinned_policy_json(change, base_tree, candidate_tree):
             selected = ("python",)
@@ -351,6 +373,7 @@ def select_languages(base_tree: dict | None, candidate_tree: dict | None, *, eve
             return _result(LANGUAGES, [{"code": "unknown-analysis-input", "path": path}], changes)
         languages.update(selected)
         reasons.append({"code": ("reviewed-pinned-native-source" if inert_native else
+                                 "reviewed-pinned-npm-lock" if inert_lock else
                                  "reviewed-pinned-ci-metadata" if inert_metadata else
                                  "reviewed-pinned-python-control" if path in python_controls else
                                  "language-input" if selected else "markdown-only-input"), "path": path})
