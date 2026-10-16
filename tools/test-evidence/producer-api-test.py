@@ -1270,7 +1270,10 @@ class MainConsumerSourceTests(unittest.TestCase):
                 self.assertIn("steps.reuse.outputs.shared_reused != 'true'",row['if'])
         steps={row['name']:row for row in job['steps']}
         for name in ('Check only affected tool dependencies and behavior','Check independently selected S3 package dependencies and behavior'):
-            self.assertEqual(steps[name],next(row for row in old['jobs']['qualify-parent']['steps'] if row['name']==name))
+            expected=deepcopy(next(row for row in old['jobs']['qualify-parent']['steps'] if row['name']==name))
+            if 'S3 package' in name:
+                expected['if']="(steps.reuse.outputs.shared_reused != 'true' || steps.reuse.outputs.package_work == 'true') && " + expected['if']
+            self.assertEqual(steps[name],expected)
         validator=steps['Require an explicit reuse or actual-execution route']['run']
         for reused in ('true','false','','unknown'):
             for packages in ('true','false','','unknown'):

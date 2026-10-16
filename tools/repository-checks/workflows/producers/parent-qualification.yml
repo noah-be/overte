@@ -195,7 +195,7 @@ jobs:
         --sha "$GITHUB_SHA" --output "$GITHUB_OUTPUT" --expected-candidate "$EXPECTED_CANDIDATE" --expected-plan
         "$EXPECTED_PLAN" --lane tool-dependencies
     - name: Check independently selected S3 package dependencies and behavior
-      if: steps.route.outputs.package_set != '[]'
+      if: (steps.reuse.outputs.shared_reused != 'true' || steps.reuse.outputs.package_work == 'true') && steps.route.outputs.package_set != '[]'
       env:
         EXPECTED_CANDIDATE: ${{ steps.route.outputs.package_candidate }}
         EXPECTED_PLAN: ${{ steps.route.outputs.package_plan }}
