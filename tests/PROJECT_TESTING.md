@@ -694,6 +694,24 @@ apply to the finite reviewed dependency/consumer closure, not arbitrary npm
 updates. Live workflow activation must still atomically bind the required
 receipt and remove the duplicate legacy Browser jobs for these exact profiles.
 
+The prepared `npm-consumers-v1` generation binds all five workflows together:
+the existing project, parent-qualification and sync workflows, plus the paired
+repository caller and Browser workflow in
+`tools/repository-checks/workflows/npm-consumers/`. A complete approved pair
+automatically enables consumer selection consistently in the package CLI and
+both outer verifiers; candidate JSON and caller flags cannot enable it. Legacy
+four-file callers retain their behavior. Once the protected base contains the
+new generation, a candidate cannot revert to the legacy owner or opt out.
+
+The prepared Browser workflow preserves every existing Browser/native journey
+step and manual input. Its metadata route omits both existing jobs only for an
+exact focused package owner or reviewed formatting-only lock change. Unsupported
+dependencies, changed Browser consumers, failed routing or missing outputs keep
+the existing full jobs. Cancellation stops obsolete work. The paired repository
+caller uses the independently selected package host mode, allowing formatting
+changes to omit all test jobs without fabricating an execution receipt. These
+templates are staged only; no active workflow is changed by admission.
+
 Run the source selection and execution-boundary regressions with:
 
 ```bash
