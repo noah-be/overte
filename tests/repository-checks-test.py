@@ -826,6 +826,16 @@ class NativeOwnerAggregateTests(unittest.TestCase):
         self.assertEqual(self.calls[0][2], CHECKS._NATIVE_DOCUMENTATION | {'workflow-contracts'})
         self.assertEqual(proof, self.proof)
 
+    def test_only_exact_future22_adds_native_owner_semantics_without_changing21(self):
+        for generation in (CHECKS._NATIVE_OWNER_GENERATION, 'protected-producer-original-default-v1'):
+            self.policy.validate_wiring=lambda _,value=generation:value
+            with self.subTest(generation=generation):
+                represented,proof=self.bound()
+                self.assertEqual(self.aggregate(represented)['status'],'PASS')
+                self.assertEqual(proof,self.proof)
+        self.policy.validate_wiring=lambda _:'protected-producer-original-default-v1-neighbor'
+        with self.assertRaises(ValueError):self.bound()
+
     def test_false_claims_keep_real_standalone_checks_and_do_not_read_native_api(self):
         for key in CHECKS._NATIVE_OWNER_OUTPUTS:
             self.needs['project']['outputs'][key] = 'false'

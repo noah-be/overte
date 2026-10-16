@@ -2590,6 +2590,163 @@ class AffectedPostmergeConsumerTests(unittest.TestCase):
         self.assertTrue(any(call.kwargs.get('require_all') is True for call in validate.call_args_list))
 
 
+class RetainedDefaultMetadataTests(unittest.TestCase):
+    """Actual schema4/native Adapter with explicit local source-admission seams.
+
+    Complete immutable originalD/projection validation is exercised by source4
+    and sync fixtures; this class tests the additive metadata owner connection,
+    independent D/B contexts and native whole-hash retention, without querying E.
+    """
+    def setUp(self):
+        fixture=MetadataRetentionConsumerTests('runTest')
+        fixture.extra_registry_names=('documentation-contracts','documentation','policy-consistency','workflow-contracts')
+        fixture.setUp();self.addCleanup(fixture.doCleanups)
+        self.fixture=f=fixture;self.module=C=f.module;self.case=c=f.case;self.adapter=f.adapter
+        self.sources={'.github/workflows/project-tests.yml':C.producer.PLATFORM_TEMPLATE,
+            '.github/workflows/parent-qualification.yml':C.producer.PLATFORM_PARENT_TEMPLATE,
+            '.github/workflows/repository-checks.yml':'tools/repository-checks/workflows/producers/repository-checks.yml',
+            '.github/workflows/sync-validation.yml':'tools/repository-checks/workflows/sync-ci-selection.yml',
+            '.github/workflows/browser-client.yml':'.github/workflows/browser-client.yml',
+            A.METADATA_WORKFLOW:'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml'}
+        self.generation={path:{'mode':'100644','type':'blob','sha':C.source_admission.blob_id(
+            (C.ROOT/source).read_bytes())} for path,source in self.sources.items()}
+        for tree in (c.previous,c.tree):
+            tree.update(deepcopy(self.generation))
+            tree[C.producer.PLATFORM_TEMPLATE]=deepcopy(self.generation['.github/workflows/project-tests.yml'])
+        package=C.producer._host_policy().package_policy()
+        old_generations=package.workflow_generations()
+        package.validate_tree_wiring=lambda tree:C.ci_profile.RETAINED_SOURCE_GENERATION \
+            if all(tree.get(path)==entry for path,entry in self.generation.items()) else 'unknown'
+        package.workflow_generations=lambda:[*old_generations,
+            {'name':C.ci_profile.RETAINED_SOURCE_GENERATION,'workflows':self.generation}]
+        self.policy=C.producer._host_policy()
+        example=FIXTURES.RetainedSourceProtocolTests().fixture()
+        self.retained=deepcopy(example.context.protected_source)
+        c.binding['base_ref']='apple-ios';f.event['pull_request']['base']['ref']='apple-ios'
+        self.default=self.retained['default_commit'];self.default_tree=self.retained['default_tree']
+        self.local=deepcopy(c.previous);self.local['default-only.txt']={'mode':'100644','type':'blob','sha':'e'*40}
+        self.source={'schema':1,'kind':'protected-default-controller-source-v1','target':'apple-ios',
+            'target_profile':deepcopy(c.previous['tests/platform-profile.json']),
+            'controller_digest':f.controller,'lookup_digest':'sha256:'+'3'*64,
+            'base':c.binding['base_sha'],'default':self.default}
+        original_json=f.api.json;original_tree=f.api.immutable_tree
+        def json_api(endpoint):
+            path=endpoint[len(A.PREFIX):].lstrip('/').split('?',1)[0]
+            if path=='git/ref/heads/main':
+                value={'ref':'refs/heads/main','object':{'type':'commit','sha':self.default}}
+            elif path=='git/ref/heads/'+c.binding['base_ref']:
+                value={'ref':'refs/heads/'+c.binding['base_ref'],'object':{'type':'commit','sha':c.binding['base_sha']}}
+            elif path=='git/commits/'+self.default:
+                value={'sha':self.default,'tree':{'sha':self.default_tree},'parents':[]}
+            else:return original_json(endpoint)
+            f.api.calls.append(endpoint);return f.api.mutate(endpoint,value)
+        f.api.json=json_api
+        f.api.immutable_tree=lambda oid:({'sha':oid,'truncated':False,
+            'tree':[{'path':path,**entry} for path,entry in self.local.items()]} if oid==self.default_tree else original_tree(oid))
+        C.execution.checkout_identity.return_value=(self.default,self.default_tree)
+        C.inputs.full_tree.side_effect=lambda *args:deepcopy(self.local)
+        self.source_guard=self.enterContext(patch.object(C.producer,'protected_source_context',return_value=self.source))
+        self.controller_guard=self.enterContext(patch.object(C,'integrated_controller',return_value=f.controller))
+        c.plan,c.policy=C._policy(self.policy,f.registry,c.binding,f.controller,f.adapter,C.ROOT,
+            f.selected['selection'],template=C.producer.PLATFORM_TEMPLATE)
+        c.pp=c.policy.producer;c.generation={path:c.tree[path] for path in A.WORKFLOWS}
+        self.assertEqual(c.pp.required_execution_schema,4)
+        self.retained['binding'].update(source=c.binding['merge_sha'],git_context=f.git,
+            selection=deepcopy(f.selected['selection']),registry=P.digest(f.registry))
+        self.retained['admission']=deepcopy(self.source)
+        def retained(receipt,binding,adapter,registry,selected,run_id,**kwargs):
+            A.require(receipt.get('schema')==4 and receipt.get('protected_source')==self.retained
+                and binding==c.binding and registry==f.registry and selected==f.selected['selection']
+                and run_id==100,'explicit retained source fixture differs')
+            return deepcopy(self.retained)
+        self.retained_guard=self.enterContext(patch.object(C.producer,'retained_receipt_source',side_effect=retained))
+        self.receipt=deepcopy(f.receipt);self.receipt.update(schema=4,protected_source=deepcopy(self.retained))
+        self.receipt['results']={name:{'status':'passed','fingerprint':P.inputs.suite_fingerprint(
+            f.registry,name,c.tree,self.receipt['environment'])} for name in f.registry['suites']}
+        self.receipt=FIXTURES.signed(self.receipt,'receipt_digest')
+        c.aggregate['results']['shared-host']['receipt']=self.receipt
+        f.run=replace(f.run,workflow_blob=c.pp.workflow_blob,
+            final_publisher=replace(f.run.final_publisher,receipt_sha256=hashlib.sha256(P.canonical(self.receipt)).hexdigest()))
+        c.aggregate['descriptor_digest']=P.descriptor(c.binding,c.plan,c.pp,f.run)['descriptor_digest']
+        c.aggregate=FIXTURES.signed(c.aggregate,'aggregate_digest');c.add_run(f.run)
+        for index,name in enumerate(('native','android','project / tool-dependencies','project / package-checks',
+                                     C.producer.PLATFORM_JOB,'documentation','workflow-contracts'),150):
+            c.jobs[100].append(f.job(index,100,name,skipped=True))
+        path='.github/workflows/workflow-security.yml';name,steps=C._METADATA_OUTER_RECIPES[path]
+        security=f.job(170,100,name,steps=steps)
+        next(step for step in security['steps'] if step['name']=='Verify fail-closed workflow contracts').update(
+            conclusion='skipped',started_at=None,completed_at=None)
+        c.jobs[100].append(security);c.runs[100]['referenced_workflows'].append(f.reference(path))
+
+    def verify(self,**kwargs):return self.fixture.verify(**kwargs)
+
+    def test_schema4_child_B_and_current_D_are_distinct_and_original_native_E_is_retained(self):
+        value=self.verify()
+        self.assertTrue(value['original_proof']['verified'])
+        self.assertEqual(value['metadata_only'],'true');self.assertFalse(value['qualification'])
+        self.assertNotEqual(self.case.binding['base_sha'],self.default)
+        self.assertEqual(value['original_protected_source'],self.retained)
+        self.assertEqual(value['original_proof']['receipt_sha256'],hashlib.sha256(P.canonical(self.receipt)).hexdigest())
+        self.assertEqual(value['original_proof']['expires_at'],self.case.aggregate['expires_at'])
+        self.assertEqual(value['executed_suites'],[])
+        self.assertEqual(self.source_guard.call_count,2);self.assertEqual(self.controller_guard.call_count,2)
+        self.assertEqual(self.retained_guard.call_count,2)
+        self.assertEqual(self.controller_guard.call_args.args[4],'apple-ios')
+        self.module.execution.capture_execution_environment.assert_not_called();self.module.execution.execute.assert_not_called()
+
+    def test_unknown_generation_target_or_actual_default_source_cannot_retain(self):
+        C=self.module;package=self.policy.package_policy();validate=package.validate_tree_wiring
+        package.validate_tree_wiring=lambda tree:'protected-producer-original-default-v1-neighbor'
+        with self.assertRaises(P.ProtocolError):self.verify()
+        package.validate_tree_wiring=validate
+        self.case.binding['base_ref']='unknown';self.fixture.event['pull_request']['base']['ref']='unknown'
+        with self.assertRaises(P.ProtocolError):self.verify()
+        self.case.binding['base_ref']='apple-ios';self.fixture.event['pull_request']['base']['ref']='apple-ios'
+        C.execution.checkout_identity.return_value=('f'*40,self.default_tree)
+        with self.assertRaises(P.ProtocolError):self.verify()
+
+    def test_external_platform_or_false_original_source_cannot_be_retained(self):
+        job=next(job for job in self.case.jobs[100] if job['name']==self.module.producer.PLATFORM_JOB)
+        original=deepcopy(job)
+        for state in ('success','failure',None):
+            job.update(conclusion=state)
+            with self.subTest(state=state),self.assertRaises(P.ProtocolError):self.verify()
+        job.clear();job.update(original)
+        self.retained_guard.side_effect=ValueError('immutable original source mismatch')
+        with self.assertRaises(ValueError):self.verify()
+
+    def test_original_native_hash_and_final_source_bookends_remain_mandatory(self):
+        publisher=next(job for job in self.case.jobs[100] if job['name'].startswith(self.module.producer.PUBLISH_PREFIX))
+        original=publisher['name'];publisher['name']=self.module.producer.PUBLISH_PREFIX+'0'*64
+        with self.assertRaises(P.ProtocolError):self.verify()
+        publisher['name']=original
+        self.source_guard.side_effect=[self.source,{**self.source,'default':'f'*40}]
+        with self.assertRaisesRegex(P.ProtocolError,'actual trusted controller'):self.verify()
+
+    def test_new_ci_namespace_receives_actual_target_and_independent_original_base(self):
+        # This is a forwarding negative, not fake CI37 runtime admission. The
+        # real runtime validator must reject or admit the supplied actual E.
+        self.fixture.selected['profile']=self.module.ci_profile.PROFILE
+        with patch.object(self.module.runtime_ci,'plan_original_reuse',
+                side_effect=ValueError('actual CI runtime admission required')) as runtime, \
+             patch.object(self.adapter,'verify',side_effect=AssertionError('unadmitted CI proof reached verification')):
+            with self.assertRaisesRegex(ValueError,'actual CI runtime admission'):self.verify()
+        self.assertEqual(runtime.call_args.kwargs['target'],'apple-ios')
+        self.assertEqual(runtime.call_args.kwargs['base_tree'],self.case.previous)
+        self.assertEqual(runtime.call_args.args[8],self.local)
+
+    def test_future_receipt_cannot_downgrade_even_with_new_local_and_native_hashes(self):
+        receipt=deepcopy(self.receipt);receipt['schema']=3;del receipt['protected_source']
+        receipt=FIXTURES.signed(receipt,'receipt_digest')
+        self.case.aggregate['results']['shared-host']['receipt']=receipt
+        aggregate=FIXTURES.signed(self.case.aggregate,'aggregate_digest')
+        self.case.artifacts[100]=self.case.artifacts[100][:1]
+        self.case.artifact(self.fixture.run,'aggregate',aggregate)
+        publisher=next(job for job in self.case.jobs[100] if job['name'].startswith(self.module.producer.PUBLISH_PREFIX))
+        publisher['name']=self.module.producer.PUBLISH_PREFIX+hashlib.sha256(P.canonical(receipt)).hexdigest()
+        with self.assertRaisesRegex(P.ProtocolError,'versioned protected receipt'):self.verify()
+
+
 class RetainedSourceNativeAPITests(unittest.TestCase):
     """Actual API/descriptor/aggregate/native hash; source closure fixture seam.
 

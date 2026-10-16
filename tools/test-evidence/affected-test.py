@@ -154,13 +154,18 @@ class ShippingPolicyTests(unittest.TestCase):
         # the distinct approved preinstallation B; do not bind R to B instead S.
         generations=json.loads((root/'.github/package-workflow-generations.json').read_bytes())['generations']
         previous=next(row['workflows'] for row in generations if row['name']=='android-owned-npm5-sync-ci-v1')
-        future=next(row['workflows'] for row in generations if row['name']=='protected-producer-seven-target-ci-v1')
+        future=next((row['workflows'] for row in generations
+            if row['name']=='protected-producer-original-default-v1'),None)
+        if future is None:
+            future=next(row['workflows'] for row in generations if row['name']=='protected-producer-seven-target-ci-v1')
         endpoint='.github/workflows/pr-metadata-context.yml'
         approved=future if endpoint in tree else previous
         self.assertTrue(all(tree.get(path)==entry for path,entry in approved.items()))
-        self.assertEqual(tree['.github/workflows/codeql.yml']['sha'],
-            '3a273057a38255ca368d3028594fb94227ba7c3b' if endpoint in tree
-            else '6d55d0fe4e9edc86204c66e1fa3967681793a2cd')
+        enrolled22=any(row['name']=='protected-producer-original-default-v1' for row in generations)
+        codeql=blob((root/'tools/repository-checks/workflows/metadata-edits/codeql-metadata.yml').read_bytes())['sha'] \
+            if endpoint in tree and enrolled22 else '3a273057a38255ca368d3028594fb94227ba7c3b' if endpoint in tree \
+            else '6d55d0fe4e9edc86204c66e1fa3967681793a2cd'
+        self.assertEqual(tree['.github/workflows/codeql.yml']['sha'],codeql)
         tree.update(deepcopy(previous));tree.pop(endpoint,None)
         tree['.github/workflows/codeql.yml']=dict(mode='100644',type='blob',
             sha='6d55d0fe4e9edc86204c66e1fa3967681793a2cd')
@@ -175,21 +180,24 @@ class ShippingPolicyTests(unittest.TestCase):
         """
         root,registry,raw,tree=self.source_context()
         generations=json.loads((root/'.github/package-workflow-generations.json').read_bytes())['generations']
-        self.assertEqual(len(generations),21)
-        self.assertEqual(generations[-1]['name'],'protected-producer-seven-target-ci-v1')
-        workflows=generations[-1]['workflows']
+        historical=next(row['workflows'] for row in generations if row['name']=='protected-producer-seven-target-ci-v1')
+        self.assertEqual(historical['.github/workflows/repository-checks.yml']['sha'],
+            'd9fefd275d9e3c6977cf9350a1945a6bbe5051b4')
+        future=next((row['workflows'] for row in generations
+            if row['name']=='protected-producer-original-default-v1'),None)
         templates={
-            '.github/workflows/project-tests.yml':'tools/repository-checks/workflows/producers/protected-project-tests.yml',
-            '.github/workflows/parent-qualification.yml':'tools/repository-checks/workflows/producers/parent-qualification.yml',
+            '.github/workflows/project-tests.yml':'tools/repository-checks/workflows/producers/protected-project-tests-android-platform.yml',
+            '.github/workflows/parent-qualification.yml':'tools/repository-checks/workflows/producers/parent-qualification-android-platform.yml',
             '.github/workflows/repository-checks.yml':'tools/repository-checks/workflows/producers/repository-checks.yml',
             '.github/workflows/pr-metadata-context.yml':'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml',
-            '.github/workflows/sync-validation.yml':'.github/workflows/sync-validation.yml',
+            '.github/workflows/sync-validation.yml':'tools/repository-checks/workflows/sync-ci-selection.yml',
             '.github/workflows/browser-client.yml':'.github/workflows/browser-client.yml',
         }
-        self.assertEqual(set(workflows),set(templates))
+        self.assertEqual(set(historical),set(templates))
+        if future is not None:self.assertEqual(set(future),set(templates))
         for path,template in templates.items():
             expected=blob((root/template).read_bytes())
-            self.assertEqual(workflows[path],expected,path)
+            if future is not None:self.assertEqual(future[path],expected,path)
             tree[path]=dict(expected)
         tree['.github/workflows/codeql.yml']=blob(
             (root/'tools/repository-checks/workflows/metadata-edits/codeql-metadata.yml').read_bytes())

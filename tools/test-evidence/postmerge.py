@@ -466,13 +466,15 @@ def metadata_outer_jobs(adapter, run_id, binding, current, local, security, *, s
     delegated = set()
     publication = None
     generation = producer._host_policy().package_policy().validate_tree_wiring(current)
-    if generation == 'protected-producer-seven-target-ci-v1' and shared_receipt is not None:
+    current_owners = generation in {'protected-producer-seven-target-ci-v1', ci_profile.RETAINED_SOURCE_GENERATION}
+    if current_owners and shared_receipt is not None:
         # This is an observation used on both sides of verify_metadata's full
         # adapter.verify call below. It never supplies standalone proof. Bind
         # the conditional owner facts to the ACTUAL completed native whole hash;
         # the unchanged original aggregate protocol authenticates its complete
-        # source, schema3 runtime, descriptor, jobs, results and artifacts.
-        A.require(type(shared_receipt) is dict and shared_receipt.get('schema') == 3
+        # source, versioned runtime, descriptor, jobs, results and artifacts.
+        A.require(type(shared_receipt) is dict and shared_receipt.get('schema') ==
+            (4 if generation == ci_profile.RETAINED_SOURCE_GENERATION else 3)
             and shared_receipt.get('candidate_commit') == binding['merge_sha']
             and shared_receipt.get('candidate_tree') == binding['merge_tree']
             and shared_receipt.get('reusable') is True
@@ -481,7 +483,7 @@ def metadata_outer_jobs(adapter, run_id, binding, current, local, security, *, s
             and set(shared_receipt['results']) == set(shared_receipt['requested_suites'])
             and all(type(value) is dict and value.get('status') == 'passed'
                     for value in shared_receipt['results'].values()),
-            'metadata delegated commands have no original successful schema3 receipt')
+            'metadata delegated commands have no original successful versioned receipt')
         commitment = hashlib.sha256(P.canonical(shared_receipt)).hexdigest()
         publishers = [job for job in jobs if isinstance(job.get('name'), str)
                       and job['name'].startswith(producer.PUBLISH_PREFIX)]
@@ -493,7 +495,13 @@ def metadata_outer_jobs(adapter, run_id, binding, current, local, security, *, s
             'metadata delegated owner was not natively published')
         delegated = set(shared_receipt['results'])
     fallback = None
-    if generation == 'protected-producer-seven-target-ci-v1':
+    if generation == ci_profile.RETAINED_SOURCE_GENERATION:
+        matches = [job for job in jobs if job.get('name') == producer.PLATFORM_JOB]
+        A.require(len(matches) == 1, 'metadata platform owner native record is missing or ambiguous')
+        fact = adapter._job(matches[0], run, 15368, final_name=producer.PLATFORM_JOB)
+        A.require(fact.status == 'completed' and fact.conclusion == 'skipped',
+                  'metadata initial class cannot retain an executed platform owner')
+    if current_owners:
         # Static analyzers remain parallel. The separate same-M unit job is
         # required only when the original native shared owner lacks contracts.
         matches = [job for job in jobs if job.get('name') == 'workflow-contracts']
@@ -552,7 +560,7 @@ def metadata_outer_jobs(adapter, run_id, binding, current, local, security, *, s
                   'metadata checker native steps unavailable')
         for label in steps:
             matching = [step for step in job['steps'] if step.get('name') == label]
-            delegated_contract = (generation == 'protected-producer-seven-target-ci-v1'
+            delegated_contract = (current_owners
                 and path.endswith('/workflow-security.yml')
                 and label == 'Verify fail-closed workflow contracts')
             expected = 'skipped' if delegated_contract else 'success'
@@ -577,26 +585,41 @@ def verify_metadata(event, environment, adapter, *, root=ROOT, clock=lambda: dat
     A.require(environment.get('GITHUB_JOB') == 'route', 'metadata retention requires the reviewed routing job')
     binding, refs = adapter.current(native['number'])
     producer._event_binding(event, binding)
-    A.require(binding['merge_sha'] == native['merge'] and binding['base_ref'] == refs['default_ref'] == 'main'
-        and refs['default'] == binding['base_sha'] == native['base'], 'metadata current default/candidate differs')
+    A.require(binding['merge_sha'] == native['merge'] and binding['base_sha'] == native['base']
+        and refs['default_ref'] == 'main', 'metadata current default/candidate differs')
     previous_sha, previous = full_tree(adapter, binding['base_sha'])
     tree_sha, current = full_tree(adapter, binding['merge_sha'])
     local = inputs.full_tree(root, 'HEAD')
-    A.require(previous == local and execution.checkout_identity(root) == (binding['base_sha'], previous_sha)
-        and tree_sha == binding['merge_tree'], 'metadata actual trusted source differs from protected main')
     policy = producer._host_policy()
     package = policy.package_policy()
-    A.require(package.validate_tree_wiring(current) in {
-        'protected-producer-metadata-ci-v1', 'protected-producer-seven-target-ci-v1'},
+    generation = package.validate_tree_wiring(current)
+    future = generation == ci_profile.RETAINED_SOURCE_GENERATION
+    A.require(generation in {'protected-producer-metadata-ci-v1',
+        'protected-producer-seven-target-ci-v1', ci_profile.RETAINED_SOURCE_GENERATION},
               'metadata requires the exact complete six-file source generation')
-    controller = original_controller(policy, previous, local, root)
+    source_context = None
+    if future:
+        A.require(binding['base_ref'] in source_admission.TARGET_PROFILES,
+                  'metadata protected target is not enrolled')
+        source_context = producer.protected_source_context(adapter, binding, refs, policy)
+        default_tree, default = full_tree(adapter, refs['default'])
+        A.require(local == default and execution.checkout_identity(root) == (refs['default'], default_tree),
+                  'metadata actual ROOT differs from current protected default')
+        controller = integrated_controller(policy, previous, current, local, binding['base_ref'], root)
+    else:
+        A.require(binding['base_ref'] == 'main' and refs['default'] == binding['base_sha']
+            and previous == local and execution.checkout_identity(root) == (binding['base_sha'], previous_sha),
+            'metadata legacy actual trusted source differs from protected main')
+        controller = original_controller(policy, previous, local, root)
+    A.require(tree_sha == binding['merge_tree'], 'metadata candidate tree differs')
     registry = inputs.load_registry(Path(root) / '.github/test-suites.json')
     owners = metadata_selection(event, binding, previous, current, local, registry, policy,
         root=root, read_blob=adapter.api.immutable_blob)
     selected_profile = owners['selection']
     selected = selected_profile['selection']
     affected=_affected_receipt_selection(selected_profile,registry,binding['base_ref'])
-    plan, api_policy = _policy(policy, registry, binding, controller, adapter, root, selected)
+    plan, api_policy = _policy(policy, registry, binding, controller, adapter, root, selected,
+        template=producer.project_template(policy,current) if future else None)
     snapshot = adapter.capture(native['number'], plan, api_policy, now=clock())
     A.require(snapshot.binding == binding and snapshot.references == refs
         and native['run_id'] in snapshot.metadata_nonproducers,
@@ -610,7 +633,8 @@ def verify_metadata(event, environment, adapter, *, root=ROOT, clock=lambda: dat
     A.require(raw is not None and facts is not None, 'original protected aggregate unavailable')
     aggregate = P.read_artifact(raw, 'aggregate', facts, observation.run, now=clock())
     receipt = aggregate.get('results', {}).get('shared-host', {}).get('receipt')
-    A.require(type(receipt) is dict and receipt.get('schema') == 3, 'original protected receipt unavailable')
+    A.require(type(receipt) is dict and receipt.get('schema') == api_policy.producer.required_execution_schema,
+              'original versioned protected receipt unavailable')
     original_git = producer.expected_git_context(adapter, binding)
     execution.validate_receipt(receipt, registry, current,
         require_all=selected_profile['profile'] != ci_profile.PROFILE and not affected, expected_git_context=original_git)
@@ -620,7 +644,8 @@ def verify_metadata(event, environment, adapter, *, root=ROOT, clock=lambda: dat
     if selected_profile['profile'] == ci_profile.PROFILE:
         admitted = runtime_ci.plan_original_reuse(environment_original, aggregate.get('qualified_at'),
             aggregate.get('expires_at'), clock(), selected, selected, current, current, local,
-            registry, receipt['results'], root=root, read_blob=adapter.api.immutable_blob)['admission']
+            registry, receipt['results'], root=root, read_blob=adapter.api.immutable_blob,
+            **({'target':binding['base_ref'],'base_tree':previous} if future else {}))['admission']
     else:
         admitted = attested.validate_environment(environment_original, aggregate.get('qualified_at'),
             aggregate.get('expires_at'), clock(), root=root, isolated=True)
@@ -628,25 +653,33 @@ def verify_metadata(event, environment, adapter, *, root=ROOT, clock=lambda: dat
         _require_full_reuse_partition(reused,registry,selected,affected)
     outer_before = metadata_outer_jobs(adapter, observation.run.run_id, binding, current, local,
                                        owners['route']['security'], shared_receipt=receipt, root=root)
-    context = P.SharedContext(registry, current, environment_original, binding['merge_sha'], tree_sha, original_git)
+    retained = producer.retained_receipt_source(receipt,binding,adapter,registry,selected,
+        authority['run_id'],root=root)
+    context = P.SharedContext(registry, current, environment_original, binding['merge_sha'], tree_sha, original_git,retained)
     verified = adapter.verify(native['number'], plan, api_policy, {'shared-host': context}, clock=clock)
     A.require(verified['run_id'] == observation.run.run_id
         and verified['receipt_sha256'] == hashlib.sha256(P.canonical(receipt)).hexdigest()
         and verified['aggregate_digest'] == aggregate['aggregate_digest']
+        and producer.retained_receipt_source(receipt,binding,adapter,registry,selected,
+            authority['run_id'],root=root) == retained
         and metadata_outer_jobs(adapter, observation.run.run_id, binding, current, local,
                                 owners['route']['security'], shared_receipt=receipt, root=root) == outer_before
         and adapter.current(native['number']) == (binding, refs) and clock() < P._time(verified['expires_at']),
         'metadata original execution or current source changed')
     A.require(_source_qualified() and helper.SOURCE_READY is True
         and helper.native(event, environment, root=root, caller='.github/workflows/repository-checks.yml') == native
-        and execution.checkout_identity(root) == (binding['base_sha'], previous_sha)
         and inputs.full_tree(root, 'HEAD') == local
-        and original_controller(policy, previous, local, root) == controller
+        and (producer.protected_source_context(adapter,binding,refs,policy) == source_context
+            and execution.checkout_identity(root) == (refs['default'], default_tree)
+            and integrated_controller(policy,previous,current,local,binding['base_ref'],root) == controller
+            if future else execution.checkout_identity(root) == (binding['base_sha'], previous_sha)
+            and original_controller(policy, previous, local, root) == controller)
         and clock() < P._time(verified['expires_at']),
         'metadata actual trusted controller changed before retention')
     return {'kind': 'same-pr-metadata-retention', 'qualification': False, 'metadata_only': 'true',
         'binding': binding, 'original_proof': verified, 'original_environment_digest': admitted['environment_digest'],
-        'retained_suites': selected['suites'], 'executed_suites': [], 'retained_checker_jobs': outer_before['retained']}
+        'retained_suites': selected['suites'], 'executed_suites': [], 'retained_checker_jobs': outer_before['retained'],
+        'original_protected_source':retained}
 
 
 def lookup(event, environment, adapter=None, *, root=ROOT, clock=lambda: datetime.now(timezone.utc)):

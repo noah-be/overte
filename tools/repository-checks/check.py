@@ -477,7 +477,7 @@ def native_owner_policy():
 
 
 def bound_project_owners(needs, candidate, event, sha):
-    """Map only exact21 native owners into the unchanged legacy aggregate.
+    """Map only exact21/22 native owners into the unchanged legacy aggregate.
 
     A skipped standalone documentation job is represented by the actual passed
     shared owner only after its completed native publication, original schema3
@@ -492,11 +492,11 @@ def bound_project_owners(needs, candidate, event, sha):
         raise ValueError('native owner output inventory is malformed')
     present = _NATIVE_OWNER_OUTPUTS & outputs.keys()
     generation = package_policy().validate_wiring(candidate) if candidate is not None else None
-    if generation != _NATIVE_OWNER_GENERATION:
+    if generation not in {_NATIVE_OWNER_GENERATION, 'protected-producer-original-default-v1'}:
         if 'workflow-contracts' in needs:
-            raise ValueError('contract fallback requires the exact complete generation21')
+            raise ValueError('contract fallback requires an exact complete native-owner generation')
         if present:
-            raise ValueError('native owner outputs require the exact complete generation21')
+            raise ValueError('native owner outputs require an exact complete native-owner generation')
         return needs, None
     def contract_fallback(represented, claims):
         # Static analyzers start independently of the shared host. This one
@@ -504,7 +504,7 @@ def bound_project_owners(needs, candidate, event, sha):
         # claims it. The claim is still authenticated below before acceptance.
         fallback = needs.get('workflow-contracts')
         if not isinstance(fallback, dict):
-            raise ValueError('generation21 requires its real contract fallback job')
+            raise ValueError('native-owner generation requires its real contract fallback job')
         route = needs.get('route', {})
         required = (route.get('result') == 'success' and route.get('outputs', {}).get('security') == 'true'
             and project.get('result') in {'success', 'skipped'}
@@ -517,7 +517,7 @@ def bound_project_owners(needs, candidate, event, sha):
         return contract_fallback(needs, {}), None
     expected = {'package_verified', 'package_candidate', 'package_plan', 'package_lane', *_NATIVE_OWNER_OUTPUTS}
     if set(outputs) != expected:
-        raise ValueError('generation21 requires its complete bounded project output inventory')
+        raise ValueError('native-owner generation requires its complete bounded project output inventory')
     claims = {key: outputs[key] for key in _NATIVE_OWNER_OUTPUTS}
     if project.get('result') == 'skipped' and all(value == '' for value in claims.values()):
         claims = {key: 'false' for key in claims}

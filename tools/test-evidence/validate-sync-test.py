@@ -671,7 +671,42 @@ class IsolatedConsumerTests(unittest.TestCase):
             else:
                 self.assertIn('python3 -B ', step['run'])
         self.assertEqual(data["permissions"], {"actions": "read", "checks": "read", "contents": "read", "pull-requests": "read"})
-        self.assertEqual(workflow.read_bytes(), (VALIDATION.ROOT / '.github/workflows/sync-validation.yml').read_bytes())
+        # The source-preparation PR still runs the deployed historical recipe.
+        # The distinct prospective recipe above is not deployed by changing a
+        # canonical source leaf. Authenticate the active blob against complete
+        # reviewed catalog data; never rewrite an old row to the new template.
+        import hashlib
+        catalog=json.loads((VALIDATION.ROOT/'.github/package-workflow-generations.json').read_bytes())['generations']
+        active=(VALIDATION.ROOT/'.github/workflows/sync-validation.yml').read_bytes()
+        active_entry={'mode':'100644','type':'blob','sha':hashlib.sha1(
+            b'blob '+str(len(active)).encode()+b'\0'+active).hexdigest()}
+        self.assertTrue(any(row['workflows'].get('.github/workflows/sync-validation.yml')==active_entry
+            for row in catalog))
+        # Materialize the future six-path tuple as ordinary immutable fixture
+        # data. Its enrollment belongs to source composition, not this test.
+        sources={'.github/workflows/project-tests.yml':
+                'tools/repository-checks/workflows/producers/protected-project-tests-android-platform.yml',
+            '.github/workflows/parent-qualification.yml':
+                'tools/repository-checks/workflows/producers/parent-qualification-android-platform.yml',
+            '.github/workflows/repository-checks.yml':
+                'tools/repository-checks/workflows/producers/repository-checks.yml',
+            '.github/workflows/sync-validation.yml':str(workflow.relative_to(VALIDATION.ROOT)),
+            '.github/workflows/browser-client.yml':'.github/workflows/browser-client.yml',
+            '.github/workflows/pr-metadata-context.yml':
+                'tools/repository-checks/workflows/metadata-edits/pr-metadata-context.yml'}
+        with tempfile.TemporaryDirectory(prefix='sync-future-tuple-') as temporary:
+            snapshot=Path(temporary)
+            for path,relative in sources.items():
+                target=snapshot/path;target.parent.mkdir(parents=True,exist_ok=True)
+                target.write_bytes((VALIDATION.ROOT/relative).read_bytes());target.chmod(0o644)
+            self.assertEqual(yaml.safe_load((snapshot/'.github/workflows/sync-validation.yml').read_bytes()),data)
+            self.assertEqual(len(list((snapshot/'.github/workflows').iterdir())),6)
+            future=next((row for row in catalog if row['name']=='protected-producer-original-default-v1'),None)
+            if future is not None:
+                for path in sources:
+                    raw=(snapshot/path).read_bytes()
+                    self.assertEqual(future['workflows'][path],{'mode':'100644','type':'blob',
+                        'sha':hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()},path)
         gate = yaml.safe_load((VALIDATION.ROOT / '.github/workflows/sync-test-reuse.yml').read_text())
         self.assertEqual(gate['permissions'], {'actions':'write','checks':'read','contents':'read','pull-requests':'read'})
         trusted = gate['jobs']['sync-test-reuse']['steps'][0]
