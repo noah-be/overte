@@ -222,6 +222,20 @@ def _ci_selection(args, request, candidate, initial, registry, api):
               "full_host": not bounded, "suites": [], "omitted_suites": [],
               "external_package_set": [], "package_plan": None,
               "registry": execution.digest(registry), "policy": _ci_policy()}
+    if not request.changed_paths and not request.repair_paths:
+        gate = _gate()
+        checker = getattr(gate, 'verified_empty_sync', None)
+        empty = checker(api, gate.load_config(), request, candidate) if callable(checker) else None
+        if empty is not None:
+            if type(empty) is not dict or empty.get('kind') != 'verified-empty-sync-v1' \
+                    or empty.get('qualification') is not False or empty.get('reusable') is not False \
+                    or empty.get('immutable', {}).get('candidate') != initial[0] \
+                    or empty['immutable'].get('tree') != initial[1]:
+                raise ValidationError('empty synchronization source proof is invalid')
+            result.update(lane='verified-empty', full_host=False, empty_source=empty,
+                omitted_suites=list(registry['suites']))
+            result['selection'] = execution.digest(result)
+            return result
     if not bounded and not request.repair_paths:
         try:
             host = _trusted_module("sync_ci_host_policy", ROOT / "tools/repository-checks/host_selection.py")
@@ -286,7 +300,11 @@ def select_sync(args, *, api=None):
         raise ValidationError("selection checkout is not the exact synchronization candidate")
     registry = inputs.load_registry(ROOT / ".github/test-suites.json")
     result = _ci_selection(args, request, candidate, initial, registry, api)
-    scheduling, _ = _native_zero_setup(args, gate, api, config, request, candidate, initial, registry, result)
+    if result['lane'] == 'verified-empty':
+        result = {**result, 'consumer_setup':'none', 'empty_setup':result['selection']}
+        scheduling = None
+    else:
+        scheduling, _ = _native_zero_setup(args, gate, api, config, request, candidate, initial, registry, result)
     if scheduling is not None:
         # Additional outputs schedule prerequisites only. The existing pure
         # source selection digest remains independent of transient API proof.
@@ -478,6 +496,37 @@ def validate_sync(args, *, api=None):
         selection = _ci_selection(args, request, candidate, initial, registry, api)
         if args.expected_selection != selection["selection"]:
             raise ValidationError("synchronization selection differs from the prerequisite plan")
+    empty_setup = getattr(args, 'expected_empty_setup', '')
+    empty_lane = selection is not None and selection['lane'] == 'verified-empty'
+    if empty_setup or empty_lane:
+        if not empty_lane or not empty_setup or empty_setup != selection['selection'] \
+                or getattr(args, 'expected_native_setup', ''):
+            raise ValidationError('empty synchronization setup does not match its exact source selection')
+        # The real topology was checked by _request. No original receipt/runtime
+        # or candidate test may be queried or manufactured for zero work.
+        _candidate_differential(candidate, request, gate, api)
+        if execution.checkout_identity(candidate) != initial \
+                or _ci_selection(args, request, candidate, initial, registry, api) != selection:
+            raise ValidationError('empty synchronization changed during differential validation')
+        _recheck(api, gate, request)
+        if _ci_selection(args, request, candidate, initial, registry, api) != selection:
+            raise ValidationError('empty synchronization final source/native bookend changed')
+        result = {'schema':1,'kind':'sync-no-execution-validation-v1','producer':PRODUCER,
+            'reusable':False,'qualification':False,'repository':request.repository,
+            'repository_id':request.repository_id,'pull_request':request.number,
+            'candidate':{'base_branch':request.base,'base_commit':request.base_sha,
+                'head_branch':request.head,'head_commit':request.head_sha,
+                'merge_commit':initial[0],'merge_tree':initial[1],
+                'parent_branch':request.parent,'parent_commit':request.parent_sha,
+                'profile':request.profile,'classification':request.classification},
+            'requested_mode':args.mode,'mode':'verified-empty','reused_suites':[],
+            'executed_suites':[],'bounded_projects':[],'execution':None,'parent_evidence':None,
+            'ci_selection':selection,'not_selected_suites':list(registry['suites']),
+            'conclusion':'success','started_at':started,
+            'completed_at':datetime.now(timezone.utc).isoformat().replace('+00:00','Z')}
+        result['validation_digest'] = execution.digest(result)
+        execution._write_receipt(args.receipt, result)
+        return result
     affected = selection is not None and selection["lane"] == "affected-ci"
     bounded = args.mode == "reuse" and request.profile in ("documentation", "tool-dependencies")
     pending = _sync_platform_owner(args, request, candidate, api) if not affected and not bounded else {}
@@ -689,17 +738,19 @@ def main(argv=None):
     parser.add_argument("--output", type=Path)
     parser.add_argument("--expected-selection", default="")
     parser.add_argument("--expected-native-setup", default="")
+    parser.add_argument("--expected-empty-setup", default="")
     args = parser.parse_args(argv)
     try:
         if args.select_only:
-            if args.output is None or args.expected_selection or args.expected_native_setup:
+            if args.output is None or args.expected_selection or args.expected_native_setup or args.expected_empty_setup:
                 raise ValidationError("prerequisite selection requires an output and no claimed selection")
             selected = select_sync(args)
             with args.output.open("a") as output:
                 for key, value in (("selection", selected["selection"]), ("lane", selected["lane"]),
                                    ("full_host", str(selected["full_host"]).lower()),
                                    ("consumer_setup", selected.get('consumer_setup', 'required')),
-                                   ("native_setup", selected.get('native_setup', ''))):
+                                   ("native_setup", selected.get('native_setup', '')),
+                                   ("empty_setup", selected.get('empty_setup', ''))):
                     output.write(key + "=" + value + "\n")
             print(json.dumps(selected, sort_keys=True))
             return 0

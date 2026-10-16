@@ -2574,5 +2574,187 @@ class NativeParentSourceGuardTests(unittest.TestCase):
                             if mode=='bytecode':extra.parent.rmdir()
 
 
+
+class VerifiedEmptySyncSourceTests(unittest.TestCase):
+    """Real tiny Git/raw proof and native Adapter; source enrollment is a fixture."""
+    @classmethod
+    def setUpClass(cls):
+        directory=str(HERE.parent/'test-evidence');sys.path.insert(0,directory)
+        try:
+            import postmerge
+            cls.controller=postmerge
+        finally:sys.path.remove(directory)
+
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.root=Path(self.temp.name);self.candidate=self.root/'candidate';self.candidate.mkdir()
+        def git(*args):
+            return subprocess.check_output(['git','-c','commit.gpgsign=false',*args],cwd=self.candidate,
+                stderr=subprocess.PIPE).decode().strip()
+        self.git=git;git('init','-q','--initial-branch=main');git('config','user.name','Empty fixture')
+        git('config','user.email','fixture@example.invalid')
+        for path,body in {'ios/.keep':'source\n','interface/.keep':'source\n',
+                '.github/workflows/sync-validation.yml':'fixed complete future sync recipe\n',
+                'tests/platform-profile.json':'{"schema":1,"platform":"shared","suites":[]}\n'}.items():
+            file=self.candidate/path;file.parent.mkdir(parents=True,exist_ok=True);file.write_text(body)
+        git('add','.');git('commit','-qm','Base tree');self.base=git('rev-parse','HEAD')
+        git('commit','--allow-empty','-qm','Parent commits without content change');self.head=git('rev-parse','HEAD')
+        self.tree_sha=git('rev-parse','HEAD^{tree}')
+        self.merge=git('commit-tree',self.tree_sha,'-p',self.base,'-p',self.head,'-m','Exact synthetic merge')
+        git('checkout','-q','--detach',self.merge)
+        C=self.controller;self.default=self.head
+        self.tree=gate.suite_inputs.full_tree(self.candidate,self.merge)
+        self.local=deepcopy(self.tree)
+        self.local['tools/repository-checks/workflows/sync-ci-selection.yml']=deepcopy(
+            self.tree['.github/workflows/sync-validation.yml'])
+        self.request=gate.SyncRequest(REPOSITORY,REPOSITORY_ID,42,'apple-ios',self.base,'apple-main',
+            self.head,REPOSITORY_ID,self.merge,'direct','apple-main',self.head,'apple-ios',(),())
+        self.repository={'full_name':REPOSITORY,'id':REPOSITORY_ID,'default_branch':'main'}
+        self.pr={'number':42,'state':'open','mergeable':True,'merge_commit_sha':self.merge,'labels':[],
+            'base':{'ref':'apple-ios','sha':self.base,'repo':self.repository},
+            'head':{'ref':'apple-main','sha':self.head,'repo':self.repository}}
+        self.env={'GITHUB_ACTIONS':'true','GITHUB_REPOSITORY':REPOSITORY,'GITHUB_REPOSITORY_ID':str(REPOSITORY_ID),
+            'GITHUB_EVENT_NAME':'workflow_dispatch','GITHUB_RUN_ATTEMPT':'1','GITHUB_RUN_ID':'700',
+            'GITHUB_JOB':'validate','GITHUB_REF':'refs/heads/main','GITHUB_SHA':self.default,
+            'GITHUB_WORKFLOW_SHA':self.default,'GITHUB_WORKFLOW_REF':REPOSITORY+
+                '/.github/workflows/sync-validation.yml@refs/heads/main',
+            'RUNNER_ENVIRONMENT':'github-hosted','ImageOS':'ubuntu24'}
+        self.run={'id':700,'workflow_id':350930895,'check_suite_id':701,'path':'.github/workflows/sync-validation.yml',
+            'event':'workflow_dispatch','head_sha':self.default,'head_branch':'main','run_attempt':1,
+            'status':'in_progress','conclusion':None,'run_started_at':'2026-10-15T10:00:00Z',
+            'repository':self.repository,'head_repository':self.repository}
+        self.job={'id':702,'run_id':700,'run_attempt':1,'head_sha':self.default,
+            'name':'Validate exact synchronization','status':'in_progress','conclusion':None,
+            'started_at':'2026-10-15T10:00:01Z','completed_at':None,
+            'check_run_url':'https://api.github.com/'+C.A.PREFIX+'/check-runs/702'}
+        self.calls=[];self.mutate=lambda endpoint,value:value
+        outer=self
+        class Api:
+            def json(self,endpoint):
+                outer.calls.append(endpoint)
+                path=endpoint.removeprefix(C.A.PREFIX).lstrip('/').split('?',1)[0]
+                if not path:value=outer.repository
+                elif path=='pulls/42':value=outer.pr
+                elif path.startswith('git/ref/heads/'):
+                    ref=path.removeprefix('git/ref/heads/')
+                    value={'ref':'refs/heads/'+ref,'object':{'type':'commit',
+                        'sha':outer.base if ref=='apple-ios' else outer.head}}
+                elif path.startswith('branches/'):
+                    ref=path.removeprefix('branches/')
+                    value={'name':ref,'protected':True,'commit':{'sha':outer.base if ref=='apple-ios' else outer.head}}
+                elif path=='commits/refs/pull/42/merge':
+                    value={'sha':outer.merge,'commit':{'tree':{'sha':outer.tree_sha}},
+                        'parents':[{'sha':outer.base},{'sha':outer.head}]}
+                elif path=='pulls/42/files':value=[]
+                elif path.startswith('compare/'):value={'base_commit':{'sha':path.removeprefix('compare/').split('...')[0]},
+                    'merge_base_commit':{'sha':outer.base},'files':[]}
+                elif path.startswith('git/commits/'):
+                    oid=path.removeprefix('git/commits/');parents=outer.git('show','-s','--format=%P',oid).split()
+                    value={'sha':oid,'tree':{'sha':outer.tree_sha},'parents':[{'sha':p} for p in parents]}
+                elif path=='actions/workflows/sync-validation.yml':
+                    value={'id':350930895,'name':'Sync validation','path':'.github/workflows/sync-validation.yml','state':'active'}
+                elif path in {'actions/runs/700','actions/runs/700/attempts/1'}:value=outer.run
+                elif path=='actions/runs/700/attempts/1/jobs':value={'total_count':1,'jobs':[outer.job]}
+                elif path=='check-suites/701':value={'id':701,'head_sha':outer.default,
+                    'repository':outer.repository,'app':{'id':15368}}
+                elif path=='check-runs/702':value={**outer.job,'id':702,'check_suite':{'id':701},'app':{'id':15368}}
+                else:raise AssertionError('unregistered native empty API read: '+path)
+                return outer.mutate(path,deepcopy(value))
+        self.api=Api();self.transport=SimpleNamespace(native_producer_api=lambda controller:self.api)
+        self.stack=self.enterContext(__import__('contextlib').ExitStack())
+        self.stack.enter_context(mock.patch.object(gate,'_native_parent_controller',return_value=C))
+        actual_identity=C.execution.checkout_identity
+        self.stack.enter_context(mock.patch.object(C.execution,'checkout_identity',side_effect=lambda root:
+            (self.default,self.tree_sha) if root==gate.ROOT else actual_identity(root)))
+        actual_tree=C.inputs.full_tree
+        self.stack.enter_context(mock.patch.object(C.inputs,'full_tree',side_effect=lambda root,*args:
+            deepcopy(self.local) if root==gate.ROOT else actual_tree(root,*args)))
+        self.stack.enter_context(mock.patch.object(C,'full_tree',side_effect=lambda adapter,oid:
+            (self.tree_sha,deepcopy(self.local if oid==self.default else self.tree))))
+        self.package=SimpleNamespace(validate_tree_wiring=lambda tree:C.ci_profile.RETAINED_SOURCE_GENERATION,
+            load=gate.package_checks.load)
+        self.stack.enter_context(mock.patch.object(C.producer,'_host_policy',return_value=SimpleNamespace(
+            package_policy=lambda:self.package)))
+        self.source={'kind':'reuse-current-controller-precheck-v1','controller_digest':'sha256:'+'1'*64,
+            'base':self.base,'default':self.default}
+        self.source_guard=self.stack.enter_context(mock.patch.object(C.producer,'reuse_source_context',return_value=self.source))
+
+    def verify(self):
+        return gate.verified_empty_sync(self.transport,config(),self.request,self.candidate,environment=self.env)
+
+    def test_real_git_ordered_merge_and_native_app_yield_no_test_authority(self):
+        result=self.verify();self.assertIsNotNone(result)
+        self.assertEqual(result['kind'],'verified-empty-sync-v1')
+        self.assertEqual(result['immutable']['candidate'],self.merge)
+        self.assertEqual(result['immutable']['tree'],self.tree_sha)
+        self.assertFalse(result['reusable']);self.assertFalse(result['qualification'])
+        self.assertEqual(result['native']['job']['job_id'],702)
+        self.assertGreaterEqual(self.source_guard.call_count,2)
+        self.assertFalse(any('artifact' in endpoint for endpoint in self.calls))
+
+    def test_actual_gate_topology_remains_mandatory_for_an_empty_candidate(self):
+        actual=gate.classify_event({'repository':self.repository,'pull_request':self.pr},config(),self.api)
+        self.assertEqual(actual,self.request)
+        self.assertEqual(gate.commit_parents(gate.commit(self.api,REPOSITORY,self.merge)),
+            (self.base,self.head))
+        self.assertIsNotNone(self.verify())
+        original=self.pr['head']['ref'];self.pr['head']['ref']='foreign/unconfigured-branch'
+        self.assertIsNone(gate.classify_event({'repository':self.repository,'pull_request':self.pr},config(),self.api))
+        self.pr['head']['ref']=original
+        def wrong_parent(path,value):
+            if path=='git/commits/'+self.merge:value['parents'].reverse()
+            return value
+        self.mutate=wrong_parent
+        with self.assertRaises(gate.GateError):
+            gate.classify_event({'repository':self.repository,'pull_request':self.pr},config(),self.api)
+        self.assertIsNone(self.verify())
+
+    def test_native_source_app_attempt_registration_and_diagnostics_never_use_empty(self):
+        original=deepcopy(self.run)
+        for kind in ('app','attempt','registration','run-source','job','suite','unprotected','merge-parents','diagnostics','recipe'):
+            self.run=deepcopy(original)
+            def mutate(path,value):
+                if kind=='app' and path=='check-runs/702':value['app']['id']=42
+                elif kind=='attempt' and path=='actions/runs/700/attempts/1':value['run_attempt']=2
+                elif kind=='registration' and path=='actions/workflows/sync-validation.yml':value['id']=42
+                elif kind=='run-source' and path.startswith('actions/runs/'):value['head_sha']='f'*40
+                elif kind=='job' and path.endswith('/jobs'):value['jobs'].append(deepcopy(self.job))
+                elif kind=='suite' and path=='check-suites/701':value['app']['id']=42
+                elif kind=='unprotected' and path.startswith('branches/'):value['protected']=False
+                elif kind=='merge-parents' and path=='git/commits/'+self.merge:value['parents'].reverse()
+                elif kind=='diagnostics' and path=='pulls/42':value['labels']=[{'name':'android-long-diagnostics'}]
+                return value
+            self.mutate=mutate
+            old=self.package.validate_tree_wiring
+            if kind=='recipe':self.package.validate_tree_wiring=lambda tree:'npm-consumers-sync-ci-v1'
+            with self.subTest(kind=kind):self.assertIsNone(self.verify())
+            self.package.validate_tree_wiring=old
+        self.mutate=lambda path,value:value
+        for key in ('GITHUB_EVENT_NAME','GITHUB_SHA','GITHUB_JOB','GITHUB_WORKFLOW_SHA'):
+            value=self.env[key];self.env[key]='foreign'
+            with self.subTest(environment=key):self.assertIsNone(self.verify())
+            self.env[key]=value
+
+    def test_changed_native_bookend_source_and_nonempty_raw_tree_are_conservative(self):
+        reads=0
+        def move(path,value):
+            nonlocal reads
+            if path=='actions/workflows/sync-validation.yml':
+                reads+=1
+                if reads>1:value['state']='disabled_manually'
+            return value
+        self.mutate=move;self.assertIsNone(self.verify());self.mutate=lambda p,v:v
+        self.source_guard.side_effect=ValueError('controller changed');self.assertIsNone(self.verify())
+        self.source_guard.side_effect=None
+        self.request=replace(self.request,changed_paths=('ios/new.cpp',))
+        self.assertIsNone(self.verify())
+        self.request=replace(self.request,changed_paths=(),repair_paths=('ios/repair.cpp',))
+        self.assertIsNone(self.verify())
+        self.request=replace(self.request,repair_paths=())
+        (self.candidate/'ios/new.cpp').write_text('changed tree\n');self.git('add','.')
+        self.git('commit','-qm','Actual nonempty source')
+        self.assertIsNone(self.verify())
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
