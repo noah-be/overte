@@ -3,6 +3,7 @@
 
 import fnmatch
 import ast
+import hashlib
 import importlib.util
 import json
 import os
@@ -72,7 +73,7 @@ def assert_project_caller_routing(case, source):
             'workflow_contract_packages', ROOT / 'tools/repository-checks/package_checks.py')
         packages = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(packages)
-        case.assertEqual(packages.validate_wiring(ROOT), 'npm-consumers-v1')
+        case.assertIn(packages.validate_wiring(ROOT), ('npm-consumers-v1', 'npm-consumers-sync-ci-v1'))
         case.assertEqual(workflow_data(source)['jobs']['project']['if'],
                          "needs.route.outputs.package_host_mode == 'full' || "
                          "needs.route.outputs.package_host_mode == 'tool-dependencies' || "
@@ -500,7 +501,16 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         checkouts = [step['with'] for step in steps if step.get('uses', '').startswith('actions/checkout@')]
         self.assertEqual([(step['path'], step['ref'], step['persist-credentials']) for step in checkouts],
                          [('trusted', 'main', False), ('candidate', '${{ inputs.expected_merge_sha }}', False)])
-        self.assertIn("inputs.mode == 'fallback'", source)
+        staged = ROOT / 'tools/repository-checks/workflows/sync-ci-selection.yml'
+        if source == staged.read_text():
+            spec = importlib.util.spec_from_file_location(
+                'sync_workflow_packages', ROOT / 'tools/repository-checks/package_checks.py')
+            packages = importlib.util.module_from_spec(spec); spec.loader.exec_module(packages)
+            self.assertEqual(packages.validate_wiring(ROOT), 'npm-consumers-sync-ci-v1')
+            self.assertIn("steps.select.outputs.full_host == 'true'", source)
+            self.assertIn('--expected-selection "$EXPECTED_SELECTION"', source)
+        else:
+            self.assertIn("inputs.mode == 'fallback'", source)
         self.assertIn('GH_TOKEN: ""', source)
         self.assertIn('GITHUB_TOKEN: ""', source)
         self.assertNotIn('candidate/tests/run-project-tests.py', source)
@@ -523,6 +533,59 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         self.assertNotIn('--window', source)
         self.assertEqual(source.count('gate.py dispatch-and-wait'), 1)
         self.assertTrue(workflow['concurrency']['cancel-in-progress'])
+
+    def test_staged_sync_selects_before_setup_and_binds_actual_execution(self):
+        staged = ROOT / 'tools/repository-checks/workflows/sync-ci-selection.yml'
+        source = staged.read_text()
+        workflow = workflow_data(source)
+        self.assertEqual(workflow['permissions'], {'actions': 'read', 'contents': 'read', 'pull-requests': 'read'})
+        self.assertEqual(set(workflow_events(source)), {'workflow_dispatch'})
+        steps = workflow['jobs']['validate']['steps']
+        selected = next(step for step in steps if step.get('id') == 'select')
+        self.assertIn('--select-only --output "$GITHUB_OUTPUT"', selected['run'])
+        self.assertIn('python3 trusted/tools/test-evidence/validate-sync.py', selected['run'])
+        candidate = next(step for step in steps if step.get('with', {}).get('path') == 'candidate')
+        self.assertEqual(candidate['with']['fetch-depth'], 2)
+        self.assertFalse(candidate['with']['persist-credentials'])
+        self.assertLess(steps.index(candidate), steps.index(selected))
+        old = workflow_data((ROOT / 'tools/repository-checks/workflows/packages/sync-validation.yml').read_text())
+        old_steps = {step['name']: step for step in old['jobs']['validate']['steps']}
+        for name in ('Set up candidate Python', 'Set up candidate Node.js', 'Set up candidate Java',
+                     'Install candidate host prerequisites', 'Prepare isolated shared and product Python validators'):
+            actual = next(step for step in steps if step['name'] == name)
+            self.assertLess(steps.index(selected), steps.index(actual))
+            previous, current = dict(old_steps[name]), dict(actual)
+            previous.pop('if'); current.pop('if')
+            self.assertEqual(previous, current)
+        for name in ('Set up candidate Java', 'Install candidate host prerequisites'):
+            self.assertEqual(next(step for step in steps if step['name'] == name)['if'],
+                             "steps.select.outputs.full_host == 'true'")
+        executions = [step for step in steps if 'trusted/tools/test-evidence/validate-sync.py' in step.get('run', '')
+                      and step.get('id') != 'select']
+        self.assertEqual(len(executions), 2)
+        for step in executions:
+            self.assertIn('--expected-selection "$EXPECTED_SELECTION"', step['run'])
+            self.assertEqual(step['env']['EXPECTED_SELECTION'], '${{ steps.select.outputs.selection }}')
+        self.assertNotIn('candidate/tests/run-project-tests.py', source)
+
+    def test_staged_sync_has_one_exact_complete_generation(self):
+        spec = importlib.util.spec_from_file_location(
+            'staged_sync_packages', ROOT / 'tools/repository-checks/package_checks.py')
+        packages = importlib.util.module_from_spec(spec); spec.loader.exec_module(packages)
+        tree = {}
+        for relative in packages.CONSUMER_WORKFLOW_PATHS:
+            path = ROOT / relative
+            if path.name == 'sync-validation.yml':
+                path = ROOT / 'tools/repository-checks/workflows/sync-ci-selection.yml'
+            value = path.read_bytes()
+            tree[relative] = {'mode': '100644', 'type': 'blob', 'sha': hashlib.sha1(
+                b'blob ' + str(len(value)).encode() + b'\0' + value).hexdigest()}
+        self.assertEqual(packages.validate_tree_wiring(tree), 'npm-consumers-sync-ci-v1')
+        for relative in tree:
+            changed = {path: dict(entry) for path, entry in tree.items()}
+            changed[relative]['sha'] = '0' * 40
+            with self.subTest(path=relative), self.assertRaises(ValueError):
+                packages.validate_tree_wiring(changed)
 
     def test_qualification_is_exact_push_only_and_bounded(self):
         source = PARENT_QUALIFICATION_WORKFLOW.read_text(encoding="utf-8")

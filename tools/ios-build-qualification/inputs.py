@@ -43,6 +43,7 @@ REVIEWED_BOUNDARY = "sha256:cba03775542c32affcfe172b66b80b23cab31abd9f61293abd3f
 # its device-control-plane-full and project-runner owners remain independently required.
 # Independent required CI must still validate these files before any app waiver.
 INDEPENDENT_HOST_PATHS = frozenset({
+    "tools/repository-checks/workflows/sync-ci-selection.yml",
     "tools/repository-checks/npm_consumers.py",
     "tools/repository-checks/npm-source-map-tests.cjs",
     "tools/repository-checks/npm-proxy-addr-tests.cjs",

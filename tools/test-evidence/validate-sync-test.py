@@ -6,7 +6,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import importlib.util
 import io
 import json
@@ -132,7 +132,8 @@ class IsolatedConsumerTests(unittest.TestCase):
             "expires_at": (now + timedelta(hours=1)).isoformat().replace("+00:00", "Z"),
         }
 
-    def validate(self, *, actual_environment=None, runtime_failure=None, execute_override=None, extra_environment=None):
+    def validate(self, *, actual_environment=None, runtime_failure=None, execute_override=None,
+                 ci_execute_override=None, extra_environment=None):
         with ExitStack() as stack:
             stack.enter_context(patch.object(VALIDATION, "_gate", return_value=self.gate))
             stack.enter_context(patch.object(inputs, "load_registry", return_value=deepcopy(self.registry)))
@@ -145,6 +146,8 @@ class IsolatedConsumerTests(unittest.TestCase):
                 "GITHUB_PATH": "private-path", "GITHUB_STATE": "private-state", **(extra_environment or {})}))
             if execute_override is not None:
                 stack.enter_context(patch.object(execution, "execute", side_effect=execute_override))
+            if ci_execute_override is not None:
+                stack.enter_context(patch.object(VALIDATION, "_execute_ci", side_effect=ci_execute_override))
             stack.enter_context(redirect_stdout(io.StringIO()))
             stack.enter_context(redirect_stderr(io.StringIO()))
             return VALIDATION.validate_sync(self.args, api=self.api)
@@ -423,6 +426,234 @@ class IsolatedConsumerTests(unittest.TestCase):
                 self.assertNotIn("GITHUB_OUTPUT", os.environ)
             self.assertEqual(os.environ["GH_TOKEN"], "original")
             self.assertEqual(os.environ["GITHUB_OUTPUT"], "command-file")
+
+    def ci_fixture(self, *, npm=False):
+        """Review a tiny immutable reader graph; run only real fixture commands."""
+        self.registry["suites"]["beta"]["layer"] = "host"
+        path = self.candidate / ".github/test-suites.json"
+        path.parent.mkdir(); path.write_text(json.dumps(self.registry))
+        path = self.candidate / "tools/branch-cleanup/cleanup.py"
+        path.parent.mkdir(parents=True); path.write_text("# Reviewed CI implementation\n")
+        if npm:
+            path = self.candidate / "browser-client/package-lock.json"
+            path.parent.mkdir(); path.write_text('{"fixture-version":"old"}\n')
+        self.git("add", "."); self.git("commit", "-qm", "Create reviewed selective fixture")
+        self.base = self.git("rev-parse", "HEAD")
+        self.ci_base_tree = inputs.full_tree(self.candidate, self.base)
+        (self.candidate / "tools/branch-cleanup/cleanup.py").write_text("# Changed CI implementation\n")
+        if npm:
+            (self.candidate / "browser-client/package-lock.json").write_text('{"fixture-version":"new"}\n')
+        self.git("add", "."); self.git("commit", "-qm", "Change independent CI inputs")
+        self.parent = self.git("rev-parse", "HEAD")
+        self.ci_refresh()
+        self.args.mode = "fallback"
+        real_loader = VALIDATION._trusted_module
+        self.ci_host = real_loader("fixture_sync_ci_host", VALIDATION.ROOT / "tools/repository-checks/host_selection.py")
+        reviewed = self.ci_host.program_digest(self.ci_base_tree, self.candidate)
+        self.ci_host.REVIEWED_PROGRAMS = reviewed
+        self.ci_host.REVIEWED_CHILD_PROGRAMS = {"apple-main": reviewed}
+        actual_select = self.ci_host.select
+        self.ci_host.select = lambda *args, **kwargs: actual_select(*args, **{**kwargs, "trusted_root": self.candidate})
+        self.ci_packages = SimpleNamespace(validate_wiring=Mock(return_value="npm-consumers-v1"),
+            consumer_generation=Mock(return_value=True), has_staged_caller=Mock(return_value=True),
+            activated=Mock(return_value=False), candidate_plan=Mock(side_effect=self.ci_package_plan),
+            run=Mock(side_effect=AssertionError("external npm owner must not run twice")))
+        self.ci_host.package_policy = lambda: self.ci_packages
+        real_tree = inputs.full_tree
+        def full_tree(root, commit="HEAD"):
+            return deepcopy(self.ci_base_tree) if Path(root).resolve() == VALIDATION.ROOT else real_tree(root, commit)
+        for replacement in (patch.object(inputs, "full_tree", side_effect=full_tree),
+                patch.object(VALIDATION, "_trusted_module", side_effect=lambda name, path:
+                    self.ci_host if name == "sync_ci_host_policy" else real_loader(name, path))):
+            replacement.start(); self.addCleanup(replacement.stop)
+        self.evidence = self.make_evidence()
+
+    def ci_refresh(self):
+        self.git("add", ".")
+        tree = self.git("write-tree")
+        self.commit = self.git("commit-tree", tree, "-p", self.base, "-p", self.parent,
+                               "-m", "Create immutable exact-parent merge fixture")
+        self.git("reset", "--hard", self.commit)
+        self.tree_sha = tree; self.tree = inputs.full_tree(self.candidate, self.commit)
+        paths = self.git("diff", "--name-only", self.base, self.commit).splitlines()
+        self.request.base_sha = self.base; self.request.head_sha = self.parent
+        self.request.parent_sha = self.parent; self.request.merge_sha = self.commit
+        self.request.changed_paths = tuple(paths)
+        self.pr["base"].update(sha=self.base, repo=self.repository)
+        self.pr["head"].update(sha=self.parent, repo=self.repository)
+        self.pr["merge_commit_sha"] = self.commit
+        self.args.base_sha = self.base; self.args.head_sha = self.parent; self.args.merge_sha = self.commit
+        self.gate.paginate_pull_files = lambda *arguments: [{"filename": path, "status": "modified"}
+                                                           for path in self.request.changed_paths]
+
+    def ci_package_plan(self, candidate, event, source):
+        projects, profiles = [], {}
+        lock = "browser-client/package-lock.json"
+        if lock in self.request.changed_paths:
+            projects = ["browser-client"]
+            profiles = {"browser-client": {"profile": "source-map-postcss-v1", "required": True,
+                "changed_paths": [lock], "reason": "reviewed-single-dependency-security-update"}}
+        return {"unknown": False, "consumer_generation": True, "base": self.base, "head": self.parent,
+            "candidate": source, "tree": self.tree_sha, "paths": list(self.request.changed_paths),
+            "regular": True, "package_set": projects, "plan": "a" * 64, "policy": {"fixture": "b" * 64},
+            "dependency_profiles": {"unknown": False, "base": {"revision": self.base},
+                "candidate": {"revision": source, "tree": self.tree_sha}, "projects": profiles}}
+
+    def ci_prepare(self):
+        with patch.object(VALIDATION, "_gate", return_value=self.gate), \
+                patch.object(inputs, "load_registry", return_value=deepcopy(self.registry)):
+            selected = VALIDATION.select_sync(self.args, api=self.api)
+        self.args.expected_selection = selected["selection"]
+        return selected
+
+    def test_ci_prerequisite_selection_does_not_capture_runtime_or_execute_commands(self):
+        self.ci_fixture()
+        with patch.object(execution, "_runner", side_effect=AssertionError("selection cannot execute")), \
+                patch.object(runtime, "capture_host_environment", side_effect=AssertionError("no Qt setup yet")):
+            selected = self.ci_prepare()
+        self.assertEqual((selected["lane"], selected["full_host"]), ("affected-ci", False))
+        self.assertEqual(selected["suites"], ["alpha"])
+        self.assertEqual(selected["omitted_suites"], ["beta"])
+        self.assertIs(selected["reusable"], False)
+        self.assertFalse(self.args.receipt.exists())
+        self.assertEqual(self.executed(), [])
+
+    def test_ci_execution_observes_exact_selected_commands_without_reuse_or_product_run(self):
+        self.ci_fixture(); selected = self.ci_prepare()
+        with patch.object(execution, "execute", side_effect=AssertionError("complete executor must remain separate")), \
+                patch.object(VALIDATION, "_differential") as differential:
+            result = self.validate(runtime_failure=AssertionError("CI omission does not use cached runtime proof"))
+        differential.assert_called_once()
+        self.assertEqual(self.executed(), ["alpha"])
+        self.assertEqual(result["mode"], "affected-ci")
+        self.assertEqual(result["reused_suites"], [])
+        self.assertEqual(result["executed_suites"], ["alpha"])
+        self.assertIsNone(result["parent_evidence"])
+        self.assertEqual(result["ci_selection"], selected)
+        self.assertEqual(result["execution"]["producer"], VALIDATION.CI_EXECUTION_PRODUCER)
+        self.assertIs(result["execution"]["reusable"], False)
+        self.assertIs(result["execution"]["include_platform"], False)
+        self.assertEqual(result["execution"]["results"], [{"name": "alpha", "status": "passed",
+            "command": self.registry["suites"]["alpha"]["command"]}])
+
+    def test_ci_sync_leaves_exact_npm_ownership_external_without_duplicate_or_fake_result(self):
+        self.ci_fixture(npm=True); self.ci_prepare()
+        with patch.object(VALIDATION, "_differential"):
+            result = self.validate(runtime_failure=AssertionError("no reusable environment needed"))
+        self.assertEqual(result["external_package_set"], ["browser-client"])
+        self.assertEqual(result["executed_suites"], ["alpha"])
+        self.assertNotIn("browser-client", json.dumps(result["execution"]["results"]))
+        self.ci_packages.run.assert_not_called()
+
+    def test_ci_missing_owner_repairs_or_changed_product_readers_select_complete_fallback(self):
+        self.ci_fixture(npm=True)
+        self.ci_packages.consumer_generation.return_value = False
+        self.assertEqual(self.ci_prepare()["lane"], "complete")
+        self.ci_packages.consumer_generation.return_value = True
+        self.request.repair_paths = ("libraries/alpha.cpp",)
+        self.assertEqual(self.ci_prepare()["lane"], "complete")
+        self.request.repair_paths = ()
+        (self.candidate / "libraries/beta.cpp").write_text("Changed native reader\n")
+        self.ci_refresh()
+        self.assertEqual(self.ci_prepare()["lane"], "complete")
+
+    def test_ci_requires_bound_fork_configuration_and_mandatory_package_owner(self):
+        self.ci_fixture(npm=True)
+        selected = self.ci_prepare()
+        self.assertEqual(selected["lane"], "affected-ci")
+        path = VALIDATION.ROOT / ".github/repository-checks.json"
+        import hashlib
+        self.assertEqual(selected["policy"][".github/repository-checks.json"], hashlib.sha256(path.read_bytes()).hexdigest())
+        valid = {"repository": self.repository["full_name"], "repository_id": self.repository["id"],
+                 "required_contexts": ["repository-checks"]}
+        for config in ({**valid, "required_contexts": []}, {**valid, "repository": "other/overte"},
+                       {**valid, "repository_id": True}, {**valid, "repository_id": 1}, None):
+            with self.subTest(config=config), patch.object(VALIDATION, "_repository_owner_policy", return_value=config):
+                self.assertEqual(self.ci_prepare()["lane"], "complete")
+        with patch.object(VALIDATION, "_repository_owner_policy", side_effect=FileNotFoundError("missing policy")):
+            self.assertEqual(self.ci_prepare()["lane"], "complete")
+        self.ci_packages.has_staged_caller.return_value = False
+        self.assertEqual(self.ci_prepare()["lane"], "complete")
+        self.ci_packages.activated.return_value = True
+        self.assertEqual(self.ci_prepare()["lane"], "affected-ci")
+        self.ci_packages.activated.return_value = False
+        self.ci_packages.has_staged_caller.return_value = True
+        self.ci_packages.consumer_generation.return_value = False
+        self.assertEqual(self.ci_prepare()["lane"], "complete")
+        self.ci_packages.consumer_generation.return_value = True
+        owner = self.ci_package_plan(self.candidate, {}, self.commit)
+        owner["package_set"] = []
+        with patch.object(self.ci_packages, "candidate_plan", return_value=owner):
+            self.assertEqual(self.ci_prepare()["lane"], "complete")
+
+    def test_ci_stale_prerequisite_or_differential_failure_prevents_execution(self):
+        self.ci_fixture(); self.ci_prepare()
+        self.args.expected_selection = "sha256:" + "0" * 64
+        with self.assertRaises(VALIDATION.ValidationError): self.validate()
+        self.assertEqual(self.executed(), [])
+        self.ci_prepare()
+        with patch.object(VALIDATION, "_differential", side_effect=ValueError("changed contract")), \
+                self.assertRaises(ValueError): self.validate()
+        self.assertEqual(self.executed(), [])
+
+    def test_ci_failed_selected_command_cannot_emit_a_successful_sync_receipt(self):
+        self.ci_fixture(); self.ci_prepare()
+        with patch.object(VALIDATION, "_differential"), self.assertRaises(VALIDATION.ValidationError):
+            self.validate(extra_environment={"FIXTURE_FAIL_ALPHA": "1"})
+        self.assertEqual(self.executed(), ["alpha"])
+        self.assertFalse(self.args.receipt.exists())
+
+    def test_ci_diagnostic_missing_or_forged_execution_receipt_never_qualifies(self):
+        self.ci_fixture(); self.ci_prepare()
+        real_execute = VALIDATION._execute_ci
+        for mutation in ("missing", "diagnostic", "omitted", "command", "candidate", "selection", "reusable"):
+            def execute(*args, **kwargs):
+                status, receipt = real_execute(*args, **kwargs)
+                path = args[-1]
+                if mutation == "missing": Path(path).unlink(); return status, receipt
+                receipt = deepcopy(receipt)
+                if mutation == "diagnostic": receipt = {"kind": "host-impact-selection", "reusable": False}
+                elif mutation == "omitted": receipt["results"] = []
+                elif mutation == "command": receipt["results"][0]["command"] = ["python", "tests/beta.py"]
+                elif mutation == "candidate": receipt["candidate_commit"] = "0" * 40
+                elif mutation == "selection": receipt["selection"] = "sha256:" + "0" * 64
+                else: receipt["reusable"] = True
+                receipt.pop("receipt_digest", None); receipt["receipt_digest"] = execution.digest(receipt)
+                execution._write_receipt(path, receipt)
+                return status, receipt
+            with self.subTest(mutation=mutation), patch.object(VALIDATION, "_differential"), \
+                    self.assertRaises(VALIDATION.ValidationError):
+                self.validate(ci_execute_override=execute)
+            self.assertFalse(self.args.receipt.exists())
+
+    def test_ci_final_live_branch_drift_cannot_emit_success(self):
+        self.ci_fixture(); self.ci_prepare()
+        real_execute = VALIDATION._execute_ci
+        def execute(*args, **kwargs):
+            result = real_execute(*args, **kwargs)
+            self.gate.branch_sha = lambda *args: "0" * 40
+            return result
+        with patch.object(VALIDATION, "_differential"), self.assertRaises(VALIDATION.ValidationError):
+            self.validate(ci_execute_override=execute)
+        self.assertEqual(self.executed(), ["alpha"])
+        self.assertFalse(self.args.receipt.exists())
+
+    def test_staged_ci_workflow_selects_before_qt_and_binds_both_execution_paths(self):
+        import yaml
+        workflow = VALIDATION.ROOT / "tools/repository-checks/workflows/sync-ci-selection.yml"
+        data = yaml.safe_load(workflow.read_text()); steps = data["jobs"]["validate"]["steps"]
+        selection = next(step for step in steps if step.get("id") == "select")
+        self.assertIn("--select-only", selection["run"])
+        for name in ("Set up candidate Java", "Install candidate host prerequisites"):
+            step = next(step for step in steps if step["name"] == name)
+            self.assertGreater(steps.index(step), steps.index(selection))
+            self.assertEqual(step["if"], "steps.select.outputs.full_host == 'true'")
+        executions = [step for step in steps if "--expected-selection" in step.get("run", "")]
+        self.assertEqual(len(executions), 2)
+        for step in executions:
+            self.assertEqual(step["env"]["EXPECTED_SELECTION"], "${{ steps.select.outputs.selection }}")
+            self.assertIn('trusted/tools/test-evidence/validate-sync.py', step["run"])
+        self.assertEqual(data["permissions"], {"actions": "read", "contents": "read", "pull-requests": "read"})
 
 
 if __name__ == "__main__":

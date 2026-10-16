@@ -108,6 +108,7 @@ class ImmutableInputTests(unittest.TestCase):
         self.assertTrue({"tests/android-ci-test.py", "tests/repository-health-test.py", "tests/run-project-tests.py",
                          "tools/repository-checks/check.py", "tools/repository-checks/android.py",
                          ".github/workflows/parent-qualification.yml",
+                         "tools/repository-checks/workflows/sync-ci-selection.yml",
                          "tools/repository-checks/workflows/host/parent-qualification.yml"}.issubset(
                              {change["path"] for change in plan["changes"]}))
 
@@ -124,11 +125,14 @@ class ImmutableInputTests(unittest.TestCase):
                 plan = self.plan(changed_mode, executable)
                 self.assertTrue(plan["requires_application_build"])
                 self.assertEqual(plan["changes"][0]["kind"], "application-input")
-        self.git("checkout", "-q", "--detach", self.base)
-        (self.root / "tools/test-evidence/run.py").chmod(0o755)
-        plan = self.plan(self.commit("Make a different independent host file executable"))
-        self.assertTrue(plan["requires_application_build"])
-        self.assertEqual(plan["changes"][0]["kind"], "application-input")
+        for relative in ("tools/test-evidence/run.py", "tools/repository-checks/workflows/sync-ci-selection.yml"):
+            with self.subTest(path=relative):
+                self.git("checkout", "-q", "--detach", self.base)
+                self.write(relative, "# Independent CI source\n")
+                (self.root / relative).chmod(0o755)
+                plan = self.plan(self.commit("Make a different independent host file executable"))
+                self.assertTrue(plan["requires_application_build"])
+                self.assertEqual(plan["changes"][0]["kind"], "application-input")
 
     def npm_fixture(self):
         """Review a disposable real-Git graph, retaining actual dependency entries."""
@@ -269,6 +273,7 @@ class ImmutableInputTests(unittest.TestCase):
             "ios/tools/generate-sbom.py", "ios/ci/xcode-compiler-launcher.sh",
             "cmake/templates/BuildInfo.h.in", "tools/shadergen.py", "tools/jsdoc/config.json",
             "tools/CMakeLists.txt", "docs/CMakeLists.txt", "docs/new.bin", "android/README.md",
+            "tools/repository-checks/workflows/unreviewed-sync.yml",
             "tests/device/contracts/audio/ios-shim-test.cpp", "tests/device/contracts/audio/fixture.json",
             "tests/device/contracts/tablet/fixtures/README.md", "ios/tests/fixtures/xcode-sccache/main.c",
             "tests/new-host-test.py", "tools/test-evidence/new-helper.py",

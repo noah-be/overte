@@ -1070,6 +1070,8 @@ class HostGenerationTests(unittest.TestCase):
                      {"ios/release-check/test_added.py": "# New discovered test\n"},
                      {"tests/device/ios/self_tests/test_added.py": "# New discovered test\n"},
                      {"unknown/ci-helper.py": "# Unreviewed input\n"},
+                     {"tools/repository-checks/workflows/unreviewed-sync.yml": "# Unreviewed sibling\n"},
+                     {"tools/repository-checks/workflows/sync-ci-selection.yml": ("100755", "# Unreviewed executable YAML\n")},
                      {"ios/tests/port-contract-test.py": ("100755", "# Changed mode\n")},
                      {ci: ("120000", "outside")},
                      {ci: ("100755", "# Unreviewed executable CI addition\n")},
