@@ -1,0 +1,1824 @@
+{
+  "schema": 1,
+  "repository": "noah-l-frank/overte",
+  "repository_id": 1319052603,
+  "branches": [
+    "android-main",
+    "android-phone",
+    "android-vr",
+    "android-vr-pico"
+  ],
+  "environment": "android-host-java21-v1",
+  "reviewed_sources": {
+    "android-main": {
+      "commit": "664fb0e83dd80f1557571471d2a8c48a86d1b2ee",
+      "catalog_blob": "acb6b17e3aed94bdd5cb1c276bda44841315b3b4",
+      "native_cmake_blob": "183f9342728e18fecbeb18990183cec1015b3318",
+      "pico_runner_blob": "f873d2096886739672fc869a799faec4329350f2",
+      "robolectric_source_blobs": {
+        "android/phone/apps/interface/src/test/java/io/highfidelity/hifiinterface/HifiUtilsTest.java": "087e4d151428da7b97f2e4e2e052e4c65018cb0f",
+        "android/phone/apps/interface/src/test/java/io/highfidelity/hifiinterface/PermissionCheckerRobolectricTest.java": "6bf58b3cb199aa65db108306cf99ce653ec29551",
+        "android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PermissionsActivityRobolectricTest.java": "3c6596ce9c7164cb272e85a36d74534061bd6d93",
+        "android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhoneDeepLinkRobolectricTest.java": "f295ee50b98d3a255d692a8635227efd95f5ca3f",
+        "android/vr/pico/apps/picoInterface/src/test/java/org/overte/pico/PermissionsActivityRobolectricTest.java": "c03541b1922b62b1d1dff4fe67827990cc2b0627",
+        "android/vr/quest/apps/questInterface/src/test/java/io/highfidelity/questInterface/PermissionsCheckerRobolectricTest.java": "9fdf5edb51973f871f319632f04701409f6160d7"
+      }
+    },
+    "android-phone": {
+      "commit": "277bad9119c9ee16f4bbb3038cedeb6625741d34",
+      "catalog_blob": "862c17222ea1b2f9451c72b99743fee28c5bd1d8",
+      "native_cmake_blob": "0980fa0f644392a6e0faf1dbc81eb568ab17bc10",
+      "pico_runner_blob": "f873d2096886739672fc869a799faec4329350f2",
+      "robolectric_source_blobs": {
+        "android/phone/apps/interface/src/test/java/io/highfidelity/hifiinterface/HifiUtilsTest.java": "087e4d151428da7b97f2e4e2e052e4c65018cb0f",
+        "android/phone/apps/interface/src/test/java/io/highfidelity/hifiinterface/PermissionCheckerRobolectricTest.java": "6bf58b3cb199aa65db108306cf99ce653ec29551",
+        "android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PermissionsActivityRobolectricTest.java": "ba446b3298d6925352c7848118c3193735c2aa44",
+        "android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhoneDeepLinkRobolectricTest.java": "f295ee50b98d3a255d692a8635227efd95f5ca3f",
+        "android/phone/apps/phoneInterface/src/test/java/org/overte/phone/RedactingDiagnosticsRobolectricTest.java": "4a727bdbda8d8246ba8e03aec8c541efa75d5183",
+        "android/vr/pico/apps/picoInterface/src/test/java/org/overte/pico/PermissionsActivityRobolectricTest.java": "c03541b1922b62b1d1dff4fe67827990cc2b0627",
+        "android/vr/quest/apps/questInterface/src/test/java/io/highfidelity/questInterface/PermissionsCheckerRobolectricTest.java": "9fdf5edb51973f871f319632f04701409f6160d7",
+        "android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhoneEmbeddedWebFocusRobolectricTest.java": "82d5328b2843510698369c86713204117d13ce3b"
+      }
+    },
+    "android-vr": {
+      "commit": "2199dc03b796b14d69973b50cb538e3779866306",
+      "catalog_blob": "acb6b17e3aed94bdd5cb1c276bda44841315b3b4",
+      "native_cmake_blob": "183f9342728e18fecbeb18990183cec1015b3318",
+      "pico_runner_blob": "f873d2096886739672fc869a799faec4329350f2",
+      "robolectric_source_blobs": {
+        "android/phone/apps/interface/src/test/java/io/highfidelity/hifiinterface/HifiUtilsTest.java": "087e4d151428da7b97f2e4e2e052e4c65018cb0f",
+        "android/phone/apps/interface/src/test/java/io/highfidelity/hifiinterface/PermissionCheckerRobolectricTest.java": "6bf58b3cb199aa65db108306cf99ce653ec29551",
+        "android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PermissionsActivityRobolectricTest.java": "3c6596ce9c7164cb272e85a36d74534061bd6d93",
+        "android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhoneDeepLinkRobolectricTest.java": "f295ee50b98d3a255d692a8635227efd95f5ca3f",
+        "android/vr/pico/apps/picoInterface/src/test/java/org/overte/pico/PermissionsActivityRobolectricTest.java": "c03541b1922b62b1d1dff4fe67827990cc2b0627",
+        "android/vr/quest/apps/questInterface/src/test/java/io/highfidelity/questInterface/PermissionsCheckerRobolectricTest.java": "9fdf5edb51973f871f319632f04701409f6160d7"
+      }
+    },
+    "android-vr-pico": {
+      "commit": "410847ff312553de81f9f8ff7e32029b22495603",
+      "catalog_blob": "acb6b17e3aed94bdd5cb1c276bda44841315b3b4",
+      "native_cmake_blob": "183f9342728e18fecbeb18990183cec1015b3318",
+      "pico_runner_blob": "ce64e14ae78c3c845233d8d96a2dc77ac260ff0b",
+      "robolectric_source_blobs": {
+        "android/phone/apps/interface/src/test/java/io/highfidelity/hifiinterface/HifiUtilsTest.java": "087e4d151428da7b97f2e4e2e052e4c65018cb0f",
+        "android/phone/apps/interface/src/test/java/io/highfidelity/hifiinterface/PermissionCheckerRobolectricTest.java": "6bf58b3cb199aa65db108306cf99ce653ec29551",
+        "android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PermissionsActivityRobolectricTest.java": "3c6596ce9c7164cb272e85a36d74534061bd6d93",
+        "android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhoneDeepLinkRobolectricTest.java": "f295ee50b98d3a255d692a8635227efd95f5ca3f",
+        "android/vr/pico/apps/picoInterface/src/test/java/org/overte/pico/PermissionsActivityRobolectricTest.java": "c03541b1922b62b1d1dff4fe67827990cc2b0627",
+        "android/vr/quest/apps/questInterface/src/test/java/io/highfidelity/questInterface/PermissionsCheckerRobolectricTest.java": "9fdf5edb51973f871f319632f04701409f6160d7"
+      }
+    }
+  },
+  "catalog_tiers": [
+    "android-vr",
+    "contracts",
+    "coverage",
+    "endurance",
+    "fast",
+    "mutation",
+    "mutation-extended",
+    "regression",
+    "robolectric",
+    "stability"
+  ],
+  "catalog_suites": {
+    "test-android-e2e-launcher": {
+      "command": [
+        "common/tests/test_android_e2e_launcher.py"
+      ],
+      "tiers": [
+        "contracts",
+        "fast",
+        "host"
+      ]
+    },
+    "test-android-startup-url-path": {
+      "command": [
+        "common/tests/test_android_startup_url_path.py"
+      ],
+      "tiers": [
+        "contracts",
+        "fast",
+        "host"
+      ]
+    },
+    "android-vr-native-policies": {
+      "command": [
+        "common/tests/native/run-native-tests.sh",
+        "android-vr"
+      ],
+      "tiers": [
+        "android-vr"
+      ]
+    },
+    "android-vr-pico-runtime": {
+      "command": [
+        "common/tests/android-vr-pico-runtime-test.sh"
+      ],
+      "tiers": [
+        "android-vr"
+      ]
+    },
+    "suite-runner-self-test": {
+      "command": [
+        "common/tests/suite/run-self-tests.sh"
+      ],
+      "tiers": [
+        "fast",
+        "host"
+      ]
+    },
+    "ci-reproducibility-contract": {
+      "command": [
+        "common/tests/ci/run-ci-contract-tests.sh"
+      ],
+      "tiers": [
+        "contracts",
+        "fast"
+      ]
+    },
+    "shell-syntax-contract": {
+      "command": [
+        "common/tests/shell-syntax-test.sh"
+      ],
+      "tiers": [
+        "android-vr",
+        "contracts",
+        "fast",
+        "host"
+      ]
+    },
+    "python-syntax-contract": {
+      "command": [
+        "common/tests/python-syntax-test.py"
+      ],
+      "tiers": [
+        "android-vr",
+        "contracts",
+        "fast",
+        "host"
+      ]
+    },
+    "result-summary-self-test": {
+      "command": [
+        "common/tests/reporting/run-summary-self-tests.sh"
+      ],
+      "tiers": [
+        "fast"
+      ]
+    },
+    "android-static-quality": {
+      "command": [
+        "common/tests/quality/run-static-quality.sh"
+      ],
+      "tiers": [
+        "fast"
+      ]
+    },
+    "test-documentation-contract": {
+      "command": [
+        "common/tests/docs/run-docs-contract-tests.sh"
+      ],
+      "tiers": [
+        "contracts",
+        "fast"
+      ]
+    },
+    "java-deep-links": {
+      "command": [
+        "phone/tests/phone-deep-link-test.sh"
+      ],
+      "tiers": [
+        "fast",
+        "host"
+      ]
+    },
+    "legacy-user-story-policy": {
+      "command": [
+        "phone/tests/legacy-user-story-policy-test.sh"
+      ],
+      "tiers": [
+        "fast",
+        "host"
+      ]
+    },
+    "legacy-gradle-dependencies": {
+      "command": [
+        "common/tests/legacy-gradle-dependency-test.py"
+      ],
+      "tiers": [
+        "contracts",
+        "fast",
+        "host"
+      ]
+    },
+    "legacy-gradle-report-harness": {
+      "command": [
+        "common/tests/legacy-gradle-dependency-report-test.py"
+      ],
+      "tiers": [
+        "contracts",
+        "fast",
+        "host"
+      ]
+    },
+    "phone-test-inventory": {
+      "command": [
+        "phone/tests/phone-test-inventory-test.sh"
+      ],
+      "tiers": [
+        "contracts",
+        "fast",
+        "host"
+      ]
+    },
+    "android-project-module-inventory": {
+      "command": [
+        "common/tests/project-module-inventory-test.sh"
+      ],
+      "tiers": [
+        "android-vr",
+        "contracts",
+        "fast",
+        "host"
+      ]
+    },
+    "pico-harness-self-tests": {
+      "command": [
+        "vr/pico/tests/pico-harness-self-tests.sh"
+      ],
+      "tiers": [
+        "contracts",
+        "fast",
+        "host"
+      ]
+    },
+    "java-safe-asset-paths": {
+      "command": [
+        "common/tests/safe-asset-path-test.sh"
+      ],
+      "tiers": [
+        "fast",
+        "host"
+      ]
+    },
+    "pico-audio-input-policy": {
+      "command": [
+        "vr/pico/tests/pico-audio-input-policy-test.sh"
+      ],
+      "tiers": [
+        "contracts",
+        "fast",
+        "host"
+      ]
+    },
+    "pico-interface-activity-policy": {
+      "command": [
+        "vr/pico/tests/pico-interface-activity-policy-test.sh"
+      ],
+      "tiers": [
+        "contracts",
+        "fast",
+        "host"
+      ]
+    },
+    "native-host-tests": {
+      "command": [
+        "common/tests/native/run-native-tests.sh"
+      ],
+      "tiers": [
+        "fast",
+        "host"
+      ]
+    },
+    "javascript-test-support": {
+      "command": [
+        "common/tests/javascript/run-tests.sh"
+      ],
+      "tiers": [
+        "fast",
+        "host"
+      ]
+    },
+    "javascript-lifecycle-endurance": {
+      "command": [
+        "common/tests/javascript/run-lifecycle-endurance.sh"
+      ],
+      "tiers": [
+        "endurance",
+        "fast",
+        "host"
+      ]
+    },
+    "script-app-router": {
+      "command": [
+        "phone/tests/phone-tablet-app-router-test.sh"
+      ],
+      "tiers": [
+        "fast",
+        "host"
+      ]
+    },
+    "script-security": {
+      "command": [
+        "phone/tests/phone-tablet-security-test.sh"
+      ],
+      "tiers": [
+        "fast",
+        "host"
+      ]
+    },
+    "script-portal-lifecycle": {
+      "command": [
+        "phone/tests/phone-tablet-portal-lifecycle-test.sh"
+      ],
+      "tiers": [
+        "fast",
+        "host"
+      ]
+    },
+    "qml-components": {
+      "command": [
+        "common/tests/qml/run-qml-tests.sh"
+      ],
+      "tiers": [
+        "fast",
+        "host"
+      ]
+    },
+    "phone-robolectric-launcher": {
+      "command": [
+        "common/tests/robolectric/run-tests.sh"
+      ],
+      "tiers": [
+        "android-vr",
+        "host",
+        "robolectric"
+      ]
+    },
+    "phone-contracts": {
+      "command": [
+        "phone/tests/phone-tablet-static-test.sh"
+      ],
+      "tiers": [
+        "contracts"
+      ]
+    },
+    "android-workflow-contracts": {
+      "command": [
+        "common/tests/android-workflow-contract-test.py"
+      ],
+      "tiers": [
+        "contracts"
+      ]
+    },
+    "phone-apk-provenance": {
+      "command": [
+        "phone/tests/phone-apk-provenance-test.py"
+      ],
+      "tiers": [
+        "contracts"
+      ]
+    },
+    "phone-release-version": {
+      "command": [
+        "phone/tests/phone-release-version-test.py"
+      ],
+      "tiers": [
+        "contracts"
+      ]
+    },
+    "phone-release-metadata": {
+      "command": [
+        "phone/tests/phone-release-metadata-test.py"
+      ],
+      "tiers": [
+        "contracts"
+      ]
+    },
+    "phone-release-runner-authorization": {
+      "command": [
+        "phone/tests/phone-release-runner-authorization-test.sh"
+      ],
+      "tiers": [
+        "contracts"
+      ]
+    },
+    "phone-build-parallelism": {
+      "command": [
+        "phone/tests/phone-build-parallelism-test.py"
+      ],
+      "tiers": [
+        "contracts"
+      ]
+    },
+    "pico-audio-jni-boundary": {
+      "command": [
+        "vr/pico/tests/pico-audio-jni-boundary-test.py"
+      ],
+      "tiers": [
+        "contracts",
+        "fast",
+        "host"
+      ]
+    },
+    "phone-jvm-coverage": {
+      "command": [
+        "common/tests/coverage/run-standalone-jvm-coverage.sh"
+      ],
+      "tiers": [
+        "coverage"
+      ]
+    },
+    "phone-javascript-coverage": {
+      "command": [
+        "common/tests/coverage/run-javascript-coverage.sh"
+      ],
+      "tiers": [
+        "coverage"
+      ]
+    },
+    "phone-native-coverage": {
+      "command": [
+        "common/tests/coverage/run-native-coverage.sh"
+      ],
+      "tiers": [
+        "coverage"
+      ]
+    },
+    "critical-policy-mutations": {
+      "command": [
+        "common/tests/mutation/run-critical-policy-mutations.sh"
+      ],
+      "tiers": [
+        "mutation"
+      ]
+    },
+    "native-policy-endurance": {
+      "command": [
+        "common/tests/native/run-endurance-tests.sh"
+      ],
+      "tiers": [
+        "endurance"
+      ]
+    },
+    "qml-lifecycle-endurance": {
+      "command": [
+        "common/tests/qml/run-endurance-tests.sh"
+      ],
+      "tiers": [
+        "endurance"
+      ]
+    },
+    "device-free-order-isolation-stability": {
+      "command": [
+        "common/tests/stability/run-tests.sh"
+      ],
+      "tiers": [
+        "stability"
+      ]
+    },
+    "phone-device-free-regression": {
+      "command": [
+        "phone/tests/phone-static-regression-test.sh"
+      ],
+      "tiers": [
+        "regression"
+      ]
+    },
+    "critical-policy-mutations-extended": {
+      "command": [
+        "common/tests/mutation/run-critical-policy-mutations.sh",
+        "--extended",
+        "--report",
+        "build/reports/mutation/critical-policies-extended.json"
+      ],
+      "tiers": [
+        "mutation-extended"
+      ]
+    }
+  },
+  "executions": {
+    "test-android-e2e-launcher": {
+      "command": [
+        "python",
+        "common/tests/test_android_e2e_launcher.py"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "test-android-startup-url-path": {
+      "command": [
+        "python",
+        "common/tests/test_android_startup_url_path.py"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "suite-runner-self-test": {
+      "command": [
+        "bash",
+        "common/tests/suite/run-self-tests.sh"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "ci-reproducibility-contract": {
+      "command": [
+        "bash",
+        "common/tests/ci/run-ci-contract-tests.sh"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "shell-syntax-contract": {
+      "command": [
+        "bash",
+        "common/tests/shell-syntax-test.sh"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "python-syntax-contract": {
+      "command": [
+        "python",
+        "common/tests/python-syntax-test.py"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "result-summary-self-test": {
+      "command": [
+        "bash",
+        "common/tests/reporting/run-summary-self-tests.sh"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "android-static-quality": {
+      "command": [
+        "bash",
+        "common/tests/quality/run-static-quality.sh"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "test-documentation-contract": {
+      "command": [
+        "bash",
+        "common/tests/docs/run-docs-contract-tests.sh"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "java-deep-links": {
+      "command": [
+        "bash",
+        "phone/tests/phone-deep-link-test.sh"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "legacy-user-story-policy": {
+      "command": [
+        "bash",
+        "phone/tests/legacy-user-story-policy-test.sh"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "legacy-gradle-dependencies": {
+      "command": [
+        "python",
+        "common/tests/legacy-gradle-dependency-test.py"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "legacy-gradle-report-harness": {
+      "command": [
+        "python",
+        "common/tests/legacy-gradle-dependency-report-test.py"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "phone-test-inventory": {
+      "command": [
+        "bash",
+        "phone/tests/phone-test-inventory-test.sh"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "android-project-module-inventory": {
+      "command": [
+        "bash",
+        "common/tests/project-module-inventory-test.sh"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "pico-harness-self-tests": {
+      "command": [
+        "bash",
+        "vr/pico/tests/pico-harness-self-tests.sh"
+      ],
+      "timeout": 60,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "java-safe-asset-paths": {
+      "command": [
+        "bash",
+        "common/tests/safe-asset-path-test.sh"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "pico-audio-input-policy": {
+      "command": [
+        "bash",
+        "vr/pico/tests/pico-audio-input-policy-test.sh"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "pico-interface-activity-policy": {
+      "command": [
+        "bash",
+        "vr/pico/tests/pico-interface-activity-policy-test.sh"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "native-host-tests": {
+      "command": [
+        "bash",
+        "common/tests/native/run-native-tests.sh"
+      ],
+      "timeout": 480,
+      "variant": "native-default",
+      "report": "native",
+      "cases": [
+        "phone_login_state_contract",
+        "phone_login_state_transitions",
+        "phone_login_state_instances",
+        "phone_login_state_deterministic_properties",
+        "phone_graphics_bool_policy",
+        "phone_graphics_float_policy",
+        "phone_graphics_unsigned_policy",
+        "phone_graphics_deterministic_properties",
+        "phone_pending_handoff_lifecycle",
+        "phone_pending_handoff_replacement",
+        "phone_pending_handoff_move",
+        "android_startup_url_policy",
+        "qt_input_connection_compat",
+        "phone_pending_handoff_deterministic_properties",
+        "android_vr_openxr_debug_policy",
+        "pico_openxr_input_policy",
+        "pico_openxr_space_policy",
+        "pico_openxr_display_policy",
+        "pico_openxr_graphics_policy",
+        "pico_openxr_extension_policy",
+        "pico_openxr_event_policy"
+      ]
+    },
+    "javascript-test-support": {
+      "command": [
+        "bash",
+        "common/tests/javascript/run-tests.sh"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "javascript-lifecycle-endurance": {
+      "command": [
+        "bash",
+        "common/tests/javascript/run-lifecycle-endurance.sh"
+      ],
+      "timeout": 120,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "script-app-router": {
+      "command": [
+        "bash",
+        "phone/tests/phone-tablet-app-router-test.sh"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "script-security": {
+      "command": [
+        "bash",
+        "phone/tests/phone-tablet-security-test.sh"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "script-portal-lifecycle": {
+      "command": [
+        "bash",
+        "phone/tests/phone-tablet-portal-lifecycle-test.sh"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "qml-components": {
+      "command": [
+        "bash",
+        "common/tests/qml/run-qml-tests.sh"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "phone-robolectric-launcher": {
+      "command": [
+        "bash",
+        "common/tests/robolectric/run-tests.sh"
+      ],
+      "timeout": 600,
+      "variant": "robolectric",
+      "report": "robolectric",
+      "cases": [
+        "io.highfidelity.hifiinterface.HifiUtilsTest::defaultAssetBaseAndWhitespaceAreDeterministic",
+        "io.highfidelity.hifiinterface.HifiUtilsTest::fixedSeedBareAddressesRetainTheirPayload",
+        "io.highfidelity.hifiinterface.HifiUtilsTest::malformedUriIsTrimmedButOtherwisePreserved",
+        "io.highfidelity.hifiinterface.HifiUtilsTest::missingNetworkFieldsFailClosedToEmptyStrings",
+        "io.highfidelity.hifiinterface.HifiUtilsTest::networkPathAssetsInheritOnlyHttpOrHttpsSchemes",
+        "io.highfidelity.hifiinterface.HifiUtilsTest::relativeAssetNormalizesExactlyOnePathSeparator",
+        "io.highfidelity.hifiinterface.HifiUtilsTest::relativeAssetUsesSuppliedBaseWithoutChangingAbsoluteUrl",
+        "io.highfidelity.hifiinterface.HifiUtilsTest::sanitizeAddsHifiSchemeToBareAddress",
+        "io.highfidelity.hifiinterface.HifiUtilsTest::sanitizePreservesExistingSchemesAndEmptyInput",
+        "io.highfidelity.hifiinterface.PermissionCheckerRobolectricTest::allGrantedLaunchesInterfaceAndTransfersArguments",
+        "io.highfidelity.hifiinterface.PermissionCheckerRobolectricTest::allGrantedLaunchesInterfaceAndTransfersArguments[24]",
+        "io.highfidelity.hifiinterface.PermissionCheckerRobolectricTest::creationStartsCrashUploaderService",
+        "io.highfidelity.hifiinterface.PermissionCheckerRobolectricTest::creationStartsCrashUploaderService[24]",
+        "io.highfidelity.hifiinterface.PermissionCheckerRobolectricTest::denialOrInterruptedResultLaunchesButUnrelatedCallbackDoesNot",
+        "io.highfidelity.hifiinterface.PermissionCheckerRobolectricTest::denialOrInterruptedResultLaunchesButUnrelatedCallbackDoesNot[24]",
+        "io.highfidelity.hifiinterface.PermissionCheckerRobolectricTest::launchedSavedStateDoesNotStartInterfaceAgain",
+        "io.highfidelity.hifiinterface.PermissionCheckerRobolectricTest::launchedSavedStateDoesNotStartInterfaceAgain[24]",
+        "io.highfidelity.hifiinterface.PermissionCheckerRobolectricTest::missingPermissionsRequestsCompleteLegacySet",
+        "io.highfidelity.hifiinterface.PermissionCheckerRobolectricTest::missingPermissionsRequestsCompleteLegacySet[24]",
+        "io.highfidelity.hifiinterface.PermissionCheckerRobolectricTest::repeatedPermissionCallbackLaunchesExactlyOnce",
+        "io.highfidelity.hifiinterface.PermissionCheckerRobolectricTest::repeatedPermissionCallbackLaunchesExactlyOnce[24]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::allGrantedLaunchesQuestAndTransfersArguments",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::allGrantedLaunchesQuestAndTransfersArguments[24]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::allGrantedLaunchesQuestAndTransfersArguments[28]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::denialLaunchesButUnrelatedCallbackDoesNot",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::denialLaunchesButUnrelatedCallbackDoesNot[24]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::denialLaunchesButUnrelatedCallbackDoesNot[28]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::emptyArgumentsAreNotForwarded",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::emptyArgumentsAreNotForwarded[24]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::emptyArgumentsAreNotForwarded[28]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::interruptedEmptyPermissionResultStillLaunches",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::interruptedEmptyPermissionResultStillLaunches[24]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::interruptedEmptyPermissionResultStillLaunches[28]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::missingPermissionsRequestsTheCompleteReviewedSet",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::missingPermissionsRequestsTheCompleteReviewedSet[24]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::missingPermissionsRequestsTheCompleteReviewedSet[28]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::repeatedPermissionCallbackLaunchesExactlyOnce",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::repeatedPermissionCallbackLaunchesExactlyOnce[24]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::repeatedPermissionCallbackLaunchesExactlyOnce[28]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::restoredLaunchedStateDoesNotLaunchAgain",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::restoredLaunchedStateDoesNotLaunchAgain[24]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::restoredLaunchedStateDoesNotLaunchAgain[28]",
+        "org.overte.phone.PermissionsActivityRobolectricTest::denialStillLaunchesBecauseVoiceIsOptional",
+        "org.overte.phone.PermissionsActivityRobolectricTest::denialStillLaunchesBecauseVoiceIsOptional[26]",
+        "org.overte.phone.PermissionsActivityRobolectricTest::deniedPermissionRequestsOnlyMicrophoneAndWaits",
+        "org.overte.phone.PermissionsActivityRobolectricTest::deniedPermissionRequestsOnlyMicrophoneAndWaits[26]",
+        "org.overte.phone.PermissionsActivityRobolectricTest::grantedPermissionImmediatelyLaunchesInterfaceAndFinishes",
+        "org.overte.phone.PermissionsActivityRobolectricTest::grantedPermissionImmediatelyLaunchesInterfaceAndFinishes[26]",
+        "org.overte.phone.PermissionsActivityRobolectricTest::latestIntentWhileDialogIsOpenSupersedesOriginalDestination",
+        "org.overte.phone.PermissionsActivityRobolectricTest::latestIntentWhileDialogIsOpenSupersedesOriginalDestination[26]",
+        "org.overte.phone.PermissionsActivityRobolectricTest::newerInvalidIntentClearsAnOlderDestination",
+        "org.overte.phone.PermissionsActivityRobolectricTest::newerInvalidIntentClearsAnOlderDestination[26]",
+        "org.overte.phone.PermissionsActivityRobolectricTest::repeatedPermissionResultCannotLaunchTwice",
+        "org.overte.phone.PermissionsActivityRobolectricTest::repeatedPermissionResultCannotLaunchTwice[26]",
+        "org.overte.phone.PermissionsActivityRobolectricTest::savedStateRecreationAfterLaunchDoesNotStartSecondInterface",
+        "org.overte.phone.PermissionsActivityRobolectricTest::savedStateRecreationAfterLaunchDoesNotStartSecondInterface[26]",
+        "org.overte.phone.PermissionsActivityRobolectricTest::savedStateRecreationPreservesLatestPendingDestinationAndRequestsAgain",
+        "org.overte.phone.PermissionsActivityRobolectricTest::savedStateRecreationPreservesLatestPendingDestinationAndRequestsAgain[26]",
+        "org.overte.phone.PermissionsActivityRobolectricTest::unrelatedPermissionCallbackDoesNotLaunch",
+        "org.overte.phone.PermissionsActivityRobolectricTest::unrelatedPermissionCallbackDoesNotLaunch[26]",
+        "org.overte.phone.PhoneDeepLinkRobolectricTest::directUriNormalizationHandlesMissingValues",
+        "org.overte.phone.PhoneDeepLinkRobolectricTest::directUriNormalizationHandlesMissingValues[26]",
+        "org.overte.phone.PhoneDeepLinkRobolectricTest::exportedBoundaryRejectsNullWrongActionsAndUnsupportedDestinations",
+        "org.overte.phone.PhoneDeepLinkRobolectricTest::exportedBoundaryRejectsNullWrongActionsAndUnsupportedDestinations[26]",
+        "org.overte.phone.PhoneDeepLinkRobolectricTest::exportedViewIntentCanonicalizesSupportedSchemes",
+        "org.overte.phone.PhoneDeepLinkRobolectricTest::exportedViewIntentCanonicalizesSupportedSchemes[26]",
+        "org.overte.phone.PhoneDeepLinkRobolectricTest::internalExtraIsValidatedWithTheSameBoundaryRules",
+        "org.overte.phone.PhoneDeepLinkRobolectricTest::internalExtraIsValidatedWithTheSameBoundaryRules[26]",
+        "org.overte.pico.PermissionsActivityRobolectricTest::denialStillLaunchesButUnrelatedCallbackDoesNot",
+        "org.overte.pico.PermissionsActivityRobolectricTest::denialStillLaunchesButUnrelatedCallbackDoesNot[26]",
+        "org.overte.pico.PermissionsActivityRobolectricTest::externalArgumentsAreNotForwarded",
+        "org.overte.pico.PermissionsActivityRobolectricTest::externalArgumentsAreNotForwarded[26]",
+        "org.overte.pico.PermissionsActivityRobolectricTest::grantedMicrophoneLaunchesQtWithoutForwardingExternalArguments",
+        "org.overte.pico.PermissionsActivityRobolectricTest::grantedMicrophoneLaunchesQtWithoutForwardingExternalArguments[26]",
+        "org.overte.pico.PermissionsActivityRobolectricTest::missingMicrophoneRequestsOnlyOptionalAudioPermission",
+        "org.overte.pico.PermissionsActivityRobolectricTest::missingMicrophoneRequestsOnlyOptionalAudioPermission[26]",
+        "org.overte.pico.PermissionsActivityRobolectricTest::repeatedPermissionCallbackLaunchesExactlyOnce",
+        "org.overte.pico.PermissionsActivityRobolectricTest::repeatedPermissionCallbackLaunchesExactlyOnce[26]",
+        "org.overte.pico.PermissionsActivityRobolectricTest::restoredLaunchedStateDoesNotLaunchAgain",
+        "org.overte.pico.PermissionsActivityRobolectricTest::restoredLaunchedStateDoesNotLaunchAgain[26]"
+      ]
+    },
+    "phone-contracts": {
+      "command": [
+        "bash",
+        "phone/tests/phone-tablet-static-test.sh"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "android-workflow-contracts": {
+      "command": [
+        "python",
+        "common/tests/android-workflow-contract-test.py"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "phone-apk-provenance": {
+      "command": [
+        "python",
+        "phone/tests/phone-apk-provenance-test.py"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "phone-release-version": {
+      "command": [
+        "python",
+        "phone/tests/phone-release-version-test.py"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "phone-release-metadata": {
+      "command": [
+        "python",
+        "phone/tests/phone-release-metadata-test.py"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "phone-release-runner-authorization": {
+      "command": [
+        "bash",
+        "phone/tests/phone-release-runner-authorization-test.sh"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "phone-build-parallelism": {
+      "command": [
+        "python",
+        "phone/tests/phone-build-parallelism-test.py"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "pico-audio-jni-boundary": {
+      "command": [
+        "python",
+        "vr/pico/tests/pico-audio-jni-boundary-test.py"
+      ],
+      "timeout": 480,
+      "variant": "contract",
+      "report": null,
+      "cases": []
+    },
+    "phone-jvm-coverage": {
+      "command": [
+        "bash",
+        "common/tests/coverage/run-standalone-jvm-coverage.sh"
+      ],
+      "timeout": 480,
+      "variant": "jvm-jacoco",
+      "report": null,
+      "cases": []
+    },
+    "phone-javascript-coverage": {
+      "command": [
+        "bash",
+        "common/tests/coverage/run-javascript-coverage.sh"
+      ],
+      "timeout": 480,
+      "variant": "node-coverage",
+      "report": null,
+      "cases": []
+    },
+    "phone-native-coverage": {
+      "command": [
+        "bash",
+        "common/tests/coverage/run-native-coverage.sh"
+      ],
+      "timeout": 480,
+      "variant": "native-gcov",
+      "report": null,
+      "cases": []
+    },
+    "critical-policy-mutations": {
+      "command": [
+        "bash",
+        "common/tests/mutation/run-critical-policy-mutations.sh"
+      ],
+      "timeout": 480,
+      "variant": "mutation",
+      "report": null,
+      "cases": []
+    },
+    "pico4-device-free": {
+      "command": [
+        "python",
+        "vr/pico/tests/pico4-test-suite.py",
+        "--timeout",
+        "120",
+        "--junit",
+        "{report}"
+      ],
+      "timeout": 900,
+      "variant": "pico-full",
+      "report": "pico",
+      "cases": [
+        "suite-runner",
+        "coverage-matrix",
+        "shell-syntax",
+        "package-contract",
+        "apk-verifier",
+        "release-contract",
+        "platform-glue",
+        "android-entrypoints",
+        "webview-bridge",
+        "webview-touch-state",
+        "audio-capture-state",
+        "audio-native-transport",
+        "openxr-loader",
+        "openxr-input",
+        "openxr-display",
+        "interaction-diagnostics",
+        "tablet-lifecycle",
+        "tablet-settings",
+        "create-qml",
+        "create-properties",
+        "create-message",
+        "avatar-hotpath",
+        "shadergen-jobs",
+        "world-state",
+        "microphone-runner",
+        "unattended-runner",
+        "device-lock",
+        "device-acceptance",
+        "serverless-fixtures",
+        "power-analyzer"
+      ]
+    },
+    "critical-policy-mutations-extended": {
+      "command": [
+        "bash",
+        "common/tests/mutation/run-critical-policy-mutations.sh",
+        "--extended",
+        "--report",
+        "build/reports/mutation/critical-policies-extended.json"
+      ],
+      "timeout": 480,
+      "variant": "mutation-extended",
+      "report": null,
+      "cases": []
+    },
+    "device-free-order-isolation-stability": {
+      "command": [
+        "bash",
+        "common/tests/stability/run-tests.sh"
+      ],
+      "timeout": 1800,
+      "variant": "stability",
+      "report": null,
+      "cases": []
+    },
+    "javascript-lifecycle-endurance-scaled": {
+      "command": [
+        "bash",
+        "common/tests/javascript/run-lifecycle-endurance.sh"
+      ],
+      "timeout": 120,
+      "variant": "endurance",
+      "report": null,
+      "cases": [],
+      "environment": {
+        "OVERTE_JS_ENDURANCE_CYCLES": "100"
+      }
+    },
+    "native-policy-endurance": {
+      "command": [
+        "bash",
+        "common/tests/native/run-endurance-tests.sh"
+      ],
+      "timeout": 120,
+      "variant": "endurance",
+      "report": null,
+      "cases": [],
+      "environment": {
+        "OVERTE_NATIVE_ENDURANCE_CYCLES": "1000"
+      }
+    },
+    "qml-lifecycle-endurance": {
+      "command": [
+        "bash",
+        "common/tests/qml/run-endurance-tests.sh"
+      ],
+      "timeout": 120,
+      "variant": "endurance",
+      "report": null,
+      "cases": []
+    },
+    "phone-device-free-regression": {
+      "command": [
+        "bash",
+        "phone/tests/phone-static-regression-test.sh"
+      ],
+      "timeout": 480,
+      "variant": "regression",
+      "report": null,
+      "cases": []
+    }
+  },
+  "views": {
+    "fast": {
+      "test-android-e2e-launcher": {
+        "execution": "test-android-e2e-launcher",
+        "cases": []
+      },
+      "test-android-startup-url-path": {
+        "execution": "test-android-startup-url-path",
+        "cases": []
+      },
+      "suite-runner-self-test": {
+        "execution": "suite-runner-self-test",
+        "cases": []
+      },
+      "ci-reproducibility-contract": {
+        "execution": "ci-reproducibility-contract",
+        "cases": []
+      },
+      "shell-syntax-contract": {
+        "execution": "shell-syntax-contract",
+        "cases": []
+      },
+      "python-syntax-contract": {
+        "execution": "python-syntax-contract",
+        "cases": []
+      },
+      "result-summary-self-test": {
+        "execution": "result-summary-self-test",
+        "cases": []
+      },
+      "android-static-quality": {
+        "execution": "android-static-quality",
+        "cases": []
+      },
+      "test-documentation-contract": {
+        "execution": "test-documentation-contract",
+        "cases": []
+      },
+      "java-deep-links": {
+        "execution": "java-deep-links",
+        "cases": []
+      },
+      "legacy-user-story-policy": {
+        "execution": "legacy-user-story-policy",
+        "cases": []
+      },
+      "legacy-gradle-dependencies": {
+        "execution": "legacy-gradle-dependencies",
+        "cases": []
+      },
+      "legacy-gradle-report-harness": {
+        "execution": "legacy-gradle-report-harness",
+        "cases": []
+      },
+      "phone-test-inventory": {
+        "execution": "phone-test-inventory",
+        "cases": []
+      },
+      "android-project-module-inventory": {
+        "execution": "android-project-module-inventory",
+        "cases": []
+      },
+      "pico-harness-self-tests": {
+        "execution": "pico-harness-self-tests",
+        "cases": []
+      },
+      "java-safe-asset-paths": {
+        "execution": "java-safe-asset-paths",
+        "cases": []
+      },
+      "pico-audio-input-policy": {
+        "execution": "pico-audio-input-policy",
+        "cases": []
+      },
+      "pico-interface-activity-policy": {
+        "execution": "pico-interface-activity-policy",
+        "cases": []
+      },
+      "native-host-tests": {
+        "execution": "native-host-tests",
+        "cases": []
+      },
+      "javascript-test-support": {
+        "execution": "javascript-test-support",
+        "cases": []
+      },
+      "javascript-lifecycle-endurance": {
+        "execution": "javascript-lifecycle-endurance",
+        "cases": []
+      },
+      "script-app-router": {
+        "execution": "script-app-router",
+        "cases": []
+      },
+      "script-security": {
+        "execution": "script-security",
+        "cases": []
+      },
+      "script-portal-lifecycle": {
+        "execution": "script-portal-lifecycle",
+        "cases": []
+      },
+      "qml-components": {
+        "execution": "qml-components",
+        "cases": []
+      },
+      "pico-audio-jni-boundary": {
+        "execution": "pico-audio-jni-boundary",
+        "cases": []
+      }
+    },
+    "contracts": {
+      "test-android-e2e-launcher": {
+        "execution": "test-android-e2e-launcher",
+        "cases": []
+      },
+      "test-android-startup-url-path": {
+        "execution": "test-android-startup-url-path",
+        "cases": []
+      },
+      "ci-reproducibility-contract": {
+        "execution": "ci-reproducibility-contract",
+        "cases": []
+      },
+      "shell-syntax-contract": {
+        "execution": "shell-syntax-contract",
+        "cases": []
+      },
+      "python-syntax-contract": {
+        "execution": "python-syntax-contract",
+        "cases": []
+      },
+      "test-documentation-contract": {
+        "execution": "test-documentation-contract",
+        "cases": []
+      },
+      "legacy-gradle-dependencies": {
+        "execution": "legacy-gradle-dependencies",
+        "cases": []
+      },
+      "legacy-gradle-report-harness": {
+        "execution": "legacy-gradle-report-harness",
+        "cases": []
+      },
+      "phone-test-inventory": {
+        "execution": "phone-test-inventory",
+        "cases": []
+      },
+      "android-project-module-inventory": {
+        "execution": "android-project-module-inventory",
+        "cases": []
+      },
+      "pico-harness-self-tests": {
+        "execution": "pico-harness-self-tests",
+        "cases": []
+      },
+      "pico-audio-input-policy": {
+        "execution": "pico-audio-input-policy",
+        "cases": []
+      },
+      "pico-interface-activity-policy": {
+        "execution": "pico-interface-activity-policy",
+        "cases": []
+      },
+      "phone-contracts": {
+        "execution": "phone-contracts",
+        "cases": []
+      },
+      "android-workflow-contracts": {
+        "execution": "android-workflow-contracts",
+        "cases": []
+      },
+      "phone-apk-provenance": {
+        "execution": "phone-apk-provenance",
+        "cases": []
+      },
+      "phone-release-version": {
+        "execution": "phone-release-version",
+        "cases": []
+      },
+      "phone-release-metadata": {
+        "execution": "phone-release-metadata",
+        "cases": []
+      },
+      "phone-release-runner-authorization": {
+        "execution": "phone-release-runner-authorization",
+        "cases": []
+      },
+      "phone-build-parallelism": {
+        "execution": "phone-build-parallelism",
+        "cases": []
+      },
+      "pico-audio-jni-boundary": {
+        "execution": "pico-audio-jni-boundary",
+        "cases": []
+      }
+    },
+    "coverage": {
+      "phone-jvm-coverage": {
+        "execution": "phone-jvm-coverage",
+        "cases": []
+      },
+      "phone-javascript-coverage": {
+        "execution": "phone-javascript-coverage",
+        "cases": []
+      },
+      "phone-native-coverage": {
+        "execution": "phone-native-coverage",
+        "cases": []
+      },
+      "phone-robolectric-launcher": {
+        "execution": "phone-robolectric-launcher",
+        "cases": []
+      }
+    },
+    "android-vr": {
+      "android-vr-native-policies": {
+        "execution": "native-host-tests",
+        "cases": [
+          "android_vr_openxr_debug_policy",
+          "pico_openxr_input_policy",
+          "pico_openxr_space_policy",
+          "pico_openxr_display_policy",
+          "pico_openxr_graphics_policy",
+          "pico_openxr_extension_policy",
+          "pico_openxr_event_policy"
+        ]
+      },
+      "android-vr-pico-runtime": {
+        "execution": "pico4-device-free",
+        "cases": [
+          "platform-glue",
+          "android-entrypoints",
+          "webview-bridge",
+          "webview-touch-state",
+          "audio-capture-state",
+          "audio-native-transport",
+          "openxr-loader",
+          "openxr-input",
+          "openxr-display",
+          "interaction-diagnostics",
+          "tablet-lifecycle",
+          "tablet-settings",
+          "create-qml",
+          "create-properties",
+          "create-message",
+          "world-state"
+        ]
+      },
+      "shell-syntax-contract": {
+        "execution": "shell-syntax-contract",
+        "cases": []
+      },
+      "python-syntax-contract": {
+        "execution": "python-syntax-contract",
+        "cases": []
+      },
+      "android-project-module-inventory": {
+        "execution": "android-project-module-inventory",
+        "cases": []
+      },
+      "phone-robolectric-launcher": {
+        "execution": "phone-robolectric-launcher",
+        "cases": []
+      }
+    },
+    "pico": {
+      "pico4-device-free": {
+        "execution": "pico4-device-free",
+        "cases": [
+          "suite-runner",
+          "coverage-matrix",
+          "shell-syntax",
+          "package-contract",
+          "apk-verifier",
+          "release-contract",
+          "platform-glue",
+          "android-entrypoints",
+          "webview-bridge",
+          "webview-touch-state",
+          "audio-capture-state",
+          "audio-native-transport",
+          "openxr-loader",
+          "openxr-input",
+          "openxr-display",
+          "interaction-diagnostics",
+          "tablet-lifecycle",
+          "tablet-settings",
+          "create-qml",
+          "create-properties",
+          "create-message",
+          "avatar-hotpath",
+          "shadergen-jobs",
+          "world-state",
+          "microphone-runner",
+          "unattended-runner",
+          "device-lock",
+          "device-acceptance",
+          "serverless-fixtures",
+          "power-analyzer"
+        ]
+      }
+    },
+    "mutation": {
+      "critical-policy-mutations": {
+        "execution": "critical-policy-mutations",
+        "cases": []
+      }
+    },
+    "mutation-extended": {
+      "critical-policy-mutations-extended": {
+        "execution": "critical-policy-mutations-extended",
+        "cases": []
+      }
+    },
+    "stability": {
+      "device-free-order-isolation-stability": {
+        "execution": "device-free-order-isolation-stability",
+        "cases": []
+      }
+    },
+    "endurance": {
+      "javascript-lifecycle-endurance": {
+        "execution": "javascript-lifecycle-endurance-scaled",
+        "cases": []
+      },
+      "native-policy-endurance": {
+        "execution": "native-policy-endurance",
+        "cases": []
+      },
+      "qml-lifecycle-endurance": {
+        "execution": "qml-lifecycle-endurance",
+        "cases": []
+      }
+    },
+    "regression": {
+      "phone-device-free-regression": {
+        "execution": "phone-device-free-regression",
+        "cases": []
+      }
+    }
+  },
+  "branch_cases": {
+    "android-phone": {
+      "native-host-tests": [
+        "phone_login_state_contract",
+        "phone_login_state_transitions",
+        "phone_login_state_instances",
+        "phone_login_state_deterministic_properties",
+        "phone_graphics_bool_policy",
+        "phone_graphics_float_policy",
+        "phone_graphics_unsigned_policy",
+        "phone_graphics_deterministic_properties",
+        "phone_pending_handoff_lifecycle",
+        "phone_pending_handoff_replacement",
+        "phone_pending_handoff_move",
+        "android_startup_url_policy",
+        "qt_input_connection_compat",
+        "phone_pending_handoff_deterministic_properties",
+        "android_vr_openxr_debug_policy",
+        "pico_openxr_input_policy",
+        "pico_openxr_space_policy",
+        "pico_openxr_display_policy",
+        "pico_openxr_graphics_policy",
+        "pico_openxr_extension_policy",
+        "pico_openxr_event_policy",
+        "phone_lifecycle_handoff",
+        "phone_touch_ui_metrics"
+      ],
+      "phone-robolectric-launcher": [
+        "io.highfidelity.hifiinterface.HifiUtilsTest::defaultAssetBaseAndWhitespaceAreDeterministic",
+        "io.highfidelity.hifiinterface.HifiUtilsTest::fixedSeedBareAddressesRetainTheirPayload",
+        "io.highfidelity.hifiinterface.HifiUtilsTest::malformedUriIsTrimmedButOtherwisePreserved",
+        "io.highfidelity.hifiinterface.HifiUtilsTest::missingNetworkFieldsFailClosedToEmptyStrings",
+        "io.highfidelity.hifiinterface.HifiUtilsTest::networkPathAssetsInheritOnlyHttpOrHttpsSchemes",
+        "io.highfidelity.hifiinterface.HifiUtilsTest::relativeAssetNormalizesExactlyOnePathSeparator",
+        "io.highfidelity.hifiinterface.HifiUtilsTest::relativeAssetUsesSuppliedBaseWithoutChangingAbsoluteUrl",
+        "io.highfidelity.hifiinterface.HifiUtilsTest::sanitizeAddsHifiSchemeToBareAddress",
+        "io.highfidelity.hifiinterface.HifiUtilsTest::sanitizePreservesExistingSchemesAndEmptyInput",
+        "io.highfidelity.hifiinterface.PermissionCheckerRobolectricTest::allGrantedLaunchesInterfaceAndTransfersArguments",
+        "io.highfidelity.hifiinterface.PermissionCheckerRobolectricTest::allGrantedLaunchesInterfaceAndTransfersArguments[24]",
+        "io.highfidelity.hifiinterface.PermissionCheckerRobolectricTest::creationStartsCrashUploaderService",
+        "io.highfidelity.hifiinterface.PermissionCheckerRobolectricTest::creationStartsCrashUploaderService[24]",
+        "io.highfidelity.hifiinterface.PermissionCheckerRobolectricTest::denialOrInterruptedResultLaunchesButUnrelatedCallbackDoesNot",
+        "io.highfidelity.hifiinterface.PermissionCheckerRobolectricTest::denialOrInterruptedResultLaunchesButUnrelatedCallbackDoesNot[24]",
+        "io.highfidelity.hifiinterface.PermissionCheckerRobolectricTest::launchedSavedStateDoesNotStartInterfaceAgain",
+        "io.highfidelity.hifiinterface.PermissionCheckerRobolectricTest::launchedSavedStateDoesNotStartInterfaceAgain[24]",
+        "io.highfidelity.hifiinterface.PermissionCheckerRobolectricTest::missingPermissionsRequestsCompleteLegacySet",
+        "io.highfidelity.hifiinterface.PermissionCheckerRobolectricTest::missingPermissionsRequestsCompleteLegacySet[24]",
+        "io.highfidelity.hifiinterface.PermissionCheckerRobolectricTest::repeatedPermissionCallbackLaunchesExactlyOnce",
+        "io.highfidelity.hifiinterface.PermissionCheckerRobolectricTest::repeatedPermissionCallbackLaunchesExactlyOnce[24]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::allGrantedLaunchesQuestAndTransfersArguments",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::allGrantedLaunchesQuestAndTransfersArguments[24]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::allGrantedLaunchesQuestAndTransfersArguments[28]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::denialLaunchesButUnrelatedCallbackDoesNot",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::denialLaunchesButUnrelatedCallbackDoesNot[24]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::denialLaunchesButUnrelatedCallbackDoesNot[28]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::emptyArgumentsAreNotForwarded",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::emptyArgumentsAreNotForwarded[24]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::emptyArgumentsAreNotForwarded[28]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::interruptedEmptyPermissionResultStillLaunches",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::interruptedEmptyPermissionResultStillLaunches[24]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::interruptedEmptyPermissionResultStillLaunches[28]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::missingPermissionsRequestsTheCompleteReviewedSet",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::missingPermissionsRequestsTheCompleteReviewedSet[24]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::missingPermissionsRequestsTheCompleteReviewedSet[28]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::repeatedPermissionCallbackLaunchesExactlyOnce",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::repeatedPermissionCallbackLaunchesExactlyOnce[24]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::repeatedPermissionCallbackLaunchesExactlyOnce[28]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::restoredLaunchedStateDoesNotLaunchAgain",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::restoredLaunchedStateDoesNotLaunchAgain[24]",
+        "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest::restoredLaunchedStateDoesNotLaunchAgain[28]",
+        "org.overte.phone.PermissionsActivityRobolectricTest::cancelledLauncherIgnoresLatePermissionResult",
+        "org.overte.phone.PermissionsActivityRobolectricTest::cancelledLauncherIgnoresLatePermissionResult[26]",
+        "org.overte.phone.PermissionsActivityRobolectricTest::denialStillLaunchesBecauseVoiceIsOptional",
+        "org.overte.phone.PermissionsActivityRobolectricTest::denialStillLaunchesBecauseVoiceIsOptional[26]",
+        "org.overte.phone.PermissionsActivityRobolectricTest::deniedPermissionRequestsOnlyMicrophoneAndWaits",
+        "org.overte.phone.PermissionsActivityRobolectricTest::deniedPermissionRequestsOnlyMicrophoneAndWaits[26]",
+        "org.overte.phone.PermissionsActivityRobolectricTest::destroyedLauncherIgnoresLatePermissionResult",
+        "org.overte.phone.PermissionsActivityRobolectricTest::destroyedLauncherIgnoresLatePermissionResult[26]",
+        "org.overte.phone.PermissionsActivityRobolectricTest::grantedPermissionImmediatelyLaunchesInterfaceAndFinishes",
+        "org.overte.phone.PermissionsActivityRobolectricTest::grantedPermissionImmediatelyLaunchesInterfaceAndFinishes[26]",
+        "org.overte.phone.PermissionsActivityRobolectricTest::latestIntentWhileDialogIsOpenSupersedesOriginalDestination",
+        "org.overte.phone.PermissionsActivityRobolectricTest::latestIntentWhileDialogIsOpenSupersedesOriginalDestination[26]",
+        "org.overte.phone.PermissionsActivityRobolectricTest::newerInvalidIntentClearsAnOlderDestination",
+        "org.overte.phone.PermissionsActivityRobolectricTest::newerInvalidIntentClearsAnOlderDestination[26]",
+        "org.overte.phone.PermissionsActivityRobolectricTest::repeatedPermissionResultCannotLaunchTwice",
+        "org.overte.phone.PermissionsActivityRobolectricTest::repeatedPermissionResultCannotLaunchTwice[26]",
+        "org.overte.phone.PermissionsActivityRobolectricTest::savedStateRecreationAfterLaunchDoesNotStartSecondInterface",
+        "org.overte.phone.PermissionsActivityRobolectricTest::savedStateRecreationAfterLaunchDoesNotStartSecondInterface[26]",
+        "org.overte.phone.PermissionsActivityRobolectricTest::savedStateRecreationPreservesLatestPendingDestinationAndRequestsAgain",
+        "org.overte.phone.PermissionsActivityRobolectricTest::savedStateRecreationPreservesLatestPendingDestinationAndRequestsAgain[26]",
+        "org.overte.phone.PermissionsActivityRobolectricTest::unrelatedPermissionCallbackDoesNotLaunch",
+        "org.overte.phone.PermissionsActivityRobolectricTest::unrelatedPermissionCallbackDoesNotLaunch[26]",
+        "org.overte.phone.PhoneDeepLinkRobolectricTest::directUriNormalizationHandlesMissingValues",
+        "org.overte.phone.PhoneDeepLinkRobolectricTest::directUriNormalizationHandlesMissingValues[26]",
+        "org.overte.phone.PhoneDeepLinkRobolectricTest::exportedBoundaryRejectsNullWrongActionsAndUnsupportedDestinations",
+        "org.overte.phone.PhoneDeepLinkRobolectricTest::exportedBoundaryRejectsNullWrongActionsAndUnsupportedDestinations[26]",
+        "org.overte.phone.PhoneDeepLinkRobolectricTest::exportedViewIntentCanonicalizesSupportedSchemes",
+        "org.overte.phone.PhoneDeepLinkRobolectricTest::exportedViewIntentCanonicalizesSupportedSchemes[26]",
+        "org.overte.phone.PhoneDeepLinkRobolectricTest::internalExtraIsValidatedWithTheSameBoundaryRules",
+        "org.overte.phone.PhoneDeepLinkRobolectricTest::internalExtraIsValidatedWithTheSameBoundaryRules[26]",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::actualPauseAfterQtOwnerHandoffStillAddressesOldHost",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::actualPauseAfterQtOwnerHandoffStillAddressesOldHost[26]",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::actualPauseAndDestroyRetainBackgroundAndDetachDispatch",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::actualPauseAndDestroyRetainBackgroundAndDetachDispatch[26]",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::focusWhilePausedCannotAuthorizeInput",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::focusWhilePausedCannotAuthorizeInput[26]",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::pickerEntryAndReturnRequireActualFocusWithoutSuspendingMedia",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::pickerEntryAndReturnRequireActualFocusWithoutSuspendingMedia[26]",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::realCommonRejectsOldHostPauseAfterAnotherHostTookOwnership",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::realCommonRejectsOldHostPauseAfterAnotherHostTookOwnership[26]",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::resumedActivityRetainsMediaForegroundWithoutWindowFocus",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::resumedActivityRetainsMediaForegroundWithoutWindowFocus[26]",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::staleActivityCallbacksCannotDispatchOrConsumePicker",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::staleActivityCallbacksCannotDispatchOrConsumePicker[26]",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::staleOwnerCannotDeliverAnActuallyPendingSelection",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::staleOwnerCannotDeliverAnActuallyPendingSelection[26]",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::windowFocusInvalidatesInputWithoutMediaLifecycleDispatch",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::windowFocusInvalidatesInputWithoutMediaLifecycleDispatch[26]",
+        "org.overte.phone.RedactingDiagnosticsRobolectricTest::actualStorageExceptionsLogNoDetails",
+        "org.overte.phone.RedactingDiagnosticsRobolectricTest::actualStorageExceptionsLogNoDetails[26]",
+        "org.overte.phone.RedactingDiagnosticsRobolectricTest::cancelledPermissionCallerEmitsClosedOutcome",
+        "org.overte.phone.RedactingDiagnosticsRobolectricTest::cancelledPermissionCallerEmitsClosedOutcome[26]",
+        "org.overte.phone.RedactingDiagnosticsRobolectricTest::foregroundDeliveryIsLatestOnlyAndBounded",
+        "org.overte.phone.RedactingDiagnosticsRobolectricTest::foregroundDeliveryIsLatestOnlyAndBounded[26]",
+        "org.overte.phone.RedactingDiagnosticsRobolectricTest::rawCanariesNeverReachLogcat",
+        "org.overte.phone.RedactingDiagnosticsRobolectricTest::rawCanariesNeverReachLogcat[26]",
+        "org.overte.phone.RedactingDiagnosticsRobolectricTest::restoredOrHistoryLaunchCannotReviveCancelledNavigation",
+        "org.overte.phone.RedactingDiagnosticsRobolectricTest::restoredOrHistoryLaunchCannotReviveCancelledNavigation[26]",
+        "org.overte.phone.RedactingDiagnosticsRobolectricTest::structuredEventsRemainUseful",
+        "org.overte.phone.RedactingDiagnosticsRobolectricTest::structuredEventsRemainUseful[26]",
+        "org.overte.phone.RedactingDiagnosticsRobolectricTest::trustedRootAliasWorksButAccountDirectoryAliasFailsClosed",
+        "org.overte.phone.RedactingDiagnosticsRobolectricTest::trustedRootAliasWorksButAccountDirectoryAliasFailsClosed[26]",
+        "org.overte.pico.PermissionsActivityRobolectricTest::denialStillLaunchesButUnrelatedCallbackDoesNot",
+        "org.overte.pico.PermissionsActivityRobolectricTest::denialStillLaunchesButUnrelatedCallbackDoesNot[26]",
+        "org.overte.pico.PermissionsActivityRobolectricTest::externalArgumentsAreNotForwarded",
+        "org.overte.pico.PermissionsActivityRobolectricTest::externalArgumentsAreNotForwarded[26]",
+        "org.overte.pico.PermissionsActivityRobolectricTest::grantedMicrophoneLaunchesQtWithoutForwardingExternalArguments",
+        "org.overte.pico.PermissionsActivityRobolectricTest::grantedMicrophoneLaunchesQtWithoutForwardingExternalArguments[26]",
+        "org.overte.pico.PermissionsActivityRobolectricTest::missingMicrophoneRequestsOnlyOptionalAudioPermission",
+        "org.overte.pico.PermissionsActivityRobolectricTest::missingMicrophoneRequestsOnlyOptionalAudioPermission[26]",
+        "org.overte.pico.PermissionsActivityRobolectricTest::repeatedPermissionCallbackLaunchesExactlyOnce",
+        "org.overte.pico.PermissionsActivityRobolectricTest::repeatedPermissionCallbackLaunchesExactlyOnce[26]",
+        "org.overte.pico.PermissionsActivityRobolectricTest::restoredLaunchedStateDoesNotLaunchAgain",
+        "org.overte.pico.PermissionsActivityRobolectricTest::restoredLaunchedStateDoesNotLaunchAgain[26]"
+      ]
+    },
+    "android-vr-pico": {
+      "pico4-device-free": [
+        "suite-runner",
+        "coverage-matrix",
+        "shell-syntax",
+        "package-contract",
+        "apk-verifier",
+        "release-contract",
+        "platform-glue",
+        "android-entrypoints",
+        "webview-bridge",
+        "webview-touch-state",
+        "audio-capture-state",
+        "audio-native-transport",
+        "openxr-loader",
+        "openxr-input",
+        "openxr-display",
+        "interaction-diagnostics",
+        "tablet-lifecycle",
+        "tablet-settings",
+        "create-qml",
+        "create-properties",
+        "create-message",
+        "avatar-hotpath",
+        "shadergen-jobs",
+        "world-state",
+        "microphone-runner",
+        "unattended-runner",
+        "device-lock",
+        "device-acceptance",
+        "serverless-fixtures",
+        "power-analyzer",
+        "source-inputs-v1",
+        "source-inputs-v2",
+        "source-inputs-v3",
+        "embedded-web",
+        "legacy-web-lifecycle",
+        "legacy-web-qt-jni",
+        "native-classloader",
+        "emote",
+        "tablet-e2e-adapter"
+      ]
+    }
+  },
+  "robolectric_sources": {
+    "android/phone/apps/interface/src/test/java/io/highfidelity/hifiinterface/HifiUtilsTest.java": {
+      "class": "io.highfidelity.hifiinterface.HifiUtilsTest",
+      "sdks": [],
+      "methods": [
+        "defaultAssetBaseAndWhitespaceAreDeterministic",
+        "fixedSeedBareAddressesRetainTheirPayload",
+        "malformedUriIsTrimmedButOtherwisePreserved",
+        "missingNetworkFieldsFailClosedToEmptyStrings",
+        "networkPathAssetsInheritOnlyHttpOrHttpsSchemes",
+        "relativeAssetNormalizesExactlyOnePathSeparator",
+        "relativeAssetUsesSuppliedBaseWithoutChangingAbsoluteUrl",
+        "sanitizeAddsHifiSchemeToBareAddress",
+        "sanitizePreservesExistingSchemesAndEmptyInput"
+      ]
+    },
+    "android/phone/apps/interface/src/test/java/io/highfidelity/hifiinterface/PermissionCheckerRobolectricTest.java": {
+      "class": "io.highfidelity.hifiinterface.PermissionCheckerRobolectricTest",
+      "sdks": [
+        24,
+        26
+      ],
+      "methods": [
+        "allGrantedLaunchesInterfaceAndTransfersArguments",
+        "creationStartsCrashUploaderService",
+        "denialOrInterruptedResultLaunchesButUnrelatedCallbackDoesNot",
+        "launchedSavedStateDoesNotStartInterfaceAgain",
+        "missingPermissionsRequestsCompleteLegacySet",
+        "repeatedPermissionCallbackLaunchesExactlyOnce"
+      ]
+    },
+    "android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PermissionsActivityRobolectricTest.java": {
+      "class": "org.overte.phone.PermissionsActivityRobolectricTest",
+      "sdks": [
+        26,
+        35
+      ],
+      "methods": [
+        "denialStillLaunchesBecauseVoiceIsOptional",
+        "deniedPermissionRequestsOnlyMicrophoneAndWaits",
+        "grantedPermissionImmediatelyLaunchesInterfaceAndFinishes",
+        "latestIntentWhileDialogIsOpenSupersedesOriginalDestination",
+        "newerInvalidIntentClearsAnOlderDestination",
+        "repeatedPermissionResultCannotLaunchTwice",
+        "savedStateRecreationAfterLaunchDoesNotStartSecondInterface",
+        "savedStateRecreationPreservesLatestPendingDestinationAndRequestsAgain",
+        "unrelatedPermissionCallbackDoesNotLaunch"
+      ]
+    },
+    "android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhoneDeepLinkRobolectricTest.java": {
+      "class": "org.overte.phone.PhoneDeepLinkRobolectricTest",
+      "sdks": [
+        26,
+        35
+      ],
+      "methods": [
+        "directUriNormalizationHandlesMissingValues",
+        "exportedBoundaryRejectsNullWrongActionsAndUnsupportedDestinations",
+        "exportedViewIntentCanonicalizesSupportedSchemes",
+        "internalExtraIsValidatedWithTheSameBoundaryRules"
+      ]
+    },
+    "android/vr/pico/apps/picoInterface/src/test/java/org/overte/pico/PermissionsActivityRobolectricTest.java": {
+      "class": "org.overte.pico.PermissionsActivityRobolectricTest",
+      "sdks": [
+        26,
+        35
+      ],
+      "methods": [
+        "denialStillLaunchesButUnrelatedCallbackDoesNot",
+        "externalArgumentsAreNotForwarded",
+        "grantedMicrophoneLaunchesQtWithoutForwardingExternalArguments",
+        "missingMicrophoneRequestsOnlyOptionalAudioPermission",
+        "repeatedPermissionCallbackLaunchesExactlyOnce",
+        "restoredLaunchedStateDoesNotLaunchAgain"
+      ]
+    },
+    "android/vr/quest/apps/questInterface/src/test/java/io/highfidelity/questInterface/PermissionsCheckerRobolectricTest.java": {
+      "class": "io.highfidelity.questInterface.PermissionsCheckerRobolectricTest",
+      "sdks": [
+        24,
+        28,
+        35
+      ],
+      "methods": [
+        "allGrantedLaunchesQuestAndTransfersArguments",
+        "denialLaunchesButUnrelatedCallbackDoesNot",
+        "emptyArgumentsAreNotForwarded",
+        "interruptedEmptyPermissionResultStillLaunches",
+        "missingPermissionsRequestsTheCompleteReviewedSet",
+        "repeatedPermissionCallbackLaunchesExactlyOnce",
+        "restoredLaunchedStateDoesNotLaunchAgain"
+      ]
+    }
+  },
+  "branch_robolectric_sources": {
+    "android-phone": {
+      "android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PermissionsActivityRobolectricTest.java": {
+        "class": "org.overte.phone.PermissionsActivityRobolectricTest",
+        "sdks": [
+          26,
+          35
+        ],
+        "methods": [
+          "cancelledLauncherIgnoresLatePermissionResult",
+          "denialStillLaunchesBecauseVoiceIsOptional",
+          "deniedPermissionRequestsOnlyMicrophoneAndWaits",
+          "destroyedLauncherIgnoresLatePermissionResult",
+          "grantedPermissionImmediatelyLaunchesInterfaceAndFinishes",
+          "latestIntentWhileDialogIsOpenSupersedesOriginalDestination",
+          "newerInvalidIntentClearsAnOlderDestination",
+          "repeatedPermissionResultCannotLaunchTwice",
+          "savedStateRecreationAfterLaunchDoesNotStartSecondInterface",
+          "savedStateRecreationPreservesLatestPendingDestinationAndRequestsAgain",
+          "unrelatedPermissionCallbackDoesNotLaunch"
+        ]
+      },
+      "android/phone/apps/phoneInterface/src/test/java/org/overte/phone/RedactingDiagnosticsRobolectricTest.java": {
+        "class": "org.overte.phone.RedactingDiagnosticsRobolectricTest",
+        "sdks": [
+          26,
+          35
+        ],
+        "methods": [
+          "actualStorageExceptionsLogNoDetails",
+          "cancelledPermissionCallerEmitsClosedOutcome",
+          "foregroundDeliveryIsLatestOnlyAndBounded",
+          "rawCanariesNeverReachLogcat",
+          "restoredOrHistoryLaunchCannotReviveCancelledNavigation",
+          "structuredEventsRemainUseful",
+          "trustedRootAliasWorksButAccountDirectoryAliasFailsClosed"
+        ]
+      },
+      "android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhoneEmbeddedWebFocusRobolectricTest.java": {
+        "class": "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest",
+        "sdks": [
+          26,
+          35
+        ],
+        "methods": [
+          "windowFocusInvalidatesInputWithoutMediaLifecycleDispatch",
+          "actualPauseAndDestroyRetainBackgroundAndDetachDispatch",
+          "focusWhilePausedCannotAuthorizeInput",
+          "staleActivityCallbacksCannotDispatchOrConsumePicker",
+          "pickerEntryAndReturnRequireActualFocusWithoutSuspendingMedia",
+          "staleOwnerCannotDeliverAnActuallyPendingSelection",
+          "resumedActivityRetainsMediaForegroundWithoutWindowFocus",
+          "actualPauseAfterQtOwnerHandoffStillAddressesOldHost",
+          "realCommonRejectsOldHostPauseAfterAnotherHostTookOwnership"
+        ]
+      }
+    }
+  },
+  "reviewed_robolectric_report": {
+    "run_id": 38698540337,
+    "attempt": 2,
+    "artifact_id": 11955867510,
+    "candidate": "d76d7195ee92d0a10a3d9b7a62400a6b489c39d9",
+    "cases": 80
+  },
+  "prerequisites": {
+    "mutation-extended": [
+      "fast",
+      "contracts",
+      "coverage"
+    ],
+    "stability": [
+      "fast",
+      "contracts",
+      "coverage"
+    ],
+    "endurance": [
+      "fast",
+      "contracts",
+      "coverage"
+    ],
+    "regression": [
+      "fast",
+      "contracts",
+      "coverage"
+    ]
+  }
+}
