@@ -2,6 +2,7 @@
 """Negative routing, merge identity and aggregate-result regressions."""
 
 from copy import deepcopy
+import hashlib
 import importlib.util
 import json
 import os
@@ -202,8 +203,18 @@ class MetadataEditTests(unittest.TestCase):
                 self.assertTrue(workflow['concurrency']['group'].endswith(suffix))
                 self.assertIs(workflow['concurrency']['cancel-in-progress'], True)
                 self.assertNotIn('needs.', workflow['concurrency']['group'])
-                previous = yaml.safe_load((ROOT / '.github/workflows' / (name + '.yml')).read_text())
-                self.assertEqual(workflow.get('on', workflow.get(True)), previous.get('on', previous.get(True)))
+                if name == 'repository-checks':
+                    previous = yaml.safe_load((ROOT / PACKAGES.CONSUMER_TEMPLATES / 'repository-checks.yml').read_text())
+                    expected_events = previous.get('on', previous.get(True))
+                else:
+                    # Exact protected pre-metadata 2478d9e event contract. Do
+                    # not depend on historical Git objects in hosted checkouts.
+                    expected_events = {'pull_request_target': {
+                        'types': ['opened', 'reopened', 'synchronize', 'edited'],
+                        'branches': ['main', 'android-main', 'android-phone', 'android-vr',
+                                     'android-vr-pico', 'apple-main', 'apple-ios']},
+                        'workflow_dispatch': None}
+                self.assertEqual(workflow.get('on', workflow.get(True)), expected_events)
 
     def test_repository_metadata_skips_all_work_with_distinct_names_and_unchanged_real_verifier(self):
         import yaml
@@ -245,9 +256,24 @@ class MetadataEditTests(unittest.TestCase):
             observed = subprocess.run(['sh', '-c', failure['run']], env={'CLASSIFICATION_RESULT': state},
                                       capture_output=True, timeout=5)
             self.assertEqual(observed.returncode, 0 if state == 'success' else 1)
-        previous = yaml.safe_load((ROOT / '.github/workflows/sync-test-reuse.yml').read_text())['jobs']['sync-test-reuse']
-        self.assertEqual(previous.pop('name'), 'sync-test-reuse')
-        self.assertEqual(job, previous)
+        # Normalize only the already asserted metadata guard/name/first step.
+        # The remaining complete six-step job must retain protected 2478d9e's
+        # exact semantics even after ROOT itself deploys this successor.
+        normalized = (json.dumps(job, sort_keys=True, separators=(',', ':')) + '\n').encode()
+        self.assertEqual(hashlib.sha256(normalized).hexdigest(),
+                         '3d28170e8016afbed93a758e00a9842888c90ef252b0b74df23d7d4c9a4b6f33')
+        active = (ROOT / '.github/workflows/sync-test-reuse.yml').read_bytes()
+        successor = (self.TEMPLATES / 'sync-test-reuse.yml').read_bytes()
+        if active == successor:
+            self.assertIn(PACKAGES.validate_wiring(ROOT),
+                          ('npm-consumers-metadata-edits-v1', 'android-owned-npm5-sync-ci-v1'))
+            self.assertEqual(yaml.safe_load(active)['jobs']['sync-test-reuse']['name'],
+                "${{ needs.classify.result == 'success' && needs.classify.outputs.metadata_only == 'true' && "
+                "'sync-test-reuse (metadata unchanged)' || 'sync-test-reuse' }}")
+        else:
+            identity = hashlib.sha1(b'blob ' + str(len(active)).encode() + b'\0' + active).hexdigest()
+            self.assertEqual(identity, '59a19621ac160fc5c48d5323e4e61490e83f708a')
+            self.assertEqual(yaml.safe_load(active)['jobs']['sync-test-reuse']['name'], 'sync-test-reuse')
         classify = jobs['classify']
         self.assertEqual(classify['outputs'], {'metadata_only': '${{ steps.event.outputs.metadata_only }}'})
         self.assertIn('check.py metadata-event', classify['steps'][-1]['run'])
@@ -479,14 +505,42 @@ class AggregateTests(unittest.TestCase):
         dependencies = set(jobs['repository-checks']['needs'])
         required_jobs = {'route', 'project', 'documentation', 'workflow-security'}
         self.assertTrue(required_jobs <= dependencies)
-        self.assertTrue(dependencies <= required_jobs | {'native', 'direct-browser', 'browser-client'})
+        generation = PACKAGES.validate_wiring(ROOT)
+        metadata_callers = {
+            'npm-consumers-metadata-edits-v1': 'metadata-edits/repository-checks.yml',
+            'android-owned-npm5-sync-ci-v1': 'android-owned/repository-checks.yml',
+        }
+        metadata = generation in metadata_callers
+        if metadata:
+            self.assertEqual(source, (ROOT / 'tools/repository-checks/workflows' / metadata_callers[generation]).read_text())
+        if generation == 'android-owned-npm5-sync-ci-v1':
+            spec = importlib.util.spec_from_file_location('aggregate_android_generation',
+                ROOT / 'tools/repository-checks/android_gate.py')
+            android = importlib.util.module_from_spec(spec); spec.loader.exec_module(android)
+            tree = {}
+            for relative in (*PACKAGES.CONSUMER_WORKFLOW_PATHS, '.github/workflows/android-required.yml'):
+                path = ROOT / relative
+                self.assertTrue(path.is_file() and not path.is_symlink() and not path.stat().st_mode & 0o111)
+                tree[relative] = android._blob(path.read_bytes())
+            self.assertEqual(android.validate_tree_wiring(tree), generation)
+            self.assertEqual(dependencies, required_jobs | {'native', 'android'})
+        else:
+            self.assertTrue(dependencies <= required_jobs | {'native', 'direct-browser', 'browser-client'})
         if CONFIG.get('native_required', False) or 'main' in CONFIG.get('native_required_branches', []):
             self.assertIn('native', dependencies)
         if 'main' in CONFIG.get('direct_browser_required_branches', []):
             self.assertIn('direct-browser', dependencies)
         if 'main' in CONFIG.get('browser_client_required_branches', []):
             self.assertIn('browser-client', dependencies)
-        self.assertEqual(jobs['repository-checks']['if'], 'always()')
+        if metadata:
+            self.assertEqual(jobs['repository-checks']['if'],
+                "always() && (needs.route.result != 'success' || needs.route.outputs.metadata_only != 'true')")
+            for name in dependencies - {'route'} | {'repository-checks'}:
+                self.assertEqual(jobs[name]['name'],
+                    "${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && '" + name +
+                    " (metadata unchanged)' || '" + name + "' }}")
+        else:
+            self.assertEqual(jobs['repository-checks']['if'], 'always()')
         self.assertNotIn("paths:", source)
         self.assertNotIn("secrets:", source)
         self.assertNotIn("secrets.", source)
@@ -1667,13 +1721,21 @@ class NpmConsumerSelectionTests(unittest.TestCase):
             legacy.assert_not_called()
 
     def install_consumer_callers(self):
-        for relative in PACKAGES.CONSUMER_WORKFLOW_PATHS:
-            path = self.root / relative
+        # This fixture deliberately starts at the complete npm-consumers-v1
+        # predecessor, independent of the real checkout's active generation.
+        sources = {
+            'project-tests.yml': 'host/project-tests.yml',
+            'parent-qualification.yml': 'host/parent-qualification.yml',
+            'sync-validation.yml': 'packages/sync-validation.yml',
+            'repository-checks.yml': 'npm-consumers/repository-checks.yml',
+            'browser-client.yml': 'npm-consumers/browser-client.yml',
+        }
+        self.assertEqual(set(sources), {Path(path).name for path in PACKAGES.CONSUMER_WORKFLOW_PATHS})
+        for name, relative in sources.items():
+            path = self.root / '.github/workflows' / name
             path.parent.mkdir(parents=True, exist_ok=True)
-            name = Path(relative).name
-            source = (ROOT / PACKAGES.CONSUMER_TEMPLATES / name if name in (
-                'browser-client.yml', 'repository-checks.yml') else ROOT / relative)
-            path.write_bytes(source.read_bytes())
+            path.write_bytes((ROOT / 'tools/repository-checks/workflows' / relative).read_bytes())
+        self.assertEqual(PACKAGES.validate_wiring(self.root), 'npm-consumers-v1')
         self.base = self.commit()
 
     def automatic_plan(self, base=None, **kwargs):

@@ -239,10 +239,16 @@ class ImmutableRepositoryTests(unittest.TestCase):
         self.git("config", "user.email", "fixture@example.invalid")
         for relative in CODEQL._REVIEWED_CONTROLS:
             self.write(relative, (ROOT / relative).read_text())
+        # Historical transitions start at the exact predecessor even after the
+        # checkout activates its successor; do not inherit ROOT's active version.
+        self.write(".github/workflows/codeql.yml",
+                   (ROOT / "tools/repository-checks/workflows/codeql-results.yml").read_text())
         self.write("tools/check.py", "raise RuntimeError('candidate source must never be imported')\n")
         self.write("tools/test-evidence/inputs.py", "raise RuntimeError('candidate inventory must never be imported')\n")
         self.write("browser/main.ts", "export const value = 1;\n")
         self.base = self.commit()
+        self.assertEqual(self.git("rev-parse", self.base + ":.github/workflows/codeql.yml"),
+                         CODEQL._RESULTS_WORKFLOW)
 
     def git(self, *arguments):
         return subprocess.check_output(["git", "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", *arguments],

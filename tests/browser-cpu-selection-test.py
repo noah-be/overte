@@ -575,12 +575,25 @@ class CanonicalTemplateTests(unittest.TestCase):
             # The separately admitted npm consumer pair leaves general Browser
             # CPU ownership dormant and retains the original product jobs.
             self.assertEqual(BROWSER._blob(active), '8f6e3e009e201ce6c9980f4f23ff4a994588bb9d')
-            self.assertEqual(outer, BROWSER.trusted_bytes(
-                'tools/repository-checks/workflows/npm-consumers/repository-checks.yml'))
-            self.assertEqual(BROWSER._blob(outer), '7f7ec83f15581ebc9cd693201aac1d8cd77d944f')
             spec = importlib.util.spec_from_file_location('npm_pair_contract', ROOT / 'tools/repository-checks/package_checks.py')
             packages = importlib.util.module_from_spec(spec); spec.loader.exec_module(packages)
-            self.assertIn(packages.validate_wiring(ROOT), ('npm-consumers-v1', 'npm-consumers-sync-ci-v1'))
+            generation = packages.validate_wiring(ROOT)
+            callers = {
+                'npm-consumers-v1': 'npm-consumers/repository-checks.yml',
+                'npm-consumers-sync-ci-v1': 'npm-consumers/repository-checks.yml',
+                'npm-consumers-metadata-edits-v1': 'metadata-edits/repository-checks.yml',
+                'android-owned-npm5-sync-ci-v1': 'android-owned/repository-checks.yml',
+            }
+            self.assertIn(generation, callers)
+            self.assertEqual(outer, BROWSER.trusted_bytes(
+                'tools/repository-checks/workflows/' + callers[generation]))
+            if generation in ('npm-consumers-v1', 'npm-consumers-sync-ci-v1'):
+                self.assertEqual(BROWSER._blob(outer), '7f7ec83f15581ebc9cd693201aac1d8cd77d944f')
+            else:
+                spec = importlib.util.spec_from_file_location(
+                    'browser_complete_workflow_contract', ROOT / 'tests/workflow-contract-test.py')
+                contract = importlib.util.module_from_spec(spec); spec.loader.exec_module(contract)
+                self.assertEqual(contract.reviewed_package_generation(), generation)
             self.assertTrue(packages.consumer_generation(ROOT))
             self.assertEqual(targets, [])
         else:
