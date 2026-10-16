@@ -392,7 +392,7 @@ def supervise(scope, plan, uid, gid, *, timeout, case="protections", _before_cle
                 pass
         return {"exit_code": process.returncode, "reason": reason, "live_before_cleanup": live_before_cleanup,
                 "cleanup": cleanup, "observation": observation, "trusted_cleanup_canaries": canaries,
-                **({"diagnostic": bytes(data)} if case in {"suite", "shared-probe"} else {})}
+                **({"diagnostic": bytes(data)} if case in {"suite", "shared-probe", "probe"} else {})}
     finally:
         for descriptor in (gate_read, gate_write):
             if descriptor is not None:
@@ -671,9 +671,12 @@ def verify_qualification_source(source, revision, *, root=ROOT):
 
 
 def validate_runtime(result, binding, environment, uid, gid):
-    require(result["exit_code"] == 0 and result["reason"] is None
-            and result["cleanup"] == {"kernel_populated": 0, "subtree_kill": True},
-            "protected runtime probe did not finish in an empty owned scope")
+    if not (result["exit_code"] == 0 and result["reason"] is None
+            and result["cleanup"] == {"kernel_populated": 0, "subtree_kill": True}):
+        detail = {"exit_code": result["exit_code"], "reason": result["reason"], "cleanup": result["cleanup"],
+                  "protected_probe_tail": _module().safe_diagnostic(result.get("diagnostic", b"")[-8192:])}
+        raise Unavailable("protected runtime probe did not finish in an empty owned scope: "
+                          + json.dumps(detail, sort_keys=True, ensure_ascii=True))
     observed = result["observation"]
     require(type(observed) is dict and observed.get("schema") == 1 and observed.get("authority") == "none"
             and observed.get("measurement") == "protected-boundary-profile" and observed.get("reusable") is False

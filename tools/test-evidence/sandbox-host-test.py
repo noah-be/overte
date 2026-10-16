@@ -404,6 +404,23 @@ class ProtectedRuntimeTests(unittest.TestCase):
         with self.assertRaises(H.Unavailable):
             H.validate_runtime(altered, binding, sandbox._ENVIRONMENT, 2001, 2001)
 
+    def test_failed_probe_retains_only_bounded_escaped_output_and_never_qualifies(self):
+        result, binding = self.result()
+        result.update(exit_code=1, diagnostic=b"discarded-prefix" + b"x" * 9000 + b"\n::error::probe\x1b[31m")
+        with self.assertRaises(H.Unavailable) as caught:
+            H.validate_runtime(result, binding, sandbox._ENVIRONMENT, 2001, 2001)
+        message = str(caught.exception)
+        self.assertNotIn("\n", message)
+        self.assertNotIn("\x1b", message)
+        detail = json.loads(message.split(": ", 1)[1])
+        self.assertEqual(detail["exit_code"], 1)
+        self.assertEqual(detail["cleanup"], {"kernel_populated": 0, "subtree_kill": True})
+        self.assertTrue(detail["protected_probe_tail"].startswith("candidate-output: "))
+        tail = json.loads(detail["protected_probe_tail"].removeprefix("candidate-output: "))
+        self.assertEqual(len(tail.encode()), 8192)
+        self.assertNotIn("discarded-prefix", tail)
+        self.assertTrue(tail.endswith("\n::error::probe\x1b[31m"))
+
     def test_verified_source_then_guardian_then_execution_then_cleanup_then_postverification(self):
         events = []
         source = SimpleNamespace(verify_snapshot=lambda *_: events.append("snapshot"),
