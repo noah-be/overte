@@ -1456,6 +1456,11 @@ class SharedHostSourceTests(unittest.TestCase):
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(H.ROOT / name, path)
+        # Only these private fixture files are rewritten below/by the negative
+        # source test. Original snapshot bytes and every other copied mode stay
+        # immutable when the caller supplies a read-only source checkout.
+        for name in ('tests/platform-profile.json', 'tools/test-evidence/sandbox_shared.py'):
+            (self.root / name).chmod(0o644)
         # This immutable fixture is the shared-main manual source. Never inherit
         # Android/child setup merely from the branch running these unit tests.
         profile = (json.dumps({'schema': 1, 'platform': 'shared', 'suites': []}, indent=2) + "\n").encode()
@@ -1514,6 +1519,31 @@ class SharedHostSourceTests(unittest.TestCase):
         observed = H.command(["/usr/bin/git", "--no-optional-locks", "rev-list", "--count", "HEAD"], cwd=destination)
         observed.check_returncode()
         self.assertEqual(observed.stdout.strip(), b"3")
+
+    def test_readonly_source_retains_modes_and_rejects_changed_private_controls(self):
+        with tempfile.TemporaryDirectory(prefix='shared-host-readonly-source-') as temporary:
+            source = Path(temporary)
+            for name in self.names:
+                original = H.ROOT / name
+                path = source / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(original.read_bytes())
+                path.chmod(0o555 if original.stat().st_mode & 0o111 else 0o444)
+            before = {name: ((source / name).read_bytes(), (source / name).stat().st_mode & 0o777)
+                      for name in self.names}
+            case = SharedHostSourceTests('test_modified_loaded_control_or_missing_executable_source_is_rejected')
+            self.addCleanup(case.doCleanups)
+            with patch.object(H, 'ROOT', source):
+                case.setUp()
+                rewritten = {'tests/platform-profile.json', 'tools/test-evidence/sandbox_shared.py'}
+                for name in self.names:
+                    expected = 0o644 if name in rewritten else before[name][1]
+                    self.assertEqual((case.root / name).stat().st_mode & 0o777, expected, name)
+                with patch.object(SHARED, 'ROOT', case.root):
+                    self.assertEqual(SHARED.verify_source(case.revision), case.names)
+                case.test_modified_loaded_control_or_missing_executable_source_is_rejected()
+            self.assertEqual({name: ((source / name).read_bytes(), (source / name).stat().st_mode & 0o777)
+                              for name in self.names}, before)
 
     def test_modified_loaded_control_or_missing_executable_source_is_rejected(self):
         path = self.root / "tools/test-evidence/sandbox_shared.py"
