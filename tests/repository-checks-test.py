@@ -585,7 +585,11 @@ root=pathlib.Path(sys.argv[1]); responses=json.loads((root/'responses.json').rea
 class Response:
  def __init__(self,request):
   self.url=request.full_url; self.status=200
-  self.raw=json.dumps(responses[self.url.removeprefix('https://api.github.com/repos/noah-l-frank/overte/')]).encode()
+  prefix='https://api.github.com/repos/noah-l-frank/overte'
+  if self.url==prefix: endpoint=''
+  elif self.url.startswith(prefix+'/') and self.url!=prefix+'/': endpoint=self.url[len(prefix)+1:]
+  else: raise ValueError('unexpected fixture API URL')
+  self.raw=json.dumps(responses[endpoint]).encode()
  def __enter__(self): return self
  def __exit__(self,*args): pass
  def geturl(self): return self.url
