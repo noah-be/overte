@@ -435,7 +435,7 @@ class NativeCallerSchedulingTests(unittest.TestCase):
         self.assertTrue({'route', 'native', 'project', 'android', 'documentation', 'workflow-security', 'workflow-contracts'} <= set(aggregate['needs']))
         self.assertEqual(aggregate['steps'][0]['run'], 'exit 1')
         self.assertEqual(aggregate['steps'][1]['with']['ref'], '${{ github.event.repository.default_branch }}')
-        self.assertIn('python3 tools/repository-checks/check.py verify', aggregate['steps'][-1]['run'])
+        self.assertIn('python3 trusted/tools/repository-checks/check.py verify', aggregate['steps'][-1]['run'])
 
     def test_native_nonproducer_intent_cannot_start_any_heavy_job_without_recognition(self):
         names={'native','project','android','documentation','workflow-security','workflow-contracts'}
