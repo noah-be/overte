@@ -2062,7 +2062,7 @@ class MainConsumerTests(unittest.TestCase):
             for target,relative in sources.items():
                 path=postmerge.ROOT/relative
                 self.assertTrue(path.is_file() and not path.is_symlink())
-                self.assertEqual(path.stat().st_mode & 0o777,0o644)
+                self.assertIn(path.stat().st_mode & 0o777,(0o444,0o644))
                 raw=historical_metadata_workflow(relative,self.generation_name,postmerge.ROOT)
                 workflows[target]={'mode':'100644','type':'blob',
                     'sha':hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()}
@@ -2720,7 +2720,7 @@ class MetadataRetentionConsumerTests(unittest.TestCase):
         def blob(relative):
             path = C.ROOT / relative
             self.assertFalse(path.is_symlink())
-            self.assertEqual(path.stat().st_mode & 0o777, 0o644)
+            self.assertIn(path.stat().st_mode & 0o777, (0o444, 0o644))
             raw = historical_metadata_workflow(relative,self.generation_name,C.ROOT)
             return {"mode": "100644", "type": "blob",
                     "sha": hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()}

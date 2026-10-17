@@ -283,6 +283,9 @@ def run_checks(args: argparse.Namespace, cancelled: list[int]) -> int:
         write_junit(args.junit.resolve(), results, elapsed)
     failed = sum(item["status"] == "failed" for item in results)
     print(f"Device control plane: {len(results) - failed} non-failing, {failed} failed")
+    if failed:
+        print("Device control plane failed groups: " + json.dumps(
+            [item["name"] for item in results if item["status"] == "failed"], ensure_ascii=True))
     return 128 + cancelled[0] if cancelled else 1 if failed else 0
 
 

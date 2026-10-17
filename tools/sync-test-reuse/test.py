@@ -1505,7 +1505,9 @@ class EffectiveBaseTopologyTests(unittest.TestCase):
                    'base': side('android-main', HEAD), 'head': side('main', self.default)}
         self.event = {'number': 610, 'repository': {'full_name': REPOSITORY, 'id': REPOSITORY_ID},
                       'pull_request': deepcopy(self.pr)}
-        self.env = {'GITHUB_ACTIONS': 'true', 'GITHUB_REPOSITORY': REPOSITORY,
+        self.env = {'GIT_CONFIG_COUNT': '1', 'GIT_CONFIG_KEY_0': 'safe.directory',
+                    'GIT_CONFIG_VALUE_0': str(gate.ROOT),
+                    'GITHUB_ACTIONS': 'true', 'GITHUB_REPOSITORY': REPOSITORY,
                     'GITHUB_REPOSITORY_ID': str(REPOSITORY_ID), 'GITHUB_RUN_ATTEMPT': '1',
                     'GITHUB_EVENT_NAME': 'pull_request_target', 'GITHUB_RUN_ID': '901',
                     'GITHUB_JOB': 'sync-test-reuse', 'GITHUB_REF': 'refs/heads/android-main',

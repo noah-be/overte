@@ -910,6 +910,14 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `native-ctest` | `native` | `python3 tests/run-project-tests.py --suite native-ctest` |
 <!-- generated:test-suites:end -->
 
+Pull requests run the `issue-intake` contracts through the required central
+repository/project gate. Its registered command remains
+`python tests/issue-intake-test.py`, including the CI37 owner set. Both the
+source generation 13 and reviewed generation 22 recipes retain that owner and
+their required host-result aggregation. The dedicated Issue intake workflow
+handles issue, milestone, scheduled and manual reconciliation; it has no
+separate pull-request contracts job.
+
 ## Complete portable host contracts
 
 ```bash
@@ -1358,6 +1366,16 @@ setup until that installation.
 
 Protected candidate identity reads use `git --no-optional-locks` to preserve the
 private immutable index while retaining the complete snapshot verification.
+
+Protected execution presents ordinary Git files as physically read-only files.
+Tests must keep logical Git modes, exact source bytes and alias checks intact;
+when a test intentionally edits a temporary copy, make only that copied leaf
+writable. Never change the original snapshot permissions. Synthetic native-event
+fixtures that clear their environment must supply Git's safe-directory setting
+for their exact trusted checkout, without a wildcard or inherited configuration.
+The device control-plane runner prints failed group names at the end of a failed
+run so bounded host diagnostics retain the failing group without exposing its
+arbitrary output.
 
 Under the current reviewed catalog and ownership policies, rare controller-source
 upgrades after installing generation 22 use governed maintenance: normally install
