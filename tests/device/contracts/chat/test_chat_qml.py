@@ -19,6 +19,7 @@ with tempfile.TemporaryDirectory(prefix="overte-chat-qml-") as temporary:
     production = stage / "production"
     shutil.copytree(ROOT / "scripts/communityScripts/armored-chat", production)
     qml = production / "armored_chat.qml"
+    qml.chmod(0o644)
     qml.write_text("import TestChat 1.0\n" + qml.read_text())
     services = stage / "TestChat"
     services.mkdir()
