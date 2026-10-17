@@ -1,37 +1,5 @@
-# Dormant trusted package generation; activation requires reviewed target policy.
+# Unenrolled future Android owner recipe; no active workflow or catalog pin installs this source.
 name: Shared project CI
-on:
-  workflow_call:
-    inputs:
-      dependency_projects:
-        type: string
-        default: ''
-        description: Exact tool projects selected by the trusted repository router
-      expected_candidate:
-        type: string
-        default: ''
-      expected_package_plan:
-        type: string
-        default: ''
-    outputs:
-      package_verified:
-        value: ${{ jobs.project-results.outputs.package_verified }}
-      package_candidate:
-        value: ${{ jobs.project-results.outputs.package_candidate }}
-      package_plan:
-        value: ${{ jobs.project-results.outputs.package_plan }}
-      package_lane:
-        value: ${{ jobs.project-results.outputs.package_lane }}
-  push:
-    branches:
-    - android-phone
-    - android-vr-pico
-    - apple-ios
-    - ci/**
-    - test/**
-    paths-ignore:
-    - '**/*.md'
-  workflow_dispatch: null
 permissions:
   contents: read
 concurrency:
@@ -50,6 +18,9 @@ jobs:
       package_host_mode: ${{ steps.plan.outputs.package_host_mode }}
       package_tool_projects: ${{ steps.plan.outputs.package_tool_projects }}
       package_set: ${{ steps.plan.outputs.package_set }}
+      protected_full: ${{ steps.producer.outputs.protected_full }}
+      platform_required: ${{ steps.producer.outputs.platform_required || steps.platform.outputs.platform_required
+        || 'false' }}
     steps:
     - name: Check out trusted package policy
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -57,12 +28,15 @@ jobs:
         ref: ${{ github.event.repository.default_branch }}
         path: trusted
         persist-credentials: false
+        sparse-checkout-cone-mode: false
         sparse-checkout: |-
           .github
           tools/repository-checks
           tools/test-evidence
           tools/sync-test-reuse
           tools/sbom
+          tools/branch-policy/check.py
+          tools/native-tests/check.py
           tests/run-project-tests.py
           tests/platform-profile.json
           tests/requirements-host.txt
@@ -73,22 +47,134 @@ jobs:
         path: candidate
         fetch-depth: 2
         persist-credentials: false
+    - name: Authenticate the protected base commitment before repository imports
+      id: protected-source
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        /usr/bin/python3 -I -S -B - <<'SOURCE_GUARD'
+        # Fixed native recipe bootstrap. No repository module is imported here.
+        import hashlib, json, os, re, stat, subprocess, time, urllib.request
+        from pathlib import Path
+
+        deadline=time.monotonic()+45
+        def need(value):
+            if not value: raise ValueError('protected source unavailable')
+        def unique(pairs):
+            value={}
+            for key,item in pairs:
+                need(key not in value); value[key]=item
+            return value
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, request, response, code, message, headers, target):
+                raise ValueError('protected source redirect denied')
+        def get(endpoint):
+            request=urllib.request.Request('https://api.github.com/repos/noah-l-frank/overte/'+endpoint,
+                headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'},method='GET')
+            remaining=deadline-time.monotonic();need(remaining>0)
+            with urllib.request.build_opener(NoRedirect()).open(request,timeout=min(10,remaining)) as response:
+                need(response.status==200 and response.geturl()==request.full_url)
+                raw=response.read(16000001)
+            need(len(raw)<=16000000 and time.monotonic()<=deadline)
+            return json.loads(raw,object_pairs_hook=unique,parse_constant=lambda _: need(False))
+        admitted=False
+        try:
+            targets={'main','android-main','android-phone','android-vr','android-vr-pico','apple-main','apple-ios'}
+            need(os.environ.get('GITHUB_REPOSITORY')=='noah-l-frank/overte' and os.environ.get('GITHUB_REPOSITORY_ID')=='1319052603')
+            event_path=Path(os.environ['GITHUB_EVENT_PATH'])
+            need(not event_path.is_symlink() and event_path.is_file() and event_path.stat().st_size<=1000000)
+            event=json.loads(event_path.read_bytes(),object_pairs_hook=unique)
+            pr=event.get('pull_request')
+            target=pr.get('base',{}).get('ref') if isinstance(pr,dict) else os.environ.get('GITHUB_REF','').removeprefix('refs/heads/')
+            base=pr.get('base',{}).get('sha') if isinstance(pr,dict) else event.get('before')
+            source=os.environ.get('GITHUB_SHA','')
+            need(target in targets and type(base) is str and re.fullmatch('[0-9a-f]{40}',base) and re.fullmatch('[0-9a-f]{40}',source))
+            if isinstance(pr,dict):
+                number=event.get('number')
+                need(os.environ.get('GITHUB_EVENT_NAME')=='pull_request' and type(number) is int and number>0
+                    and pr.get('number')==number and os.environ.get('GITHUB_REF')=='refs/pull/'+str(number)+'/merge'
+                    and os.environ.get('GITHUB_WORKFLOW_SHA')==source)
+                merge=get('commits/refs/pull/'+str(number)+'/merge')
+                parents=merge.get('parents')
+                need(merge.get('sha')==source and type(parents) is list and len(parents)==2
+                    and all(isinstance(parent,dict) for parent in parents)
+                    and parents[1].get('sha')==pr.get('head',{}).get('sha'))
+                base=parents[0].get('sha')
+                need(type(base) is str and re.fullmatch('[0-9a-f]{40}',base))
+            branch=get('branches/'+target)
+            need(branch.get('protected') is True and branch.get('name')==target and branch.get('commit',{}).get('sha')==(base if isinstance(pr,dict) else source))
+            commit=get('git/commits/'+base)
+            tree=commit.get('tree',{}).get('sha')
+            need(commit.get('sha')==base and type(tree) is str and re.fullmatch('[0-9a-f]{40}',tree))
+            inventory=get('git/trees/'+tree+'?recursive=1')
+            need(inventory.get('sha')==tree and inventory.get('truncated') is False and type(inventory.get('tree')) is list)
+            name='tools/test-evidence/source_admission.py'
+            entries=[row for row in inventory['tree'] if isinstance(row,dict) and row.get('path')==name]
+            need(len(entries)==1 and entries[0].get('mode')=='100644' and entries[0].get('type')=='blob')
+            root=Path('trusted').absolute()
+            path=root/name
+            current=Path(path.anchor)
+            for part in path.parts[1:]:
+                current/=part;need(not current.is_symlink())
+            info=path.stat();need(stat.S_ISREG(info.st_mode) and not info.st_mode&0o111 and info.st_size<=1000000)
+            body=path.read_bytes();need(len(body)<=1000000)
+            need(hashlib.sha1(b'blob '+str(len(body)).encode()+b'\0'+body).hexdigest()==entries[0].get('sha'))
+            scope={'__name__':'protected_source_bootstrap','__file__':str(path)}
+            exec(compile(body,str(path),'exec'),scope)
+            scope['authenticate'](event,os.environ,scope['GitHubSource'](deadline=deadline),root)
+            admitted=True
+        except (ValueError,OSError,KeyError,TypeError,AttributeError,RuntimeError,subprocess.SubprocessError):
+            pass
+        with Path(os.environ['GITHUB_OUTPUT']).open('a') as output:
+            output.write('admitted='+str(admitted).lower()+'\n')
+        print('Protected source commitment '+('admitted.' if admitted else 'unavailable; existing execution remains required.'))
+        SOURCE_GUARD
     - name: Recompute the exact trusted package and host plan
       id: plan
       env:
         EXPECTED_CANDIDATE: ${{ inputs.expected_candidate }}
         EXPECTED_PLAN: ${{ inputs.expected_package_plan }}
         DEPENDENCY_PROJECTS: ${{ inputs.dependency_projects }}
-      run: python3 trusted/tools/repository-checks/package_checks.py plan --candidate candidate --event "$GITHUB_EVENT_PATH"
-        --sha "$GITHUB_SHA" --output "$GITHUB_OUTPUT" --expected-candidate "$EXPECTED_CANDIDATE" --expected-plan
-        "$EXPECTED_PLAN" --expected-projects "$DEPENDENCY_PROJECTS"
+      run: /usr/bin/python3 -I -S -B -c 'import runpy,sys;sys.path.insert(0,sys.argv.pop(1));runpy.run_path(sys.argv.pop(1),run_name="__main__")'
+        trusted/tools/test-evidence trusted/tools/repository-checks/package_checks.py plan --candidate candidate
+        --event "$GITHUB_EVENT_PATH" --sha "$GITHUB_SHA" --output "$GITHUB_OUTPUT" --expected-candidate "$EXPECTED_CANDIDATE"
+        --expected-plan "$EXPECTED_PLAN" --expected-projects "$DEPENDENCY_PROJECTS"
+    - name: Independently derive the current Android push platform owner
+      id: platform
+      if: github.event_name == 'push' && contains(fromJSON('["android-phone","android-vr-pico"]'), github.ref_name)
+        && steps.protected-source.outputs.admitted == 'true'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: /usr/bin/python3 -I -S -B -c 'import runpy,sys;sys.path.insert(0,sys.argv.pop(1));runpy.run_path(sys.argv.pop(1),run_name="__main__")'
+        trusted/tools/test-evidence trusted/tools/test-evidence/producer_workflow.py platform-plan --candidate "$GITHUB_WORKSPACE/candidate"
+    - name: Prepare the protected original descriptor
+      if: github.event_name == 'pull_request' && steps.protected-source.outputs.admitted == 'true'
+      id: producer
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: /usr/bin/python3 -I -S -B -c 'import runpy,sys;sys.path.insert(0,sys.argv.pop(1));runpy.run_path(sys.argv.pop(1),run_name="__main__")'
+        trusted/tools/test-evidence trusted/tools/test-evidence/producer_workflow.py descriptor --candidate candidate
+    - name: Publish the early canonical descriptor
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      with:
+        name: ci-descriptor-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/ci-producer-descriptor/descriptor.json
+        if-no-files-found: error
+        retention-days: 1
+      if: steps.producer.outputs.protected_full == 'true'
+    name: Publish producer descriptor
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+      checks: read
   project-tests:
     needs: route
     if: needs.route.outputs.package_host_mode == 'full'
     runs-on: ubuntu-24.04
     env:
       OVERTE_QML_TEST_RUNNER: /usr/lib/qt6/bin/qmltestrunner
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
     - name: Check out trusted host selection policy
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -96,12 +182,15 @@ jobs:
         ref: ${{ github.event.repository.default_branch }}
         path: trusted
         persist-credentials: false
+        sparse-checkout-cone-mode: false
         sparse-checkout: |-
           .github
           tools/repository-checks
           tools/test-evidence
           tools/sync-test-reuse
           tools/sbom
+          tools/branch-policy/check.py
+          tools/native-tests/check.py
           tests/run-project-tests.py
           tests/platform-profile.json
           tests/requirements-host.txt
@@ -112,6 +201,88 @@ jobs:
         path: candidate
         fetch-depth: 2
         persist-credentials: false
+    - name: Authenticate the protected base commitment before repository imports
+      id: protected-source
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        /usr/bin/python3 -I -S -B - <<'SOURCE_GUARD'
+        # Fixed native recipe bootstrap. No repository module is imported here.
+        import hashlib, json, os, re, stat, subprocess, time, urllib.request
+        from pathlib import Path
+
+        deadline=time.monotonic()+45
+        def need(value):
+            if not value: raise ValueError('protected source unavailable')
+        def unique(pairs):
+            value={}
+            for key,item in pairs:
+                need(key not in value); value[key]=item
+            return value
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, request, response, code, message, headers, target):
+                raise ValueError('protected source redirect denied')
+        def get(endpoint):
+            request=urllib.request.Request('https://api.github.com/repos/noah-l-frank/overte/'+endpoint,
+                headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'},method='GET')
+            remaining=deadline-time.monotonic();need(remaining>0)
+            with urllib.request.build_opener(NoRedirect()).open(request,timeout=min(10,remaining)) as response:
+                need(response.status==200 and response.geturl()==request.full_url)
+                raw=response.read(16000001)
+            need(len(raw)<=16000000 and time.monotonic()<=deadline)
+            return json.loads(raw,object_pairs_hook=unique,parse_constant=lambda _: need(False))
+        admitted=False
+        try:
+            targets={'main','android-main','android-phone','android-vr','android-vr-pico','apple-main','apple-ios'}
+            need(os.environ.get('GITHUB_REPOSITORY')=='noah-l-frank/overte' and os.environ.get('GITHUB_REPOSITORY_ID')=='1319052603')
+            event_path=Path(os.environ['GITHUB_EVENT_PATH'])
+            need(not event_path.is_symlink() and event_path.is_file() and event_path.stat().st_size<=1000000)
+            event=json.loads(event_path.read_bytes(),object_pairs_hook=unique)
+            pr=event.get('pull_request')
+            target=pr.get('base',{}).get('ref') if isinstance(pr,dict) else os.environ.get('GITHUB_REF','').removeprefix('refs/heads/')
+            base=pr.get('base',{}).get('sha') if isinstance(pr,dict) else event.get('before')
+            source=os.environ.get('GITHUB_SHA','')
+            need(target in targets and type(base) is str and re.fullmatch('[0-9a-f]{40}',base) and re.fullmatch('[0-9a-f]{40}',source))
+            if isinstance(pr,dict):
+                number=event.get('number')
+                need(os.environ.get('GITHUB_EVENT_NAME')=='pull_request' and type(number) is int and number>0
+                    and pr.get('number')==number and os.environ.get('GITHUB_REF')=='refs/pull/'+str(number)+'/merge'
+                    and os.environ.get('GITHUB_WORKFLOW_SHA')==source)
+                merge=get('commits/refs/pull/'+str(number)+'/merge')
+                parents=merge.get('parents')
+                need(merge.get('sha')==source and type(parents) is list and len(parents)==2
+                    and all(isinstance(parent,dict) for parent in parents)
+                    and parents[1].get('sha')==pr.get('head',{}).get('sha'))
+                base=parents[0].get('sha')
+                need(type(base) is str and re.fullmatch('[0-9a-f]{40}',base))
+            branch=get('branches/'+target)
+            need(branch.get('protected') is True and branch.get('name')==target and branch.get('commit',{}).get('sha')==(base if isinstance(pr,dict) else source))
+            commit=get('git/commits/'+base)
+            tree=commit.get('tree',{}).get('sha')
+            need(commit.get('sha')==base and type(tree) is str and re.fullmatch('[0-9a-f]{40}',tree))
+            inventory=get('git/trees/'+tree+'?recursive=1')
+            need(inventory.get('sha')==tree and inventory.get('truncated') is False and type(inventory.get('tree')) is list)
+            name='tools/test-evidence/source_admission.py'
+            entries=[row for row in inventory['tree'] if isinstance(row,dict) and row.get('path')==name]
+            need(len(entries)==1 and entries[0].get('mode')=='100644' and entries[0].get('type')=='blob')
+            root=Path('trusted').absolute()
+            path=root/name
+            current=Path(path.anchor)
+            for part in path.parts[1:]:
+                current/=part;need(not current.is_symlink())
+            info=path.stat();need(stat.S_ISREG(info.st_mode) and not info.st_mode&0o111 and info.st_size<=1000000)
+            body=path.read_bytes();need(len(body)<=1000000)
+            need(hashlib.sha1(b'blob '+str(len(body)).encode()+b'\0'+body).hexdigest()==entries[0].get('sha'))
+            scope={'__name__':'protected_source_bootstrap','__file__':str(path)}
+            exec(compile(body,str(path),'exec'),scope)
+            scope['authenticate'](event,os.environ,scope['GitHubSource'](deadline=deadline),root)
+            admitted=True
+        except (ValueError,OSError,KeyError,TypeError,AttributeError,RuntimeError,subprocess.SubprocessError):
+            pass
+        with Path(os.environ['GITHUB_OUTPUT']).open('a') as output:
+            output.write('admitted='+str(admitted).lower()+'\n')
+        print('Protected source commitment '+('admitted.' if admitted else 'unavailable; existing execution remains required.'))
+        SOURCE_GUARD
     - name: Set up Python
       uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
       with:
@@ -120,12 +291,23 @@ jobs:
       uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
       with:
         node-version: '22'
+    - name: Independently select affected host contracts
+      id: host
+      env:
+        EXPECTED_PLAN: ${{ needs.route.outputs.package_plan }}
+      run: /usr/bin/python3 -I -S -B -c 'import runpy,sys;sys.path.insert(0,sys.argv.pop(1));runpy.run_path(sys.argv.pop(1),run_name="__main__")'
+        trusted/tools/test-evidence trusted/tools/repository-checks/host_selection.py --candidate candidate --event
+        "$GITHUB_EVENT_PATH" --sha "$GITHUB_SHA" --expected-plan "$EXPECTED_PLAN" --select-only --output "$GITHUB_OUTPUT"
     - name: Set up Java
+      if: needs.route.outputs.protected_full != 'true' || steps.protected-source.outputs.admitted != 'true' || steps.host.outputs.full_host
+        != 'false'
       uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
       with:
         distribution: temurin
         java-version: '17'
     - name: Verify runner prerequisites
+      if: needs.route.outputs.protected_full != 'true' || steps.protected-source.outputs.admitted != 'true' || steps.host.outputs.full_host
+        != 'false'
       run: |
         set -euo pipefail
         command -v bash
@@ -136,19 +318,13 @@ jobs:
         python3 --version
         node --version
         java -version
-    - name: Independently select affected host contracts
-      id: host
-      env:
-        EXPECTED_PLAN: ${{ needs.route.outputs.package_plan }}
-      run: python3 trusted/tools/repository-checks/host_selection.py --candidate candidate
-        --event "$GITHUB_EVENT_PATH" --sha "$GITHUB_SHA" --expected-plan "$EXPECTED_PLAN"
-        --select-only --output "$GITHUB_OUTPUT"
     - name: Install QML and portable C++ contract prerequisites
       if: steps.host.outputs.full_host == 'true'
       run: |
         set -euo pipefail
         sudo apt-get update
         sudo apt-get install --no-install-recommends -y \
+          cmake ninja-build \
           qml-module-qttest qtdeclarative5-dev-tools qt6-base-dev qt6-base-dev-tools libglm-dev \
           qtdeclarative5-dev qml-module-qtquick2 qml-module-qtquick-controls2 qml-module-qtquick-layouts qml-module-qtquick-window2 \
           qt6-declarative-dev qt6-declarative-dev-tools qt6-webchannel-dev libqt5webchannel5-dev \
@@ -158,6 +334,172 @@ jobs:
           qml6-module-qtquick-templates qml6-module-qtquick-window \
           qml6-module-qt-labs-settings qml6-module-qtquick-dialogs qml6-module-qttest
         pkg-config --print-errors --exists Qt5Quick Qt5WebChannel Qt5Network Qt6Quick Qt6WebChannel Qt6Network
+        for tool in bash cmake ctest c++ git jq ninja pkg-config unshare; do
+          test -x "/usr/bin/$tool" || { printf 'Missing fixed system prerequisite: %s\n' "$tool" >&2; exit 1; }
+        done
+    - name: Prepare the protected trusted host environment
+      if: needs.route.outputs.protected_full == 'true' && steps.protected-source.outputs.admitted == 'true' && steps.host.outputs.full_host
+        != 'false'
+      run: |
+        test ! -e /opt/overte-ci
+        sudo -n /usr/bin/install -d -m 755 -o "$UID" /opt/overte-ci
+        python3 -m venv /opt/overte-ci/venv
+        /opt/overte-ci/venv/bin/python -m pip install --disable-pip-version-check -r trusted/tests/requirements-host.txt
+        # Freeze only the actual versioned prepared installations. The
+        # namespace never receives the remainder of the hosted tool cache.
+        PYTHON_ROOT="$(python3 -c 'import sys; print(sys.base_prefix)')"
+        NODE_ROOT="$(node -p 'require("path").dirname(require("path").dirname(process.execPath))')"
+        test -n "$JAVA_HOME"
+        # The hosted Java cache is an alias to its actual system JDK.
+        JAVA_HOME="$(readlink -e -- "$JAVA_HOME")"
+        python3 -I - "$PYTHON_ROOT" "$NODE_ROOT" "$JAVA_HOME" <<'PYROOTS'
+        from pathlib import Path
+        import re
+        import sys
+        roots = [Path('/opt/overte-ci'), *(Path(value) for value in sys.argv[1:])]
+        assert len(roots) == 4 and len(set(roots)) == 4, 'ambiguous prepared tool roots'
+        for index, path in enumerate(roots):
+            assert path.is_absolute() and path.is_dir() and not path.is_symlink()
+            assert path == path.resolve(strict=True), 'prepared tool root contains an alias'
+            if index in (1, 2):
+                assert path.is_relative_to('/opt/hostedtoolcache') and len(path.parts) == 6
+                assert path.parts[3] == ('Python' if index == 1 else 'node')
+                assert re.fullmatch(r'3[.]12[.][0-9]+' if index == 1 else r'22[.][0-9]+[.][0-9]+', path.parts[4])
+            elif index == 3:
+                assert (path == Path('/usr/lib/jvm/temurin-17-jdk-amd64')
+                        or path.is_relative_to('/opt/hostedtoolcache') and len(path.parts) == 6
+                        and path.parts[3] == 'Java_Temurin-Hotspot_jdk'
+                        and re.fullmatch(r'17[.][0-9]+[.][0-9]+-[0-9]+', path.parts[4])
+                        and path.parts[5] == 'x64')
+        assert all(not left.is_relative_to(right) and not right.is_relative_to(left)
+                   for i, left in enumerate(roots) for right in roots[i + 1:])
+        PYROOTS
+        sudo -n /usr/bin/chown -hR root:root -- /opt/overte-ci "$PYTHON_ROOT" "$NODE_ROOT" "$JAVA_HOME"
+        # Preserve executable/read bits and do not follow descendant aliases.
+        sudo -n /usr/bin/chmod -R go-w -- /opt/overte-ci "$PYTHON_ROOT" "$NODE_ROOT" "$JAVA_HOME"
+    - name: Prepare the protected CI37 host environment
+      if: needs.route.outputs.protected_full == 'true' && steps.protected-source.outputs.admitted == 'true' && steps.host.outputs.full_host
+        == 'false'
+      run: |
+        set -euo pipefail
+        missing=()
+        if ! test -x /usr/bin/cmake || ! test -x /usr/bin/ctest; then missing+=(cmake); fi
+        if ! test -x /usr/bin/ninja; then missing+=(ninja-build); fi
+        if ! test -x /usr/bin/make || ! test -x /usr/bin/gmake; then missing+=(make); fi
+        if ! test -x /usr/bin/g++ || ! test -x /usr/bin/gcc || ! test -x /usr/bin/c++ || ! test -x /usr/bin/cc; then missing+=(g++); fi
+        if ((${#missing[@]})); then
+          sudo -n /usr/bin/apt-get update
+          sudo -n /usr/bin/apt-get install --no-install-recommends -y "${missing[@]}"
+        fi
+        for tool in bash cmake ctest c++ cc gcc g++ git jq ninja make gmake as ld ar ranlib sha256sum env ldd dpkg-query unshare; do
+          test -x "/usr/bin/$tool" || { printf 'Missing fixed system prerequisite: %s\n' "$tool" >&2; exit 1; }
+        done
+        test ! -e /opt/overte-ci
+        sudo -n /usr/bin/install -d -m 755 -o "$UID" /opt/overte-ci
+        python3 -m venv /opt/overte-ci/venv
+        /opt/overte-ci/venv/bin/python -m pip install --disable-pip-version-check -r trusted/tests/requirements-host.txt
+        PYTHON_ROOT="$(python3 -c 'import sys; print(sys.base_prefix)')"
+        NODE_ROOT="$(node -p 'require("path").dirname(require("path").dirname(process.execPath))')"
+        python3 -I - "$PYTHON_ROOT" "$NODE_ROOT" <<'PYROOTS'
+        from pathlib import Path
+        import re
+        import sys
+        roots = [Path('/opt/overte-ci'), *(Path(value) for value in sys.argv[1:])]
+        assert len(roots) == 3 and len(set(roots)) == 3, 'ambiguous CI37 prepared tool roots'
+        for index, path in enumerate(roots):
+            assert path.is_absolute() and path.is_dir() and not path.is_symlink()
+            assert path == path.resolve(strict=True), 'CI37 prepared tool root contains an alias'
+            if index:
+                assert path.is_relative_to('/opt/hostedtoolcache') and len(path.parts) == 6
+                assert path.parts[3] == ('Python' if index == 1 else 'node')
+                assert re.fullmatch(r'3[.]12[.][0-9]+' if index == 1 else r'22[.][0-9]+[.][0-9]+', path.parts[4])
+        assert all(not left.is_relative_to(right) and not right.is_relative_to(left)
+                   for i, left in enumerate(roots) for right in roots[i + 1:])
+        PYROOTS
+        sudo -n /usr/bin/chown -hR root:root -- /opt/overte-ci "$PYTHON_ROOT" "$NODE_ROOT"
+        sudo -n /usr/bin/chmod -R go-w -- /opt/overte-ci "$PYTHON_ROOT" "$NODE_ROOT"
+    - name: Verify protected CI37 runner prerequisites
+      if: needs.route.outputs.protected_full == 'true' && steps.protected-source.outputs.admitted == 'true' && steps.host.outputs.full_host
+        == 'false'
+      run: |
+        set -euo pipefail
+        command -v bash
+        command -v jq
+        command -v cmake
+        command -v ninja
+        command -v ctest
+        python3 --version
+        node --version
+    - name: Ensure the required namespace tool is available
+      run: |
+        set -euo pipefail
+        if ! test -x /usr/bin/bwrap; then
+          sudo -n /usr/bin/apt-get update
+          sudo -n /usr/bin/apt-get install --yes --no-install-recommends bubblewrap
+        fi
+      if: needs.route.outputs.protected_full == 'true' && steps.protected-source.outputs.admitted == 'true'
+    - name: Provision the fixed disposable diagnostic account
+      id: account
+      run: |
+        set -euo pipefail
+        test "$RUNNER_ENVIRONMENT" = github-hosted
+        test "$ImageOS" = ubuntu24
+        if getent passwd overte-ci-qualification >/dev/null; then
+          echo 'The fixed disposable account already exists; host is unavailable.' >&2
+          exit 1
+        fi
+        sudo -n /usr/sbin/useradd --system --no-create-home --shell /usr/sbin/nologin overte-ci-qualification
+        echo 'created=true' >> "$GITHUB_OUTPUT"
+        # Match the existing disposable Ubuntu host namespace prerequisite.
+        # No application, SDK or device builds are fetched or launched.
+        sudo -n /usr/sbin/sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      if: needs.route.outputs.protected_full == 'true' && steps.protected-source.outputs.admitted == 'true'
+    - name: Execute the selected protected shared owner
+      id: protected
+      if: needs.route.outputs.protected_full == 'true' && steps.protected-source.outputs.admitted == 'true'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        NODE_ROOT="$(node -p 'require("path").dirname(require("path").dirname(process.execPath))')"
+        sudo -n /usr/bin/systemd-run --wait --pipe --collect --quiet --service-type=exec \
+          --expand-environment=no --property=Delegate=yes \
+          --property=KillMode=control-group --property=TimeoutStopSec=10s --property=SendSIGKILL=yes \
+          --property=UMask=0022 --property="RuntimeMaxSec=2400s" \
+          --unit="overte-shared-qualification-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.service" \
+          /usr/bin/env -i \
+          PATH=/usr/bin:/bin LANG=C.UTF-8 SUDO_UID="$UID" \
+          GITHUB_ACTIONS=true GITHUB_EVENT_NAME="$GITHUB_EVENT_NAME" \
+          GITHUB_REPOSITORY="$GITHUB_REPOSITORY" GITHUB_REPOSITORY_ID="$GITHUB_REPOSITORY_ID" \
+          GITHUB_REF="$GITHUB_REF" GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" GITHUB_SHA="$GITHUB_SHA" \
+          GITHUB_WORKFLOW_SHA="$GITHUB_WORKFLOW_SHA" \
+          GITHUB_RUN_ID="$GITHUB_RUN_ID" GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+          RUNNER_ENVIRONMENT="$RUNNER_ENVIRONMENT" ImageOS="$ImageOS" ImageVersion="$ImageVersion" \
+          GITHUB_BASE_REF="$GITHUB_BASE_REF" GITHUB_HEAD_REF="$GITHUB_HEAD_REF" \
+          GITHUB_WORKSPACE="$GITHUB_WORKSPACE" GITHUB_EVENT_PATH="$GITHUB_EVENT_PATH" \
+          RUNNER_TEMP="$RUNNER_TEMP" GITHUB_OUTPUT="$GITHUB_OUTPUT" GH_TOKEN="$GH_TOKEN" \
+          QUALIFY_NODE_ROOT="$NODE_ROOT" QUALIFY_JAVA_HOME="${JAVA_HOME:-}" \
+          /usr/bin/python3 -I -S -B -c 'import runpy,sys;sys.path.insert(0,sys.argv.pop(1));runpy.run_path(sys.argv.pop(1),run_name="__main__")' "$GITHUB_WORKSPACE/trusted/tools/test-evidence" "$GITHUB_WORKSPACE/trusted/tools/test-evidence/producer_workflow.py" shared --candidate "$GITHUB_WORKSPACE/candidate"
+    - name: Set up Java for pre-execution fallback
+      if: needs.route.outputs.protected_full == 'true' && steps.protected-source.outputs.admitted == 'true' && steps.host.outputs.full_host
+        == 'false' && steps.protected.outputs.protected_executed != 'true'
+      uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+      with:
+        distribution: temurin
+        java-version: '17'
+    - name: Verify fallback runner prerequisites
+      if: needs.route.outputs.protected_full == 'true' && steps.protected-source.outputs.admitted == 'true' && steps.host.outputs.full_host
+        == 'false' && steps.protected.outputs.protected_executed != 'true'
+      run: |
+        set -euo pipefail
+        command -v bash
+        command -v jq
+        command -v cmake
+        command -v ninja
+        command -v ctest
+        python3 --version
+        node --version
+        java -version
     - name: Prepare isolated host evidence validators
       env:
         GH_TOKEN: ''
@@ -171,14 +513,22 @@ jobs:
         unshare --user --map-root-user --net true
         python3 -m venv build/host-tests-env
         build/host-tests-env/bin/python -m pip install --disable-pip-version-check -r candidate/tests/requirements-host.txt
+      if: steps.protected.outputs.protected_executed != 'true'
     - name: Run independently selected host contracts
       env:
         EXPECTED_PLAN: ${{ needs.route.outputs.package_plan }}
+        PLATFORM_REQUIRED: ${{ needs.route.outputs.platform_required }}
+        GH_TOKEN: ${{ github.token }}
       run: |
         set -euo pipefail
-        build/host-tests-env/bin/python trusted/tools/repository-checks/host_selection.py \
-          --candidate candidate --event "$GITHUB_EVENT_PATH" --sha "$GITHUB_SHA" \
-          --expected-plan "$EXPECTED_PLAN" --junit build/test-results/project-tests.xml
+        if test "$PLATFORM_REQUIRED" = true; then
+          build/host-tests-env/bin/python -I -B -c 'import runpy,sys;sys.path.insert(0,sys.argv.pop(1));runpy.run_path(sys.argv.pop(1),run_name="__main__")' trusted/tools/test-evidence trusted/tools/test-evidence/producer_workflow.py fallback-common --candidate "$GITHUB_WORKSPACE/candidate"
+        else
+          build/host-tests-env/bin/python -B trusted/tools/repository-checks/host_selection.py \
+            --candidate candidate --event "$GITHUB_EVENT_PATH" --sha "$GITHUB_SHA" \
+            --expected-plan "$EXPECTED_PLAN" --junit build/test-results/project-tests.xml
+        fi
+      if: steps.protected.outputs.protected_executed != 'true'
     - name: Upload test report
       if: always()
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
@@ -190,6 +540,26 @@ jobs:
           candidate/build/test-results/device-self-tests.json
         if-no-files-found: warn
         retention-days: 7
+    - name: Preserve only the finished protected receipt
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      with:
+        name: ci-protected-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/ci-protected-receipt/receipt.json
+        if-no-files-found: error
+        retention-days: 1
+      if: steps.protected.outputs.protected_executed == 'true'
+    - name: Remove only the disposable account created here
+      if: always() && steps.account.outputs.created == 'true'
+      run: sudo -n /usr/sbin/userdel overte-ci-qualification
+    name: Shared tests
+    outputs:
+      receipt_sha256: ${{ steps.protected.outputs.receipt_sha256 }}
+      protected_executed: ${{ steps.protected.outputs.protected_executed }}
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+      checks: read
   tool-dependencies:
     needs: route
     if: needs.route.outputs.package_host_mode == 'tool-dependencies'
@@ -207,12 +577,15 @@ jobs:
         ref: ${{ github.event.repository.default_branch }}
         path: trusted
         persist-credentials: false
+        sparse-checkout-cone-mode: false
         sparse-checkout: |-
           .github
           tools/repository-checks
           tools/test-evidence
           tools/sync-test-reuse
           tools/sbom
+          tools/branch-policy/check.py
+          tools/native-tests/check.py
           tests/run-project-tests.py
           tests/platform-profile.json
           tests/requirements-host.txt
@@ -232,7 +605,7 @@ jobs:
       env:
         EXPECTED_CANDIDATE: ${{ needs.route.outputs.package_candidate }}
         EXPECTED_PLAN: ${{ needs.route.outputs.package_plan }}
-      run: python3 trusted/tools/repository-checks/package_checks.py run --candidate candidate --event "$GITHUB_EVENT_PATH"
+      run: python3 -B trusted/tools/repository-checks/package_checks.py run --candidate candidate --event "$GITHUB_EVENT_PATH"
         --sha "$GITHUB_SHA" --output "$GITHUB_OUTPUT" --expected-candidate "$EXPECTED_CANDIDATE" --expected-plan
         "$EXPECTED_PLAN" --lane tool-dependencies
   package-checks:
@@ -252,12 +625,15 @@ jobs:
         ref: ${{ github.event.repository.default_branch }}
         path: trusted
         persist-credentials: false
+        sparse-checkout-cone-mode: false
         sparse-checkout: |-
           .github
           tools/repository-checks
           tools/test-evidence
           tools/sync-test-reuse
           tools/sbom
+          tools/branch-policy/check.py
+          tools/native-tests/check.py
           tests/run-project-tests.py
           tests/platform-profile.json
           tests/requirements-host.txt
@@ -277,7 +653,7 @@ jobs:
       env:
         EXPECTED_CANDIDATE: ${{ needs.route.outputs.package_candidate }}
         EXPECTED_PLAN: ${{ needs.route.outputs.package_plan }}
-      run: python3 trusted/tools/repository-checks/package_checks.py run --candidate candidate --event "$GITHUB_EVENT_PATH"
+      run: python3 -B trusted/tools/repository-checks/package_checks.py run --candidate candidate --event "$GITHUB_EVENT_PATH"
         --sha "$GITHUB_SHA" --output "$GITHUB_OUTPUT" --expected-candidate "$EXPECTED_CANDIDATE" --expected-plan
         "$EXPECTED_PLAN" --lane package-checks
   project-results:
@@ -287,6 +663,7 @@ jobs:
     - project-tests
     - tool-dependencies
     - package-checks
+    - platform-tests
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -301,12 +678,15 @@ jobs:
         ref: ${{ github.event.repository.default_branch }}
         path: trusted
         persist-credentials: false
+        sparse-checkout-cone-mode: false
         sparse-checkout: |-
           .github
           tools/repository-checks
           tools/test-evidence
           tools/sync-test-reuse
           tools/sbom
+          tools/branch-policy/check.py
+          tools/native-tests/check.py
           tests/run-project-tests.py
           tests/platform-profile.json
           tests/requirements-host.txt
@@ -317,9 +697,452 @@ jobs:
         path: candidate
         fetch-depth: 2
         persist-credentials: false
+    - name: Authenticate the protected base commitment before repository imports
+      id: protected-source
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        /usr/bin/python3 -I -S -B - <<'SOURCE_GUARD'
+        # Fixed native recipe bootstrap. No repository module is imported here.
+        import hashlib, json, os, re, stat, subprocess, time, urllib.request
+        from pathlib import Path
+
+        deadline=time.monotonic()+45
+        def need(value):
+            if not value: raise ValueError('protected source unavailable')
+        def unique(pairs):
+            value={}
+            for key,item in pairs:
+                need(key not in value); value[key]=item
+            return value
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, request, response, code, message, headers, target):
+                raise ValueError('protected source redirect denied')
+        def get(endpoint):
+            request=urllib.request.Request('https://api.github.com/repos/noah-l-frank/overte/'+endpoint,
+                headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'},method='GET')
+            remaining=deadline-time.monotonic();need(remaining>0)
+            with urllib.request.build_opener(NoRedirect()).open(request,timeout=min(10,remaining)) as response:
+                need(response.status==200 and response.geturl()==request.full_url)
+                raw=response.read(16000001)
+            need(len(raw)<=16000000 and time.monotonic()<=deadline)
+            return json.loads(raw,object_pairs_hook=unique,parse_constant=lambda _: need(False))
+        admitted=False
+        try:
+            targets={'main','android-main','android-phone','android-vr','android-vr-pico','apple-main','apple-ios'}
+            need(os.environ.get('GITHUB_REPOSITORY')=='noah-l-frank/overte' and os.environ.get('GITHUB_REPOSITORY_ID')=='1319052603')
+            event_path=Path(os.environ['GITHUB_EVENT_PATH'])
+            need(not event_path.is_symlink() and event_path.is_file() and event_path.stat().st_size<=1000000)
+            event=json.loads(event_path.read_bytes(),object_pairs_hook=unique)
+            pr=event.get('pull_request')
+            target=pr.get('base',{}).get('ref') if isinstance(pr,dict) else os.environ.get('GITHUB_REF','').removeprefix('refs/heads/')
+            base=pr.get('base',{}).get('sha') if isinstance(pr,dict) else event.get('before')
+            source=os.environ.get('GITHUB_SHA','')
+            need(target in targets and type(base) is str and re.fullmatch('[0-9a-f]{40}',base) and re.fullmatch('[0-9a-f]{40}',source))
+            if isinstance(pr,dict):
+                number=event.get('number')
+                need(os.environ.get('GITHUB_EVENT_NAME')=='pull_request' and type(number) is int and number>0
+                    and pr.get('number')==number and os.environ.get('GITHUB_REF')=='refs/pull/'+str(number)+'/merge'
+                    and os.environ.get('GITHUB_WORKFLOW_SHA')==source)
+                merge=get('commits/refs/pull/'+str(number)+'/merge')
+                parents=merge.get('parents')
+                need(merge.get('sha')==source and type(parents) is list and len(parents)==2
+                    and all(isinstance(parent,dict) for parent in parents)
+                    and parents[1].get('sha')==pr.get('head',{}).get('sha'))
+                base=parents[0].get('sha')
+                need(type(base) is str and re.fullmatch('[0-9a-f]{40}',base))
+            branch=get('branches/'+target)
+            need(branch.get('protected') is True and branch.get('name')==target and branch.get('commit',{}).get('sha')==(base if isinstance(pr,dict) else source))
+            commit=get('git/commits/'+base)
+            tree=commit.get('tree',{}).get('sha')
+            need(commit.get('sha')==base and type(tree) is str and re.fullmatch('[0-9a-f]{40}',tree))
+            inventory=get('git/trees/'+tree+'?recursive=1')
+            need(inventory.get('sha')==tree and inventory.get('truncated') is False and type(inventory.get('tree')) is list)
+            name='tools/test-evidence/source_admission.py'
+            entries=[row for row in inventory['tree'] if isinstance(row,dict) and row.get('path')==name]
+            need(len(entries)==1 and entries[0].get('mode')=='100644' and entries[0].get('type')=='blob')
+            root=Path('trusted').absolute()
+            path=root/name
+            current=Path(path.anchor)
+            for part in path.parts[1:]:
+                current/=part;need(not current.is_symlink())
+            info=path.stat();need(stat.S_ISREG(info.st_mode) and not info.st_mode&0o111 and info.st_size<=1000000)
+            body=path.read_bytes();need(len(body)<=1000000)
+            need(hashlib.sha1(b'blob '+str(len(body)).encode()+b'\0'+body).hexdigest()==entries[0].get('sha'))
+            scope={'__name__':'protected_source_bootstrap','__file__':str(path)}
+            exec(compile(body,str(path),'exec'),scope)
+            scope['authenticate'](event,os.environ,scope['GitHubSource'](deadline=deadline),root)
+            admitted=True
+        except (ValueError,OSError,KeyError,TypeError,AttributeError,RuntimeError,subprocess.SubprocessError):
+            pass
+        with Path(os.environ['GITHUB_OUTPUT']).open('a') as output:
+            output.write('admitted='+str(admitted).lower()+'\n')
+        print('Protected source commitment '+('admitted.' if admitted else 'unavailable; existing execution remains required.'))
+        SOURCE_GUARD
+    - name: Require current platform aggregate source admission
+      env:
+        ADMITTED: ${{ steps.protected-source.outputs.admitted }}
+      run: test "$ADMITTED" = true
     - name: Require every independently selected host and package check
       id: verify
       env:
         CHECK_RESULTS: ${{ toJSON(needs) }}
-      run: python3 trusted/tools/repository-checks/package_checks.py verify --candidate candidate --event "$GITHUB_EVENT_PATH"
-        --sha "$GITHUB_SHA" --output "$GITHUB_OUTPUT" --needs-json "$CHECK_RESULTS"
+        GH_TOKEN: ${{ github.token }}
+      run: /usr/bin/python3 -I -S -B -c 'import runpy,sys;sys.path.insert(0,sys.argv.pop(1));runpy.run_path(sys.argv.pop(1),run_name="__main__")'
+        trusted/tools/test-evidence trusted/tools/test-evidence/producer_workflow.py project-verify --candidate
+        "$GITHUB_WORKSPACE/candidate"
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+      checks: read
+  producer-publication:
+    name: Publish final producer ${{ needs.project-tests.outputs.receipt_sha256 }}
+    needs:
+    - route
+    - project-tests
+    if: needs.route.outputs.protected_full == 'true' && needs.project-tests.outputs.protected_executed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+    - name: Check out trusted package policy
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.event.repository.default_branch }}
+        path: trusted
+        persist-credentials: false
+        sparse-checkout-cone-mode: false
+        sparse-checkout: |-
+          .github
+          tools/repository-checks
+          tools/test-evidence
+          tools/sync-test-reuse
+          tools/sbom
+          tools/branch-policy/check.py
+          tools/native-tests/check.py
+          tests/run-project-tests.py
+          tests/platform-profile.json
+          tests/requirements-host.txt
+          tests/requirements-repository.txt
+    - name: Check out the exact candidate without credentials
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        path: candidate
+        fetch-depth: 2
+        persist-credentials: false
+    - name: Authenticate the protected base commitment before repository imports
+      id: protected-source
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        /usr/bin/python3 -I -S -B - <<'SOURCE_GUARD'
+        # Fixed native recipe bootstrap. No repository module is imported here.
+        import hashlib, json, os, re, stat, subprocess, time, urllib.request
+        from pathlib import Path
+
+        deadline=time.monotonic()+45
+        def need(value):
+            if not value: raise ValueError('protected source unavailable')
+        def unique(pairs):
+            value={}
+            for key,item in pairs:
+                need(key not in value); value[key]=item
+            return value
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, request, response, code, message, headers, target):
+                raise ValueError('protected source redirect denied')
+        def get(endpoint):
+            request=urllib.request.Request('https://api.github.com/repos/noah-l-frank/overte/'+endpoint,
+                headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'},method='GET')
+            remaining=deadline-time.monotonic();need(remaining>0)
+            with urllib.request.build_opener(NoRedirect()).open(request,timeout=min(10,remaining)) as response:
+                need(response.status==200 and response.geturl()==request.full_url)
+                raw=response.read(16000001)
+            need(len(raw)<=16000000 and time.monotonic()<=deadline)
+            return json.loads(raw,object_pairs_hook=unique,parse_constant=lambda _: need(False))
+        admitted=False
+        try:
+            targets={'main','android-main','android-phone','android-vr','android-vr-pico','apple-main','apple-ios'}
+            need(os.environ.get('GITHUB_REPOSITORY')=='noah-l-frank/overte' and os.environ.get('GITHUB_REPOSITORY_ID')=='1319052603')
+            event_path=Path(os.environ['GITHUB_EVENT_PATH'])
+            need(not event_path.is_symlink() and event_path.is_file() and event_path.stat().st_size<=1000000)
+            event=json.loads(event_path.read_bytes(),object_pairs_hook=unique)
+            pr=event.get('pull_request')
+            target=pr.get('base',{}).get('ref') if isinstance(pr,dict) else os.environ.get('GITHUB_REF','').removeprefix('refs/heads/')
+            base=pr.get('base',{}).get('sha') if isinstance(pr,dict) else event.get('before')
+            source=os.environ.get('GITHUB_SHA','')
+            need(target in targets and type(base) is str and re.fullmatch('[0-9a-f]{40}',base) and re.fullmatch('[0-9a-f]{40}',source))
+            if isinstance(pr,dict):
+                number=event.get('number')
+                need(os.environ.get('GITHUB_EVENT_NAME')=='pull_request' and type(number) is int and number>0
+                    and pr.get('number')==number and os.environ.get('GITHUB_REF')=='refs/pull/'+str(number)+'/merge'
+                    and os.environ.get('GITHUB_WORKFLOW_SHA')==source)
+                merge=get('commits/refs/pull/'+str(number)+'/merge')
+                parents=merge.get('parents')
+                need(merge.get('sha')==source and type(parents) is list and len(parents)==2
+                    and all(isinstance(parent,dict) for parent in parents)
+                    and parents[1].get('sha')==pr.get('head',{}).get('sha'))
+                base=parents[0].get('sha')
+                need(type(base) is str and re.fullmatch('[0-9a-f]{40}',base))
+            branch=get('branches/'+target)
+            need(branch.get('protected') is True and branch.get('name')==target and branch.get('commit',{}).get('sha')==(base if isinstance(pr,dict) else source))
+            commit=get('git/commits/'+base)
+            tree=commit.get('tree',{}).get('sha')
+            need(commit.get('sha')==base and type(tree) is str and re.fullmatch('[0-9a-f]{40}',tree))
+            inventory=get('git/trees/'+tree+'?recursive=1')
+            need(inventory.get('sha')==tree and inventory.get('truncated') is False and type(inventory.get('tree')) is list)
+            name='tools/test-evidence/source_admission.py'
+            entries=[row for row in inventory['tree'] if isinstance(row,dict) and row.get('path')==name]
+            need(len(entries)==1 and entries[0].get('mode')=='100644' and entries[0].get('type')=='blob')
+            root=Path('trusted').absolute()
+            path=root/name
+            current=Path(path.anchor)
+            for part in path.parts[1:]:
+                current/=part;need(not current.is_symlink())
+            info=path.stat();need(stat.S_ISREG(info.st_mode) and not info.st_mode&0o111 and info.st_size<=1000000)
+            body=path.read_bytes();need(len(body)<=1000000)
+            need(hashlib.sha1(b'blob '+str(len(body)).encode()+b'\0'+body).hexdigest()==entries[0].get('sha'))
+            scope={'__name__':'protected_source_bootstrap','__file__':str(path)}
+            exec(compile(body,str(path),'exec'),scope)
+            scope['authenticate'](event,os.environ,scope['GitHubSource'](deadline=deadline),root)
+            admitted=True
+        except (ValueError,OSError,KeyError,TypeError,AttributeError,RuntimeError,subprocess.SubprocessError):
+            pass
+        with Path(os.environ['GITHUB_OUTPUT']).open('a') as output:
+            output.write('admitted='+str(admitted).lower()+'\n')
+        print('Protected source commitment '+('admitted.' if admitted else 'unavailable; existing execution remains required.'))
+        SOURCE_GUARD
+    - name: Require the unchanged source commitment before publication
+      env:
+        SOURCE_ADMITTED: ${{ steps.protected-source.outputs.admitted }}
+      run: test "$SOURCE_ADMITTED" = true
+    - name: Validate native selected execution and original whole receipt
+      id: publish
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: /usr/bin/python3 -I -S -B -c 'import runpy,sys;sys.path.insert(0,sys.argv.pop(1));runpy.run_path(sys.argv.pop(1),run_name="__main__")'
+        trusted/tools/test-evidence trusted/tools/test-evidence/producer_workflow.py publish --candidate candidate
+    - name: Publish the final canonical aggregate
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      with:
+        name: ci-aggregate-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/ci-producer-aggregate/aggregate.json
+        if-no-files-found: error
+        retention-days: 1
+    outputs:
+      documentation_verified: ${{ steps.publish.outputs.documentation_verified }}
+      workflow_contracts_verified: ${{ steps.publish.outputs.workflow_contracts_verified }}
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+      checks: read
+  platform-tests:
+    name: Android platform tests
+    needs: route
+    if: needs.route.outputs.platform_required == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+      checks: read
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    outputs:
+      verified: ${{ steps.execute.outputs.platform_verified }}
+      partition: ${{ steps.execute.outputs.platform_plan }}
+      required: ${{ steps.plan.outputs.platform_required }}
+    steps:
+    - name: Check out the authenticated platform controller
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.event.repository.default_branch }}
+        path: trusted
+        persist-credentials: false
+    - name: Check out exact platform candidate without credentials
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        path: candidate
+        fetch-depth: 2
+        persist-credentials: false
+    - name: Authenticate the protected base commitment before repository imports
+      id: protected-source
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        /usr/bin/python3 -I -S -B - <<'SOURCE_GUARD'
+        # Fixed native recipe bootstrap. No repository module is imported here.
+        import hashlib, json, os, re, stat, subprocess, time, urllib.request
+        from pathlib import Path
+
+        deadline=time.monotonic()+45
+        def need(value):
+            if not value: raise ValueError('protected source unavailable')
+        def unique(pairs):
+            value={}
+            for key,item in pairs:
+                need(key not in value); value[key]=item
+            return value
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, request, response, code, message, headers, target):
+                raise ValueError('protected source redirect denied')
+        def get(endpoint):
+            request=urllib.request.Request('https://api.github.com/repos/noah-l-frank/overte/'+endpoint,
+                headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'},method='GET')
+            remaining=deadline-time.monotonic();need(remaining>0)
+            with urllib.request.build_opener(NoRedirect()).open(request,timeout=min(10,remaining)) as response:
+                need(response.status==200 and response.geturl()==request.full_url)
+                raw=response.read(16000001)
+            need(len(raw)<=16000000 and time.monotonic()<=deadline)
+            return json.loads(raw,object_pairs_hook=unique,parse_constant=lambda _: need(False))
+        admitted=False
+        try:
+            targets={'main','android-main','android-phone','android-vr','android-vr-pico','apple-main','apple-ios'}
+            need(os.environ.get('GITHUB_REPOSITORY')=='noah-l-frank/overte' and os.environ.get('GITHUB_REPOSITORY_ID')=='1319052603')
+            event_path=Path(os.environ['GITHUB_EVENT_PATH'])
+            need(not event_path.is_symlink() and event_path.is_file() and event_path.stat().st_size<=1000000)
+            event=json.loads(event_path.read_bytes(),object_pairs_hook=unique)
+            pr=event.get('pull_request')
+            target=pr.get('base',{}).get('ref') if isinstance(pr,dict) else os.environ.get('GITHUB_REF','').removeprefix('refs/heads/')
+            base=pr.get('base',{}).get('sha') if isinstance(pr,dict) else event.get('before')
+            source=os.environ.get('GITHUB_SHA','')
+            need(target in targets and type(base) is str and re.fullmatch('[0-9a-f]{40}',base) and re.fullmatch('[0-9a-f]{40}',source))
+            if isinstance(pr,dict):
+                number=event.get('number')
+                need(os.environ.get('GITHUB_EVENT_NAME')=='pull_request' and type(number) is int and number>0
+                    and pr.get('number')==number and os.environ.get('GITHUB_REF')=='refs/pull/'+str(number)+'/merge'
+                    and os.environ.get('GITHUB_WORKFLOW_SHA')==source)
+                merge=get('commits/refs/pull/'+str(number)+'/merge')
+                parents=merge.get('parents')
+                need(merge.get('sha')==source and type(parents) is list and len(parents)==2
+                    and all(isinstance(parent,dict) for parent in parents)
+                    and parents[1].get('sha')==pr.get('head',{}).get('sha'))
+                base=parents[0].get('sha')
+                need(type(base) is str and re.fullmatch('[0-9a-f]{40}',base))
+            branch=get('branches/'+target)
+            need(branch.get('protected') is True and branch.get('name')==target and branch.get('commit',{}).get('sha')==(base if isinstance(pr,dict) else source))
+            commit=get('git/commits/'+base)
+            tree=commit.get('tree',{}).get('sha')
+            need(commit.get('sha')==base and type(tree) is str and re.fullmatch('[0-9a-f]{40}',tree))
+            inventory=get('git/trees/'+tree+'?recursive=1')
+            need(inventory.get('sha')==tree and inventory.get('truncated') is False and type(inventory.get('tree')) is list)
+            name='tools/test-evidence/source_admission.py'
+            entries=[row for row in inventory['tree'] if isinstance(row,dict) and row.get('path')==name]
+            need(len(entries)==1 and entries[0].get('mode')=='100644' and entries[0].get('type')=='blob')
+            root=Path('trusted').absolute()
+            path=root/name
+            current=Path(path.anchor)
+            for part in path.parts[1:]:
+                current/=part;need(not current.is_symlink())
+            info=path.stat();need(stat.S_ISREG(info.st_mode) and not info.st_mode&0o111 and info.st_size<=1000000)
+            body=path.read_bytes();need(len(body)<=1000000)
+            need(hashlib.sha1(b'blob '+str(len(body)).encode()+b'\0'+body).hexdigest()==entries[0].get('sha'))
+            scope={'__name__':'protected_source_bootstrap','__file__':str(path)}
+            exec(compile(body,str(path),'exec'),scope)
+            scope['authenticate'](event,os.environ,scope['GitHubSource'](deadline=deadline),root)
+            admitted=True
+        except (ValueError,OSError,KeyError,TypeError,AttributeError,RuntimeError,subprocess.SubprocessError):
+            pass
+        with Path(os.environ['GITHUB_OUTPUT']).open('a') as output:
+            output.write('admitted='+str(admitted).lower()+'\n')
+        print('Protected source commitment '+('admitted.' if admitted else 'unavailable; existing execution remains required.'))
+        SOURCE_GUARD
+    - name: Require unchanged platform source admission
+      env:
+        ADMITTED: ${{ steps.protected-source.outputs.admitted }}
+      run: test "$ADMITTED" = true
+    - name: Independently derive the complete current platform inventory
+      id: plan
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: /usr/bin/python3 -I -S -B -c 'import runpy,sys;sys.path.insert(0,sys.argv.pop(1));runpy.run_path(sys.argv.pop(1),run_name="__main__")'
+        trusted/tools/test-evidence trusted/tools/test-evidence/producer_workflow.py platform-plan --candidate "$GITHUB_WORKSPACE/candidate"
+    - name: Set up platform Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      with:
+        python-version: '3.12'
+      if: steps.plan.outputs.platform_required == 'true'
+    - name: Set up platform Node
+      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+      with:
+        node-version: '22'
+      if: steps.plan.outputs.platform_required == 'true'
+    - name: Set up platform Java
+      uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+      with:
+        distribution: temurin
+        java-version: '17'
+      if: steps.plan.outputs.platform_required == 'true'
+    - name: Prepare fixed platform host prerequisites
+      run: |-
+        set -euo pipefail
+        sudo -n /usr/bin/apt-get update
+        sudo -n /usr/bin/apt-get install --no-install-recommends -y cmake ninja-build g++ make pkg-config jq
+        if test "${GITHUB_BASE_REF:-${GITHUB_REF#refs/heads/}}" = android-phone; then
+          sudo -n /usr/bin/apt-get install --no-install-recommends -y qt6-base-dev qt6-base-dev-tools
+        fi
+        toolkit="$RUNNER_TEMP/android-platform-tools"
+        mkdir "$toolkit"
+        for tool in cmake ctest ninja; do ln -s "/usr/bin/$tool" "$toolkit/$tool"; done
+        export PATH="$toolkit:$PATH"
+        test -x /usr/bin/cmake && test -x /usr/bin/ctest && test -x /usr/bin/ninja
+        # Preserve neutral-bootstrap's actual offline namespace check.
+        sudo -n /usr/sbin/sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+        python3 -m venv "$RUNNER_TEMP/android-platform-venv"
+        "$RUNNER_TEMP/android-platform-venv/bin/python" -m pip install --disable-pip-version-check -r trusted/tests/requirements-host.txt
+        printf '%s\n' "$toolkit" >> "$GITHUB_PATH"
+        # No APK/SDK installation or application/device build. Phone NDK absence fails the controller.
+      if: steps.plan.outputs.platform_required == 'true'
+    - name: Execute and verify the complete Android platform inventory
+      id: execute
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: '"$RUNNER_TEMP/android-platform-venv/bin/python" -I -B -c ''import runpy,sys;sys.path.insert(0,sys.argv.pop(1));runpy.run_path(sys.argv.pop(1),run_name="__main__")''
+        trusted/tools/test-evidence trusted/tools/test-evidence/producer_workflow.py platform --candidate "$GITHUB_WORKSPACE/candidate"'
+      if: steps.plan.outputs.platform_required == 'true'
+    - name: Upload platform diagnostics only
+      if: always()
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      with:
+        name: android-platform-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/ci-platform-report/platform.xml
+        if-no-files-found: warn
+        retention-days: 7
+'on':
+  workflow_call:
+    inputs:
+      dependency_projects:
+        type: string
+        default: ''
+        description: Exact tool projects selected by the trusted repository router
+      expected_candidate:
+        type: string
+        default: ''
+      expected_package_plan:
+        type: string
+        default: ''
+    outputs:
+      documentation_verified:
+        value: ${{ jobs.producer-publication.outputs.documentation_verified || 'false' }}
+      workflow_contracts_verified:
+        value: ${{ jobs.producer-publication.outputs.workflow_contracts_verified || 'false' }}
+      package_verified:
+        value: ${{ jobs.project-results.outputs.package_verified }}
+      package_candidate:
+        value: ${{ jobs.project-results.outputs.package_candidate }}
+      package_plan:
+        value: ${{ jobs.project-results.outputs.package_plan }}
+      package_lane:
+        value: ${{ jobs.project-results.outputs.package_lane }}
+  push:
+    branches:
+    - android-phone
+    - android-vr-pico
+    - apple-ios
+    - ci/**
+    - test/**
+    paths-ignore:
+    - '**/*.md'
+  workflow_dispatch: null

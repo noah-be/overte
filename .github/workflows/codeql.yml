@@ -1,5 +1,6 @@
-# Dormant pinned successor; protect exact source admission before workflow deployment.
+# Dormant metadata successor; preserve exact pinned analyzer and source admission.
 name: CodeQL
+run-name: ${{ (github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics'))) && 'Overte native metadata nonproducer v2' || 'Overte native ordinary qualification v2' }}
 
 on:
   push:
@@ -17,11 +18,31 @@ permissions:
 
 concurrency:
   # A text edit must never cancel current qualification or replace its result.
-  group: codeql-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body) && github.run_id || 'qualification' }}
+  group: codeql-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics')) && github.run_id || 'qualification' }}
   cancel-in-progress: true
 
 jobs:
+  metadata-source:
+    name: Authenticate PR text edit
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+      pull-requests: read
+    uses: ./.github/workflows/pr-metadata-context.yml
+    with:
+      nonproducer_intent: ${{ github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics')) }}
+
   select:
+    needs: metadata-source
+    if: always() && (needs.metadata-source.result == 'success' || needs.metadata-source.result == 'skipped')
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+      pull-requests: read
+      security-events: read
     name: Select affected CodeQL languages
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -42,8 +63,12 @@ jobs:
 
       - name: Recognize only complete title or body edit events
         id: event
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NATIVE_METADATA_INTENT: ${{ needs.metadata-source.outputs.metadata_intent }}
+          NATIVE_METADATA_SCHEDULING: ${{ needs.metadata-source.outputs.metadata_scheduling }}
         run: >-
-          python3 trusted/tools/repository-checks/check.py metadata-event
+          python3 -I -S -B trusted/tools/repository-checks/check.py metadata-event
           --event "$GITHUB_EVENT_PATH" --event-name "$GITHUB_EVENT_NAME" --output "$GITHUB_OUTPUT"
 
       - name: Read the exact candidate inventory
@@ -83,7 +108,7 @@ jobs:
   analyze:
     name: ${{ needs.select.result == 'success' && needs.select.outputs.metadata_only == 'true' && 'CodeQL (metadata unchanged)' || format('CodeQL ({0})', matrix.language) }}
     needs: select
-    if: needs.select.outputs.metadata_only != 'true' && needs.select.outputs.scan == 'true'
+    if: always() && !cancelled() && needs.select.result == 'success' && needs.select.outputs.metadata_only != 'true' && needs.select.outputs.scan == 'true' && !(github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics')))
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:

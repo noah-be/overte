@@ -1,0 +1,66 @@
+name: Authenticate PR text edit
+
+on:
+  workflow_call:
+    inputs:
+      nonproducer_intent:
+        type: boolean
+        required: true
+    outputs:
+      metadata_intent:
+        value: ${{ jobs.recognize.outputs.metadata_intent }}
+      metadata_scheduling:
+        value: ${{ jobs.recognize.outputs.metadata_scheduling }}
+
+permissions:
+  contents: read
+  actions: read
+  checks: read
+  pull-requests: read
+
+jobs:
+  recognize:
+    name: Recognize immutable text edit context
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      metadata_intent: ${{ steps.context.outputs.metadata_intent }}
+      metadata_scheduling: ${{ steps.context.outputs.metadata_scheduling }}
+    steps:
+      # Ordinary invocations expose their immutable native reusable edge and
+      # fixed source step without checking out or importing the helper graph.
+      - name: Check out immutable protected recognition source
+        if: contains(fromJSON('["edited","labeled","unlabeled"]'), github.event.action)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: trusted
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            .github
+            tests/requirements-host.txt
+            tests/requirements-repository.txt
+            tests/run-project-tests.py
+            tools/branch-policy/check.py
+            tools/native-tests/check.py
+            tools/repository-checks
+            tools/sbom/requirements-validation.txt
+            tools/sync-test-reuse
+            tools/repository-checks/metadata_context.py
+            tools/test-evidence
+      - name: Recognize only the complete native text edit
+        if: contains(fromJSON('["edited","labeled","unlabeled"]'), github.event.action)
+        id: context
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NATIVE_NONPRODUCER_INTENT: ${{ inputs.nonproducer_intent }}
+        run: >-
+          python3 -I -S -B trusted/tools/repository-checks/metadata_context.py
+          --event "$GITHUB_EVENT_PATH" --event-name "$GITHUB_EVENT_NAME" --output "$GITHUB_OUTPUT"
+      - name: Authenticated one-way metadata non-producer
+        if: steps.context.outputs.metadata_intent == 'true'
+        run: ':'
+      - name: ${{ contains(github.workflow_ref, '/.github/workflows/repository-checks.yml@') && contains(github.event.pull_request.labels.*.name, 'android-long-diagnostics') && 'Authenticated ordinary producer scheduling source (diagnostics requested)' || 'Authenticated ordinary producer scheduling source (diagnostics absent)' }}
+        if: steps.context.outputs.metadata_intent != 'true'
+        run: ':'

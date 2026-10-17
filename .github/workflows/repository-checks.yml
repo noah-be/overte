@@ -1,5 +1,6 @@
 # Dormant trusted package generation; activation requires reviewed target policy.
 name: Repository checks
+run-name: ${{ (github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics'))) && 'Overte native metadata nonproducer v2' || 'Overte native ordinary qualification v2' }}
 on:
   pull_request:
     types:
@@ -7,18 +8,46 @@ on:
     - reopened
     - synchronize
     - edited
-  workflow_dispatch: null
+    - labeled
+    - unlabeled
+  workflow_dispatch:
+    inputs:
+      run_regression:
+        description: Run the complete device-free regression tier
+        type: boolean
+        default: true
+        required: false
 permissions:
   contents: read
 concurrency:
-  group: repository-checks-${{ github.event.pull_request.number || github.ref }}
+  group: repository-checks-${{ github.event.pull_request.number || github.ref }}-${{ ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics')) && github.run_id || 'qualification' }}
   cancel-in-progress: true
 jobs:
+  metadata-source:
+    name: Authenticate PR text edit
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+      pull-requests: read
+    uses: ./.github/workflows/pr-metadata-context.yml
+    with:
+      nonproducer_intent: ${{ github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics')) }}
+
   route:
+    needs: metadata-source
+    if: always() && (needs.metadata-source.result == 'success' || needs.metadata-source.result == 'skipped')
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+      pull-requests: read
     name: Select required repository checks
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
+      metadata_only: ${{ steps.event.outputs.metadata_only }}
       mode: ${{ steps.plan.outputs.mode }}
       security: ${{ steps.plan.outputs.security }}
       native: ${{ steps.native.outputs.mode }}
@@ -28,6 +57,10 @@ jobs:
       package_host_mode: ${{ steps.plan.outputs.package_host_mode }}
       package_tool_projects: ${{ steps.plan.outputs.package_tool_projects }}
       package_set: ${{ steps.plan.outputs.package_set }}
+      android_required: ${{ steps.plan.outputs.android_required }}
+      android_candidate: ${{ steps.plan.outputs.android_candidate }}
+      android_plan: ${{ steps.plan.outputs.android_plan }}
+      android_inventory: ${{ steps.plan.outputs.android_inventory }}
     steps:
     - name: Check out trusted routing policy
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -41,7 +74,17 @@ jobs:
           tools/test-evidence
           tools/native-tests
           tools/ios-build-qualification
+    - name: Recognize only complete title or body edit events
+      id: event
+      env:
+        GH_TOKEN: ${{ github.token }}
+        NATIVE_METADATA_INTENT: ${{ needs.metadata-source.outputs.metadata_intent }}
+        NATIVE_METADATA_SCHEDULING: ${{ needs.metadata-source.outputs.metadata_scheduling }}
+      run: >-
+        python3 -I -S -B trusted/tools/repository-checks/check.py metadata-event
+        --event "$GITHUB_EVENT_PATH" --event-name "$GITHUB_EVENT_NAME" --output "$GITHUB_OUTPUT"
     - name: Read the candidate tree without executing it
+      if: steps.event.outputs.metadata_only != 'true'
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         path: candidate
@@ -49,50 +92,97 @@ jobs:
         persist-credentials: false
         sparse-checkout: .github
     - name: Select checks from the exact merge candidate
+      if: steps.event.outputs.metadata_only != 'true'
       id: plan
       run: python3 trusted/tools/repository-checks/check.py plan --event "$GITHUB_EVENT_PATH" --candidate candidate
         --sha "$GITHUB_SHA" --output "$GITHUB_OUTPUT"
     - name: Select native checks from the exact merge candidate
+      if: steps.event.outputs.metadata_only != 'true'
       id: native
       run: python3 trusted/tools/native-tests/check.py plan --event "$GITHUB_EVENT_PATH" --candidate candidate --sha
         "$GITHUB_SHA" --output "$GITHUB_OUTPUT" --report native-plan.json
   native:
+    name: ${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && 'native (metadata unchanged)' || 'native' }}
     permissions:
       contents: read
       packages: read
     needs: route
-    if: needs.route.outputs.native != 'skip'
+    if: always() && !cancelled() && needs.route.result == 'success' && needs.route.outputs.metadata_only != 'true' && needs.route.outputs.native != 'skip' && !(github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics')))
     uses: ./.github/workflows/native-tests.yml
     with:
       mode: ${{ needs.route.outputs.native }}
   project:
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+      checks: read
+    name: ${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && 'project (metadata unchanged)' || 'project' }}
     needs: route
-    if: needs.route.outputs.package_host_mode == 'full' || needs.route.outputs.package_host_mode == 'tool-dependencies' || needs.route.outputs.package_set
-      != '[]'
+    if: always() && !cancelled() && needs.route.result == 'success' && needs.route.outputs.metadata_only != 'true' && (needs.route.outputs.package_host_mode == 'full' || needs.route.outputs.package_host_mode == 'tool-dependencies' || needs.route.outputs.package_set != '[]') && !(github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics')))
     uses: ./.github/workflows/project-tests.yml
     with:
       dependency_projects: ${{ needs.route.outputs.tool_projects }}
       expected_candidate: ${{ needs.route.outputs.package_candidate }}
       expected_package_plan: ${{ needs.route.outputs.package_plan }}
-  documentation:
+  android:
+    name: ${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && 'android (metadata unchanged)' || 'android' }}
     needs: route
+    if: always() && !cancelled() && needs.route.result == 'success' && needs.route.outputs.metadata_only != 'true' && needs.route.outputs.android_required == 'true' && !(github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics')))
+    uses: ./.github/workflows/android-required.yml
+    with:
+      android_required: ${{ needs.route.outputs.android_required }}
+      android_candidate: ${{ needs.route.outputs.android_candidate }}
+      android_plan: ${{ needs.route.outputs.android_plan }}
+      android_inventory: ${{ needs.route.outputs.android_inventory }}
+  documentation:
+    name: ${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && 'documentation (metadata unchanged)' || 'documentation' }}
+    needs: [route, project]
+    if: always() && needs.route.result == 'success' && (needs.project.result == 'success' || needs.project.result == 'skipped') && needs.route.outputs.metadata_only != 'true' && needs.project.outputs.documentation_verified != 'true' && !(github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics')))
     uses: ./.github/workflows/documentation-checks.yml
   workflow-security:
+    name: ${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && 'workflow-security (metadata unchanged)' || 'workflow-security' }}
     needs: route
-    if: needs.route.outputs.security == 'true'
+    if: always() && !cancelled() && needs.route.result == 'success' && needs.route.outputs.metadata_only != 'true' && needs.route.outputs.security == 'true' && !(github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics')))
     uses: ./.github/workflows/workflow-security.yml
+    with:
+      defer_workflow_contracts: true
+  workflow-contracts:
+    needs: [route, project]
+    if: always() && needs.route.result == 'success' && (needs.project.result == 'success' || needs.project.result == 'skipped') && needs.route.outputs.metadata_only != 'true' && needs.route.outputs.security == 'true' && needs.project.outputs.workflow_contracts_verified != 'true' && !(github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics')))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+    - name: Check out the exact candidate without credentials
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.sha }}
+        fetch-depth: 2
+        persist-credentials: false
+    - name: Verify remaining workflow contracts
+      run: PYTHONDONTWRITEBYTECODE=1 python3 tests/workflow-contract-test.py
   repository-checks:
-    name: repository-checks
-    if: always()
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+      checks: read
+    name: ${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && 'repository-checks (metadata unchanged)' || 'repository-checks' }}
+    if: always() && (needs.route.result != 'success' || needs.route.outputs.metadata_only != 'true')
     needs:
     - route
     - project
     - documentation
     - workflow-security
+    - workflow-contracts
     - native
+    - android
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
+    - name: Reject unavailable native metadata context before checkout
+      if: github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics'))
+      run: exit 1
     - name: Check out trusted result verifier
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
@@ -104,9 +194,13 @@ jobs:
         path: candidate
         fetch-depth: 2
         persist-credentials: false
-        sparse-checkout: .github
+        sparse-checkout-cone-mode: false
+        sparse-checkout: |
+          .github
+          tests/platform-profile.json
     - name: Require all selected checks to succeed
       env:
         CHECK_RESULTS: ${{ toJSON(needs) }}
-      run: python3 tools/repository-checks/check.py verify --needs-json "$CHECK_RESULTS" --candidate candidate --sha
+        GH_TOKEN: ${{ github.token }}
+      run: python3 tools/repository-checks/check.py verify --event "$GITHUB_EVENT_PATH" --needs-json "$CHECK_RESULTS" --candidate candidate --sha
         "$GITHUB_SHA"
