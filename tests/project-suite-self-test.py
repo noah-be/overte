@@ -491,5 +491,126 @@ class ProjectSuiteCliTests(unittest.TestCase):
                     self.assertIn(failure, xml.find("testcase/failure").text)
 
 
+class DevicePythonFailureDiagnosticsTests(unittest.TestCase):
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location(
+            "control_plane_failure_diagnostic", RUNNER.parent / "device/run_control_plane_tests.py")
+        self.control = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.control)
+
+    def aggregate(self, names):
+        return {"schema": 1, "selected": len(names), "loaded": 0, "ran": 0, "skipped": 0,
+                "failed_modules": len(names), "workers": 2,
+                "modules": [{"module": name, "selected_ids": [name + ".Case.test_behavior"],
+                             "result": None, "exit_code": 1, "error": "not printed"}
+                            for name in names]}
+
+    def test_final_module_diagnostic_survives_later_groups_and_preserves_failure_and_junit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            report = root / "build/test-results/device-self-tests.json"
+            names = ["test_first", "test_second"]
+            def command(*unused):
+                if not report.exists():
+                    report.parent.mkdir(parents=True)
+                    report.write_text(json.dumps(self.aggregate(names)))
+                    return 1, "private traceback must stay out of final diagnostic", "exit code 1"
+                return 0, "later group output", ""
+            args = SimpleNamespace(profile="full", self_test_jobs=2, timeout_seconds=900,
+                                   require_qml=True, junit=root / "device.xml")
+            output = io.StringIO()
+            with (patch.object(self.control, "REPOSITORY", root),
+                  patch.object(self.control, "commands", return_value=[
+                      ("python-self-tests", ["fixture"], False), ("later-group", ["fixture"], False)]),
+                  patch.object(self.control, "run_command", side_effect=command),
+                  contextlib.redirect_stdout(output)):
+                result = self.control.run_checks(args, [])
+            line = output.getvalue().splitlines()[-1]
+            value = json.loads(line)
+            self.assertEqual(result, 1)
+            self.assertIn('Device control plane failed groups: ["python-self-tests"]', output.getvalue())
+            self.assertIn("PASSED  later-group", output.getvalue())
+            self.assertEqual(value["modules"], names)
+            self.assertEqual((value["failed"], value["omitted"], value["report"]), (2, 0, "ok"))
+            self.assertFalse(value["truncated"])
+            self.assertLessEqual(len(line.encode("ascii")), 450)
+            self.assertIn(line, output.getvalue()[-512:])
+            self.assertNotIn("traceback", line)
+            xml = ET.parse(args.junit).getroot()
+            self.assertEqual((xml.get("tests"), xml.get("failures"), xml.get("skipped")), ("2", "1", "0"))
+            self.assertIn("private traceback", xml.find("testcase/failure").text)
+
+    def test_bounded_names_and_unsafe_or_missing_reports_cannot_emit_arbitrary_data(self):
+        item = {"message": "timeout after 900s", "durationSeconds": 12.3456}
+        cases = ("valid", "no-failed-modules", "serial", "missing", "symlink", "hardlink", "fifo", "oversize",
+                 "invalid-json", "nested-json", "bad-shape", "wrong-count", "stale", "parent-symlink")
+        for case in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                report = root / "build/test-results/device-self-tests.json"
+                report.parent.mkdir(parents=True)
+                started = time.time_ns()
+                names = ["test_" + str(index) + "_" + "x" * 60 for index in range(8)]
+                report.write_text(json.dumps(self.aggregate(names)))
+                if case == "no-failed-modules":
+                    value = self.aggregate(names)
+                    value["failed_modules"] = 0
+                    for row in value["modules"]:
+                        row.update(result={"schema": 1, "successful": True}, exit_code=0, error="")
+                    report.write_text(json.dumps(value))
+                elif case == "serial":
+                    started = None
+                elif case == "missing":
+                    report.unlink()
+                elif case == "symlink":
+                    private = root / "private.json"
+                    report.replace(private)
+                    report.symlink_to(private)
+                elif case == "hardlink":
+                    os.link(report, root / "alias.json")
+                elif case == "fifo":
+                    report.unlink()
+                    os.mkfifo(report)
+                elif case == "oversize":
+                    with report.open("wb") as stream:
+                        stream.truncate(4 * 1024 * 1024 + 1)
+                elif case == "invalid-json":
+                    report.write_text("private trace is not JSON")
+                elif case == "nested-json":
+                    report.write_text("[" * 2000 + "0" + "]" * 2000)
+                elif case == "bad-shape":
+                    report.write_text(json.dumps({"modules": "private trace"}))
+                elif case == "wrong-count":
+                    value = self.aggregate(names)
+                    value["failed_modules"] = 1
+                    report.write_text(json.dumps(value))
+                elif case == "stale":
+                    os.utime(report, ns=(1, 1))
+                elif case == "parent-symlink":
+                    actual = root / "actual-results"
+                    report.parent.rename(actual)
+                    (root / "build/test-results").symlink_to(actual, target_is_directory=True)
+                with patch.object(self.control, "REPOSITORY", root):
+                    line = self.control.python_failure_diagnostic(item, started)
+                value = json.loads(line)
+                self.assertLessEqual(len(line.encode("ascii")), 450)
+                self.assertEqual((value["message"], value["seconds"]), ("timeout", 12.346))
+                self.assertNotIn("private", line)
+                if case == "valid":
+                    self.assertEqual((value["report"], value["failed"], value["omitted"]), ("ok", 8, 4))
+                    self.assertEqual(len(value["modules"]), 4)
+                    self.assertTrue(value["truncated"])
+                    self.assertTrue(all(len(name) <= 48 for name in value["modules"]))
+                elif case == "no-failed-modules":
+                    self.assertEqual((value["report"], value["failed"], value["omitted"]), ("ok", 0, 0))
+                    self.assertEqual(value["modules"], [])
+                    self.assertFalse(value["truncated"])
+                else:
+                    self.assertEqual(value["report"], "unavailable")
+                    self.assertIsNone(value["failed"])
+                    self.assertIsNone(value["omitted"])
+                    self.assertEqual(value["modules"], [])
+
+
 if __name__ == "__main__":
     unittest.main()

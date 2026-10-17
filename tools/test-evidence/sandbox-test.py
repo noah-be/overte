@@ -476,6 +476,34 @@ class StreamedCandidateTests(GitFixture):
             cwd=destination, stderr=subprocess.DEVNULL,
             env={"PATH": "/usr/bin:/bin", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1", "GIT_OPTIONAL_LOCKS": "0"}).decode().strip()
 
+    def test_actual_execution_identity_preserves_private_index_and_rejects_changed_source(self):
+        import execution
+        destination, value = self.snapshot()
+        index = destination / ".git/index"
+        original = index.read_bytes()
+        self.assertEqual(index.stat().st_mode & 0o777, 0o444)
+        environment = {"PATH": "/usr/bin:/bin", "GIT_CONFIG_GLOBAL": "/dev/null",
+                       "GIT_CONFIG_NOSYSTEM": "1", "GIT_OPTIONAL_LOCKS": "1"}
+        # Exercise the production identity reader, rather than this class's
+        # status helper, which already suppresses optional Git index writes.
+        with patch.dict(os.environ, environment, clear=True):
+            for _ in range(3):
+                self.assertEqual(execution.checkout_identity(destination),
+                    (self.revision, value["identity"]["tree"]))
+                self.assertEqual(index.stat().st_mode & 0o777, 0o444)
+                self.assertEqual(index.read_bytes(), original)
+                S.verify_snapshot(destination, value)
+            changed = destination / "test.py"
+            changed.chmod(0o644)
+            changed.write_bytes(changed.read_bytes() + b"\n# changed candidate\n")
+            changed.chmod(0o444)
+            with self.assertRaises(execution.ExecutionError):
+                execution.checkout_identity(destination)
+            with self.assertRaises(S.SandboxUnavailable):
+                S.verify_snapshot(destination, value)
+        self.assertEqual(index.stat().st_mode & 0o777, 0o444)
+        self.assertEqual(index.read_bytes(), original)
+
     def test_large_blob_exceeding_actual_33554792_byte_source_stays_streamed(self):
         path = self.repository / "large.bin"
         remaining = 33_554_793

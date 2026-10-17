@@ -600,11 +600,23 @@ class DocumentationSourceTests(SourceFixture,unittest.TestCase):
         self.assertEqual(source['permissions'],dict.fromkeys(('contents','actions','pull-requests','checks'),'read'))
         self.assertEqual(fallback['permissions'],{'contents':'read'})
         self.assertEqual(fallback['uses'],'./.github/workflows/documentation-checks.yml')
-        self.assertEqual(fallback['if'],"needs.documentation-source.outputs.documentation_reused != 'true'")
+        self.assertEqual(fallback['if'],"needs.documentation-source.outputs.documentation_reused != 'true' && needs.documentation-source.outputs.documentation_unchanged != 'true'")
+        self.assertEqual(source['outputs']['documentation_unchanged'],
+            '${{ steps.empty.outputs.no_execution }}')
+        empty=next(step for step in source['steps'] if step.get('id')=='empty')
+        self.assertEqual(empty['if'],"steps.reuse.outputs.no_execution == 'true'")
+        self.assertIn('--verify-empty --candidate',empty['run'])
+        self.assertNotIn('--junit',empty['run'])
         checkout=source['steps'][0]
         self.assertEqual(checkout['with']['ref'],'${{ github.event.repository.default_branch }}')
         self.assertFalse(checkout['with']['persist-credentials'])
-        self.assertFalse(any(item.get('with',{}).get('path')=='candidate' for item in source['steps']))
+        candidate=[item for item in source['steps'] if item.get('with',{}).get('path')=='candidate']
+        self.assertEqual(len(candidate),1)
+        self.assertEqual(candidate[0]['if'],"steps.reuse.outputs.no_execution == 'true'")
+        self.assertEqual(candidate[0]['with']['ref'],'${{ github.sha }}')
+        self.assertEqual(candidate[0]['with']['fetch-depth'],2)
+        self.assertFalse(candidate[0]['with']['persist-credentials'])
+        self.assertEqual(candidate[0]['with']['sparse-checkout'].splitlines(),['.github','tests/platform-profile.json'])
         self.assertLess(next(i for i,item in enumerate(source['steps']) if item.get('id')=='protected-source'),
                         next(i for i,item in enumerate(source['steps']) if item.get('id')=='reuse'))
         route=source['steps'][-1]['run']

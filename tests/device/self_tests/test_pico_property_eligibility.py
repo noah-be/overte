@@ -14,7 +14,7 @@ PROPERTIES={'ro.product.manufacturer':'PICO','ro.product.brand':'PICO',
 
 class PicoPropertyEligibilityTests(unittest.TestCase):
  def adapter(self, values):
-  with patch.dict(os.environ,{'OVERTE_PICO_OPENXR_INPUT':'0'}):
+  with patch.dict(os.environ,{'OVERTE_PICO_OPENXR_INPUT':'0'}), patch('adapters.android.adapter.AdbTransport'):
    a=AndroidAdapter('pico')
   a.adb=Mock();a.adb.properties.return_value=values
   return a
