@@ -1281,6 +1281,26 @@ and their Qt development installation.
 This is dependency-based impact selection; an omitted group is not reported as
 a successful test or reused evidence.
 
+Four exact shared inputs retain explicit mandatory owners: `.github/workflows/issue-intake.yml`
+keeps `workflow-contracts`, the chat QML fixture keeps `shared-script-behavior`, and
+both Snapshot Python fixtures keep `snapshot-qml` and `snapshot-native` under their
+complete declared fixture/import root. The controller checks complete ordinary
+base and candidate entries, including historical differences absent from a path
+hint, and unions these owners with the existing CI and Device selections. A finer
+dependency selector cannot remove a mandatory owner. Missing or nonregular entries,
+unknown inputs and unreviewed reader changes keep the full fallback; an absent
+required registry owner is an error. These admissions do not remove Device reader
+inputs, broaden CI independence, or waive the required host work.
+
+The `apple-ios` Device reader graph has additional unproved code edges, so an
+actual change to any of the three mapped chat/Snapshot fixtures also retains
+`device-control-plane-full` for that target, including hidden base/candidate
+differences. The finer selector cannot remove this owner. An issue-workflow-only
+change does not add Device, and the proved main, Apple parent and four Android
+reader scopes keep their precise mapped owners. Unknown targets retain the full
+fallback. The cumulative source rollout already changes the two independently
+Device-owned eligibility fixtures; this conservative rule adds no work there.
+
 The exclusion requires the exact reviewed host reader, discovery, manifest,
 fixture and production-source generation in the candidate and trusted checkout.
 Six separately reviewed child inventories preserve their own production sources,
@@ -1291,6 +1311,16 @@ historical differences, changed readers, mixed product changes, symlinks,
 submodules and incomplete inventories retain every shared and declared platform
 suite. The exact 32 additional CI paths are listed in `CI_ROLLOUT_PATHS`; no
 directory-wide exemption for `tools/test-evidence` or `tests` is added.
+
+The app selector separately classifies exactly the issue-intake workflow, its
+installed-wrapper test and installer, the chat QML fixture, both Snapshot Python
+fixtures and the two Android eligibility fixtures as independent of the reviewed
+iOS configure/build/package/E2E graph. Both immutable trees must match the reviewed
+app-reader complement and expected ordinary modes. This skips app work only:
+`ios/tests/run-tests.sh` directly executes the chat and Snapshot fixtures, so the
+required iOS host remains selected. Unknown neighbors, executable or aliased
+fixtures, mixed product changes and historical reader drift retain app work or
+fail source validation. No IPA, test PASS or reusable evidence is inferred.
 
 For mixed CI and npm-lock changes, the trusted package plan can separately own
 the two reviewed security updates or formatting-only changes. The shared host

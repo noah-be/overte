@@ -1286,6 +1286,69 @@ class HostGenerationTests(unittest.TestCase):
             with patch.object(self.host, "SOURCE_READY", True), patch.object(CHECK, "host_handoff", return_value=self.host):
                 CHECK.validate_wiring(self.root, event, self.trusted)
 
+    def test_exact_app_independent_fixtures_keep_the_required_ios_host(self):
+        paths = ('.github/workflows/issue-intake.yml',
+            'tests/device/contracts/chat/test_chat_qml.py',
+            'tests/device/contracts/snapshot/test_snapshot_native.py',
+            'tests/device/contracts/snapshot/test_snapshot_qml.py',
+            'tests/device/self_tests/test_android_adapter.py',
+            'tests/device/self_tests/test_pico_property_eligibility.py',
+            'tests/issue-intake-test.py', 'tools/issue-intake/install.py')
+        base = self.commit(self.base, {path: '# Fixed reviewed host fixture\n' for path in paths})
+        inputs = self.host.selector(self.trusted)
+        self.assertFalse(set(paths) & self.host.CI_HOST_INDEPENDENT_PATHS)
+        for path in paths:
+            event, source = self.candidate({path: '# Changed reviewed host fixture\n'}, base=base)
+            selected = inputs.candidate_plan(self.root, base, source)
+            output = self.route(event, source)
+            with self.subTest(path=path):
+                self.assertFalse(selected['requires_application_build'])
+                self.assertEqual(selected['changes'][0]['kind'], 'independent-host')
+                self.assertEqual((output['required'], output['host_required'], output['reason']),
+                                 ('false', 'true', 'independent-host-or-documentation-only'))
+                self.assertEqual(self.verify(output, event, source), output)
+                needs = self.needs(output);needs['host']['result'] = 'skipped'
+                with self.assertRaises(ValueError): self.verify(output, event, source, required=needs)
+        event, source = self.candidate({path: '# Mixed reviewed host fixtures\n' for path in paths}, base=base)
+        output = self.route(event, source)
+        self.assertEqual((output['required'], output['host_required']), ('false', 'true'))
+        self.assertEqual(self.verify(output, event, source), output)
+
+    def test_app_independent_fixture_modes_neighbors_and_historical_readers_stay_guarded(self):
+        paths = ('.github/workflows/issue-intake.yml',
+            'tests/device/contracts/chat/test_chat_qml.py',
+            'tests/device/contracts/snapshot/test_snapshot_native.py',
+            'tests/device/contracts/snapshot/test_snapshot_qml.py',
+            'tests/device/self_tests/test_android_adapter.py',
+            'tests/device/self_tests/test_pico_property_eligibility.py',
+            'tests/issue-intake-test.py', 'tools/issue-intake/install.py')
+        base = self.commit(self.base, {path: '# Fixed reviewed host fixture\n' for path in paths})
+        inputs = self.host.selector(self.trusted)
+        for path in paths:
+            for mode in ('100755', '120000'):
+                event, source = self.candidate({path: (mode, '# Unexpected fixture mode\n')}, base=base)
+                with self.subTest(path=path, mode=mode):
+                    selected = inputs.candidate_plan(self.root, base, source)
+                    self.assertTrue(selected['requires_application_build'])
+                    # Host source validation may reject an alias even before a
+                    # route is emitted; either outcome must forbid app omission.
+                    try: output = self.route(event, source)
+                    except ValueError: pass
+                    else: self.assertEqual((output['required'], output['host_required']), ('true', 'true'))
+        for changes in ({paths[1]: '# Reviewed fixture\n',
+                         'CMakeLists.txt': 'file(READ tests/device/contracts/chat/test_chat_qml.py APP_INPUT)\n'},
+                        {'tests/device/contracts/chat/test_chat_extra.py': '# Unknown neighbor\n'},
+                        {'tools/issue-intake/install-extra.py': '# Unknown neighboring reader\n'}):
+            event, source = self.candidate(changes, base=base)
+            with self.subTest(changes=sorted(changes)):
+                self.assertEqual((self.route(event, source)['required'], self.route(event, source)['host_required']),
+                                 ('true', 'true'))
+        drift = self.commit(base, {'CMakeLists.txt': 'file(READ tests/issue-intake-test.py APP_INPUT)\n'})
+        event, source = self.candidate({paths[-2]: '# Later host fixture change\n'}, base=drift)
+        output = self.route(event, source)
+        self.assertEqual((output['required'], output['host_required'], output['reason']),
+                         ('true', 'true', 'reader-boundary-not-reviewed'))
+
     def test_protected_bootstrap_boundary_refresh_restores_only_reviewed_host_omissions(self):
         path = self.trusted / "tools/ios-build-qualification/inputs.py"
         reviewed = path.read_text()

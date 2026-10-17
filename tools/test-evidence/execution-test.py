@@ -297,6 +297,17 @@ Path('build/policy-observation.json').write_text(json.dumps(observed))
 
 
 class ProtectedProducerOrderingTests(unittest.TestCase):
+    @staticmethod
+    def source_snapshot():
+        # Actual materializer shape keeps profile outside the raw two-key map.
+        merge, base, head = 'a'*40, 'b'*40, 'c'*40
+        return {'profile': 'streamed-candidate-source-v1', 'digest': 'sha256:'+'1'*64,
+            'identity': {'commit': merge, 'tree': 'f'*40},
+            'git_context': {'commits': {
+                merge: {'commit': merge, 'tree': 'f'*40, 'parents': [base,head]},
+                base: {'commit': base, 'tree': 'd'*40, 'parents': []},
+                head: {'commit': head, 'tree': 'e'*40, 'parents': []}}, 'shallow': []}}
+
     def test_root_selects_only_pristine_snapshot_and_materializes_once(self):
         # Pure control fixture: no UID changes, namespaces, cgroups or workloads.
         from types import SimpleNamespace
@@ -309,7 +320,7 @@ class ProtectedProducerOrderingTests(unittest.TestCase):
                    'refs': {'default': 'd'*40},
                    'profile': producer.FULL_PROFILE, 'profile_binding': None,
                    'selected': {'suites': [], 'full_host': True, 'include_platform': True}}
-        snapshot = {'digest': 'snapshot-fixture', 'git_context': {'fixture': True}}
+        snapshot = self.source_snapshot()
         destination = []
         def materialize(revision, path, *, repository):
             self.assertEqual(repository, raw)
@@ -358,7 +369,75 @@ class ProtectedProducerOrderingTests(unittest.TestCase):
             self.assertEqual(producer.shared_execution(raw,{},environment,adapter),'fake-only-result')
             self.assertEqual(events.count('materialize'),1)
             self.assertEqual(batches[0][1],destination[0])
+            actual_git = batches[0][5]['git_context']
+            self.assertEqual(actual_git, producer.git_context(snapshot))
+            self.assertEqual(set(actual_git), {'profile','commits','shallow'})
+            self.assertEqual(actual_git['profile'], snapshot['profile'])
+            self.assertEqual(set(snapshot['git_context']), {'commits','shallow'})
+            execution.validate_git_context(actual_git, 'a'*40, 'f'*40)
         self.assertEqual(events,['materialize','select-pristine','native-job','descriptor','actual-selected-run','fresh-bookend','native-job'])
+
+    def test_retained_source_git_binding_fails_before_any_suite_callback(self):
+        from contextlib import ExitStack
+        from types import SimpleNamespace
+        import producer_workflow as producer
+        snapshot = self.source_snapshot()
+        canonical = producer.git_context(snapshot)
+        for defect in ('raw-two-key','profile','missing-parent','parent-order','tree','source'):
+            binding = {'source':'a'*40,'git_context':deepcopy(canonical)}
+            git = binding['git_context']
+            if defect == 'raw-two-key':binding['git_context']=deepcopy(snapshot['git_context'])
+            elif defect == 'profile':git['profile']='unreviewed-source-profile'
+            elif defect == 'missing-parent':del git['commits']['b'*40]
+            elif defect == 'parent-order':git['commits']['a'*40]['parents'].reverse()
+            elif defect == 'tree':git['commits']['a'*40]['tree']='9'*40
+            elif defect == 'source':binding['source']='b'*40
+            context = {'profile':producer.FULL_PROFILE,'registry':registry(),
+                'policy':SimpleNamespace(producer=SimpleNamespace(required_execution_schema=4)),
+                'refs':{'default':'d'*40},'binding':{'merge_sha':'a'*40,'merge_tree':'f'*40},
+                'git_context':canonical,'source_context':{},
+                'plan':{'owners':{'shared-host':{'suites':['first','second'],'include_platform':False}}}}
+            batch = SimpleNamespace(candidate=Path('/candidate'),snapshot=snapshot,policy=Path('/policy'),
+                projection={},binding=binding)
+            # Only capture is faked; the canonical Git validator stays real.
+            # No complete source/native envelope or execution PASS is fabricated.
+            with (self.subTest(defect=defect),ExitStack() as stack):
+                stack.enter_context(mock.patch.object(producer.inputs,'full_tree',return_value={}))
+                stack.enter_context(mock.patch.object(producer.ci_profile,'load_controller_projection',
+                    return_value={'source_commit':'d'*40}))
+                capture=stack.enter_context(mock.patch.object(producer.ci_profile,'capture_retained_source',
+                    return_value={'binding':binding}))
+                suites=stack.enter_context(mock.patch.object(producer.shared,'check_batch',
+                    side_effect=AssertionError('candidate suites reached with malformed source binding')))
+                with self.assertRaises(execution.ExecutionError) as caught:
+                    producer.protected_receipt(batch,context,[],{})
+                self.assertIs(type(caught.exception), execution.ExecutionError)
+                self.assertNotIsInstance(caught.exception, producer.PreExecutionUnavailable)
+                capture.assert_called_once()
+                suites.assert_not_called()
+
+    def test_canonical_retained_source_binding_reaches_suite_callback_without_minting_receipt(self):
+        from types import SimpleNamespace
+        import producer_workflow as producer
+        snapshot=self.source_snapshot();canonical=producer.git_context(snapshot)
+        binding={'source':'a'*40,'git_context':deepcopy(canonical)}
+        context={'profile':producer.FULL_PROFILE,'registry':registry(),
+            'policy':SimpleNamespace(producer=SimpleNamespace(required_execution_schema=4)),
+            'refs':{'default':'d'*40},'binding':{'merge_sha':'a'*40,'merge_tree':'f'*40},
+            'git_context':canonical,'source_context':{},
+            'plan':{'owners':{'shared-host':{'suites':['first','second'],'include_platform':False}}}}
+        batch=SimpleNamespace(candidate=Path('/candidate'),snapshot=snapshot,policy=Path('/policy'),
+            projection={},binding=binding)
+        class StopBeforeWorkload(Exception):pass
+        with (mock.patch.object(producer.inputs,'full_tree',return_value={}),
+              mock.patch.object(producer.ci_profile,'load_controller_projection',return_value={'source_commit':'d'*40}),
+              mock.patch.object(producer.ci_profile,'capture_retained_source',return_value={'binding':binding}),
+              mock.patch.object(producer.shared,'check_batch',side_effect=StopBeforeWorkload) as suites,
+              self.assertRaises(StopBeforeWorkload)):
+            producer.protected_receipt(batch,context,[],{})
+        suites.assert_called_once()
+        self.assertEqual(set(snapshot['git_context']),{'commits','shallow'})
+
 
 
 if __name__ == "__main__":
