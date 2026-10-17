@@ -116,6 +116,59 @@ class ImmutableInputTests(unittest.TestCase):
         self.assertNotEqual(plan["base"]["tree"], plan["candidate"]["tree"])
         json.dumps(plan, allow_nan=False)
 
+    def test_exact_doctor_cli_is_executable_ci_with_a_required_owner(self):
+        relative = "tools/repository-health/check.py"
+        self.write(relative, "raise RuntimeError('the iOS selector must not execute Doctor')\n")
+        (self.root / relative).chmod(0o755)
+        added = self.commit("Add the exact independent executable Doctor CLI")
+        self.assert_independent(added)
+        self.write(relative, "raise RuntimeError('changed Doctor still belongs to CI')\n")
+        changed = self.commit("Change only the independent executable Doctor CLI")
+        self.assert_independent(changed, added)
+        (self.root / relative).unlink()
+        removed = self.commit("Remove Doctor without changing application inputs")
+        self.assert_independent(removed, changed)
+        # Its deletion is still a failure of the required CLI owner, rather
+        # than a reason to compile an unrelated iOS application.
+        registry = json.loads((ROOT / ".github/test-suites.json").read_text())
+        owner = registry["suites"]["repository-doctor"]
+        self.assertEqual(owner["command"], ["python", "tests/repository-health-test.py"])
+        self.assertEqual(owner["layer"], "quick")
+        self.assertEqual(owner["closure"]["kind"], "repository")
+        checker_test = (ROOT / "tests/repository-health-test.py").read_text()
+        self.assertIn('CHECKER = ROOT / "tools/repository-health/check.py"', checker_test)
+        self.assertIn('SPEC.loader.exec_module(HEALTH)', checker_test)
+
+    def test_doctor_exception_keeps_modes_neighbors_and_historical_readers_bound(self):
+        relative = "tools/repository-health/check.py"
+        for mode in ("100644", "120000"):
+            with self.subTest(mode=mode):
+                self.git("checkout", "-q", "--detach", self.base)
+                self.write(relative, "# Doctor fixture\n")
+                if mode == "120000":
+                    (self.root / relative).unlink()
+                    (self.root / relative).symlink_to("other.py")
+                else:
+                    (self.root / relative).chmod(0o644)
+                self.assertTrue(self.plan(self.commit("Reject nonreviewed Doctor mode"))["requires_application_build"])
+        for neighbor in ("tools/repository-health/other.py", "tools/repository-health/check-extra.py"):
+            with self.subTest(neighbor=neighbor):
+                self.git("checkout", "-q", "--detach", self.base)
+                self.write(neighbor, "# An unreviewed reader remains an application input\n")
+                self.assertTrue(self.plan(self.commit("Reject unknown Doctor neighbor"))["requires_application_build"])
+        self.git("checkout", "-q", "--detach", self.base)
+        (self.root / "CMakeLists.txt").unlink()
+        self.assertTrue(self.plan(self.commit("Reject missing genuine application reader"))["requires_application_build"])
+        self.git("checkout", "-q", "--detach", self.base)
+        self.write("CMakeLists.txt", "include(tools/repository-health/check.py)\n")
+        historical = self.commit("Introduce an unreviewed historical Doctor reader")
+        self.write(relative, "# Later Doctor-only edit cannot hide the earlier reader\n")
+        (self.root / relative).chmod(0o755)
+        candidate = self.commit("Change Doctor after historical application reader drift")
+        plan = self.plan(candidate, historical)
+        self.assertTrue(plan["requires_application_build"])
+        self.assertEqual(plan["reason"], "reader-boundary-not-reviewed")
+
     def test_added_and_deleted_independent_files_are_observed(self):
         self.write("docs/new/guide.md", "# Added guide\n")
         self.write("tests/repository-checks-test.py", "# Added exact reviewed host test\n")

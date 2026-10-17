@@ -941,11 +941,13 @@ class AggregateTests(unittest.TestCase):
             'android-owned-npm5-sync-ci-v1': 'android-owned/repository-checks.yml',
             'protected-producer-metadata-ci-v1': 'producers/repository-checks.yml',
             'protected-producer-seven-target-ci-v1': 'producers/repository-checks.yml',
+            'protected-producer-original-default-v1': 'producers/repository-checks.yml',
         }
         metadata = generation in metadata_callers
         if metadata:
             self.assertEqual(source, (ROOT / 'tools/repository-checks/workflows' / metadata_callers[generation]).read_text())
-        protected = generation in ('protected-producer-metadata-ci-v1', 'protected-producer-seven-target-ci-v1')
+        protected = generation in ('protected-producer-metadata-ci-v1', 'protected-producer-seven-target-ci-v1',
+                                   'protected-producer-original-default-v1')
         if generation == 'android-owned-npm5-sync-ci-v1' or protected:
             spec = importlib.util.spec_from_file_location('aggregate_android_generation',
                 ROOT / 'tools/repository-checks/android_gate.py')
@@ -957,7 +959,10 @@ class AggregateTests(unittest.TestCase):
                 self.assertTrue(path.is_file() and not path.is_symlink() and not path.stat().st_mode & 0o111)
                 tree[relative] = android._blob(path.read_bytes())
             self.assertEqual(android.validate_tree_wiring(tree), generation)
-            self.assertEqual(dependencies, required_jobs | {'native', 'android'})
+            if generation == 'protected-producer-original-default-v1':
+                self.assertEqual(dependencies, required_jobs | {'native', 'android', 'workflow-contracts'})
+            else:
+                self.assertEqual(dependencies, required_jobs | {'native', 'android'})
         else:
             self.assertTrue(dependencies <= required_jobs | {'native', 'direct-browser', 'browser-client'})
         if CONFIG.get('native_required', False) or 'main' in CONFIG.get('native_required_branches', []):
@@ -969,10 +974,20 @@ class AggregateTests(unittest.TestCase):
         if metadata:
             self.assertEqual(jobs['repository-checks']['if'],
                 "always() && (needs.route.result != 'success' || needs.route.outputs.metadata_only != 'true')")
-            for name in dependencies - {'route'} | {'repository-checks'}:
+            renamed = dependencies - {'route', 'workflow-contracts'} | {'repository-checks'}
+            for name in renamed:
                 self.assertEqual(jobs[name]['name'],
                     "${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && '" + name +
                     " (metadata unchanged)' || '" + name + "' }}")
+            if generation == 'protected-producer-original-default-v1':
+                fallback = jobs['workflow-contracts']
+                self.assertEqual(set(fallback['needs']), {'route', 'project'})
+                self.assertIn("always() && needs.route.result == 'success'", fallback['if'])
+                self.assertIn("(needs.project.result == 'success' || needs.project.result == 'skipped')", fallback['if'])
+                self.assertIn("needs.route.outputs.metadata_only != 'true'", fallback['if'])
+                self.assertIn("needs.route.outputs.security == 'true'", fallback['if'])
+                self.assertIn("needs.project.outputs.workflow_contracts_verified != 'true'", fallback['if'])
+                self.assertNotIn('name', fallback)
         else:
             self.assertEqual(jobs['repository-checks']['if'], 'always()')
         self.assertNotIn("paths:", source)
@@ -2655,6 +2670,185 @@ class CandidateTests(unittest.TestCase):
             value["pull_request"]["base"]["sha"] = base
             value["pull_request"]["head"]["sha"] = head
             self.assertEqual(CHECKS.changed_paths(root, value, merge), (["README.md"], False))
+
+
+class VerifiedEmptyCandidateTests(unittest.TestCase):
+    """Real ordinary Git objects; no supplied path list authorizes omission."""
+    def fixture(self, generation='npm-consumers-sync-ci-v1', *, changed=False, wrong_parents=False):
+        temporary=tempfile.TemporaryDirectory(prefix='overte-verified-empty-')
+        self.addCleanup(temporary.cleanup); root=Path(temporary.name)
+        def git(*args):
+            return subprocess.check_output(['git','-c','commit.gpgsign=false',*args],cwd=root,
+                stderr=subprocess.PIPE,text=True).strip()
+        git('init','-q','--initial-branch=main');git('config','user.name','Fixture')
+        git('config','user.email','fixture@example.invalid')
+        selected=next(row for row in PACKAGES.workflow_generations() if row['name']==generation)
+        for name,entry in selected['workflows'].items():
+            raw=subprocess.check_output(['git','cat-file','blob',entry['sha']],cwd=ROOT)
+            self.assertEqual(hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest(),entry['sha'])
+            path=root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(raw)
+        (root/'native.cpp').write_text('unchanged product input\n')
+        git('add','.');git('commit','-qm','Protected fixture')
+        base=git('rev-parse','HEAD');tree=git('rev-parse','HEAD^{tree}')
+        head=git('commit-tree',tree,'-p',base,'-m','Adopt already integrated history')
+        if changed:
+            (root/'native.cpp').write_text('changed product input\n');git('add','native.cpp');tree=git('write-tree')
+        args=['commit-tree',tree,'-p',base]
+        if not wrong_parents:args+=['-p',head]
+        merge=git(*args,'-m','Actual candidate merge')
+        git('checkout','-q','--detach',merge)
+        payload=event();payload.update(number=23,action='opened')
+        payload['pull_request']['labels']=[]
+        payload['pull_request']['base']['sha']=base;payload['pull_request']['head']['sha']=head
+        environment={'GITHUB_EVENT_NAME':'pull_request','GITHUB_REPOSITORY':CONFIG['repository'],
+            'GITHUB_REPOSITORY_ID':str(CONFIG['repository_id']),'GITHUB_SHA':merge,'GITHUB_REF_TYPE':'branch',
+            'GITHUB_REF':'refs/pull/23/merge','GITHUB_BASE_REF':'main','GITHUB_HEAD_REF':'fix/main/example'}
+        return root,git,base,head,merge,payload,environment
+
+    def test_real_equal_tree_pr_is_not_an_empty_path_guess(self):
+        root,git,base,head,merge,payload,native=self.fixture()
+        self.assertNotEqual(base,head);self.assertNotEqual(head,merge)
+        self.assertEqual(CHECKS.changed_paths(root,payload,merge),([],False))
+        with patch.dict(os.environ,native,clear=True):proof=CHECKS.verified_empty_candidate(root,payload,merge)
+        self.assertEqual(proof['base'],base);self.assertEqual(proof['head'],head)
+        self.assertEqual(proof['candidate'],merge);self.assertEqual(proof['tree'],git('rev-parse',base+'^{tree}'))
+        self.assertEqual(proof['base_ref'],'main');self.assertEqual(proof['event'],'pull_request')
+
+    def test_raw_equality_does_not_supply_native_authority_or_accept_unordered_parents(self):
+        root,git,base,head,merge,payload,native=self.fixture()
+        with patch.dict(os.environ,{},clear=True):
+            proof=CHECKS.immutable_empty_candidate(root,base_sha=base,head_sha=head,
+                candidate_sha=merge,merge_parents=(base,head))
+            self.assertEqual(proof['kind'],'immutable-empty-candidate-v1')
+            self.assertEqual(set(proof),{'schema','kind','base','head','candidate','tree','inventory_sha256'})
+            self.assertIsNone(CHECKS.verified_empty_candidate(root,payload,merge))
+            self.assertIsNone(CHECKS.immutable_empty_candidate(root,base_sha=base,head_sha=head,
+                candidate_sha=merge,merge_parents=(head,base)))
+            self.assertIsNone(CHECKS.immutable_empty_candidate(root,base_sha=base,head_sha=head,
+                candidate_sha=merge,merge_parents=[base,head]))
+
+    def test_source13_and_complete22_skip_all_host_packages_without_execution_receipt(self):
+        for generation in ('npm-consumers-sync-ci-v1','protected-producer-original-default-v1'):
+            root,git,base,head,merge,payload,native=self.fixture(generation)
+            with self.subTest(generation=generation),patch.dict(os.environ,native,clear=True):
+                self.assertEqual(PACKAGES.validate_wiring(root),generation)
+                plan=PACKAGES.candidate_plan(root,payload,merge)
+                self.assertEqual(plan['host_mode'],'unchanged');self.assertEqual(plan['package_set'],[])
+                self.assertEqual(plan['tool_projects'],[]);self.assertFalse(plan['unknown'])
+                needs={'route':{'result':'success','outputs':PACKAGES.outputs(plan)},
+                    **{name:{'result':'skipped','outputs':{}} for name in ('project-tests','tool-dependencies','package-checks')}}
+                if generation=='protected-producer-original-default-v1':
+                    needs['route']['outputs']['protected_full']='false'
+                    self.assertEqual(PACKAGES.verify_protected_route(needs,plan,root,event=payload),{})
+                else:self.assertEqual(PACKAGES.verify(needs,plan,candidate=root,event=payload),{})
+                outer=results();outer['route']['outputs'].update(PACKAGES.outputs(plan));outer['route']['outputs']['native']='skip'
+                outer['native']={'result':'skipped','outputs':{}};outer['project']={'result':'skipped','outputs':{}}
+                CHECKS.verify(outer,package_plan=plan,require_packages=True,candidate=root,event=payload)
+                for name in ('documentation','workflow-security'):
+                    broken=deepcopy(outer);broken[name]['result']='skipped'
+                    with self.assertRaises(ValueError):CHECKS.verify(broken,package_plan=plan,require_packages=True,candidate=root,event=payload)
+
+    def test_ordinary_push_equal_tree_is_bound_to_before_after_branch_and_real_ancestry(self):
+        root,git,base,head,merge,payload,native=self.fixture()
+        push={'repository':payload['repository'],'before':base,'after':merge,'ref':'refs/heads/main'}
+        native={**native,'GITHUB_EVENT_NAME':'push','GITHUB_REF':'refs/heads/main'}
+        with patch.dict(os.environ,native,clear=True):
+            proof=CHECKS.verified_empty_candidate(root,push,merge)
+            self.assertEqual(proof['event'],'push');self.assertEqual(proof['head'],merge)
+            self.assertEqual(PACKAGES.candidate_plan(root,push,merge)['host_mode'],'unchanged')
+            for change in ({'before':'0'*40},{'before':'9'*40},{'after':head},{'ref':'refs/tags/main'},{'deleted':True},{'forced':True}):
+                with self.subTest(change=change):self.assertIsNone(CHECKS.verified_empty_candidate(root,{**push,**change},merge))
+
+    def test_plain_empty_unknown_manual_or_no_native_context_remains_full(self):
+        root,git,base,head,merge,payload,native=self.fixture()
+        self.assertEqual(PACKAGES.select([],False)['host_mode'],'full')
+        with patch.dict(os.environ,{},clear=True):
+            self.assertIsNone(CHECKS.verified_empty_candidate(root,payload,merge))
+            self.assertEqual(PACKAGES.candidate_plan(root,payload,merge)['host_mode'],'full')
+        native={**native,'GITHUB_EVENT_NAME':'workflow_dispatch'}
+        with patch.dict(os.environ,native,clear=True):
+            self.assertIsNone(CHECKS.verified_empty_candidate(root,{'repository':payload['repository']},merge))
+
+    def test_nonempty_product_tree_cannot_be_hidden_by_empty_changed_path_result(self):
+        root,git,base,head,merge,payload,native=self.fixture(changed=True)
+        with patch.dict(os.environ,native,clear=True):
+            self.assertIsNone(CHECKS.verified_empty_candidate(root,payload,merge))
+            with patch.object(CHECKS,'changed_paths',return_value=([],False)):
+                self.assertIsNone(CHECKS.verified_empty_candidate(root,payload,merge))
+            self.assertEqual(PACKAGES.candidate_plan(root,payload,merge)['host_mode'],'full')
+
+    def test_wrong_parent_order_and_head_checkout_cannot_authorize_no_work(self):
+        root,git,base,head,merge,payload,native=self.fixture(wrong_parents=True)
+        with patch.dict(os.environ,native,clear=True):self.assertIsNone(CHECKS.verified_empty_candidate(root,payload,merge))
+        root,git,base,head,merge,payload,native=self.fixture();git('checkout','-q','--detach',head)
+        with patch.dict(os.environ,native,clear=True):self.assertIsNone(CHECKS.verified_empty_candidate(root,payload,merge))
+
+    def test_repository_sha_ref_number_action_and_foreign_head_mismatches_decline(self):
+        root,git,base,head,merge,payload,native=self.fixture()
+        for key,value in (('GITHUB_REPOSITORY','other/repository'),('GITHUB_REPOSITORY_ID','123'),
+            ('GITHUB_SHA',head),('GITHUB_REF','refs/pull/24/merge'),('GITHUB_REF_TYPE','tag'),
+            ('GITHUB_BASE_REF','apple-main'),('GITHUB_HEAD_REF','fix/main/other')):
+            with self.subTest(key=key),patch.dict(os.environ,{**native,key:value},clear=True):
+                self.assertIsNone(CHECKS.verified_empty_candidate(root,payload,merge))
+        for change in ('repository','base','head','number','action'):
+            altered=deepcopy(payload)
+            if change in {'base','head'}:altered['pull_request'][change]['repo']={'full_name':'other/repo','id':123}
+            elif change=='repository':altered['repository']={'full_name':'other/repo','id':123}
+            elif change=='number':altered['number']=True
+            else:altered['action']='labeled'
+            with self.subTest(change=change),patch.dict(os.environ,native,clear=True):
+                self.assertIsNone(CHECKS.verified_empty_candidate(root,altered,merge))
+
+    def test_missing_inventory_or_raw_commit_is_not_an_empty_proof(self):
+        root,git,base,head,merge,payload,native=self.fixture()
+        object_path=root/'.git/objects'/base[:2]/base[2:];object_path.unlink()
+        with patch.dict(os.environ,native,clear=True):self.assertIsNone(CHECKS.verified_empty_candidate(root,payload,merge))
+
+    def test_explicit_diagnostics_and_unverified_labels_preserve_the_full_route(self):
+        root,git,base,head,merge,payload,native=self.fixture()
+        for labels in (None,[{'name':'android-long-diagnostics'}],[{'name':None}],{'name':'unknown'}):
+            changed=deepcopy(payload);changed['pull_request']['labels']=labels
+            with self.subTest(labels=labels),patch.dict(os.environ,native,clear=True):
+                self.assertIsNone(CHECKS.verified_empty_candidate(root,changed,merge))
+                self.assertEqual(PACKAGES.candidate_plan(root,changed,merge)['host_mode'],'full')
+        missing=deepcopy(payload);missing['pull_request'].pop('labels')
+        with patch.dict(os.environ,native,clear=True):
+            self.assertIsNone(CHECKS.verified_empty_candidate(root,missing,merge))
+            self.assertEqual(PACKAGES.candidate_plan(root,missing,merge)['host_mode'],'full')
+
+    def test_forged_proof_changed_event_or_selected_job_cannot_pass_aggregate(self):
+        root,git,base,head,merge,payload,native=self.fixture()
+        with patch.dict(os.environ,native,clear=True):
+            plan=PACKAGES.candidate_plan(root,payload,merge)
+            needs={'route':{'result':'success','outputs':PACKAGES.outputs(plan)},
+                **{name:{'result':'skipped','outputs':{}} for name in ('project-tests','tool-dependencies','package-checks')}}
+            with self.assertRaises(ValueError):PACKAGES.verify(needs,plan)
+            forged=deepcopy(plan);forged['verified_empty_delta']['tree']='1'*40
+            with self.assertRaises(ValueError):PACKAGES.verify(needs,forged,candidate=root,event=payload)
+            altered=deepcopy(payload);altered['pull_request']['head']['sha']=base
+            with self.assertRaises(ValueError):PACKAGES.verify(needs,plan,candidate=root,event=altered)
+            for name in ('project-tests','tool-dependencies','package-checks'):
+                broken=deepcopy(needs);broken[name]={'result':'success','outputs':{'package_verified':'true'}}
+                with self.subTest(name=name),self.assertRaises(ValueError):PACKAGES.verify(broken,plan,candidate=root,event=payload)
+
+    def test_skipped_jobs_cannot_publish_fabricated_blank_or_unknown_execution_claims(self):
+        root,git,base,head,merge,payload,native=self.fixture()
+        with patch.dict(os.environ,native,clear=True):
+            plan=PACKAGES.candidate_plan(root,payload,merge)
+            needs={'route':{'result':'success','outputs':PACKAGES.outputs(plan)},
+                **{name:{'result':'skipped','outputs':{}} for name in ('project-tests','tool-dependencies','package-checks')}}
+            for name in ('project-tests','tool-dependencies','package-checks'):
+                for outputs in ({'package_verified':'true'},{'package_verified':''},{'unknown':''},None):
+                    broken=deepcopy(needs);broken[name]['outputs']=outputs
+                    with self.subTest(name=name,outputs=outputs),self.assertRaises(ValueError):
+                        PACKAGES.verify(broken,plan,candidate=root,event=payload)
+            outer=results();outer['route']['outputs'].update(PACKAGES.outputs(plan));outer['route']['outputs']['native']='skip'
+            outer['native']={'result':'skipped','outputs':{}};outer['project']={'result':'skipped','outputs':{}}
+            for name in ('project','native'):
+                for outputs in ({'verified':'true'},{'unknown':''},None):
+                    broken=deepcopy(outer);broken[name]['outputs']=outputs
+                    with self.subTest(name=name,outputs=outputs),self.assertRaises(ValueError):
+                        CHECKS.verify(broken,package_plan=plan,require_packages=True,candidate=root,event=payload)
 
 
 if __name__ == "__main__":
