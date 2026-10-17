@@ -67,7 +67,7 @@ SUITES = (
         sys.executable, "tests/device/run_control_plane_tests.py", "--profile", "quick",
         "--junit", "build/test-results/device-e2e-contracts.xml")),
     Suite("device-control-plane-full", "host", (
-        sys.executable, "tests/device/run_control_plane_tests.py", "--profile", "full", "--require-qml",
+        sys.executable, "-I", "-S", "-B", "tests/device/run_control_plane_tests.py", "--profile", "full", "--require-qml",
         "--junit", "build/test-results/device-e2e-control-plane.xml")),
     Suite("documentation", "quick", (
         sys.executable, "tests/check-documentation.py", "--all")),

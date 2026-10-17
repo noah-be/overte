@@ -561,6 +561,119 @@ def supervise(scope, plan, uid, gid, *, timeout, case="protections", _before_cle
         selector.close()
 
 
+def supervise_pair(scopes_and_plans, uid, gid, *, timeout, cancelled=None,
+                   _boundary_case=None, _before_cleanup=None):
+    """One root thread owns two separately contained suite processes."""
+    require(type(scopes_and_plans) in (tuple, list) and len(scopes_and_plans) == 2
+            and scopes_and_plans[0][0] is not scopes_and_plans[1][0]
+            and scopes_and_plans[0][0].path != scopes_and_plans[1][0].path
+            and type(timeout) is int and 0 < timeout <= 900,
+            "parallel suite supervision requires two distinct bounded kernel scopes")
+    require(_boundary_case in (None, "daemon")
+            and (_before_cleanup is None or _boundary_case == "daemon"),
+            "unsupported fixed pair boundary control")
+    launcher = public_bootstrap()
+    selector = selectors.DefaultSelector()
+    entries = []
+    limit = 1_000_000
+
+    def finish(entry):
+        process, scope = entry["process"], entry["scope"]
+        cleanup = scope.kill_and_wait()
+        process.wait(timeout=3)
+        if entry["registered"]:
+            selector.unregister(process.stdout)
+            entry["registered"] = False
+        entry["data"].extend(process.stdout.read(limit + 1 - len(entry["data"])))
+        require(len(entry["data"]) <= limit, "fixed fixture diagnostic output exceeded bound")
+        entry["result"] = {"exit_code": process.returncode, "reason": entry["reason"],
+            "cleanup": cleanup, "diagnostic": bytes(entry["data"]),
+            "duration": time.monotonic() - entry["started"]}
+        if _boundary_case is not None:
+            entry["result"]["trusted_cleanup_canaries"] = entry["canaries"]
+
+    try:
+        for scope, plan in scopes_and_plans:
+            entry = {"scope": scope, "process": None, "gate_read": None, "gate_write": None,
+                     "data": bytearray(), "reason": None, "result": None, "registered": False}
+            entries.append(entry)
+            if cancelled:
+                entry["result"] = {"exit_code": 128 + cancelled[0], "reason": "cancelled",
+                    "cleanup": scope.kill_and_wait(), "diagnostic": b"", "duration": 0.0}
+                continue
+            entry["gate_read"], entry["gate_write"] = os.pipe2(os.O_CLOEXEC)
+            entry["process"] = subprocess.Popen(
+                ["/usr/bin/python3", "-I", str(launcher), "--bootstrap",
+                 str(entry["gate_read"]), str(plan), _boundary_case or "suite"],
+                user=uid, group=gid, extra_groups=(), pass_fds=(entry["gate_read"],),
+                close_fds=True, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT, env={"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"},
+                start_new_session=True)
+            entry["started"] = time.monotonic()
+            os.close(entry["gate_read"]); entry["gate_read"] = None
+            scope.attach(entry["process"])
+            os.write(entry["gate_write"], b"1")
+            os.close(entry["gate_write"]); entry["gate_write"] = None
+            selector.register(entry["process"].stdout, selectors.EVENT_READ, entry)
+            entry["registered"] = True
+        if _boundary_case is not None:
+            # Only the fixed manual boundary supplies this control. Require
+            # actual detached kernel members after BOTH initial commands exit.
+            for entry in entries:
+                process, scope = entry["process"], entry["scope"]
+                process.wait(timeout=3)
+                members = scope.members()
+                require(process.returncode == 0 and process.pid not in members
+                        and scope.populated() == 1 and len(members) >= 1,
+                        "pair boundary lacks actual surviving detached canaries")
+                entry["canaries"] = {"initial_command_reaped": True,
+                    "kernel_populated": 1, "kernel_member_count": len(members), "minimum_canaries": 1}
+            if _before_cleanup is not None:
+                _before_cleanup()
+        while any(entry["result"] is None for entry in entries):
+            for key, _ in selector.select(0.02):
+                entry = key.data
+                block = os.read(key.fileobj.fileno(), min(8192, limit + 1 - len(entry["data"])))
+                if block:
+                    entry["data"].extend(block)
+                    require(len(entry["data"]) <= limit, "fixed fixture diagnostic output exceeded bound")
+                else:
+                    selector.unregister(key.fileobj)
+                    entry["registered"] = False
+            for entry in entries:
+                if entry["result"] is not None:
+                    continue
+                process = entry["process"]
+                if cancelled:
+                    entry["reason"] = "cancelled"
+                elif time.monotonic() - entry["started"] >= timeout:
+                    entry["reason"] = "timeout"
+                elif process.poll() is None:
+                    continue
+                finish(entry)
+        return [entry["result"] for entry in entries]
+    finally:
+        # Both independent parent-owned cgroups are closed even if the second
+        # attachment, either output read, or either command fails unexpectedly.
+        def stop(process):
+            if process.poll() is None:
+                process.kill()
+            process.wait(timeout=3)
+        # ExitStack attempts every cleanup even if one actual cgroup operation
+        # fails. Such a failure still propagates and cannot become success.
+        with ExitStack() as cleanup:
+            cleanup.callback(selector.close)
+            for entry in entries:
+                process = entry["process"]
+                if process is not None:
+                    cleanup.callback(process.stdout.close)
+                    cleanup.callback(stop, process)
+                cleanup.callback(entry["scope"].kill_and_wait)
+                for name in ("gate_read", "gate_write"):
+                    if entry[name] is not None:
+                        cleanup.callback(os.close, entry[name])
+
+
 def _wait_child(pid, timeout=5):
     deadline = time.monotonic() + timeout
     while True:
@@ -722,6 +835,125 @@ def controller_death(scope, guardian, plan, uid, gid):
                 pass
             _wait_child(worker)
         guardian.close()
+
+
+def pair_boundary_case(scopes, plans, protected, binding, uid, gid, *, case, outside):
+    """Fixed manual-only pair controls; never candidate commands or reusable E."""
+    require(os.geteuid() == 0 and case in {"protections", "cancel", "controller-death"}
+            and len(scopes) == len(plans) == 2 and scopes[0] is not scopes[1]
+            and scopes[0].path != scopes[1].path, "unsupported fixed pair boundary case")
+    worker, reaped = None, False
+    with ExitStack() as cleanup:
+        guardians = []
+        for scope in scopes:
+            guardian = Guardian(scope, protected, binding, lifetime=20)
+            guardians.append(guardian)
+            cleanup.callback(guardian.close)
+        reader, writer = os.pipe2(os.O_CLOEXEC)
+        cleanup.callback(os.close, reader)
+        def close_writer():
+            nonlocal writer
+            if writer is not None:
+                os.close(writer)
+                writer = None
+        cleanup.callback(close_writer)
+        result_path = protected / ("pair-worker-" + uuid.uuid4().hex + ".json")
+        descriptor = os.open(result_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+        cleanup.callback(os.close, descriptor)
+        worker = os.fork()
+        if worker == 0:
+            code = 1
+            try:
+                os.close(reader)
+                cancelled = []
+                signal.signal(signal.SIGTERM, lambda number, _frame: cancelled.append(number))
+                def ready_then_wait():
+                    os.write(writer, b"1")
+                    deadline = time.monotonic() + 5
+                    while not cancelled:
+                        require(time.monotonic() < deadline, "pair observer did not exercise its fixed signal")
+                        time.sleep(0.02)
+                options = {} if case == "protections" else {
+                    "_boundary_case": "daemon", "_before_cleanup": ready_then_wait}
+                observed = supervise_pair(list(zip(scopes, plans)), uid, gid, timeout=8,
+                                          cancelled=cancelled, **options)
+                # Only this root worker holds the lease writers after fork.
+                # Workloads receive only their own attach gate, closed at exec.
+                for guardian in guardians:
+                    os.write(guardian.writer, b"done")
+                    guardian.relinquish_writer()
+                serial = [{**value, "diagnostic": value["diagnostic"].decode("ascii")} for value in observed]
+                os.write(descriptor, json.dumps(serial, sort_keys=True).encode("ascii"))
+                code = 0
+            except BaseException:
+                pass  # nonzero + lease EOF fail closed; no fabricated observation
+            finally:
+                os._exit(code)
+        try:
+            close_writer()
+            # No observer or sibling guardian may retain either supervisor lease.
+            # Otherwise actual controller death could not produce BOTH EOF proofs.
+            for guardian in guardians:
+                guardian.relinquish_writer()
+            if case != "protections":
+                require(select.select([reader], [], [], 10)[0] and os.read(reader, 1) == b"1"
+                        and all(scope.populated() == 1 and len(scope.members()) >= 1 for scope in scopes),
+                        "pair boundary has no two actual live detached kernel scopes")
+                os.kill(worker, signal.SIGKILL if case == "controller-death" else signal.SIGTERM)
+            status = _wait_child(worker, timeout=12)
+            reaped = True
+            if case == "controller-death":
+                require(os.WIFSIGNALED(status) and os.WTERMSIG(status) == signal.SIGKILL,
+                        "pair supervisor did not actually die by SIGKILL")
+            else:
+                require(os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0,
+                        "fixed pair boundary supervisor failed")
+                info = result_path.lstat()
+                require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and info.st_nlink == 1
+                        and stat.S_IMODE(info.st_mode) == 0o600 and info.st_size <= _MAX_BYTES,
+                        "pair boundary result lost its protected origin")
+                observed = json.loads(result_path.read_bytes())
+                require(type(observed) is list and len(observed) == 2
+                        and all(value["cleanup"] == {"kernel_populated": 0, "subtree_kill": True}
+                                for value in observed), "pair boundary cleanup is incomplete")
+                if case == "cancel":
+                    require(all(value["reason"] == "cancelled"
+                                and value["trusted_cleanup_canaries"]["initial_command_reaped"] is True
+                                and value["trusted_cleanup_canaries"]["kernel_populated"] == 1
+                                and value["trusted_cleanup_canaries"]["kernel_member_count"] >= 1
+                                for value in observed), "pair cancellation did not exercise both live scopes")
+                else:
+                    observations = []
+                    for value in observed:
+                        measured = json.loads(value["diagnostic"])
+                        validate_case("protections", {**value, "observation": measured["protections"]}, outside)
+                        descriptors = measured["descriptors"]
+                        require(type(descriptors) is dict and set(descriptors) == {"0", "1", "2"}
+                                and descriptors["0"] == "/dev/null"
+                                and re.fullmatch(r"pipe:\[[0-9]+\]", descriptors["1"])
+                                and descriptors["2"] == descriptors["1"],
+                                "pair workload inherited a private control descriptor")
+                        observations.append(measured["protections"]["namespaces"])
+                    require(all(observations[0][name] != observations[1][name] for name in outside),
+                            "pair workloads shared a mandatory private namespace")
+            expected = "controller-eof" if case == "controller-death" else "released"
+            proofs = [guardian.finish(expected) for guardian in guardians]
+            require(proofs[0]["scope"] != proofs[1]["scope"]
+                    and all(proof["binding"] == binding and scope.populated() == 0
+                            for proof, scope in zip(proofs, scopes)), "pair guardian scope binding is incomplete")
+            return {"status": "passed", "scope_count": 2, "kernel_scopes_empty": True,
+                    "distinct_scope_identities": [proof["scope"] for proof in proofs],
+                    "guardian_triggers": [proof["trigger"] for proof in proofs],
+                    "controller_sigkill_observed": case == "controller-death",
+                    "detached_members_observed": case != "protections",
+                    "private_descriptors_checked": case == "protections"}
+        finally:
+            if worker is not None and not reaped:
+                try:
+                    os.kill(worker, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                _wait_child(worker)
 
 
 def validate_case(name, result, outside):
@@ -972,7 +1204,8 @@ def run_host():
         # Allocate every immutable scope identity before sealing context. No
         # candidate/source/projection byte is rewritten between before/after.
         scopes = {}
-        for case in (*CASES, "before", "after", "controller-death"):
+        for case in (*CASES, "before", "after", "controller-death",
+                     *("pair-" + case + "-" + str(slot) for case in ("protections", "cancel", "controller-death") for slot in (0, 1))):
             scope = scopes[case] = OwnedScope(uid, gid, delegated)
             stack.callback(scope.close)
             stack.callback(scope.kill_and_wait)
@@ -1010,6 +1243,27 @@ def run_host():
             result["cases"]["controller-death"] = controller_death(scope, guardian, death_path, uid, gid)
         finally:
             guardian.close()
+        for pair_case in ("protections", "cancel", "controller-death"):
+            pair_scopes, pair_plans = [], []
+            for slot in (0, 1):
+                name = "pair-" + pair_case + "-" + str(slot)
+                scratch = base / (name + "-scratch")
+                scratch.mkdir(mode=0o700)
+                os.chown(scratch, uid, gid)
+                pair_layout = source.Layout(paths["candidate"], scratch, paths["policy"], paths["venv"], paths["protected"])
+                arguments = ["/opt/overte-ci/venv/bin/python", "-I", "/work/fixture.py",
+                             "pair-protections" if pair_case == "protections" else "daemon"]
+                plan = base / (name + "-plan.json")
+                plan.write_text(json.dumps(source.build_plan(pair_layout, arguments)["argv"]), encoding="ascii")
+                pair_scopes.append(scopes[name])
+                pair_plans.append(plan)
+            source.verify_snapshot(paths["candidate"], snapshot)
+            source.verify_projection(paths["policy"], projection)
+            result["cases"]["pair-" + pair_case] = pair_boundary_case(
+                pair_scopes, pair_plans, paths["protected"], binding, uid, gid, case=pair_case, outside=outside)
+            require(git_canary.read_bytes() == expected_config
+                    and protected.read_text(encoding="ascii") == "diagnostic-canary-not-a-secret\n",
+                    "pair boundary changed an outside protected canary")
         # Every prior workload and canary is confirmed gone BEFORE starting a
         # separate fixed protected post-probe under the same effective profile.
         after = runtime_probe(scopes, lambda args: launch("after", args), binding, source._ENVIRONMENT, uid, gid)

@@ -631,6 +631,9 @@
     "device-control-plane-full": {
       "command": [
         "python",
+        "-I",
+        "-S",
+        "-B",
         "tests/device/run_control_plane_tests.py",
         "--profile",
         "full",

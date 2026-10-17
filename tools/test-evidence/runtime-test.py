@@ -399,5 +399,28 @@ class IsolatedPreparedIdentityTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
 
 
+
+class ProtectedPairControllerIdentityTests(unittest.TestCase):
+    def test_pair_controller_bytes_are_actual_E_inputs_and_old_serial_identity_differs(self):
+        files=('tools/test-evidence/sandbox_host.py','tools/test-evidence/sandbox_shared.py',
+               'tools/test-evidence/producer_workflow.py')
+        self.assertTrue(set(files)<=set(RUNTIME._TRUSTED_EXECUTION_FILES))
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            for name in RUNTIME._TRUSTED_EXECUTION_FILES:
+                leaf=root/name;leaf.parent.mkdir(parents=True,exist_ok=True);leaf.write_text('version unchanged; serial')
+            current=RUNTIME._controller_file_hashes({},root)
+            old_serial={name:value for name,value in current.items() if name not in files}
+            self.assertNotEqual(old_serial,current)
+            for name in files:
+                with self.subTest(name=name):
+                    leaf=root/name;before=leaf.read_bytes();leaf.write_text('version unchanged; two separate scopes')
+                    changed=RUNTIME._controller_file_hashes({},root)
+                    self.assertNotEqual(current[name],changed[name])
+                    self.assertEqual({k:v for k,v in current.items() if k!=name},
+                                     {k:v for k,v in changed.items() if k!=name})
+                    leaf.write_bytes(before)
+
+
 if __name__ == "__main__":
     unittest.main()

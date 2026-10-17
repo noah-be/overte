@@ -2172,5 +2172,411 @@ class SharedHostPreparedExternalInputsTests(unittest.TestCase):
             SHARED.validate_probe(changed, binding, 2001, 2001)
 
 
+
+class ProtectedSuitePairTests(unittest.TestCase):
+    """Offline process-control fixtures, not cgroup/native qualification."""
+
+    def pair_fixture(self, folder, modes=('normal', 'normal'), fail_attach=None):
+        import signal
+        real_popen = subprocess.Popen
+        folder = Path(folder)
+        script = folder / 'bootstrap.py'
+        script.write_text(
+            "import json,os,signal,sys,time\nfrom pathlib import Path\n"
+            "gate=int(sys.argv[2]); value=json.loads(Path(sys.argv[3]).read_text())\n"
+            "assert os.read(gate,1)==b'1'; os.close(gate)\n"
+            "root=Path(value['root']); slot=value['slot']\n"
+            "(root/('ready-'+str(slot))).write_text('ready')\n"
+            "end=time.monotonic()+3\n"
+            "while not (root/('ready-'+str(1-slot))).exists():\n"
+            " if time.monotonic()>end: raise RuntimeError('other owner never launched')\n"
+            " time.sleep(.01)\n"
+            "mode=value['mode']\n"
+            "if mode=='output': print('x'*1000001,flush=True)\n"
+            "elif mode=='cancel': os.kill(value['parent'],signal.SIGUSR1); time.sleep(60)\n"
+            "elif mode=='block': time.sleep(60)\n"
+            "else: print('owner-'+str(slot),flush=True)\n")
+        events, processes, plans = [], [], []
+        class Scope:
+            def __init__(self, slot):
+                self.path=folder/('scope-'+str(slot));self.slot=slot;self.process=None;self.kills=0
+            def attach(self, process):
+                self.process=process
+                # A child cannot pass its release pipe before authenticated attach.
+                if (folder/('ready-'+str(self.slot))).exists():
+                    raise AssertionError('workload ran before scope attachment')
+                events.append(('attach',self.slot))
+                if self.slot==fail_attach:
+                    raise H.Unavailable('fixture attachment denied')
+            def kill_and_wait(self):
+                self.kills+=1
+                if self.process is not None and self.process.poll() is None:
+                    try: os.killpg(self.process.pid,signal.SIGKILL)
+                    except ProcessLookupError: pass
+                return {'kernel_populated':0,'subtree_kill':True}
+        scopes=[Scope(0),Scope(1)]
+        for slot,mode in enumerate(modes):
+            plan=folder/('plan-'+str(slot)+'.json')
+            plan.write_text(json.dumps({'root':str(folder),'slot':slot,'mode':mode,'parent':os.getpid()}))
+            plans.append((scopes[slot],plan))
+        def popen(argv,**kwargs):
+            self.assertEqual(kwargs['user'],1234)
+            self.assertEqual(kwargs['group'],1234)
+            self.assertEqual(kwargs['extra_groups'],())
+            self.assertTrue(kwargs['close_fds'])
+            self.assertTrue(kwargs['start_new_session'])
+            self.assertEqual(len(kwargs['pass_fds']),1)
+            self.assertEqual(argv[-1],'suite')
+            # Only the offline unit fixture removes credential switching.
+            # Production arguments, fixed bootstrap role and attach order are
+            # asserted above; this mock is not kernel ownership evidence.
+            kwargs.pop('user');kwargs.pop('group');kwargs.pop('extra_groups')
+            process=real_popen(argv,**kwargs);processes.append(process);return process
+        return script,scopes,plans,events,processes,popen
+
+    @unittest.skipUnless(sys.platform=='linux','Linux suite process control')
+    def test_two_real_gated_processes_overlap_before_either_can_complete(self):
+        with tempfile.TemporaryDirectory() as folder:
+            script,scopes,plans,events,processes,popen=self.pair_fixture(folder)
+            with patch.object(H,'public_bootstrap',return_value=script),patch.object(H.subprocess,'Popen',side_effect=popen):
+                results=H.supervise_pair(plans,1234,1234,timeout=5,cancelled=[])
+            self.assertEqual(events,[('attach',0),('attach',1)])
+            self.assertEqual([r['exit_code'] for r in results],[0,0])
+            self.assertEqual([r['reason'] for r in results],[None,None])
+            self.assertIn(b'owner-0',results[0]['diagnostic'])
+            self.assertIn(b'owner-1',results[1]['diagnostic'])
+            self.assertTrue(all(scope.kills>=2 for scope in scopes))
+            self.assertTrue(all(process.poll() is not None for process in processes))
+
+    @unittest.skipUnless(sys.platform=='linux','Linux suite process control')
+    def test_second_owner_attachment_failure_cleans_both_started_processes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            script,scopes,plans,events,processes,popen=self.pair_fixture(folder,fail_attach=1)
+            with patch.object(H,'public_bootstrap',return_value=script),patch.object(H.subprocess,'Popen',side_effect=popen):
+                with self.assertRaisesRegex(H.Unavailable,'attachment denied'):
+                    H.supervise_pair(plans,1234,1234,timeout=5,cancelled=[])
+            self.assertEqual(len(processes),2)
+            self.assertEqual(events,[('attach',0),('attach',1)])
+            self.assertFalse((Path(folder)/'ready-1').exists())
+            self.assertTrue(all(scope.kills for scope in scopes))
+            self.assertTrue(all(process.poll() is not None for process in processes))
+
+    @unittest.skipUnless(sys.platform=='linux','Linux suite process control')
+    def test_one_timeout_keeps_the_other_actual_success_and_cleans_both(self):
+        with tempfile.TemporaryDirectory() as folder:
+            script,scopes,plans,events,processes,popen=self.pair_fixture(folder,('block','normal'))
+            with patch.object(H,'public_bootstrap',return_value=script),patch.object(H.subprocess,'Popen',side_effect=popen):
+                results=H.supervise_pair(plans,1234,1234,timeout=1,cancelled=[])
+            self.assertEqual(results[0]['reason'],'timeout')
+            self.assertNotEqual(results[0]['exit_code'],0)
+            self.assertEqual(results[1]['reason'],None)
+            self.assertEqual(results[1]['exit_code'],0)
+            self.assertTrue(all(scope.kills for scope in scopes))
+            self.assertTrue(all(process.poll() is not None for process in processes))
+
+    @unittest.skipUnless(sys.platform=='linux','Linux suite process control')
+    def test_pair_cancellation_and_output_overflow_never_mask_work_or_cleanup(self):
+        import signal
+        for modes,overflow in ((('cancel','block'),False),(('output','block'),True)):
+            with self.subTest(modes=modes),tempfile.TemporaryDirectory() as folder:
+                script,scopes,plans,events,processes,popen=self.pair_fixture(folder,modes)
+                cancelled=[]
+                old=signal.signal(signal.SIGUSR1,lambda *_:cancelled.append(signal.SIGTERM))
+                try:
+                    with patch.object(H,'public_bootstrap',return_value=script),patch.object(H.subprocess,'Popen',side_effect=popen):
+                        if overflow:
+                            with self.assertRaisesRegex(H.Unavailable,'output exceeded'):
+                                H.supervise_pair(plans,1234,1234,timeout=5,cancelled=cancelled)
+                        else:
+                            results=H.supervise_pair(plans,1234,1234,timeout=5,cancelled=cancelled)
+                            self.assertEqual([r['reason'] for r in results],['cancelled','cancelled'])
+                finally:
+                    signal.signal(signal.SIGUSR1,old)
+                self.assertTrue(all(scope.kills for scope in scopes))
+                self.assertTrue(all(process.poll() is not None for process in processes))
+
+    def test_fixed_pair_keeps_registry_junit_order_commands_and_either_failure(self):
+        runner=SHARED.execution._runner()
+        from unittest.mock import Mock
+        for failed_slot in (None,0,1):
+            with self.subTest(failed_slot=failed_slot),tempfile.TemporaryDirectory() as folder:
+                serial=[]
+                suites=[runner.Suite('test-evidence','quick',('python','tools/test-evidence/test.py')),
+                        runner.Suite('middle','quick',('python','private-fixture.py')),
+                        runner.Suite('host-selection','quick',('python','tests/host-selection-test.py'))]
+                def serial_run(args,items,cancelled,result_callback):
+                    self.assertIsNone(args.junit);self.assertFalse(args.fail_fast)
+                    self.assertEqual(args.timeout,240);self.assertEqual(args.host_timeout,900)
+                    serial.extend(x.name for x in items)
+                    for item in items:result_callback(dict(name=item.name,status='passed',message='',output='actual',time=.1))
+                    return 0
+                values=[{'exit_code':1 if slot==failed_slot else 0,'reason':None,'diagnostic':b'actual output',
+                         'duration':.5+slot,'cleanup':{'kernel_populated':0,'subtree_kill':True}} for slot in (0,1)]
+                batch=SimpleNamespace(run_pair=Mock(return_value=values))
+                controller=SimpleNamespace(run_suites=serial_run,write_junit=runner.write_junit)
+                report=Path(folder)/'results.xml'
+                code,observed=SHARED._run_pair_suites(controller,batch,suites,[],report)
+                batch.run_pair.assert_called_once_with([list(suites[0].command),list(suites[2].command)],240,[])
+                self.assertEqual(serial,['middle'])
+                self.assertEqual([x['name'] for x in observed],[x.name for x in suites])
+                self.assertEqual(code,0 if failed_slot is None else 1)
+                import xml.etree.ElementTree as ET
+                tree=ET.parse(report).getroot()
+                self.assertEqual([x.get('name') for x in tree.findall('testcase')],[x.name for x in suites])
+                self.assertEqual(tree.get('tests'),'3');self.assertEqual(tree.get('skipped'),'0')
+                self.assertEqual(tree.get('failures'),'0' if failed_slot is None else '1')
+                suites[0]=runner.Suite('test-evidence','quick',('python','wrong-fixture.py'))
+                batch.run_pair.reset_mock()
+                with self.assertRaises(H.Unavailable):
+                    SHARED._run_pair_suites(controller,batch,suites,[],report)
+                batch.run_pair.assert_not_called()
+
+
+
+class ProtectedPairScopeCleanupTests(unittest.TestCase):
+    """Actual Batch contexts with offline kernel/guardian error fixtures."""
+
+    def fixture(self, folder, *, primary_stage=None, primary=None, failures=None):
+        failures = {} if failures is None else failures
+        base = Path(folder)
+        batch = SHARED.Batch(base, base/'candidate', base/'policy', {}, {},
+            {'fixture':'cleanup-only'}, ((), None, None, None), base/'delegated', 1234, 1234, {})
+        events, scopes = [], []
+        class TrackedScopes(list):
+            def remove(self, scope):
+                events.append(('remove', scope.slot))
+                super().remove(scope)
+        batch.scopes = TrackedScopes()
+        def record(operation, slot):
+            events.append((operation, slot))
+            if (operation, slot) in failures:
+                raise failures[(operation, slot)]
+        class Scope:
+            def __init__(self):
+                self.slot = len(scopes)
+                self.path = base/('scope-'+str(self.slot))
+                scopes.append(self)
+            def populated(self): return 0
+            def kill_and_wait(self):
+                record('kill', self.slot)
+                return {'kernel_populated':0,'subtree_kill':True}
+            def close(self): record('close', self.slot)
+        def scope(uid, gid, delegated):
+            self.assertEqual((uid, gid, delegated), (1234, 1234, base/'delegated'))
+            return Scope()
+        class Guardian:
+            def __init__(self, owner, protected, binding, lifetime):
+                self.owner = owner
+                events.append(('guardian-init', owner.slot))
+                if primary_stage=='guardian-init' and owner.slot==1:
+                    raise primary
+            def finish(self):
+                events.append(('guardian-finish', self.owner.slot))
+                if primary_stage=='guardian-finish' and self.owner.slot==0:
+                    raise primary
+                return {'fixture':'protected-parent-result-only'}
+            def close(self): record('guardian-close', self.owner.slot)
+        def supervise(*args, **kwargs):
+            events.append(('supervise', -1))
+            if primary_stage=='supervise':
+                raise primary
+            return [{'exit_code':0,'reason':None,'diagnostic':b'unit fixture',
+                     'duration':.1,'cleanup':{'kernel_populated':0,'subtree_kill':True}} for _ in range(2)]
+        patches = ExitStack()
+        patches.enter_context(patch.object(SHARED.os, 'chown'))
+        patches.enter_context(patch.object(SHARED, 'shared_plan', return_value={'argv':['unit-fixture']}))
+        patches.enter_context(patch.object(SHARED.host, 'OwnedScope', side_effect=scope))
+        patches.enter_context(patch.object(SHARED.host, 'Guardian', side_effect=Guardian))
+        patches.enter_context(patch.object(SHARED.host, 'supervise_pair', side_effect=supervise))
+        return batch, events, scopes, patches
+
+    def test_actual_batch_context_cleans_both_scopes_and_preserves_primary_failure(self):
+        for stage in ('supervise','guardian-finish','guardian-init'):
+            for operation in ('guardian-close','kill','close'):
+                with self.subTest(stage=stage, operation=operation), tempfile.TemporaryDirectory() as folder:
+                    primary = H.Unavailable('fixed primary pair fixture failure')
+                    failures = {(operation, slot): H.Unavailable('later cleanup fixture failure')
+                                for slot in (0, 1)}
+                    batch, events, scopes, patches = self.fixture(folder,
+                        primary_stage=stage, primary=primary, failures=failures)
+                    with patches, self.assertRaises(H.Unavailable) as caught:
+                        batch.run_pair([['python','first.py'],['python','second.py']], 240, [])
+                    self.assertIs(caught.exception, primary)
+                    self.assertEqual(len(scopes), 2)
+                    self.assertEqual(batch.scopes, [])
+                    self.assertFalse(list(Path(folder).glob('suite-*')))
+                    for slot in (0, 1):
+                        self.assertIn(('kill', slot), events)
+                        self.assertIn(('close', slot), events)
+                        self.assertIn(('remove', slot), events)
+                        if not (stage=='guardian-init' and slot==1):
+                            self.assertIn(('guardian-close', slot), events)
+                    if stage=='guardian-init':
+                        self.assertNotIn(('supervise', -1), events)
+
+    def test_successful_pair_body_rethrows_first_cleanup_failure_after_all_attempts(self):
+        operations=('guardian-close','kill','close')
+        for first_operation in operations:
+            with self.subTest(first=first_operation), tempfile.TemporaryDirectory() as folder:
+                first = H.Unavailable('fixed first cleanup fixture failure')
+                index = operations.index(first_operation)
+                failures = {(operation, slot): H.Unavailable('later cleanup fixture failure')
+                            for slot in (0, 1) for operation in operations[index:]}
+                # ExitStack unwinds the second scope first. Every later error,
+                # including the first scope's cleanup errors, must preserve it.
+                failures[(first_operation, 1)] = first
+                batch, events, scopes, patches = self.fixture(folder, failures=failures)
+                with patches, self.assertRaises(H.Unavailable) as caught:
+                    batch.run_pair([['python','first.py'],['python','second.py']], 240, [])
+                self.assertIs(caught.exception, first)
+                self.assertEqual(batch.scopes, [])
+                self.assertFalse(list(Path(folder).glob('suite-*')))
+                self.assertIn(('supervise', -1), events)
+                self.assertEqual(len(batch.proofs), 2)
+                for slot in (0, 1):
+                    for operation in ('guardian-close','kill','close','remove'):
+                        self.assertIn((operation, slot), events)
+
+    def test_successful_pair_inside_unrelated_exception_handler_keeps_cleanup_failure(self):
+        for operation in ('guardian-close','kill','close'):
+            with self.subTest(operation=operation), tempfile.TemporaryDirectory() as folder:
+                first = H.Unavailable('fixed cleanup failure inside unrelated handler')
+                failures = {(operation, 1): first,
+                            (operation, 0): H.Unavailable('later first-scope cleanup failure')}
+                batch, events, scopes, patches = self.fixture(folder, failures=failures)
+                try:
+                    raise LookupError('unrelated already-handled caller exception')
+                except LookupError as unrelated:
+                    with patches, self.assertRaises(H.Unavailable) as caught:
+                        batch.run_pair([['python','first.py'],['python','second.py']], 240, [])
+                    self.assertIs(caught.exception, first)
+                    self.assertIsNot(caught.exception, unrelated)
+                self.assertEqual(batch.scopes, [])
+                self.assertFalse(list(Path(folder).glob('suite-*')))
+                self.assertEqual(len(batch.proofs), 2)
+                for slot in (0, 1):
+                    for cleanup in ('guardian-close','kill','close','remove'):
+                        self.assertIn((cleanup, slot), events)
+
+
+
+class PairBoundaryDiagnosticTests(unittest.TestCase):
+    """Fixed observer/lease regressions; mocked kernel is never native proof."""
+
+    def observer_fixture(self, folder, *, empty_slot=None, status=H.signal.SIGKILL, trigger="controller-eof", lease_failure_slot=None):
+        events = []
+        class Scope:
+            def __init__(self, slot):
+                self.slot, self.path = slot, Path(folder) / ("scope-" + str(slot))
+                self.live = slot != empty_slot
+            def populated(self):
+                events.append(("kernel-live", self.slot))
+                return int(self.live)
+            def members(self):
+                return {40 + self.slot} if self.live else set()
+        scopes = [Scope(0), Scope(1)]
+        class Guardian:
+            def __init__(self, scope, protected, binding, *, lifetime):
+                self.scope, self.binding = scope, binding
+                self.identity = [9, 10 + scope.slot]
+                events.append(("guardian-ready", scope.slot))
+                self.closed_writer = False
+            def relinquish_writer(self):
+                self.closed_writer = True
+                events.append(("lease-close", self.scope.slot))
+                if self.scope.slot == lease_failure_slot:
+                    raise H.Unavailable("fixed lease-close failure")
+            def finish(self, expected):
+                events.append(("proof", self.scope.slot, expected))
+                if expected != trigger:
+                    raise H.Unavailable("wrong fixed proof trigger")
+                self.scope.live = False
+                return {"trigger": trigger, "scope": self.identity, "binding": self.binding,
+                        "cleanup": {"kernel_populated": 0, "subtree_kill": True}}
+            def close(self):
+                events.append(("cleanup", self.scope.slot))
+                self.scope.live = False
+        stack = ExitStack()
+        stack.enter_context(patch.object(H.os, "geteuid", return_value=0))
+        stack.enter_context(patch.object(H, "Guardian", Guardian))
+        stack.enter_context(patch.object(H.os, "fork", side_effect=lambda: events.append("root-worker-fork") or 987))
+        stack.enter_context(patch.object(H.select, "select", return_value=([123], [], [])))
+        stack.enter_context(patch.object(H.os, "read", side_effect=lambda *_: events.append("ready-read") or b"1"))
+        stack.enter_context(patch.object(H.os, "kill", side_effect=lambda pid, number: events.append(("signal", pid, number))))
+        stack.enter_context(patch.object(H, "_wait_child", side_effect=lambda *args, **kwargs: events.append("worker-reaped") or status))
+        return stack, scopes, events
+
+    def test_two_actual_lease_closures_and_sigkill_status_precede_both_eof_proofs(self):
+        with tempfile.TemporaryDirectory() as folder:
+            stack, scopes, events = self.observer_fixture(folder)
+            with stack:
+                result = H.pair_boundary_case(scopes, [Path("/fixed-0"), Path("/fixed-1")],
+                    Path(folder), {"attempt": 1}, 2001, 2001, case="controller-death", outside={})
+            self.assertTrue(result["controller_sigkill_observed"])
+            self.assertEqual(result["guardian_triggers"], ["controller-eof", "controller-eof"])
+            self.assertTrue(result["kernel_scopes_empty"])
+            self.assertLess(events.index(("guardian-ready", 1)), events.index("root-worker-fork"))
+            for slot in (0, 1):
+                self.assertLess(events.index(("lease-close", slot)), events.index("ready-read"))
+                self.assertLess(events.index(("kernel-live", slot)), events.index(("signal", 987, H.signal.SIGKILL)))
+                self.assertIn(("proof", slot, "controller-eof"), events)
+                self.assertIn(("cleanup", slot), events)
+
+    def test_either_missing_live_scope_wrong_death_or_deadline_proof_cannot_qualify(self):
+        for empty_slot, status, trigger, lease_failure_slot in ((0, H.signal.SIGKILL, "controller-eof", None),
+                (1, H.signal.SIGKILL, "controller-eof", None), (None, 0, "controller-eof", None),
+                (None, H.signal.SIGKILL, "deadline", None), (None, H.signal.SIGKILL, "controller-eof", 0),
+                (None, H.signal.SIGKILL, "controller-eof", 1)):
+            with self.subTest(empty_slot=empty_slot, status=status, trigger=trigger,
+                              lease_failure_slot=lease_failure_slot), tempfile.TemporaryDirectory() as folder:
+                stack, scopes, events = self.observer_fixture(folder, empty_slot=empty_slot, status=status,
+                    trigger=trigger, lease_failure_slot=lease_failure_slot)
+                with stack, self.assertRaises(H.Unavailable):
+                    H.pair_boundary_case(scopes, [Path("/fixed-0"), Path("/fixed-1")],
+                        Path(folder), {"attempt": 1}, 2001, 2001, case="controller-death", outside={})
+                self.assertTrue(all(("cleanup", slot) in events for slot in (0, 1)))
+                self.assertFalse(any(scope.live for scope in scopes))
+                if lease_failure_slot is not None:
+                    self.assertIn(("signal", 987, H.signal.SIGKILL), events)
+                    self.assertIn("worker-reaped", events)
+
+    def test_second_guardian_setup_failure_still_closes_first_without_fork(self):
+        with tempfile.TemporaryDirectory() as folder:
+            first = SimpleNamespace(close=unittest.mock.Mock())
+            scopes = [SimpleNamespace(path=Path(folder)/str(slot)) for slot in (0, 1)]
+            with (patch.object(H.os, "geteuid", return_value=0),
+                  patch.object(H, "Guardian", side_effect=[first, H.Unavailable("fixed setup failure")]),
+                  patch.object(H.os, "fork") as fork, self.assertRaises(H.Unavailable)):
+                H.pair_boundary_case(scopes, [Path("/fixed-0"), Path("/fixed-1")],
+                    Path(folder), {"attempt": 1}, 2001, 2001, case="controller-death", outside={})
+            first.close.assert_called_once_with()
+            fork.assert_not_called()
+
+    def test_pair_boundary_bootstrap_and_reaped_live_member_checks_are_real_supervisor_steps(self):
+        # Existing fixture supplies actual gated Python processes; only host
+        # credentials/cgroups are explicit offline doubles, never native proof.
+        fixture = ProtectedSuitePairTests("test_two_real_gated_processes_overlap_before_either_can_complete")
+        with tempfile.TemporaryDirectory() as folder:
+            script, scopes, plans, events, processes, popen = fixture.pair_fixture(folder, ("normal", "normal"))
+            def native_role(argv, **kwargs):
+                self.assertEqual(argv[-1], "daemon")
+                copied = list(argv)
+                copied[-1] = "suite"  # old offline launcher's explicit assertion only
+                return popen(copied, **kwargs)
+            for scope in scopes:
+                scope.members = lambda: {99999999}
+                scope.populated = lambda: 1
+            def ready():
+                self.assertEqual(events, [("attach", 0), ("attach", 1)])
+                self.assertTrue(all(process.returncode == 0 for process in processes))
+                self.assertTrue(all(scope.kills == 0 for scope in scopes))
+                events.append("both-live-before-cleanup")
+            with patch.object(H, "public_bootstrap", return_value=script), patch.object(H.subprocess, "Popen", side_effect=native_role):
+                results = H.supervise_pair(plans, 1234, 1234, timeout=5, cancelled=[],
+                                           _boundary_case="daemon", _before_cleanup=ready)
+            self.assertIn("both-live-before-cleanup", events)
+            self.assertTrue(all(value["trusted_cleanup_canaries"]["initial_command_reaped"] for value in results))
+            self.assertTrue(all(scope.kills >= 2 for scope in scopes))
+
 if __name__ == "__main__":
     unittest.main()

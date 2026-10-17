@@ -1285,7 +1285,7 @@ def protected_receipt(batch, context, cancelled, installed):
             raise execution.ExecutionError('retained source does not bind original materialized candidate before execution')
     options = {'preexecution_unavailable':PreExecutionUnavailable} if context.get('profile') == ci_profile.PROFILE else {}
     statuses, before, after = shared.check_batch(batch, context['registry'], cancelled, installed,
-        names=context['plan']['owners']['shared-host']['suites'], admit=admit, **options)
+        names=context['plan']['owners']['shared-host']['suites'], admit=admit, suite_workers=2, **options)
     host.require(not cancelled and before == after, 'protected execution did not finish successfully')
     if source is not None:
         host.require(ci_profile.capture_retained_source(ci_profile.load_controller_projection(batch.policy),

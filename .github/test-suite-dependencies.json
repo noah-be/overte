@@ -193,11 +193,11 @@
     },
     "device-control-plane-full": {
       "kind": "device-control-plane",
-      "definition_digest": "sha256:f1db35bf72fc04473e818b537feadeff86621ad5cc97bf1e3e783cac2c3879fe",
+      "definition_digest": "sha256:b4c3c70673916881c9a0c6da7e203fce7c3c7900b6d7c2d786412d248fdca61c",
       "setup": [
         "host-full"
       ],
-      "reviewed_reader_digest": "sha256:37923f7db19a922adb730abd8a286d86d835c3da36dd8805121cca0c7cab5505",
+      "reviewed_reader_digest": "sha256:079598e1772c2c7f3ed24391b4a2c3f397aa89051940a4d24c48ae3b45428bc4",
       "native_independent_paths": [
         ".github/android-checks.json",
         ".github/android-orchestration.json",
@@ -867,8 +867,8 @@
       ]
     }
   },
-  "registry_digest": "sha256:48bac74ebd554dbaa003f3cc58d9547a26972da9f6c6e3abd59488b8cb898970",
-  "lookup_digest": "sha256:8f7c1196b5f491da11285e0973450066b0e273f2fe0ffab4f8a94becf65b2c45",
+  "registry_digest": "sha256:25e5cd5e1b9fb1d7a16989a464f6010961e074e5d9400f959d3e0441536e39b4",
+  "lookup_digest": "sha256:03ae433044c9e3f28611f14c5ad3f87f8f368a77ca45316134be7ef0186a0557",
   "targets": {
     "android-main": {
       "profile": {
@@ -876,8 +876,8 @@
         "type": "blob",
         "sha": "1314006455751831be60b143e46ce9c6f5398e26"
       },
-      "lookup_digest": "sha256:132224406fc688757ea1d57f9e09e93cf88d66b034dd0ae13c7472ebb2325ce4",
-      "reader_digest": "sha256:7beee27258b57b7da267cd0a4677739216db14d2bc7d82be3ff2b1ca3ea1aa82"
+      "lookup_digest": "sha256:3adaba5709de5ff199144bbae0a504835a10d512fae15eed9103388995bd0c32",
+      "reader_digest": "sha256:89835acb101717a09bf3d75b6dbc59ac6689b6c61c360734c8c5af28bc0d0c6e"
     },
     "android-phone": {
       "profile": {
@@ -885,8 +885,8 @@
         "type": "blob",
         "sha": "f91169af7bdfedffb0b6ab9ab0ac1da28fd1f7fe"
       },
-      "lookup_digest": "sha256:b8cc103c65525ec9138efd4020c404fd1229656c5fe40a205d96d3cb66a0ee19",
-      "reader_digest": "sha256:4fc649f16a3b4fcd8bc4db7dc106fc47d92fc3b60d35c58d239d8607bda59876"
+      "lookup_digest": "sha256:7e29159807c5c5852d405b3dbd967dddd4465399b273906f1b06bbc103421fcd",
+      "reader_digest": "sha256:b467451c6e86950476a30709c008474928625cb3f087153df25e58cc40b89c62"
     },
     "android-vr": {
       "profile": {
@@ -894,8 +894,8 @@
         "type": "blob",
         "sha": "1314006455751831be60b143e46ce9c6f5398e26"
       },
-      "lookup_digest": "sha256:132224406fc688757ea1d57f9e09e93cf88d66b034dd0ae13c7472ebb2325ce4",
-      "reader_digest": "sha256:7beee27258b57b7da267cd0a4677739216db14d2bc7d82be3ff2b1ca3ea1aa82"
+      "lookup_digest": "sha256:3adaba5709de5ff199144bbae0a504835a10d512fae15eed9103388995bd0c32",
+      "reader_digest": "sha256:89835acb101717a09bf3d75b6dbc59ac6689b6c61c360734c8c5af28bc0d0c6e"
     },
     "android-vr-pico": {
       "profile": {
@@ -903,8 +903,8 @@
         "type": "blob",
         "sha": "1314006455751831be60b143e46ce9c6f5398e26"
       },
-      "lookup_digest": "sha256:4856bd7af6f1e047ca5fa9da669115f356993673d39783b86dbdc3b04b21a67a",
-      "reader_digest": "sha256:59f17f5aa61d9841766088f251dd42c6dd358d41035cc645b9238088e28752a1"
+      "lookup_digest": "sha256:f13af664f4ba6a1c0f100d784626edd5e869c73f38d51815bd3b2ef942595aca",
+      "reader_digest": "sha256:dfc62d342a055e3c986d66946ec1b64b164d8d93104a9b03d0159f107bc938d6"
     },
     "apple-ios": {
       "profile": {
@@ -912,8 +912,8 @@
         "type": "blob",
         "sha": "d63537504c20204de9d35d9be61da72a56df59c3"
       },
-      "lookup_digest": "sha256:58973b4ccffe33e24f0566b474d9198ffa8c4d7a87dff9d528b35d57e39d7709",
-      "reader_digest": "sha256:a350bc5734bf38926a6b9a0c084748ec1b13751ddc910a62371b751ce38617f7"
+      "lookup_digest": "sha256:198be3a1f62b0781c76cbd36742d1b73cdfd2de94791f1f1360591eba809ee12",
+      "reader_digest": "sha256:904b6d84721b90e789cb363cad8b280d40758d1432ba3f2918ea55551917b98e"
     },
     "apple-main": {
       "profile": {
@@ -921,8 +921,8 @@
         "type": "blob",
         "sha": "d63537504c20204de9d35d9be61da72a56df59c3"
       },
-      "lookup_digest": "sha256:ff9fd88a13ea636a8c49962924f84b087ab8e75af44412674cdc8f40d247dd26",
-      "reader_digest": "sha256:20c10f0fdd929c3a14e7c7d11e31f3ae6c9f2657269af3d8b8a62f8653e4e224"
+      "lookup_digest": "sha256:d7f806edb1738f36aaac303889396e3e39c7177319a163000d42155171017177",
+      "reader_digest": "sha256:242c09c264926100c6558008e6d33f65dafd343632e3c3f20e842aad4180f7ee"
     },
     "main": {
       "profile": {
@@ -930,8 +930,8 @@
         "type": "blob",
         "sha": "d63537504c20204de9d35d9be61da72a56df59c3"
       },
-      "lookup_digest": "sha256:8f7c1196b5f491da11285e0973450066b0e273f2fe0ffab4f8a94becf65b2c45",
-      "reader_digest": "sha256:37923f7db19a922adb730abd8a286d86d835c3da36dd8805121cca0c7cab5505"
+      "lookup_digest": "sha256:03ae433044c9e3f28611f14c5ad3f87f8f368a77ca45316134be7ef0186a0557",
+      "reader_digest": "sha256:079598e1772c2c7f3ed24391b4a2c3f397aa89051940a4d24c48ae3b45428bc4"
     }
   }
 }

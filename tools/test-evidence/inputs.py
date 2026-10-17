@@ -546,7 +546,8 @@ def _validate_dependencies(value, registry):
             raise InputError('unsupported reviewed fixed-subject owner')
         if row['kind'] == 'device-control-plane':
             if name != 'device-control-plane-full' or suite['scope'] != 'content' \
-                    or suite['command'][:5] != ['python', 'tests/device/run_control_plane_tests.py', '--profile', 'full', '--require-qml'] \
+                    or not (suite['command'][:5] == ['python', 'tests/device/run_control_plane_tests.py', '--profile', 'full', '--require-qml'] \
+                            or suite['command'][:8] == ['python', '-I', '-S', '-B', 'tests/device/run_control_plane_tests.py', '--profile', 'full', '--require-qml']) \
                     or set(row) != {'kind', 'definition_digest', 'setup', 'reviewed_reader_digest', 'native_independent_paths'} \
                     or row['setup'] != ['host-full'] or not isinstance(row['reviewed_reader_digest'], str) \
                     or not _DIGEST.fullmatch(row['reviewed_reader_digest']):

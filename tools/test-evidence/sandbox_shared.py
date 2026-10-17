@@ -6,7 +6,7 @@ post-capture and evidence publication remain unconditionally unavailable.
 """
 from __future__ import annotations
 
-from contextlib import redirect_stdout, redirect_stderr
+from contextlib import redirect_stdout, redirect_stderr, contextmanager, ExitStack
 import hashlib
 import json
 import os
@@ -16,6 +16,7 @@ import signal
 import stat
 import sys
 import tempfile
+import time
 from types import SimpleNamespace
 
 import execution
@@ -409,6 +410,70 @@ class Batch:
         output = sandbox.safe_diagnostic(result['diagnostic'])
         return result['exit_code'] if result['reason'] is None else 1, output, result['reason'] or ''
 
+    @contextmanager
+    def _pair_scope(self, command, timeout):
+        temporary = tempfile.TemporaryDirectory(prefix='suite-', dir=self.base)
+        scope = guardian = None
+        registered = False
+        primary = None
+        try:
+            directory = Path(temporary.name)
+            directory.chmod(0o755)
+            scratch = directory / 'scratch'
+            scratch.mkdir(mode=0o700)
+            os.chown(scratch, self.uid, self.gid)
+            layout = sandbox.Layout(self.candidate, scratch, self.policy, VENV, self.protected, self.prepared[0])
+            plan = shared_plan(layout, command, self.prepared, self.environment)
+            path = directory / 'plan.json'
+            path.write_bytes(sandbox._canonical(plan['argv']))
+            scope = host.OwnedScope(self.uid, self.gid, self.delegated)
+            self.scopes.append(scope)
+            registered = True
+            guardian = host.Guardian(scope, self.protected, self.binding, lifetime=timeout + 10)
+            yield scope, path, guardian
+        except BaseException as error:
+            primary = error
+            raise
+        finally:
+            # Attempt every owned cleanup, even when an earlier one fails.
+            # An existing setup/body failure remains the primary exception.
+            # A successful body still fails on its first cleanup exception.
+            callbacks = []
+            if guardian is not None:
+                callbacks.append(guardian.close)
+            if scope is not None:
+                callbacks.extend((scope.kill_and_wait, scope.close))
+            if registered:
+                callbacks.append(lambda: self.scopes.remove(scope))
+            callbacks.append(temporary.cleanup)
+            first_cleanup = None
+            for cleanup in callbacks:
+                try:
+                    cleanup()
+                except BaseException as error:
+                    if first_cleanup is None:
+                        first_cleanup = error
+            if primary is None and first_cleanup is not None:
+                raise first_cleanup
+
+    def run_pair(self, commands, timeout, cancelled):
+        """The parent retains both kernel scopes/guardians until both finish."""
+        self.empty()
+        host.require(type(commands) is list and len(commands) == 2 and timeout == 240,
+                     'only the fixed two-suite 240s pair is supported')
+        with ExitStack() as stack:
+            launches = [stack.enter_context(self._pair_scope(command, timeout)) for command in commands]
+            results = host.supervise_pair([(scope, path) for scope, path, _ in launches],
+                                         self.uid, self.gid, timeout=timeout, cancelled=cancelled)
+            host.require(len(results) == 2 and all(value['cleanup'] ==
+                {'kernel_populated': 0, 'subtree_kill': True} for value in results),
+                'parallel suite kernel cleanup is incomplete')
+            for _, _, guardian in launches:
+                self.proofs.append(guardian.finish())
+        self.empty()
+        return results
+
+
     def probe(self, cancelled):
         self.empty()
         # A normal absolute protected script preserves the same interpreter
@@ -432,11 +497,64 @@ class BoundedLog:
         self.output.flush()
 
 
-def run_suites(batch, registry, cancelled, *, report, names=None):
+# Production opts into this fixed pair. No CLI, environment, manifest or
+# candidate declaration can add owners or change the concurrency.
+_SUITE_PAIR = ('test-evidence', 'host-selection')
+_PAIR_COMMANDS = (('python', 'tools/test-evidence/test.py'),
+                  ('python', 'tests/host-selection-test.py'))
+
+
+def _run_pair_suites(controller, batch, suites, cancelled, report):
+    """Preserve selected order/results while only the fixed pair overlaps."""
+    by_name = {suite.name: suite for suite in suites}
+    host.require(len(by_name) == len(suites)
+                 and all(name in by_name for name in _SUITE_PAIR)
+                 and tuple(by_name[name].command for name in _SUITE_PAIR) == _PAIR_COMMANDS,
+                 'parallel pair is not the exact trusted CI fixture command set')
+    results = {}
+    started = time.monotonic()
+    for suite in suites:
+        if cancelled:
+            break
+        if suite.name in results:
+            continue
+        if suite.name in _SUITE_PAIR:
+            commands = [list(by_name[name].command) for name in _SUITE_PAIR]
+            for name in _SUITE_PAIR:
+                print(f'RUNNING {name}', flush=True)
+            observed = batch.run_pair(commands, 240, cancelled)
+            host.require(len(observed) == 2, 'parallel suite observation is incomplete')
+            for name, value in zip(_SUITE_PAIR, observed):
+                status = 'passed' if value['exit_code'] == 0 and value['reason'] is None else 'failed'
+                output = sandbox.safe_diagnostic(value['diagnostic'])
+                message = value['reason'] or ('' if status == 'passed' else f"exit code {value['exit_code']}")
+                results[name] = dict(name=name, status=status, message=message,
+                                     output=output, time=value['duration'])
+                print(f"{status.upper():7} {name:<24} {value['duration']:7.3f}s", flush=True)
+                if status == 'failed':
+                    print(output.rstrip(), file=sys.stderr)
+        else:
+            observed = []
+            controller.run_suites(SimpleNamespace(timeout=240, host_timeout=900, native_build_dir=None,
+                junit=None, fail_fast=False), [suite], cancelled, result_callback=observed.append)
+            host.require(len(observed) == 1 and observed[0]['name'] == suite.name,
+                         'serial suite observation is incomplete')
+            results[suite.name] = observed[0]
+    ordered = [results[suite.name] for suite in suites if suite.name in results]
+    elapsed = time.monotonic() - started
+    controller.write_junit(report, ordered, elapsed)
+    failed = sum(entry['status'] != 'passed' for entry in ordered)
+    print(f'Overte project suite: {len(ordered)-failed} passed, {failed} failed ({elapsed:.2f}s)', flush=True)
+    return (128 + cancelled[0] if cancelled else 1 if failed or len(ordered) != len(suites) else 0), ordered
+
+
+def run_suites(batch, registry, cancelled, *, report, names=None, suite_workers=1):
     """Use the existing controller and its actual 900s device timeout rule."""
     controller = execution._runner()
     names = execution.select_common(registry, names)
     host.require(bool(names), 'shared-host batch requires a nonempty trusted selection')
+    host.require(type(suite_workers) is int and suite_workers in (1, 2), 'unsupported protected suite workers')
+    paired = suite_workers == 2 and set(_SUITE_PAIR) <= set(names)
     suites = [controller.Suite(name, registry['suites'][name]['layer'], tuple(registry['suites'][name]['command']))
               for name in names]
     previous = controller.run_command
@@ -446,9 +564,13 @@ def run_suites(batch, registry, cancelled, *, report, names=None):
         with report.with_suffix('.log').open('xb') as output:
             log = BoundedLog(output)
             with redirect_stdout(log), redirect_stderr(log):
-                code = controller.run_suites(SimpleNamespace(timeout=240, host_timeout=900, native_build_dir=None,
-                                            junit=report, fail_fast=False), suites, cancelled,
-                                            result_callback=observations.append)
+                if paired:
+                    code, observed = _run_pair_suites(controller, batch, suites, cancelled, report)
+                    observations.extend(observed)
+                else:
+                    code = controller.run_suites(SimpleNamespace(timeout=240, host_timeout=900, native_build_dir=None,
+                                                junit=report, fail_fast=False), suites, cancelled,
+                                                result_callback=observations.append)
     except host.Unavailable as error:
         current = suites[min(len(observations), len(suites) - 1)].name
         raise host.Unavailable('shared-host launch unavailable: ' + json.dumps(
@@ -467,7 +589,8 @@ def run_suites(batch, registry, cancelled, *, report, names=None):
     return [{'name': entry['name'], 'status': entry['status']} for entry in observations]
 
 
-def check_batch(batch, registry, cancelled, installed, *, names=None, admit=None, preexecution_unavailable=None):
+def check_batch(batch, registry, cancelled, installed, *, names=None, admit=None, preexecution_unavailable=None,
+                suite_workers=1):
     sandbox.verify_snapshot(batch.candidate, batch.snapshot)
     host.require(sandbox._files(batch.policy) == batch.projection, 'protected shared-host projection changed')
     try:
@@ -483,7 +606,8 @@ def check_batch(batch, registry, cancelled, installed, *, names=None, admit=None
     # can select nonreusable execution; a started suite failure never can.
     if admit is not None:
         admit(before)
-    statuses = run_suites(batch, registry, cancelled, report=batch.protected / 'suites.xml', names=names)
+    options = {'suite_workers': suite_workers} if suite_workers != 1 else {}
+    statuses = run_suites(batch, registry, cancelled, report=batch.protected / 'suites.xml', names=names, **options)
     batch.empty()
     after = batch.probe(cancelled)
     host.require(before == after, 'full protected shared-host environment changed after kernel cleanup')

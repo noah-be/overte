@@ -1668,3 +1668,35 @@ language changes retain their required scans, while the independent required
 result gate recomputes the selection and still requires a successful current
 selector even when no language is selected. Product/native tests remain owned
 by their existing gates; scheduled CodeQL scans remain full.
+
+
+Linux ArtifactIdentity execution uses the fixed `tests/device/run_artifact_identity.py`
+child from the full Device owner. It runs the same unittest discovery and real SBOM
+validators in a read-only source projection without the iOS cache leaves, checkout
+metadata or outer workspace. The full Device driver and every Python CLI child use
+isolated startup without `site` or `.pth` execution; explicit prepared package roots
+retain the validators and their schema/license resources. Missing confinement fails
+the owner, with no unconfined or skipped-test fallback. Other Device commands and
+non-Linux ArtifactIdentity execution retain their existing behavior.
+
+This execution boundary does not qualify compiler checkpoints or establish a warm
+cache result. The iOS cache owner remains required, and any narrow input omission
+still requires the complete source/lookup comparison against the actual protected
+iOS target and its admitted native execution profile.
+
+The protected evidence producer runs the selected `test-evidence` and
+`host-selection` suites concurrently, once each, in separate kernel scopes with
+their own guardian, private scratch space and 240-second limit. Either failure
+still fails the host result; cancellation and cleanup cover both scopes. The
+pair is fixed in the trusted producer and retains registry order in JUnit.
+Ordinary project-test commands remain serial. The scheduler controller bytes
+are part of the execution identity, so evidence from the previous serial
+controller cannot be reused for this execution.
+
+The existing manual Shared sandbox host diagnostic, profile `boundary`, also
+checks the pair against real kernel controls: private descriptors and
+namespaces, cancellation with detached descendants in both scopes, and an
+actual supervisor SIGKILL followed by both guardians observing controller EOF.
+The before/after probe requires every scope to be empty. This diagnostic is
+an acceptance check, carries no reusable PR evidence authority, and does not
+run on ordinary PR events.

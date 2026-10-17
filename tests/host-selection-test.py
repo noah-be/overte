@@ -723,6 +723,49 @@ class HostSelectionTests(unittest.TestCase):
                 self.assertTrue(selected['full_host'])
                 self.assertFalse(selected['include_platform'])
 
+    def test_artifact_identity_runner_addition_keeps_device_owner_and_program_bytes(self):
+        path = 'tests/device/run_artifact_identity.py'
+        previous, candidate = copy_git_tree(self.tree), copy_git_tree(self.tree)
+        previous.pop(path, None)
+        candidate[path] = {'mode': '100644', 'type': 'blob', 'sha': 'a' * 40}
+        self.assertIn(path, HOST.DEVICE_CONTROL_INPUTS)
+        self.assertTrue(HOST.ci_owned(path))
+        self.assertIn(path, {entry['path'] for entry in
+            HOST.inputs.selected_entries(candidate, list(HOST.PROGRAM_INPUTS))})
+        self.assertNotEqual(HOST.program_digest(previous), HOST.program_digest(candidate))
+        with patch.object(HOST, 'REVIEWED_PROGRAMS', HOST.program_digest(candidate)):
+            selected = self.selected([path], tree=candidate,
+                                     base_tree=previous, trusted_tree=candidate)
+        self.assertIn('device-control-plane-full', self.registry['suites'])
+        self.assertEqual(set(selected['suites']), self.ci_quick | {'device-control-plane-full'})
+        self.assertTrue(selected['full_host'])
+        self.assertFalse(selected['include_platform'])
+
+    def test_artifact_identity_runner_hidden_change_modes_and_neighbors_remain_bound(self):
+        path = 'tests/device/run_artifact_identity.py'
+        previous, candidate = copy_git_tree(self.tree), copy_git_tree(self.tree)
+        previous[path] = {'mode': '100644', 'type': 'blob', 'sha': 'a' * 40}
+        candidate[path] = {'mode': '100644', 'type': 'blob', 'sha': 'b' * 40}
+        self.assertNotEqual(HOST.program_digest(previous), HOST.program_digest(candidate))
+        with patch.object(HOST, 'REVIEWED_PROGRAMS', HOST.program_digest(candidate)):
+            hidden = self.selected(['tests/branch-cleanup-test.py'], tree=candidate,
+                                   base_tree=previous, trusted_tree=candidate)
+            self.assertEqual(set(hidden['suites']), self.ci_quick | {'device-control-plane-full'})
+            self.assertFalse(hidden['include_platform'])
+            for mode in ('100755', '120000', '160000'):
+                malformed = copy_git_tree(candidate)
+                malformed[path] = {'mode': mode, 'type': 'commit' if mode == '160000' else 'blob',
+                                   'sha': 'b' * 40}
+                with self.subTest(mode=mode):
+                    selected = self.selected([path], tree=malformed, base_tree=previous,
+                                             trusted_tree=candidate, regular=False)
+                    self.assertEqual(set(selected['suites']), self.all_names)
+            neighbor = 'tests/device/run_artifact_identity_unreviewed.py'
+            extra = copy_git_tree(candidate)
+            extra[neighbor] = {'mode': '100644', 'type': 'blob', 'sha': 'a' * 40}
+            self.assertEqual(set(self.selected([neighbor], tree=extra, base_tree=candidate,
+                                              trusted_tree=candidate)['suites']), self.all_names)
+
     def test_hidden_device_input_changes_cannot_use_the_ci_only_route(self):
         for path in ('tests/device/run_control_plane_tests.py',
                      'tests/device/self_tests/test_android_adapter.py',
