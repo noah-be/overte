@@ -339,7 +339,7 @@ def direct_candidate_plan(candidate: Path, event: dict, sha: str, *, policy_root
     tree = subprocess.check_output(["git", "rev-parse", "HEAD^{tree}"], cwd=candidate,
                                    text=True, stderr=subprocess.PIPE, timeout=30).strip()
     result.update(schema=1, candidate=sha, tree=tree, repository=repository["full_name"],
-                  base=pr["base"]["sha"] if pr else event.get("before", ""),
+                  base=pr_candidate_context(candidate,event,sha)["base"] if pr else event.get("before", ""),
                   head=pr["head"]["sha"] if pr else sha)
     policy = hashlib.sha256((policy_root / "tools/repository-checks/check.py").read_bytes())
     for name in DIRECT_WORKFLOWS:
@@ -408,26 +408,81 @@ def plan(event: dict, paths: list[str], config: dict, branches: dict,
     return result
 
 
-def changed_paths(candidate: Path, event: dict, expected_sha: str, *,
-                  allow_executable: bool = False) -> tuple[list[str], bool]:
-    def git(*args: str) -> str:
-        return subprocess.check_output(["git", *args], cwd=candidate, text=True,
-                                       stderr=subprocess.PIPE, timeout=30)
+def pr_candidate_context(candidate: Path, event: dict, sha: str, *, pr_context=None) -> dict:
+    """Provisional immutable B/H/M for routing; never receipt/admission authority.
 
-    if not re.fullmatch(r"[0-9a-f]{40}", expected_sha):
-        raise ValueError("expected candidate must be a complete commit SHA")
-    if git("rev-parse", "HEAD").strip() != expected_sha:
-        raise ValueError("checkout is not the event candidate")
-    pr = event.get("pull_request")
-    if pr is None:
+    A stale event snapshot can only select actual M.parent0 in the native PR
+    invocation, or through an independently authenticated internal sync context.
+    Raw event/API observations are never rewritten. Acceptance gates must still
+    authenticate current protected refs and each original snapshot themselves.
+    """
+    def oid(value):
+        if type(value) is not str or not re.fullmatch(r'[0-9a-f]{40}',value) or value == '0'*40:
+            raise ValueError('invalid pull request commit identity')
+        return value
+    environment = {'PATH':'/usr/bin:/bin','HOME':'/nonexistent','LANG':'C.UTF-8','LC_ALL':'C.UTF-8',
+        'GIT_CONFIG_NOSYSTEM':'1','GIT_CONFIG_SYSTEM':'/dev/null','GIT_CONFIG_GLOBAL':'/dev/null',
+        'GIT_NO_LAZY_FETCH':'1','GIT_ALLOW_PROTOCOL':'none','GIT_TERMINAL_PROMPT':'0',
+        'GIT_GRAFT_FILE':'/dev/null'}
+    def git(*args):
+        return subprocess.check_output(['/usr/bin/git','--no-replace-objects','-c','core.fsmonitor=false',*args],
+            cwd=candidate,env=environment,stderr=subprocess.PIPE,timeout=30)
+    oid(sha)
+    if git('rev-parse','HEAD').decode().strip() != sha:
+        raise ValueError('checkout is not the event candidate')
+    pr=event.get('pull_request')
+    if not isinstance(pr,dict):
+        raise ValueError('pull request context required')
+    snapshot,head=oid(pr.get('base',{}).get('sha')),oid(pr.get('head',{}).get('sha'))
+    raw=git('cat-file','commit',sha)
+    if len(raw)>1_000_000 or hashlib.sha1(b'commit '+str(len(raw)).encode()+b'\0'+raw).hexdigest()!=sha:
+        raise ValueError('candidate raw commit identity changed')
+    parents=[row[7:].decode('ascii') for row in raw.split(b'\n\n',1)[0].splitlines() if row.startswith(b'parent ')]
+    if len(parents)!=2 or parents[1]!=head:
+        raise ValueError('candidate does not merge the exact event base and head')
+    base=oid(parents[0])
+    result={'base':base,'head':head,'candidate':sha,'event_base':snapshot}
+    if pr_context is not None:
+        if type(pr_context) is not dict or pr_context != result:
+            raise ValueError('authenticated routing context differs from immutable candidate')
+    elif base != snapshot:
+        native=os.environ;number=event.get('number')
+        repository={'full_name':'noah-l-frank/overte','id':1319052603}
+        target=pr.get('base',{}).get('ref');head_ref=pr.get('head',{}).get('ref')
+        workflow=native.get('GITHUB_WORKFLOW_REF','')
+        allowed_workflows={repository['full_name']+'/.github/workflows/'+name+'@refs/pull/'+str(number)+'/merge'
+                           for name in ('repository-checks.yml','codeql.yml','ios-build-qualification.yml')}
+        if (type(number) is not int or number <= 0 or pr.get('number') != number
+                or event.get('repository',{}).get('full_name') != repository['full_name']
+                or event.get('repository',{}).get('id') != repository['id']
+                or any(row.get('repo',{}).get('full_name')!=repository['full_name']
+                    or type(row.get('repo',{}).get('id')) is not int or row['repo']['id']!=repository['id']
+                    for row in (pr.get('base',{}),pr.get('head',{})))
+                or target not in {'main','android-main','android-phone','android-vr','android-vr-pico','apple-main','apple-ios'}
+                or native.get('GITHUB_ACTIONS')!='true' or native.get('GITHUB_EVENT_NAME')!='pull_request'
+                or native.get('GITHUB_REPOSITORY')!=repository['full_name']
+                or native.get('GITHUB_REPOSITORY_ID')!=str(repository['id'])
+                or native.get('GITHUB_SHA')!=sha or native.get('GITHUB_WORKFLOW_SHA')!=sha
+                or native.get('GITHUB_REF')!='refs/pull/'+str(number)+'/merge'
+                or native.get('GITHUB_BASE_REF')!=target or native.get('GITHUB_HEAD_REF')!=head_ref
+                or workflow not in allowed_workflows):
+            raise ValueError('candidate does not merge the exact event base and head')
+    # The native depth-two checkout need not contain an older snapshot object.
+    # This is provisional scheduling only: the mandatory fresh API boundary
+    # independently proves each event/API snapshot is an ancestor of actual B.
+    return result
+
+
+def changed_paths(candidate: Path, event: dict, expected_sha: str, *,
+                  allow_executable: bool = False, pr_context=None) -> tuple[list[str], bool]:
+    if event.get('pull_request') is None:
+        actual=subprocess.check_output(['git','rev-parse','HEAD'],cwd=candidate,text=True,
+                                       stderr=subprocess.PIPE,timeout=30).strip()
+        if not re.fullmatch(r'[0-9a-f]{40}',expected_sha) or actual!=expected_sha:
+            raise ValueError('checkout is not the event candidate')
         return [], False  # Manual validation always takes the conservative full route.
-    base_sha, head_sha = pr["base"]["sha"], pr["head"]["sha"]
-    if not all(re.fullmatch(r"[0-9a-f]{40}", sha) for sha in (base_sha, head_sha)):
-        raise ValueError("invalid pull request commit identity")
-    parents = git("show", "--no-patch", "--format=%P", expected_sha).split()
-    if parents != [base_sha, head_sha]:
-        raise ValueError("candidate does not merge the exact event base and head")
-    return inventory_paths(candidate, base_sha, expected_sha, allow_executable=allow_executable)
+    context=pr_candidate_context(candidate,event,expected_sha,pr_context=pr_context)
+    return inventory_paths(candidate,context['base'],expected_sha,allow_executable=allow_executable)
 
 
 def inventory_paths(candidate: Path, base_sha: str, expected_sha: str, *,
@@ -499,7 +554,11 @@ def verified_empty_candidate(candidate: Path, event: dict, expected_sha: str) ->
         if (not isinstance(labels,list) or any(not isinstance(label,dict) or type(label.get('name')) is not str
                 for label in labels) or any(label['name']=='android-long-diagnostics' for label in labels)):
             return None
-        before, source = base.get('sha'), head.get('sha')
+        try:
+            context=pr_candidate_context(candidate,event,expected_sha)
+        except (ValueError,subprocess.SubprocessError,OSError):
+            return None
+        before, source = context['base'], context['head']
         ref, head_ref, kind = base['ref'], head['ref'], 'pull_request'
     else:
         ref = event.get('ref')

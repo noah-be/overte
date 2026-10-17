@@ -104,6 +104,7 @@ class IsolatedConsumerTests(unittest.TestCase):
         self.evidence = self.make_evidence()
         self.gate = SimpleNamespace(
             load_config=lambda: {"repository": "noah-l-frank/overte", "repository_id": 1319052603},
+            effective_pr_context=lambda event, api: None,
             classify_event=lambda event, config, api: self.request,
             verify_evidence=lambda api, config, request: deepcopy(self.evidence),
             branch_sha=lambda api, repository, branch: self.base if branch == "apple-main" else self.parent,
@@ -1291,6 +1292,53 @@ class VerifiedEmptyConsumerTests(unittest.TestCase):
                     (snapshot/'.github/workflows/project-tests.yml').write_bytes(
                         (VALIDATION.ROOT/'tools/repository-checks/workflows/host/project-tests.yml').read_bytes())
                 with self.assertRaises(ValueError):packages.validate_wiring(snapshot)
+
+
+class EffectiveBaseConsumerTests(unittest.TestCase):
+    def setUp(self):
+        self.fixture = IsolatedConsumerTests('test_full_reuse_empty_product_profile_executes_zero_shared_tests')
+        self.addCleanup(self.fixture.doCleanups)
+        self.fixture.setUp()
+
+    def test_fresh_api_snapshot_is_forwarded_separately_from_original_snapshot_and_live_base(self):
+        f = self.fixture; f.ci_fixture(quick_beta=True)
+        original_snapshot = f.git('rev-parse', f.base + '^')
+        f.request.event_base_sha = original_snapshot
+        contexts = []
+        def current_context(api, request, *, event_pr=None):
+            observed = f.pr if event_pr is None else event_pr
+            value = {'base': request.base_sha, 'head': request.head_sha, 'candidate': request.merge_sha,
+                     'event_base': observed['base']['sha']}
+            contexts.append(deepcopy(value))
+            return SimpleNamespace(planning=lambda: dict(value))
+        f.gate.recheck_effective_request = current_context
+        def plan(candidate, event, source, *, pr_context):
+            self.assertEqual(event['pull_request']['base']['sha'], f.base)
+            self.assertEqual(pr_context, {'base': f.base, 'head': f.parent, 'candidate': f.commit, 'event_base': f.base})
+            self.assertNotEqual(pr_context['event_base'], original_snapshot)
+            return f.ci_package_plan(candidate, event, source)
+        f.ci_packages.candidate_plan.side_effect = plan
+        selected = f.ci_prepare()
+        self.assertEqual(selected['lane'], 'affected-ci')
+        self.assertTrue(contexts)
+        self.assertEqual(f.request.event_base_sha, original_snapshot)
+        self.assertEqual(f.executed(), [])
+
+    def test_candidate_differential_uses_complete_live_inventory_and_missing_paths_fail_before_commands(self):
+        f = self.fixture; f.request.event_base_sha = 'c' * 40
+        documents = [{'filename': 'libraries/alpha.cpp', 'status': 'modified'}]
+        f.gate.immutable_change_documents = Mock(return_value=documents)
+        f.gate.paginate_pull_files = Mock(side_effect=AssertionError('capped PR files cannot replace live inventory'))
+        with patch.object(VALIDATION, '_differential') as differential:
+            VALIDATION._candidate_differential(f.candidate, f.request, f.gate, f.api)
+            differential.assert_called_once_with(f.candidate, f.request, documents)
+        f.gate.immutable_change_documents.return_value = []
+        with patch.object(VALIDATION, '_differential') as differential:
+            with self.assertRaises(VALIDATION.ValidationError):
+                VALIDATION._candidate_differential(f.candidate, f.request, f.gate, f.api)
+            differential.assert_not_called()
+        f.gate.paginate_pull_files.assert_not_called()
+        self.assertEqual(f.executed(), [])
 
 
 if __name__ == "__main__":

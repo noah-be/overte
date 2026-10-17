@@ -66,6 +66,19 @@ carry those parent-owned files into its immediate child only when the permanent
 parent branch itself is the pull-request head. The workflow requires that head
 to be the current remote parent SHA.
 
+GitHub's PR file list can retain changes relative to an old base snapshot after
+those files have reached the target through another PR. An ordinary same-fork
+child task can pass that historical file-list restriction only when the trusted
+default-branch checker independently verifies that every privileged entry is
+identical in the current protected target, current task head and native PR merge.
+The complete inventories include path membership, mode, object type and SHA.
+The native merge must have exactly the current target and task head as its ordered
+parents, and the current target must be an ancestor of the task head. Raw event
+and API base snapshots remain unchanged observations; each must independently
+be the current target or its ancestor. Fresh PR, merge, ref, protection and
+repository checks reject changes during the attestation. This does not authorize
+any actual privileged-file change or replace the downstream reconciliation rule.
+
 When a direct synchronization conflicts or cannot satisfy the target's strict
 up-to-date requirement, a same-repository reconciliation PR
 may carry the privileged paths only after a separate fail-closed attestation.
