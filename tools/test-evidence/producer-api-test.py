@@ -3811,7 +3811,7 @@ class UnchangedParentTests(unittest.TestCase):
         path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes((C.ROOT/C.A.DOCUMENTATION_PUSH_WORKFLOW).read_bytes())
         canonical=self.candidate/C.producer.PLATFORM_PARENT_TEMPLATE
         canonical.parent.mkdir(parents=True,exist_ok=True);canonical.write_bytes((C.ROOT/C.producer.PLATFORM_PARENT_TEMPLATE).read_bytes())
-        shared=(C.ROOT/C.source_admission.PROFILE).read_bytes()
+        shared=(json.dumps({'schema':1,'platform':'shared','suites':[]},indent=2)+'\n').encode()
         profile=shared
         if target in {'android-phone','android-vr-pico'}:
             values=json.loads((C.ROOT/'.github/android-owner-transfer.json').read_bytes())['profiles'][target]['required_suites']
@@ -3886,6 +3886,21 @@ class UnchangedParentTests(unittest.TestCase):
                 return self.mutate(A.PREFIX+'/git/trees/'+oid+'?recursive=1',deepcopy(value))
         api=API();self.adapter=A.Adapter(api)
         return api
+
+    def test_documentation_shared_fixture_is_independent_of_checkout_platform(self):
+        import os
+        read_bytes=Path.read_bytes
+        def branch_bytes(path):
+            if path==self.C.ROOT/self.C.source_admission.PROFILE:
+                return (json.dumps({'schema':1,'platform':'android','suites':[]},indent=2)+'\n').encode()
+            return read_bytes(path)
+        with patch.object(Path,'read_bytes',branch_bytes):
+            self.documentation_native('main')
+            with patch.dict(os.environ,self.native,clear=True):
+                result=self.C.verify_no_execution(self.event,self.native,self.adapter,
+                    candidate=self.candidate,clock=lambda:NOW)
+        self.assertEqual(result['authority'],'none')
+        self.assertFalse(result['qualification']);self.assertIsNone(result['execution'])
 
     def test_documentation_four_native_targets_verify_raw_empty_without_original_E_or_primary_wait(self):
         import os
