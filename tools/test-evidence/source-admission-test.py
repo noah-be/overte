@@ -66,6 +66,7 @@ class SourceFixture:
                 if endpoint=='': value={'full_name':S.REPOSITORY,'id':S.REPOSITORY_ID,'default_branch':'main'}
                 elif endpoint=='pulls/23': value={**case.event['pull_request'],'state':'open'}
                 elif endpoint=='commits/refs/pull/23/merge': value={'sha':case.merge_id,'parents':[{'sha':case.base_id},{'sha':case.head_id}]}
+                elif endpoint=='git/ref/heads/'+S.quote(case.event['pull_request']['head']['ref'],safe=''): value={'ref':'refs/heads/'+case.event['pull_request']['head']['ref'],'object':{'type':'commit','sha':case.head_id}}
                 elif endpoint=='git/ref/heads/main': value={'ref':'refs/heads/main','object':{'type':'commit','sha':case.default_id}}
                 elif endpoint.startswith('branches/'):
                     name=endpoint.removeprefix('branches/')
@@ -81,6 +82,63 @@ class SourceFixture:
         return Api()
 
 class SourceAdmissionTests(SourceFixture,unittest.TestCase):
+    def test_repository_root_transport_has_no_slash_and_relative_requests_stay_exact(self):
+        calls=[]
+        class Response:
+            status=200
+            def __init__(self,url): self.url=url
+            def geturl(self): return self.url
+            def read(self,maximum):
+                self_case.assertEqual(maximum,16_000_001)
+                return b'{"ok":true}'
+            def __enter__(self): return self
+            def __exit__(self,*args): return False
+        self_case=self
+        def opened(request,timeout):
+            calls.append(request.full_url)
+            self.assertEqual(request.get_method(),'GET')
+            self.assertEqual({key.lower():value for key,value in request.header_items()},
+                {'authorization':'Bearer fake-source-token','accept':'application/vnd.github+json',
+                 'x-github-api-version':'2022-11-28'})
+            self.assertEqual(timeout,10)
+            return Response(request.full_url)
+        with patch.dict(os.environ,{'GH_TOKEN':'fake-source-token'},clear=True), \
+             patch.object(S.time,'monotonic',return_value=100), \
+             patch.object(S.urllib.request,'urlopen',side_effect=AssertionError('live source I/O forbidden')), \
+             patch.object(S.urllib.request,'build_opener',return_value=SimpleNamespace(open=opened)) as builder:
+            api=S.GitHubSource()
+            self.assertEqual(api.get(''),{'ok':True})
+            self.assertEqual(api.get('pulls/23'),{'ok':True})
+            self.assertEqual(api.get('git/ref/heads/main'),{'ok':True})
+            self.assertEqual(api.calls,3)
+            self.assertTrue(all(type(call.args[0]) is S._NoRedirect for call in builder.call_args_list))
+        self.assertEqual(calls,['https://api.github.com/repos/noah-l-frank/overte',
+            'https://api.github.com/repos/noah-l-frank/overte/pulls/23',
+            'https://api.github.com/repos/noah-l-frank/overte/git/ref/heads/main'])
+
+    def test_root_url_fix_keeps_endpoint_redirect_and_status_rejections(self):
+        root_url='https://api.github.com/repos/noah-l-frank/overte'
+        class Response:
+            def __init__(self,status,url): self.status=status;self.url=url
+            def geturl(self): return self.url
+            def read(self,maximum): return b'{}'
+            def __enter__(self): return self
+            def __exit__(self,*args): return False
+        with patch.dict(os.environ,{'GH_TOKEN':'fake-source-token'},clear=True), \
+             patch.object(S.urllib.request,'urlopen',side_effect=AssertionError('live source I/O forbidden')):
+            for endpoint in ('/','../pulls/23','pulls/0','https://api.github.com/repos/noah-l-frank/overte'):
+                with self.subTest(endpoint=endpoint), \
+                     patch.object(S.urllib.request,'build_opener') as builder:
+                    with self.assertRaises(S.SourceUnavailable): S.GitHubSource().get(endpoint)
+                    builder.assert_not_called()
+            for status,url in ((200,root_url+'/'),(200,'https://example.invalid/'),(301,root_url),(404,root_url)):
+                with self.subTest(status=status,url=url), \
+                     patch.object(S.urllib.request,'build_opener',return_value=SimpleNamespace(
+                         open=lambda request,timeout:Response(status,url))):
+                    with self.assertRaises(S.SourceUnavailable): S.GitHubSource().get('')
+            with self.assertRaises(S.SourceUnavailable):
+                S._NoRedirect().redirect_request(None,None,301,'Moved',{},root_url+'/')
+
     def test_reuse_precheck_preserves_all_original_data_without_relaxing_capture(self):
         for name in S.REUSE_LOOKUP_DATA:
             self.base[name]=S.ordinary('a'*40)
@@ -427,8 +485,12 @@ class BootstrapTests(SourceFixture,unittest.TestCase):
                 def __exit__(self,*args): return False
             def urlopen(request,timeout):
                 prefix='https://api.github.com/repos/'+S.REPOSITORY+'/'
-                self.assertTrue(request.full_url.startswith(prefix));self.assertEqual(request.method,'GET')
-                endpoint=request.full_url.removeprefix(prefix)
+                if request.full_url==prefix[:-1]:
+                    endpoint=''
+                else:
+                    self.assertTrue(request.full_url.startswith(prefix))
+                    endpoint=request.full_url.removeprefix(prefix)
+                self.assertEqual(request.method,'GET')
                 value=api.get(endpoint)
                 if drift and endpoint=='git/ref/heads/main' and api.calls.count(endpoint)>1:
                     value['object']['sha']='f'*40
@@ -449,6 +511,39 @@ class BootstrapTests(SourceFixture,unittest.TestCase):
     def test_bootstrap_rejects_changed_helper_before_exec_and_changed_controller_before_import(self):
         self.assertEqual(self.execute_bootstrap(changed_helper=True),'admitted=false\n')
         self.assertEqual(self.execute_bootstrap(changed_controller=True),'admitted=false\n')
+
+class EffectiveBaseBootstrapTests(BootstrapTests):
+    def scripts(self):
+        import yaml
+        path=ROOT/'tools/repository-checks/workflows/producers/protected-project-tests-android-platform.yml'
+        value=yaml.safe_load(path.read_text());scripts=[]
+        for job in value['jobs'].values():
+            for step in job.get('steps',[]):
+                if step.get('id')=='protected-source':
+                    lines=step['run'].splitlines();self.assertIn('-I -S -B',lines[0])
+                    scripts.append('\n'.join(lines[1:-1])+'\n')
+        self.assertEqual(len(scripts),5);self.assertEqual(len(set(scripts)),1)
+        return scripts[0]
+
+    def api(self):
+        api=super().api();original=api.get
+        def get(endpoint):
+            if endpoint.startswith('compare/'):
+                api.calls.append(endpoint)
+                snapshot=endpoint.split('/',1)[1].split('...',1)[0]
+                return {'status':'ahead','ahead_by':40,'behind_by':0,'total_commits':40,
+                    'base_commit':{'sha':snapshot},'merge_base_commit':{'sha':snapshot},
+                    'commits':[{'sha':'3'*40}],'files':[]}
+            return original(endpoint)
+        api.get=get
+        return api
+
+    def test_future_native_bootstrap_resolves_actual_base_before_loading_guard(self):
+        self.event['pull_request']['base']['sha']='1'*40
+        self.assertEqual(self.execute_bootstrap(),'admitted=true\n')
+        self.assertEqual(self.execute_bootstrap(changed_helper=True),'admitted=false\n')
+        self.assertEqual(self.execute_bootstrap(changed_controller=True),'admitted=false\n')
+        self.assertEqual(self.execute_bootstrap(drift=True),'admitted=false\n')
 
 class DocumentationSourceTests(SourceFixture,unittest.TestCase):
     def test_fixed_documentation_native_role_rejects_unknown_target_job_or_source(self):
@@ -519,6 +614,118 @@ class DocumentationSourceTests(SourceFixture,unittest.TestCase):
             self.assertEqual(run.returncode==0,value in {'true','false'})
 
 
+
+class EffectiveBaseResolutionTests(SourceFixture,unittest.TestCase):
+    def observations(self, *, event_snapshot='1'*40, api_snapshot='2'*40):
+        event=deepcopy(self.event['pull_request']);current=deepcopy(event)
+        event['base']['sha']=event_snapshot;current['base']['sha']=api_snapshot;current['state']='open'
+        merge={'sha':self.merge_id,'parents':[{'sha':self.base_id},{'sha':self.head_id}]}
+        values={
+            'branches/'+self.target:{'name':self.target,'protected':True,'commit':{'sha':self.base_id}},
+            'git/ref/heads/'+S.quote(event['head']['ref'],safe=''):{'ref':'refs/heads/'+event['head']['ref'],
+                'object':{'type':'commit','sha':self.head_id}},
+        }
+        for snapshot in (event_snapshot,api_snapshot):
+            if snapshot!=self.base_id:
+                values['compare/'+snapshot+'...'+self.base_id+'?per_page=1']={
+                    'status':'ahead','ahead_by':40,'behind_by':0,'total_commits':40,
+                    'base_commit':{'sha':snapshot},'merge_base_commit':{'sha':snapshot},
+                    'commits':[{'sha':'3'*40}],'files':[]}
+        calls=[]
+        def get(endpoint):
+            calls.append(endpoint)
+            return deepcopy(values[endpoint])
+        return event,current,merge,values,calls,SimpleNamespace(get=get)
+
+    def test_distinct_event_and_api_ancestors_retain_exact_current_authority(self):
+        for snapshots in (('1'*40,'1'*40),('1'*40,'2'*40),(self.base_id,self.base_id)):
+            with self.subTest(snapshots=snapshots):
+                event,current,merge,values,calls,api=self.observations(event_snapshot=snapshots[0],api_snapshot=snapshots[1])
+                original=deepcopy((event,current,merge))
+                self.assertEqual(S.resolve_pr_base(api,current,merge,event),{'base':self.base_id,'head':self.head_id,
+                    'target':self.target,'head_ref':event['head']['ref'],'source':self.merge_id})
+                self.assertEqual((event,current,merge),original)
+                self.assertEqual(sum(name.startswith('compare/') for name in calls),sum(value!=self.base_id for value in snapshots))
+
+    def test_each_snapshot_and_current_ref_are_independent_mandatory_evidence(self):
+        for failure in ('event-diverged','api-diverged','missing-event','boolean-count','truncated-commits',
+                        'future-snapshot','base-ref','head-ref','head-sha','retarget','repo','one-parent','parent-order'):
+            event,current,merge,values,calls,api=self.observations()
+            comparisons=[name for name in values if name.startswith('compare/')]
+            if failure in {'event-diverged','api-diverged'}:
+                key='compare/'+('1' if failure=='event-diverged' else '2')*40+'...'+self.base_id+'?per_page=1'
+                values[key]['merge_base_commit']['sha']='4'*40
+            elif failure=='missing-event': event['base'].pop('sha')
+            elif failure=='boolean-count':values[comparisons[0]]['ahead_by']=True
+            elif failure=='truncated-commits':values[comparisons[0]]['commits']=[]
+            elif failure=='future-snapshot':values[comparisons[0]].update(status='behind',ahead_by=0,behind_by=1,total_commits=0)
+            elif failure=='base-ref':values['branches/'+self.target]['commit']['sha']='4'*40
+            elif failure=='head-ref':values['git/ref/heads/'+S.quote(event['head']['ref'],safe='')]['object']['sha']='4'*40
+            elif failure=='head-sha':current['head']['sha']='4'*40
+            elif failure=='retarget':event['base']['ref']='main'
+            elif failure=='repo':current['head']['repo']['id']=1
+            elif failure=='one-parent':merge['parents'].pop()
+            else:merge['parents'].reverse()
+            with self.subTest(failure=failure),self.assertRaises(S.SourceUnavailable):
+                S.resolve_pr_base(api,current,merge,event)
+
+    def test_actual_source_transport_stale_dual_snapshot_bookends_fit_unchanged_budget(self):
+        self.event['pull_request']['base']['sha']='1'*40
+        fake=self.api();original=fake.get
+        def facts(endpoint):
+            if endpoint.startswith('compare/'):
+                snapshot=endpoint.split('/',1)[1].split('...',1)[0]
+                return {'status':'ahead','ahead_by':40,'behind_by':0,'total_commits':40,
+                    'base_commit':{'sha':snapshot},'merge_base_commit':{'sha':snapshot},
+                    'commits':[{'sha':'3'*40}],'files':[]}
+            value=original(endpoint)
+            if endpoint=='pulls/23':value['base']['sha']='2'*40
+            return value
+        class Response:
+            status=200
+            def __init__(self,url,body):self.url=url;self.body=body
+            def geturl(self):return self.url
+            def read(self,maximum):return self.body[:maximum]
+            def __enter__(self):return self
+            def __exit__(self,*args):return False
+        seen=[]
+        def opened(request,timeout):
+            prefix='https://api.github.com/repos/'+S.REPOSITORY
+            self.assertTrue(request.full_url==prefix or request.full_url.startswith(prefix+'/'))
+            endpoint=request.full_url[len(prefix):].removeprefix('/')
+            seen.append(endpoint)
+            return Response(request.full_url,json.dumps(facts(endpoint)).encode())
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            for name,body in self.bodies.items():
+                path=root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(body)
+                path.chmod(0o755 if self.default[name]['mode']=='100755' else 0o644)
+            with patch.dict(os.environ,{'GH_TOKEN':'fake-source-token'},clear=True), \
+                 patch.object(S.urllib.request,'build_opener',return_value=SimpleNamespace(open=opened)), \
+                 patch.object(S.time,'monotonic',return_value=100), \
+                 patch.object(S.subprocess,'run',return_value=SimpleNamespace(stdout=(self.default_id+'\n').encode())):
+                api=S.GitHubSource()
+                value=S.authenticate(self.event,self.env,api,root)
+                self.assertEqual(value['base'],self.base_id);self.assertEqual(api.calls,24)
+                self.assertEqual(api.deadline,145);self.assertEqual(len(seen),24)
+                self.assertEqual(sum(endpoint.startswith('compare/') for endpoint in seen),4)
+                with self.assertRaisesRegex(S.SourceUnavailable,'budget exceeded'):api.get('')
+
+    def test_native_source_keeps_actual_base_and_separate_snapshot_bookends(self):
+        event,current,merge,values,calls,api=self.observations()
+        payload={**self.event,'pull_request':event}
+        values.update({'':{'id':S.REPOSITORY_ID,'full_name':S.REPOSITORY,'default_branch':'main'},
+            'pulls/23':current,'commits/refs/pull/23/merge':merge,
+            'git/ref/heads/main':{'ref':'refs/heads/main','object':{'type':'commit','sha':self.default_id}},
+            'branches/main':{'name':'main','protected':True,'commit':{'sha':self.default_id}}})
+        before=deepcopy(payload)
+        self.assertEqual(S.native(payload,self.env,api)['base'],self.base_id)
+        self.assertEqual(payload,before)
+        for key,value in (('GITHUB_SHA','4'*40),('GITHUB_WORKFLOW_SHA','4'*40),
+                          ('GITHUB_EVENT_NAME','pull_request_target'),('GITHUB_HEAD_REF','foreign')):
+            with self.subTest(key=key),self.assertRaises(S.SourceUnavailable):
+                S.native(payload,{**self.env,key:value},api)
+
 if __name__=='__main__':
     suite=unittest.defaultTestLoader.loadTestsFromTestCase(SourceAdmissionTests)
     suite.addTests(BootstrapTests(name) for name in (
@@ -526,5 +733,8 @@ if __name__=='__main__':
         'test_bootstrap_rejects_changed_helper_before_exec_and_changed_controller_before_import',
         'test_bootstrap_default_source_drift_cannot_admit_after_the_initial_snapshot'))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(DocumentationSourceTests))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(EffectiveBaseResolutionTests))
+    suite.addTests(EffectiveBaseBootstrapTests(name) for name in (
+        "test_future_native_bootstrap_resolves_actual_base_before_loading_guard",))
     result=unittest.TextTestRunner(verbosity=2).run(suite)
     raise SystemExit(not result.wasSuccessful())
