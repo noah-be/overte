@@ -1126,6 +1126,29 @@ class HostGenerationTests(unittest.TestCase):
                 needs = self.needs(output);needs[name]["result"] = "success"
                 with self.assertRaises(ValueError): self.verify(output, event, source, required=needs)
 
+    def test_exact_governance_document_omits_host_only_with_regular_reviewed_inputs(self):
+        document = "docs/BRANCH_GOVERNANCE.md"
+        base = self.commit(self.base, {document: "# Reviewed governance\n"})
+        inputs = self.host.selector(self.trusted)
+        previous = inputs.read_snapshot(self.root, base)
+        boundary = self.host.ci_host_boundary(previous)
+        with patch.object(self.host, "REVIEWED_CI_HOST_BOUNDARY", boundary):
+            event, source = self.candidate({document: "# Updated governance\n"}, base=base)
+            output = self.route(event, source)
+            self.assertEqual((output["required"], output["host_required"], output["reason"]),
+                             ("false", "false", "reviewed-ci-only-host-inputs"))
+            self.assertEqual(self.verify(output, event, source), output)
+            changes = ({document: ("100755", "# Unexpected executable document\n")},
+                       {document: ("120000", "BRANCH_WORKFLOW.md")},
+                       {"docs/BRANCH_GOVERNANCE-extra.md": "# Unknown neighboring document\n"},
+                       {document: "# Mixed governance edit\n",
+                        "ios/tests/dsym_fixture.py": "# Changed host reader\n"})
+            for change in changes:
+                with self.subTest(change=change):
+                    _, candidate = self.candidate(change, base=base)
+                    self.assertIsNone(self.host.ci_host_omission(
+                        previous, inputs.read_snapshot(self.root, candidate)))
+
     def test_exact_doctor_cli_omits_only_ios_host_work_and_preserves_reader_guards(self):
         inputs = self.host.selector(self.trusted)
         previous = inputs.read_snapshot(self.root, self.base)

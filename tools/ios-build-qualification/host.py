@@ -42,7 +42,7 @@ VARIANTS = ["complete-reviewed-launcher", "Qt6Core/Gui/Qml/Concurrent/WebChannel
 # membership, local imports and historical child differences, remain anchored.
 # This proves only that the own host run is unaffected; it is not a passing
 # test receipt, shared-owner handoff or application-build selection authority.
-REVIEWED_CI_HOST_BOUNDARY = "a66799656e1f6f64e4f48fee32cb1897786a3735e7d15c254652b48447afd08d"
+REVIEWED_CI_HOST_BOUNDARY = "90da341e226f56b8dfb8b925af7c0273ecc41772ca424e3426b04c80acdb9a7b"
 CI_HOST_INDEPENDENT_PATHS = frozenset({
     "tools/repository-health/check.py",
     '.github/workflows/documentation-checks.yml',
@@ -137,6 +137,7 @@ CI_HOST_INDEPENDENT_PATHS = frozenset({
     'docs/ANDROID_BUILD_INPUTS.md',
     'docs/ATTESTED_RUNTIME_REUSE.md',
     'docs/AUTOMATIC_BRANCH_CLEANUP.md',
+    'docs/BRANCH_GOVERNANCE.md',
     'docs/BRANCH_WORKFLOW.md',
     'docs/BROWSER_CPU_SELECTION.md',
     'docs/DEPENDENCY_RELEASES.md',
