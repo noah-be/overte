@@ -944,7 +944,6 @@ def create_bundle(repo_dir, candidates, output):
     for row in candidates:
         require(store.git("rev-parse", "refs/heads/" + row["branch"]).strip() == row["sha"], "backup_head_mismatch")
     store.git("bundle", "create", str(output), *["refs/heads/" + row["branch"] for row in candidates])
-    return digest(output)
 
 
 def verify_bundle(bundle, candidates, restore_dir):
