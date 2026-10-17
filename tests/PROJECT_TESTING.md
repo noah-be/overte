@@ -1292,6 +1292,15 @@ unknown inputs and unreviewed reader changes keep the full fallback; an absent
 required registry owner is an error. These admissions do not remove Device reader
 inputs, broaden CI independence, or waive the required host work.
 
+The `apple-ios` Device reader graph has additional unproved code edges, so an
+actual change to any of the three mapped chat/Snapshot fixtures also retains
+`device-control-plane-full` for that target, including hidden base/candidate
+differences. The finer selector cannot remove this owner. An issue-workflow-only
+change does not add Device, and the proved main, Apple parent and four Android
+reader scopes keep their precise mapped owners. Unknown targets retain the full
+fallback. The cumulative source rollout already changes the two independently
+Device-owned eligibility fixtures; this conservative rule adds no work there.
+
 The exclusion requires the exact reviewed host reader, discovery, manifest,
 fixture and production-source generation in the candidate and trusted checkout.
 Six separately reviewed child inventories preserve their own production sources,

@@ -252,7 +252,7 @@ def program_digest(tree, root=ROOT):
     return hashlib.sha256((json.dumps(payload, sort_keys=True, separators=(',', ':')) + '\n').encode()).hexdigest()
 
 
-def required_input_owners(tree, paths, base_tree=None):
+def required_input_owners(tree, paths, base_tree=None, *, target='main'):
     """Bind direct and historical owner deltas to ordinary immutable inputs."""
     owners = set()
     for path, required in REQUIRED_INPUT_OWNERS.items():
@@ -264,6 +264,14 @@ def required_input_owners(tree, paths, base_tree=None):
             if not isinstance(entry, dict) or entry.get('mode') != '100644' or entry.get('type') != 'blob':
                 raise ValueError('mandatory input owners require complete ordinary base and candidate entries')
         owners.update(required)
+        if target == 'apple-ios' and path in {
+                'tests/device/contracts/chat/test_chat_qml.py',
+                'tests/device/contracts/snapshot/test_snapshot_qml.py',
+                'tests/device/contracts/snapshot/test_snapshot_native.py'} \
+                and base_tree.get(path) != tree.get(path):
+            # This child's additional Device readers are not yet proved
+            # independent. A path hint alone cannot manufacture a new delta.
+            owners.add('device-control-plane-full')
     return owners
 
 
@@ -397,7 +405,7 @@ def select(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_
                             'reviewed-protected-producer-transition'}:
         return legacy
     try:
-        mandatory = required_input_owners(tree, paths, base_tree)
+        mandatory = required_input_owners(tree, paths, base_tree, target=target)
     except ValueError:
         return legacy
     registry = inputs.load_registry(ROOT / '.github/test-suites.json')
@@ -434,7 +442,7 @@ def _select_legacy(tree, paths, regular, *, unknown=False, trusted_tree=None, ca
         reason = 'unowned-inputs'
     else:
         try:
-            required = required_input_owners(tree, paths, base_tree)
+            required = required_input_owners(tree, paths, base_tree, target=target)
             # These exact foreign lock bytes are not product reader inputs.
             # Changed locks still require their separate mandatory owner and
             # ordinary entries on both sides; unchanged locks need no new run.
