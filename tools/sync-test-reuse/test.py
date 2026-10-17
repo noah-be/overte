@@ -604,6 +604,12 @@ class TopologyContracts(unittest.TestCase):
 class ProductRepairContracts(unittest.TestCase):
     """Exercise real gate and branch attestation code against fake GET responses."""
 
+    def setUp(self):
+        # Pure fake-GET contracts must not inherit a hosting job's native role.
+        environment = mock.patch.dict('os.environ', {'GITHUB_ACTIONS': 'false'})
+        self.addCleanup(environment.stop)
+        environment.start()
+
     def fixture(self, changes=None, target="android-vr-pico"):
         settings = config()
         paths = settings["reconciliation_repair_paths"].get(target, [])
@@ -1490,9 +1496,189 @@ class LargeComparisonTests(unittest.TestCase):
                             gate.authorize_retired_paths(MappingApi(), REPOSITORY, cfg, [path], changes, BASE, PARENT, MERGE)
 
 
+class EffectiveBaseTopologyTests(unittest.TestCase):
+    def setUp(self):
+        self.default = subprocess.check_output(['git', '--no-replace-objects', 'rev-parse', 'HEAD'],
+                                               cwd=gate.ROOT, text=True).strip()
+        side = lambda ref, sha: {'ref': ref, 'sha': sha, 'repo': {'full_name': REPOSITORY, 'id': REPOSITORY_ID}}
+        self.pr = {'number': 610, 'state': 'open', 'mergeable': True, 'merge_commit_sha': MERGE,
+                   'base': side('android-main', HEAD), 'head': side('main', self.default)}
+        self.event = {'number': 610, 'repository': {'full_name': REPOSITORY, 'id': REPOSITORY_ID},
+                      'pull_request': deepcopy(self.pr)}
+        self.env = {'GITHUB_ACTIONS': 'true', 'GITHUB_REPOSITORY': REPOSITORY,
+                    'GITHUB_REPOSITORY_ID': str(REPOSITORY_ID), 'GITHUB_RUN_ATTEMPT': '1',
+                    'GITHUB_EVENT_NAME': 'pull_request_target', 'GITHUB_RUN_ID': '901',
+                    'GITHUB_JOB': 'sync-test-reuse', 'GITHUB_REF': 'refs/heads/android-main',
+                    'GITHUB_BASE_REF': 'android-main', 'GITHUB_HEAD_REF': 'main',
+                    'GITHUB_SHA': BASE, 'GITHUB_WORKFLOW_SHA': BASE,
+                    'GITHUB_WORKFLOW_REF': REPOSITORY + '/.github/workflows/sync-test-reuse.yml@refs/heads/android-main'}
+        self.docs = {}
+        def put(path, value): self.docs['repos/' + REPOSITORY + '/' + path] = value
+        put('pulls/610', self.pr)
+        put('branches/android-main', {'name': 'android-main', 'protected': True, 'commit': {'sha': BASE}})
+        put('branches/main', {'name': 'main', 'protected': True, 'commit': {'sha': self.default}})
+        for ref, oid in (('android-main', BASE), ('main', self.default)):
+            put('git/ref/heads/' + ref, {'ref': 'refs/heads/' + ref, 'object': {'type': 'commit', 'sha': oid}})
+        merge = {'sha': MERGE, 'tree': {'sha': TREE}, 'parents': [{'sha': BASE}, {'sha': self.default}]}
+        put('commits/refs/pull/610/merge', merge); put('git/commits/' + MERGE, merge)
+        for revision, tree_id in ((BASE, CODEQL_BASE_TREE), (self.default, METADATA_WORKFLOW_BLOB)):
+            put('git/commits/' + revision, {'sha': revision, 'tree': {'sha': tree_id}, 'parents': []})
+        recipes = []
+        for path in ('.github/workflows/sync-test-reuse.yml', '.github/workflows/sync-validation.yml', '.github/workflows/codeql.yml'):
+            oid = subprocess.check_output(['git', 'rev-parse', self.default + ':' + path], cwd=gate.ROOT, text=True).strip()
+            recipes.append(entry(path, oid))
+        companion = '.github/workflows/pr-metadata-context.yml'
+        row = subprocess.check_output(['git', 'ls-tree', self.default, '--', companion],
+                                      cwd=gate.ROOT).split()
+        if row:
+            self.assertEqual(row[:2], [b'100644', b'blob'])
+            self.assertEqual(len(row), 4)
+            self.assertEqual(row[3].decode(), companion)
+            recipes.append(entry(companion, row[2].decode()))
+        for tree_id, doc_sha in ((CODEQL_BASE_TREE, BASE), (TREE, HEAD), (METADATA_WORKFLOW_BLOB, BASE)):
+            put('git/trees/' + tree_id + '?recursive=1', {'sha': tree_id, 'truncated': False,
+                'tree': [*deepcopy(recipes), entry('docs/change.md', doc_sha)]})
+        put('compare/' + HEAD + '...' + BASE + '?per_page=1', {'status': 'ahead',
+            'base_commit': {'sha': HEAD}, 'merge_base_commit': {'sha': HEAD}, 'ahead_by': 1, 'behind_by': 0,
+            'total_commits': 1, 'commits': [{'sha': BASE}], 'files': []})
+        repo = self.event['repository']
+        for identifier, workflow, path, kind, source, suite, started in (
+                (901, 350930894, '.github/workflows/sync-test-reuse.yml', 'pull_request_target', self.default, 9010, '2026-10-16T00:00:00Z'),
+                (902, 350930895, '.github/workflows/sync-validation.yml', 'workflow_dispatch', self.default, 9020, '2026-10-16T00:00:01Z')):
+            run = {'id': identifier, 'workflow_id': workflow, 'path': path, 'event': kind,
+                   'head_sha': source, 'head_branch': 'main', 'run_attempt': 1, 'status': 'in_progress', 'conclusion': None,
+                   'check_suite_id': suite, 'run_started_at': started, 'repository': repo, 'head_repository': repo,
+                   'pull_requests': [{'number': 610, 'base': self.pr['base'], 'head': self.pr['head']}],
+                   'display_title': 'Sync validation gate-901-attempt-1' if identifier == 902 else 'Sync test reuse for PR 610'}
+            put(f'actions/runs/{identifier}', run); put(f'actions/runs/{identifier}/attempts/1', deepcopy(run))
+            put(f'actions/workflows/{workflow}', {'id': workflow, 'path': path, 'state': 'active'})
+            put(f'check-suites/{suite}', {'id': suite, 'head_sha': source, 'app': {'id': 15368}, 'repository': repo})
+        self.api = MappingApi(self.docs)
+
+    def test_actual_prt_context_uses_native_H_run_but_protected_B_workflow_and_complete_delta(self):
+        with mock.patch.dict('os.environ', self.env, clear=True):
+            context = gate.effective_pr_context(self.event, self.api)
+            self.assertEqual(context.planning(), {'base': BASE, 'head': self.default, 'candidate': MERGE, 'event_base': HEAD})
+            with mock.patch.object(gate, 'compare_merge_base', return_value=HEAD), \
+                 mock.patch.object(gate, 'compare_files', return_value=(HEAD, {'docs/change.md'})), \
+                 mock.patch.object(gate, 'paginate_pull_files', side_effect=AssertionError('capped PR files are not authority')):
+                request = gate.classify_event(self.event, config(), self.api, pr_context=context)
+            self.assertEqual(request.base_sha, BASE)
+            self.assertEqual(request.event_base_sha, HEAD)
+            self.assertEqual(request.changed_paths, ('docs/change.md',))
+            self.assertEqual(request.profile, 'documentation')
+            self.assertTrue(gate.validate_required_codeql_workflow(self.event, self.api, pr_context=context))
+            self.docs[f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1']['tree'][-1]['mode'] = '100755'
+            with mock.patch.object(gate, 'compare_merge_base', return_value=HEAD), \
+                 mock.patch.object(gate, 'compare_files', return_value=(HEAD, {'docs/change.md'})):
+                self.assertEqual(gate.classify_event(self.event, config(), self.api, pr_context=context).profile,
+                                 'android-family')
+        self.assertEqual(self.event['pull_request']['base']['sha'], HEAD)
+
+    def test_manual_validation_authenticates_original_gate_and_rechecks_source_without_event_rewrite(self):
+        env = {**self.env, 'GITHUB_EVENT_NAME': 'workflow_dispatch', 'GITHUB_RUN_ID': '902', 'GITHUB_JOB': 'validate',
+               'GITHUB_REF': 'refs/heads/main', 'GITHUB_SHA': self.default, 'GITHUB_WORKFLOW_SHA': self.default,
+               'GITHUB_WORKFLOW_REF': REPOSITORY + '/.github/workflows/sync-validation.yml@refs/heads/main'}
+        with mock.patch.dict('os.environ', env, clear=True):
+            context = gate.effective_pr_context(self.event, self.api)
+            request = gate.SyncRequest(REPOSITORY, REPOSITORY_ID, 610, 'android-main', BASE, 'main', self.default,
+                REPOSITORY_ID, MERGE, 'direct', 'main', self.default, 'android', ('docs/change.md',), ('docs/change.md',),
+                event_base_sha=HEAD)
+            self.assertEqual(gate.recheck_effective_request(self.api, request), context)
+            self.docs[f'repos/{REPOSITORY}/git/ref/heads/android-main']['object']['sha'] = PARENT
+            with self.assertRaises(gate.GateError): gate.recheck_effective_request(self.api, request)
+
+    def test_current_event_and_older_API_snapshot_need_the_same_authenticated_native_context(self):
+        self.event['pull_request']['base']['sha'] = BASE
+        with mock.patch.dict('os.environ', self.env, clear=True):
+            context = gate.effective_pr_context(self.event, self.api)
+            self.assertEqual(context.event_base, BASE)
+            self.assertEqual(context.base, BASE)
+            self.assertTrue(gate.validate_required_codeql_workflow(self.event, self.api))
+            with mock.patch.object(gate, 'compare_merge_base', return_value=HEAD), \
+                 mock.patch.object(gate, 'compare_files', return_value=(HEAD, {'docs/change.md'})), \
+                 mock.patch.object(gate, 'paginate_pull_files', side_effect=AssertionError('complete B/M inventory required')):
+                request = gate.classify_event(self.event, config(), self.api, pr_context=context)
+            self.assertEqual(request.event_base_sha, BASE)
+            self.assertEqual(request.changed_paths, ('docs/change.md',))
+            self.pr['base']['sha'] = BASE
+            self.assertIsNone(gate.effective_pr_context(self.event, self.api))
+        self.pr['base']['sha'] = HEAD
+        with mock.patch.dict('os.environ', {}, clear=True), self.assertRaises(gate.GateError):
+            gate.effective_pr_context(self.event, self.api)
+
+    def test_authenticated_candidate_with_missing_optional_merge_SHA_never_sleeps(self):
+        self.pr.pop('merge_commit_sha')
+        with mock.patch.dict('os.environ', self.env, clear=True):
+            context = gate.effective_pr_context(self.event, self.api)
+            with mock.patch.object(gate, 'compare_merge_base', return_value=HEAD), \
+                 mock.patch.object(gate, 'compare_files', return_value=(HEAD, {'docs/change.md'})), \
+                 mock.patch.object(gate.time, 'sleep', side_effect=AssertionError('authenticated M needs no optional API field')) as sleep:
+                request = gate.classify_event(self.event, config(), self.api, pr_context=context)
+            self.assertEqual(request.merge_sha, MERGE)
+            self.assertEqual(request.base_sha, BASE)
+            sleep.assert_not_called()
+
+    def test_authenticated_repair_snapshots_keep_the_original_full_privileged_attestation(self):
+        fixture = ProductRepairContracts()
+        event, settings, api = fixture.fixture()
+        snapshot = 'e' * 40
+        current = api.documents[f'repos/{REPOSITORY}/pulls/610']
+        event['pull_request']['base']['sha'] = snapshot
+        current['base']['sha'] = snapshot
+        compare = f'repos/{REPOSITORY}/compare/{snapshot}...{BASE}?per_page=1'
+        api.documents[compare] = {'status': 'ahead', 'base_commit': {'sha': snapshot},
+            'merge_base_commit': {'sha': snapshot}, 'ahead_by': 1, 'behind_by': 0,
+            'total_commits': 1, 'commits': [{'sha': BASE}], 'files': []}
+        context = gate.EffectivePRContext(BASE, HEAD, MERGE, snapshot)
+        arguments = (api, REPOSITORY, REPOSITORY_ID, event['pull_request'], current,
+                     'android-vr-pico', 'android-vr', current['head']['ref'], BASE, PARENT, HEAD, MERGE)
+        self.assertIsNone(gate.attest_product_repair(*arguments, pr_context=context))
+        with self.assertRaises(gate.GateError): gate.attest_product_repair(*arguments)
+        api.documents[compare]['status'] = 'diverged'
+        with self.assertRaises(gate.GateError): gate.attest_product_repair(*arguments, pr_context=context)
+        api.documents[compare]['status'] = 'ahead'
+        api.documents[f'repos/{REPOSITORY}/git/commits/{HEAD}']['parents'][0]['sha'] = snapshot
+        with self.assertRaises(gate.GateError): gate.attest_product_repair(*arguments, pr_context=context)
+
+    def test_wrong_native_role_missing_association_app_or_ancestry_never_authorizes_stale_base(self):
+        for mutation in ('offline', 'source', 'run-head', 'app', 'association', 'attempt-association',
+                         'attempt-repository', 'ancestry', 'parents'):
+            with self.subTest(mutation=mutation):
+                old = deepcopy(self.docs); env = dict(self.env)
+                if mutation == 'offline': env = {}
+                if mutation == 'source': env['GITHUB_SHA'] = MERGE
+                if mutation == 'run-head':
+                    for path in ('actions/runs/901', 'actions/runs/901/attempts/1'):
+                        self.docs[f'repos/{REPOSITORY}/' + path]['head_sha'] = BASE
+                if mutation == 'app': self.docs[f'repos/{REPOSITORY}/check-suites/9010']['app']['id'] = 7
+                if mutation == 'association': self.docs[f'repos/{REPOSITORY}/actions/runs/901']['pull_requests'] = []
+                if mutation == 'attempt-association': self.docs[f'repos/{REPOSITORY}/actions/runs/901/attempts/1']['pull_requests'] = []
+                if mutation == 'attempt-repository': self.docs[f'repos/{REPOSITORY}/actions/runs/901/attempts/1']['repository']['id'] = 7
+                if mutation == 'ancestry': self.docs[f'repos/{REPOSITORY}/compare/{HEAD}...{BASE}?per_page=1']['status'] = 'diverged'
+                if mutation == 'parents': self.docs[f'repos/{REPOSITORY}/commits/refs/pull/610/merge']['parents'][0]['sha'] = PARENT
+                with mock.patch.dict('os.environ', env, clear=True):
+                    with self.assertRaises(gate.GateError): gate.effective_pr_context(self.event, self.api)
+                self.docs.clear(); self.docs.update(old)
+
+    def test_complete_inventory_keeps_modes_additions_and_deletions_and_refuses_truncation(self):
+        before = self.docs[f'repos/{REPOSITORY}/git/trees/{CODEQL_BASE_TREE}?recursive=1']['tree']
+        after = self.docs[f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1']['tree']
+        before.append(entry('removed.py')); after.append(dict(entry('new.py'), mode='100755'))
+        self.assertEqual(gate.immutable_change_documents(self.api, REPOSITORY, BASE, MERGE), [
+            {'filename': 'docs/change.md', 'status': 'modified'}, {'filename': 'new.py', 'status': 'added'},
+            {'filename': 'removed.py', 'status': 'removed'}])
+        self.docs[f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1']['truncated'] = True
+        with self.assertRaises(gate.GateError): gate.immutable_change_documents(self.api, REPOSITORY, BASE, MERGE)
+
+
 class RequiredCodeQLInvocationTests(unittest.TestCase):
     """Actual trusted gate hook and immutable API tree; no caller job facts."""
     def setUp(self):
+        # Native PRT/manual roles have separate explicit environment fixtures.
+        environment = mock.patch.dict('os.environ', {'GITHUB_ACTIONS': 'false'})
+        self.addCleanup(environment.stop)
+        environment.start()
         temporary = tempfile.TemporaryDirectory(prefix='overte-required-codeql-fixture-')
         self.addCleanup(temporary.cleanup)
         self.policy_root = Path(temporary.name)
