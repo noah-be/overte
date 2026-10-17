@@ -33,7 +33,7 @@ import subprocess
 # Protected apple-ios merge of the successful host-only workflow bootstrap.
 # Its only tree delta from the previous anchor is the exact reviewed workflow.
 REVIEWED_REVISION = "2fc894a0605103843b36653f250f854714a963ee"
-REVIEWED_BOUNDARY = "sha256:8e66f6e9de251fe1a19feb867df56a714fb126cd8e66e22ba370d03af4f90aec"
+REVIEWED_BOUNDARY = "sha256:8527f25d58c8ebf8eebab8a9e43517899b7afce2e511026d2873a69ab82f1794"
 
 # Reviewed host control-plane files, not generic tests/** or tools/** patterns.
 # In particular, E2E builds can compile tests/device source and fixtures.
@@ -43,6 +43,16 @@ REVIEWED_BOUNDARY = "sha256:8e66f6e9de251fe1a19feb867df56a714fb126cd8e66e22ba370
 # its device-control-plane-full and project-runner owners remain independently required.
 # Independent required CI must still validate these files before any app waiver.
 INDEPENDENT_HOST_PATHS = frozenset({
+    # App-only negative dependencies. The iOS host launcher directly executes
+    # the chat/Snapshot fixtures; admitting app omission never omits that host.
+    '.github/workflows/issue-intake.yml',
+    'tests/device/contracts/chat/test_chat_qml.py',
+    'tests/device/contracts/snapshot/test_snapshot_native.py',
+    'tests/device/contracts/snapshot/test_snapshot_qml.py',
+    'tests/device/self_tests/test_android_adapter.py',
+    'tests/device/self_tests/test_pico_property_eligibility.py',
+    'tests/issue-intake-test.py',
+    'tools/issue-intake/install.py',
     "tools/repository-health/check.py",
     '.github/workflows/documentation-checks.yml',
     '.github/workflows/documentation-push-owner.yml',

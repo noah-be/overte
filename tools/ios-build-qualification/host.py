@@ -24,6 +24,24 @@ ROOT = Path(__file__).resolve().parents[2]
 POLICY = ".github/ios-host-orchestration.json"
 WORKFLOW = ".github/workflows/ios-build-qualification.yml"
 TEMPLATE = "tools/ios-build-qualification/host-workflow.yml"
+COMPILER_DATA_GENERATION = "host-v1-compiler-data-v1"
+COMPILER_DATA_CALLEE = "66892fd2b87b7aa4b0ffe8c12407fc5a7597db44"
+# Reviewed execution-only checkpoint update. These identities are comparison
+# inputs, never replacements for the actual source snapshots or execution E.
+COMPILER_DATA_ORIGINAL = {
+    ".github/workflows/ios-integrated.yml": ("100644", "1004d282c847655be7deafced0108ee291e8250c"),
+    "ios/ci/qt-checkpoint-artifact.py": ("100755", "4e5ccd1fec2df26a2337bae3fad40e1e48a510a1"),
+    "ios/tests/qt-checkpoint-artifact-test.py": ("100755", "af1c253a649677993d14da2972817dcb67644639"),
+    "ios/tests/ios-full-client-sccache-contract-test.py": ("100644", "b785011cad8f83f7bf012ec528d93703a1cf47c9"),
+    "docs/ios/SIGNING_AND_DEVICE_TESTS.md": ("100644", "776a65d11c637d5a7f0323e1a6ac690defc80b35"),
+}
+COMPILER_DATA_UPDATED = {
+    ".github/workflows/ios-integrated.yml": ("100644", COMPILER_DATA_CALLEE),
+    "ios/ci/qt-checkpoint-artifact.py": ("100755", "aaa047eb8a29a1b440a71d6c28503af78f3aaef5"),
+    "ios/tests/qt-checkpoint-artifact-test.py": ("100755", "6b52ab115080e204ca3013336abda032e74e95e4"),
+    "ios/tests/ios-full-client-sccache-contract-test.py": ("100644", "305a56d5f906101fb728feca59f811278477eb69"),
+    "docs/ios/SIGNING_AND_DEVICE_TESTS.md": ("100644", "bb4f69bb29368f04fdc6a6c7ce00b48d92b7f90d"),
+}
 SOURCE_READY = True
 BOOTSTRAP_REVIEWED_SOURCE = "52f1cc38180e96cdfd8049a4be93517961ae7dbd"
 BOOTSTRAP_REVIEWED_TREE = "f5b44d19b5c64c96bc3f73f72c51519dbfbf08a3"
@@ -308,20 +326,30 @@ def required_package_owner(event, candidate, source, *, policy_root=ROOT):
 
 def policy(policy_root=ROOT):
     value = json.loads(trusted_file(policy_root, POLICY).read_text())
-    require(isinstance(value, dict) and set(value) == {"schema", "repository", "repositoryId", "activationTargets",
-            "reviewedSource", "legacy", "nextTemplate"} and type(value["schema"]) is int and value["schema"] == 1
+    fields = {"schema", "repository", "repositoryId", "activationTargets", "reviewedSource", "legacy", "nextTemplate"}
+    require(isinstance(value, dict) and type(value.get("schema")) is int
+            and value["schema"] in {1, 2}
+            and set(value) == (fields if value["schema"] == 1 else fields | {"reviewedGenerations"})
             and value["repository"] == REPOSITORY and type(value["repositoryId"]) is int
             and value["repositoryId"] == REPOSITORY_ID and value["nextTemplate"] == TEMPLATE
             and isinstance(value["reviewedSource"], str) and SHA.fullmatch(value["reviewedSource"])
             and value["activationTargets"] in ([], ["apple-ios"])
             and isinstance(value["legacy"], dict) and set(value["legacy"]) == PATHS,
             "invalid trusted iOS host generation policy")
-    for path, entry in value["legacy"].items():
-        require(isinstance(entry, dict) and set(entry) == {"mode", "type", "oid"}
-                and entry["mode"] == ("100755" if path in {"ios/tests/run-tests.sh", "ios/ci/host-test-network.sh"}
-                                      else "100644") and entry["type"] == "blob"
-                and isinstance(entry["oid"], str) and SHA.fullmatch(entry["oid"]),
-                "invalid reviewed iOS source identity")
+    rows = [value["legacy"]]
+    if value["schema"] == 2:
+        reviewed = value["reviewedGenerations"]
+        require(isinstance(reviewed, dict) and set(reviewed) == {COMPILER_DATA_GENERATION},
+                "invalid reviewed iOS generation names")
+        rows.append(reviewed[COMPILER_DATA_GENERATION])
+    for row in rows:
+        require(isinstance(row, dict) and set(row) == PATHS, "incomplete reviewed iOS generation")
+        for path, entry in row.items():
+            require(isinstance(entry, dict) and set(entry) == {"mode", "type", "oid"}
+                    and entry["mode"] == ("100755" if path in {"ios/tests/run-tests.sh", "ios/ci/host-test-network.sh"}
+                                          else "100644") and entry["type"] == "blob"
+                    and isinstance(entry["oid"], str) and SHA.fullmatch(entry["oid"]),
+                    "invalid reviewed iOS source identity")
     return value
 
 
@@ -331,7 +359,15 @@ def generations(policy_root=ROOT):
     next_source = trusted_file(policy_root, TEMPLATE).read_bytes()
     oid = git(policy_root, "hash-object", "--stdin", data=next_source).decode().strip()
     current = {**legacy, WORKFLOW: {"mode": "100644", "type": "blob", "oid": oid}}
-    return {"legacy": legacy, "host-v1": current}
+    result = {"legacy": legacy, "host-v1": current}
+    if value["schema"] == 2:
+        reviewed = value["reviewedGenerations"][COMPILER_DATA_GENERATION]
+        expected = {**current, ".github/workflows/ios-integrated.yml": {
+            "mode": "100644", "type": "blob", "oid": COMPILER_DATA_CALLEE}}
+        require(reviewed == expected and reviewed != current and reviewed != legacy,
+                "iOS compiler-data generation must change only the exact reviewed client callee")
+        result[COMPILER_DATA_GENERATION] = reviewed
+    return result
 
 
 def entries(snapshot):
@@ -411,7 +447,8 @@ def workflow_bootstrap(candidate, previous, current, head, *, policy_root=ROOT):
             "head": {"revision": head.revision, "tree": head.tree},
             "candidate": {"revision": current.revision, "tree": current.tree},
             "workflow": {"path": WORKFLOW, "old": approved["legacy"][WORKFLOW], "new": approved["host-v1"][WORKFLOW]},
-            "generations": approved, "normalized_inputs": digest([entry.identity() for entry in previous.entries])}
+            "generations": {name: approved[name] for name in ("legacy", "host-v1")},
+            "normalized_inputs": digest([entry.identity() for entry in previous.entries])}
 
 
 def _api_get(endpoint):
@@ -511,7 +548,62 @@ def ci_host_boundary(snapshot):
                                      allow_nan=False) + "\n").encode()).hexdigest()
 
 
-def ci_host_omission(previous, current, *, repository=None, package_owner=None, policy_root=ROOT):
+def _compiler_profile(snapshot, profile, *, guide=True):
+    observed = entries(snapshot)
+    return all(observed.get(path) == {"mode": mode, "type": "blob", "oid": oid}
+               for path, (mode, oid) in profile.items()
+               if guide or path != "docs/ios/SIGNING_AND_DEVICE_TESTS.md")
+
+
+def _compiler_comparison(snapshot, inputs, *, guide=False):
+    """Temporary original-reader comparison; retain the actual snapshot intact."""
+    replaced = tuple(inputs.Entry(entry.path, COMPILER_DATA_ORIGINAL[entry.path][0], "blob",
+                                  COMPILER_DATA_ORIGINAL[entry.path][1])
+                     if entry.path in COMPILER_DATA_ORIGINAL
+                     and (guide or entry.path != "docs/ios/SIGNING_AND_DEVICE_TESTS.md")
+                     else inputs.Entry(entry.path, entry.mode, entry.object_type, entry.oid)
+                     for entry in snapshot.entries)
+    return inputs.Snapshot(snapshot.revision, snapshot.tree, replaced)
+
+
+def compiler_data_selection(previous, current, head, *, policy_root=ROOT):
+    """Exact reviewed cache transition/continuation; no product result authority."""
+    inputs = selector(policy_root)
+    snapshots = (previous, current, head)
+    if any(entry.mode not in {"100644", "100755"} or entry.object_type != "blob"
+           for snapshot in snapshots for entry in snapshot.entries):
+        return None
+    approved = generations(policy_root)
+    updated = approved.get(COMPILER_DATA_GENERATION)
+    if updated is None:
+        return None
+    observed = [entries(snapshot) for snapshot in snapshots]
+    matches = lambda tree, row: all(tree.get(path) == identity for path, identity in row.items())
+    changed = [{path for path in observed[0].keys() | tree.keys() if observed[0].get(path) != tree.get(path)}
+               for tree in observed[1:]]
+    transition = (matches(observed[0], approved["host-v1"])
+        and _compiler_profile(previous, COMPILER_DATA_ORIGINAL)
+        and all(matches(tree, updated) and _compiler_profile(snapshot, COMPILER_DATA_UPDATED)
+                for tree, snapshot in zip(observed[1:], snapshots[1:]))
+        and all(paths == set(COMPILER_DATA_ORIGINAL) for paths in changed))
+    continuation = (all(matches(tree, updated) and _compiler_profile(snapshot, COMPILER_DATA_UPDATED, guide=False)
+                        for tree, snapshot in zip(observed, snapshots))
+        and all(paths for paths in changed)
+        and all(inputs._kind(entry) != "application-input" for snapshot, paths in zip(snapshots[1:], changed)
+                for entry in (*previous.entries, *snapshot.entries) if entry.path in paths))
+    if not (transition or continuation) or any(inputs._boundary(_compiler_comparison(snapshot, inputs))
+            != inputs.REVIEWED_BOUNDARY for snapshot in snapshots):
+        return None
+    return {"schema": 1, "reason": "reviewed-compiler-data-only-inputs" if transition
+            else "reviewed-compiler-data-independent-inputs", "requires_application_build": False,
+            "reviewed_boundary": inputs.REVIEWED_BOUNDARY, "comparison_profile": digest(COMPILER_DATA_UPDATED),
+            "base": {"revision": previous.revision, "tree": previous.tree},
+            "head": {"revision": head.revision, "tree": head.tree},
+            "candidate": {"revision": current.revision, "tree": current.tree},
+            "changedPaths": sorted(changed[0])}
+
+
+def ci_host_omission(previous, current, *, repository=None, package_owner=None, policy_root=ROOT, head=None):
     """Finite negative dependency proof; never infer independence from app inputs."""
     old, new = entries(previous), entries(current)
     changed = {path for path in old.keys() | new.keys() if old.get(path) != new.get(path)}
@@ -531,9 +623,18 @@ def ci_host_omission(previous, current, *, repository=None, package_owner=None, 
            or value["type"] != "blob" for tree in (old, new) for path, value in tree.items()
            if path in CI_HOST_INDEPENDENT_PATHS | NPM_HOST_PATHS):
         return None
-    if any(ci_host_boundary(snapshot) != REVIEWED_CI_HOST_BOUNDARY
-           for snapshot in (previous, current)):
-        return None
+    comparison = None
+    if any(ci_host_boundary(snapshot) != REVIEWED_CI_HOST_BOUNDARY for snapshot in (previous, current)):
+        inputs = selector(policy_root)
+        updated = generations(policy_root).get(COMPILER_DATA_GENERATION)
+        snapshots = (previous, current, head)
+        if head is None or updated is None or any(not _compiler_profile(snapshot, COMPILER_DATA_UPDATED)
+                or any(entries(snapshot).get(path) != identity for path, identity in updated.items())
+                or ci_host_boundary(_compiler_comparison(snapshot, inputs, guide=True)) != REVIEWED_CI_HOST_BOUNDARY
+                for snapshot in snapshots):
+            return None
+        comparison = {"profile": digest(COMPILER_DATA_UPDATED), "head": {"revision": head.revision, "tree": head.tree},
+                      "actual_boundaries": [ci_host_boundary(snapshot) for snapshot in snapshots]}
     result = {"schema": 1, "reason": "reviewed-ci-only-host-inputs" if npm is None
               else "reviewed-ci-and-required-npm-host-inputs",
             "boundary": REVIEWED_CI_HOST_BOUNDARY, "changedPaths": sorted(changed),
@@ -541,13 +642,16 @@ def ci_host_omission(previous, current, *, repository=None, package_owner=None, 
             "candidate": {"revision": current.revision, "tree": current.tree}}
     if npm is not None:
         result["package_ownership"] = npm
+    if comparison is not None:
+        result["compiler_data_comparison"] = comparison
     return result
 
 
 def route(event, candidate, source, *, policy_root=ROOT):
     base, head = context(event, candidate, source)
     generation, current = resolve(candidate, source, policy_root=policy_root)
-    require(generation == "host-v1", "iOS next-generation ownership cannot roll back to legacy")
+    require(generation in {"host-v1", COMPILER_DATA_GENERATION},
+            "iOS next-generation ownership cannot roll back to legacy")
     require(SOURCE_READY and "apple-ios" in policy(policy_root)["activationTargets"],
             "iOS host-only generation is not qualified or activated")
     inputs = selector(policy_root)
@@ -563,11 +667,13 @@ def route(event, candidate, source, *, policy_root=ROOT):
             package_owner = required_package_owner(event, candidate, source, policy_root=policy_root) if npm_changed else None
             selection = workflow_bootstrap(candidate, previous, current, head_source, policy_root=policy_root)
             if selection is None:
+                selection = compiler_data_selection(previous, current, head_source, policy_root=policy_root)
+            if selection is None:
                 selection = inputs.candidate_plan(candidate, base, source, package_owner=package_owner)
             required, host_required = selection["requires_application_build"], True
             reason = selection["reason"]
             omission = None if required else ci_host_omission(previous, current, repository=candidate,
-                package_owner=package_owner, policy_root=policy_root)
+                package_owner=package_owner, policy_root=policy_root, head=head_source)
             if omission is not None:
                 host_required = False
                 reason = omission["reason"]

@@ -321,6 +321,13 @@ class AdapterPolicy:
 
 
 @dataclass(frozen=True)
+class IntegratedOrigin:
+    """Internal freshly reconstructed facts; never accepted as supplied proof."""
+    binding: dict
+    references: dict
+
+
+@dataclass(frozen=True)
 class Snapshot:
     binding: dict
     references: dict
@@ -603,6 +610,221 @@ class Adapter:
                       "target": revision, "default_ref": "main",
                       "default": self._ref("heads/main")}
         return binding, references
+
+    def _origin_integration(self, revision, target, now):
+        """Private immutable ancestor, reached only via authenticated parent0."""
+        tree, parents = self._commit(revision)
+        require(len(parents) == 2, 'retained integration is not a normal two-parent merge')
+        pr, associations = self._introduced_pr(revision, now, parents=parents, target=target)
+        binding = P.validate_binding({'repository': REPOSITORY, 'repository_id': 1319052603,
+            'pull_request': positive(pr['number']), 'head_repository_id': 1319052603,
+            'base_ref': target, 'base_sha': parents[0], 'head_ref': pr['head']['ref'],
+            'head_sha': parents[1], 'merge_sha': revision, 'merge_tree': tree, 'merge_parents': parents})
+        return binding, {'target': target, 'commit': revision, 'tree': tree, 'parents': parents,
+            'pull_request': pr['number'], 'pr_id': pr['id'], 'merged_at': pr['merged_at'],
+            'closed_at': pr['closed_at']}, associations
+
+    def _origin_tree(self, tree):
+        value = self.api.immutable_tree(tree)
+        require(type(value) is dict and value.get('sha') == tree and value.get('truncated') is False
+            and type(value.get('tree')) is list and 0 < len(value['tree']) <= 200000,
+            'retained complete tree inventory is unavailable')
+        result, names = {}, set()
+        for row in value['tree']:
+            require(type(row) is dict and type(row.get('path')) is str and row['path'] not in names,
+                'retained tree member is missing or duplicated')
+            names.add(row['path'])
+            require(row['path'] and not row['path'].startswith('/')
+                and all(part not in {'', '.', '..'} for part in row['path'].split('/'))
+                and not any(ord(char) < 32 or ord(char) == 127 for char in row['path']),
+                'retained directory or file path is invalid')
+            sha(row.get('sha'))
+            if row.get('type') == 'tree':
+                require(row.get('mode') == '040000', 'retained tree directory is aliased')
+                continue
+            require(row.get('type') == 'blob' and row.get('mode') in {'100644', '100755'},
+                'retained tree has a nonordinary member')
+            result[row['path']] = {key: row.get(key) for key in ('mode', 'type', 'sha')}
+        source_admission.validate_tree(result)
+        return result
+
+    def _origin_jobs(self, run, expected, now, *, jobs=None):
+        jobs = jobs if jobs is not None else self._pages(f"actions/runs/{run['id']}/attempts/1/jobs", 'jobs')
+        require(len(jobs) == len(expected) and {row.get('name') for row in jobs} == set(expected),
+            'retained native job inventory is incomplete or unknown')
+        checks = {}
+        for row in jobs:
+            fact = self._job(row, run, 15368, final_name=row['name'])
+            require((fact.status, fact.conclusion) == ('completed', expected[row['name']]),
+                'retained native validation job did not finish as selected')
+            if fact.conclusion == 'success':
+                require(P._time(run.get('run_started_at')) <= P._time(fact.started_at)
+                    <= P._time(fact.completed_at) <= now, 'retained native job chronology differs')
+            require(type(row.get('steps', [])) is list and all(type(step) is dict for step in row.get('steps', [])),
+                'retained native steps are malformed')
+            checks[fact.job_id] = vars(fact)
+        return jobs, checks
+
+    @staticmethod
+    def _origin_step(jobs, job_name, name, conclusion, now):
+        job = next(row for row in jobs if row['name'] == job_name)
+        steps = [row for row in job.get('steps', []) if row.get('name') == name]
+        require(len(steps) == 1 and (steps[0].get('status'), steps[0].get('conclusion')) == ('completed', conclusion),
+            'retained fixed native validation step is unavailable')
+        if conclusion == 'success':
+            require(P._time(job['started_at']) <= P._time(steps[0].get('started_at'))
+                <= P._time(steps[0].get('completed_at')) <= P._time(job['completed_at']) <= now,
+                'retained validation step chronology differs')
+
+    def _origin_pr_inventory(self, binding, policy, now):
+        """Classify complete introducing-H inventory; no absent-artifact inference."""
+        _metadata_policy(policy)
+        require(policy.caller_path == '.github/workflows/repository-checks.yml', 'unknown retention caller')
+        row22 = policy.generations.get('protected-producer-original-default-v1')
+        require(type(row22) is dict, 'fixed no-execution generation is not enrolled')
+        endpoint = f"actions/workflows/{policy.caller_workflow_id}/runs?head_sha={binding['head_sha']}"
+        listed = self._pages(endpoint, 'workflow_runs', search=True)
+        require(bool(listed), 'retained introducing-head inventory is missing')
+        classified, ordinary, bearing = {}, [], False
+        for row in listed:
+            identity = positive(row.get('id'))
+            marker = self.metadata_observation(row, binding, policy, now=now, integrated=True)
+            if marker is not None:
+                classified[identity] = {'metadata': marker}
+                continue
+            source = self._scheduling_source(row, binding, policy, now=now, integrated=True)
+            require(source['generation'] == 'protected-producer-original-default-v1'
+                and source['workflows'] == row22 and source['run'].get('display_title') == ORDINARY_RUN_NAME,
+                'retained ordinary source recipe differs')
+            run = source['run']
+            require((run.get('status'), run.get('conclusion')) == ('completed', 'success'),
+                'newer retained ordinary source is pending, failed or cancelled')
+            candidate = source['candidate']
+            require(candidate['merge_tree'] == binding['merge_tree'] and candidate['merge_parents'] == binding['merge_parents'],
+                'retained ordinary original candidate differs from integration')
+            jobs = self._pages(f'actions/runs/{identity}/attempts/1/jobs', 'jobs')
+            artifacts = self._pages(f'actions/runs/{identity}/artifacts', 'artifacts')
+            # Stop at the first execution-bearing integration, even when its
+            # complete tree happens to equal its first parent. Never walk past it.
+            if any(type(job.get('name')) is str and job['name'].startswith('project / ') for job in jobs) \
+                    or any(type(item.get('name')) is str and item['name'].startswith('ci-') for item in artifacts):
+                bearing = True
+                classified[identity] = {'execution_source': source, 'jobs': jobs, 'artifacts': artifacts}
+                continue
+            expected = {METADATA_JOB: 'success', 'Select required repository checks': 'success',
+                'native': 'skipped', 'project': 'skipped', 'android': 'skipped',
+                'documentation / documentation': 'success',
+                'workflow-security / Actionlint, Zizmor, and Gitleaks': 'success',
+                'workflow-contracts': 'success', 'repository-checks': 'success'}
+            jobs, checks = self._origin_jobs(run, expected, now, jobs=jobs)
+            self._origin_step(jobs, METADATA_JOB, ORDINARY_SOURCE_STEP + ' (diagnostics absent)', 'success', now)
+            self._origin_step(jobs, 'repository-checks', 'Require all selected checks to succeed', 'success', now)
+            require(not artifacts, 'unchanged PR published unexpected execution or other artifacts')
+            ordinary.append(identity)
+            classified[identity] = {'source': source, 'jobs': jobs, 'checks': checks, 'artifacts': artifacts}
+        require(self._pages(endpoint, 'workflow_runs', search=True) == listed, 'retained PR source inventory changed')
+        require(bool(ordinary) or bearing, 'retained ordinary source is unavailable')
+        return not bearing, {'listed': listed, 'classified': classified}
+
+    def _origin_empty_push(self, binding, integration, policy, now, *, current_run=None):
+        target, revision = binding['base_ref'], binding['merge_sha']
+        expected = policy.generations['protected-producer-original-default-v1']
+        _, _, workflows = self._workflow_tuple(revision, paths=METADATA_CALLERS[policy.caller_path])
+        require(workflows == expected and self._metadata_source(binding['base_sha']) == policy.sources['protected-producer-original-default-v1'],
+            'retained unchanged workflow/helper recipe differs')
+        endpoint = f'actions/workflows/350930890/runs?branch={quote(target, safe="")}&event=push&head_sha={revision}'
+        listed = self._pages(endpoint, 'workflow_runs', search=True)
+        require(bool(listed) and all(row.get('event') == 'push' and row.get('head_sha') == revision
+            and row.get('head_branch') == target and row.get('workflow_id') == 350930890
+            and row.get('path') == '.github/workflows/parent-qualification.yml' for row in listed),
+            'retained push inventory is unavailable or foreign')
+        starts = [P._time(row.get('run_started_at')) for row in listed]
+        require(max(starts) <= now and starts.count(max(starts)) == 1, 'retained newest push is ambiguous')
+        run_id = positive(listed[starts.index(max(starts))].get('id'))
+        require(current_run is None or run_id == current_run, 'current no-execution push is not newest')
+        latest = self._object(f'actions/runs/{run_id}')
+        attempt = self._object(f'actions/runs/{run_id}/attempts/1')
+        row = next(row for row in listed if row['id'] == run_id)
+        fields = ('id','workflow_id','check_suite_id','event','path','head_sha','head_branch','run_attempt',
+            'status','conclusion','run_started_at','updated_at','referenced_workflows')
+        require(all(row.get(key) == latest.get(key) == attempt.get(key) for key in fields)
+            and latest.get('run_attempt') == 1 and (latest.get('status'), latest.get('conclusion')) == ('completed','success')
+            and all(latest.get(key, {}).get('id') == 1319052603 and latest[key].get('full_name') == REPOSITORY
+                    for key in ('repository', 'head_repository')), 'retained push is not successful original native source')
+        workflow = self._object('actions/workflows/350930890')
+        require(workflow.get('id') == 350930890 and workflow.get('path') == '.github/workflows/parent-qualification.yml',
+            'retained parent workflow registration differs')
+        require(P._time(integration['merged_at']) <= P._time(latest.get('run_started_at')) <= now,
+            'retained merge/push chronology differs')
+        suite = self._object(f"check-suites/{positive(latest.get('check_suite_id'))}")
+        require(suite.get('id') == latest['check_suite_id'] and suite.get('head_sha') == revision
+            and suite.get('app',{}).get('id') == 15368 and suite.get('repository',{}).get('id') == 1319052603,
+            'retained push suite/App differs')
+        expected_jobs = {'Plan current parent owners': 'success' if target in {'android-main','android-vr'} else 'skipped',
+            'Common parent tests': 'success', 'Android platform tests': 'skipped', 'Qualify exact parent': 'success'}
+        jobs, checks = self._origin_jobs(latest, expected_jobs, now)
+        self._origin_step(jobs, 'Common parent tests', 'Authenticate the protected base commitment before repository imports', 'success', now)
+        self._origin_step(jobs, 'Common parent tests', 'Independently verify unchanged parent inputs', 'success', now)
+        for name in ('Execute common parent suites without claiming platform evidence', 'Run complete host qualification',
+                'Run independently selected parent host contracts', 'Create content-addressed qualification evidence',
+                'Upload immutable qualification evidence', 'Check only affected tool dependencies and behavior',
+                'Check independently selected S3 package dependencies and behavior'):
+            self._origin_step(jobs, 'Common parent tests', name, 'skipped', now)
+        self._origin_step(jobs, 'Qualify exact parent', 'Require protected parent aggregate source admission', 'success', now)
+        self._origin_step(jobs, 'Qualify exact parent', 'Require both actual parent owners', 'success', now)
+        artifacts = self._pages(f'actions/runs/{run_id}/artifacts', 'artifacts')
+        require(all(type(item.get('name')) is str and item['name'] == f'parent-qualification-reports-{revision}-1'
+            for item in artifacts) and len(artifacts) <= 1, 'unchanged push published unknown or execution authority')
+        require(self._pages(endpoint, 'workflow_runs', search=True) == listed, 'retained push inventory changed')
+        return {'run': latest, 'suite': suite, 'jobs': jobs, 'checks': checks, 'artifacts': artifacts, 'listed': listed}
+
+    def integrated_origin(self, push_run_id, app_id, metadata_policy=None, *, now=None):
+        """Reconstruct a bounded original anchor from CURRENT authenticated P1.
+
+        Internal typed facts confer no authority by construction: every actual
+        capture reconstructs this chain from native/current/immutable API facts.
+        No historical SHA, caller-created context or callback selects an origin.
+        """
+        now = _now() if now is None else now
+        P._now(now)
+        current, references = self._integrated_current(push_run_id, app_id, now)
+        if metadata_policy is None or current['base_ref'] not in {'main', 'apple-main', 'android-main', 'android-vr'}:
+            # Leaves retain their existing strict lookup. Their project router
+            # independently skips full-host/package/platform work for empty Git
+            # inputs; only parent recipes have the completed no-execution job.
+            return IntegratedOrigin(current, references)
+        _metadata_policy(metadata_policy)
+        row22 = metadata_policy.generations.get('protected-producer-original-default-v1')
+        if row22 is None:
+            return IntegratedOrigin(current, references)
+        binding, integration, associations = current, references['integration'], references['associated_prs']
+        hops = []
+        while True:
+            previous_tree, _ = self._commit(binding['base_sha'])
+            if previous_tree != binding['merge_tree']:
+                break
+            _, _, workflows = self._workflow_tuple(binding['merge_sha'], paths=METADATA_CALLERS[metadata_policy.caller_path])
+            if workflows != row22:
+                # No old/unknown recipe is transparent. Preserve the original
+                # strict execution lookup at this integration, never skip it.
+                break
+            transparent, inventory = self._origin_pr_inventory(binding, metadata_policy, now)
+            if not transparent:
+                break
+            require(len(hops) < 8, 'same-tree retained origin exceeds the fixed hop cap')
+            self._origin_tree(binding['merge_tree'])
+            push = self._origin_empty_push(binding, integration, metadata_policy, now,
+                current_run=push_run_id if not hops else None)
+            hops.append({'binding': binding, 'integration': integration, 'associations': associations,
+                'ordinary_inventory': inventory, 'no_execution_push': push})
+            next_binding, next_integration, next_associations = self._origin_integration(binding['base_sha'], binding['base_ref'], now)
+            require(next_binding['merge_tree'] == binding['merge_tree']
+                and P._time(next_integration['merged_at']) <= P._time(integration['merged_at']),
+                'retained first-parent tree or merge chronology changed')
+            binding, integration, associations = next_binding, next_integration, next_associations
+        origin_refs = references if not hops else {**references, 'origin_integration': integration,
+            'origin_associated_prs': associations, 'retained_no_execution_hops': hops}
+        return IntegratedOrigin(binding, origin_refs)
 
     def current(self, number):
         positive(number)
@@ -1291,15 +1513,18 @@ class Adapter:
         P._now(now)
         require(isinstance(policy, AdapterPolicy), "trusted controller adapter policy required")
         P.policy_digest(policy.producer)
-        integrated, references = self._integrated_current(push_run_id, policy.producer.actions_app_id, now)
+        origin_policy = (MetadataPolicy(policy.caller_workflow_id, policy.caller_path,
+            policy.metadata_generations, policy.metadata_sources) if policy.metadata_generations is not None else None)
+        origin = self.integrated_origin(push_run_id, policy.producer.actions_app_id, origin_policy, now=now)
+        integrated, references = origin.binding, origin.references
         _policy(policy, plan, integrated["pull_request"])
         observations, chains, inventories, unavailable, other, metadata = self._capture_inventory(
             integrated, policy, now, integrated=True)
         originals = {item.run.workflow_commit for item in observations}
         require(len(originals) == 1, "original integrated producer candidate is missing or ambiguous")
         binding = P.validate_binding({**integrated, "merge_sha": originals.pop()})
-        final_binding, final_refs = self._integrated_current(push_run_id, policy.producer.actions_app_id, now)
-        require(final_binding == integrated and final_refs == references,
+        final = self.integrated_origin(push_run_id, policy.producer.actions_app_id, origin_policy, now=now)
+        require(final.binding == integrated and final.references == references,
                 "merged PR, protected push, protection or current refs changed during API snapshot")
         return Snapshot(binding, references, observations, not unavailable, tuple(sorted(set(unavailable))), chains, inventories, other, metadata)
 
@@ -1340,10 +1565,14 @@ class Adapter:
         result = {**value, "source_chain": final.source_chains[value["run_id"]]}
         if "integration" in final.references:
             integration = final.references["integration"]
-            merged = P._time(integration["merged_at"])
+            original_integration = final.references.get("origin_integration", integration)
+            merged = P._time(original_integration["merged_at"])
             require(P._time(value["qualified_at"]) <= merged and P._time(artifact.created_at) <= merged
                     and P._time(selected.descriptor_artifact.created_at) <= merged
                     and P._time(selected.run.final_publisher.job.completed_at) <= merged,
                     "original evidence was not complete before integration")
             result["integration"] = integration
+            if "origin_integration" in final.references:
+                result["origin_integration"] = original_integration
+                result["retained_no_execution_hops"] = final.references["retained_no_execution_hops"]
         return result
