@@ -21,6 +21,7 @@ jobs:
       checks: read
     outputs:
       documentation_reused: ${{ steps.reuse.outputs.shared_reused }}
+      documentation_unchanged: ${{ steps.empty.outputs.no_execution }}
     steps:
     - name: Check out current trusted source without credentials
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -121,6 +122,24 @@ jobs:
         else
           printf '%s\n' 'shared_reused=false' 'package_work=true' >> "$GITHUB_OUTPUT"
         fi
+    - name: Check out only the unchanged candidate metadata without credentials
+      if: steps.reuse.outputs.no_execution == 'true'
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.sha }}
+        path: candidate
+        fetch-depth: 2
+        persist-credentials: false
+        sparse-checkout-cone-mode: false
+        sparse-checkout: |
+          .github
+          tests/platform-profile.json
+    - name: Independently verify unchanged documentation inputs
+      id: empty
+      if: steps.reuse.outputs.no_execution == 'true'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: /usr/bin/python3 -I -S -B -c 'import runpy,sys;sys.path.insert(0,sys.argv.pop(1));runpy.run_path(sys.argv.pop(1),run_name="__main__")' trusted/tools/test-evidence trusted/tools/test-evidence/postmerge.py --verify-empty --candidate "$GITHUB_WORKSPACE/candidate" --report documentation-no-execution.json
     - name: Require a complete proof or actual documentation route
       env:
         SHARED_REUSED: ${{ steps.reuse.outputs.shared_reused }}
@@ -131,7 +150,7 @@ jobs:
         esac
   documentation:
     needs: documentation-source
-    if: needs.documentation-source.outputs.documentation_reused != 'true'
+    if: needs.documentation-source.outputs.documentation_reused != 'true' && needs.documentation-source.outputs.documentation_unchanged != 'true'
     permissions:
       contents: read
     uses: ./.github/workflows/documentation-checks.yml
