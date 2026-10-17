@@ -128,10 +128,11 @@ def route(event, candidate, expected_sha, *, policy_root=ROOT):
         for side in ("base", "head"):
             require(pr[side]["repo"]["full_name"] == REPOSITORY
                     and pr[side]["repo"]["id"] == REPOSITORY_ID, "foreign PR source")
-        base, head = pr["base"]["sha"], pr["head"]["sha"]
-        require(SHA.fullmatch(base) and SHA.fullmatch(head), "invalid PR revisions")
-        require(git(candidate, "show", "-s", "--format=%P", expected_sha).split() == [base, head],
-                "candidate must merge the exact event base and head")
+        spec = importlib.util.spec_from_file_location("ios_candidate_context", ROOT / "tools/repository-checks/check.py")
+        checks = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(checks)
+        resolved = checks.pr_candidate_context(candidate, event, expected_sha)
+        base, head = resolved["base"], resolved["head"]
         tree = git(candidate, "rev-parse", expected_sha + "^{tree}")
         if tree == git(candidate, "rev-parse", base + "^{tree}") == git(candidate, "rev-parse", head + "^{tree}"):
             return {"required": "false", "source": expected_sha, "tree": tree,
