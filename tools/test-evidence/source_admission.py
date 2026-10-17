@@ -338,7 +338,7 @@ class GitHubSource:
         require(type(endpoint) is str and re.fullmatch(r'(?:|pulls/[1-9][0-9]*|branches/(?:'+ '|'.join(TARGET_PROFILES)+r')|git/ref/heads/main|git/commits/[0-9a-f]{40}|git/trees/[0-9a-f]{40}\?recursive=1|commits/refs/pull/[1-9][0-9]*/merge)',endpoint), 'unsupported protected source endpoint')
         self.calls += 1
         require(self.calls <= 24, 'protected source API budget exceeded')
-        request = urllib.request.Request('https://api.github.com/repos/'+REPOSITORY+'/'+endpoint,
+        request = urllib.request.Request('https://api.github.com/repos/'+REPOSITORY+('/'+endpoint if endpoint else ''),
             headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'},method='GET')
         remaining=self.deadline-time.monotonic()
         require(remaining>0,'protected source admission deadline exceeded')

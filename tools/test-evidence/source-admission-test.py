@@ -81,6 +81,63 @@ class SourceFixture:
         return Api()
 
 class SourceAdmissionTests(SourceFixture,unittest.TestCase):
+    def test_repository_root_transport_has_no_slash_and_relative_requests_stay_exact(self):
+        calls=[]
+        class Response:
+            status=200
+            def __init__(self,url): self.url=url
+            def geturl(self): return self.url
+            def read(self,maximum):
+                self_case.assertEqual(maximum,16_000_001)
+                return b'{"ok":true}'
+            def __enter__(self): return self
+            def __exit__(self,*args): return False
+        self_case=self
+        def opened(request,timeout):
+            calls.append(request.full_url)
+            self.assertEqual(request.get_method(),'GET')
+            self.assertEqual({key.lower():value for key,value in request.header_items()},
+                {'authorization':'Bearer fake-source-token','accept':'application/vnd.github+json',
+                 'x-github-api-version':'2022-11-28'})
+            self.assertEqual(timeout,10)
+            return Response(request.full_url)
+        with patch.dict(os.environ,{'GH_TOKEN':'fake-source-token'},clear=True), \
+             patch.object(S.time,'monotonic',return_value=100), \
+             patch.object(S.urllib.request,'urlopen',side_effect=AssertionError('live source I/O forbidden')), \
+             patch.object(S.urllib.request,'build_opener',return_value=SimpleNamespace(open=opened)) as builder:
+            api=S.GitHubSource()
+            self.assertEqual(api.get(''),{'ok':True})
+            self.assertEqual(api.get('pulls/23'),{'ok':True})
+            self.assertEqual(api.get('git/ref/heads/main'),{'ok':True})
+            self.assertEqual(api.calls,3)
+            self.assertTrue(all(type(call.args[0]) is S._NoRedirect for call in builder.call_args_list))
+        self.assertEqual(calls,['https://api.github.com/repos/noah-l-frank/overte',
+            'https://api.github.com/repos/noah-l-frank/overte/pulls/23',
+            'https://api.github.com/repos/noah-l-frank/overte/git/ref/heads/main'])
+
+    def test_root_url_fix_keeps_endpoint_redirect_and_status_rejections(self):
+        root_url='https://api.github.com/repos/noah-l-frank/overte'
+        class Response:
+            def __init__(self,status,url): self.status=status;self.url=url
+            def geturl(self): return self.url
+            def read(self,maximum): return b'{}'
+            def __enter__(self): return self
+            def __exit__(self,*args): return False
+        with patch.dict(os.environ,{'GH_TOKEN':'fake-source-token'},clear=True), \
+             patch.object(S.urllib.request,'urlopen',side_effect=AssertionError('live source I/O forbidden')):
+            for endpoint in ('/','../pulls/23','pulls/0','https://api.github.com/repos/noah-l-frank/overte'):
+                with self.subTest(endpoint=endpoint), \
+                     patch.object(S.urllib.request,'build_opener') as builder:
+                    with self.assertRaises(S.SourceUnavailable): S.GitHubSource().get(endpoint)
+                    builder.assert_not_called()
+            for status,url in ((200,root_url+'/'),(200,'https://example.invalid/'),(301,root_url),(404,root_url)):
+                with self.subTest(status=status,url=url), \
+                     patch.object(S.urllib.request,'build_opener',return_value=SimpleNamespace(
+                         open=lambda request,timeout:Response(status,url))):
+                    with self.assertRaises(S.SourceUnavailable): S.GitHubSource().get('')
+            with self.assertRaises(S.SourceUnavailable):
+                S._NoRedirect().redirect_request(None,None,301,'Moved',{},root_url+'/')
+
     def test_reuse_precheck_preserves_all_original_data_without_relaxing_capture(self):
         for name in S.REUSE_LOOKUP_DATA:
             self.base[name]=S.ordinary('a'*40)
@@ -427,8 +484,12 @@ class BootstrapTests(SourceFixture,unittest.TestCase):
                 def __exit__(self,*args): return False
             def urlopen(request,timeout):
                 prefix='https://api.github.com/repos/'+S.REPOSITORY+'/'
-                self.assertTrue(request.full_url.startswith(prefix));self.assertEqual(request.method,'GET')
-                endpoint=request.full_url.removeprefix(prefix)
+                if request.full_url==prefix[:-1]:
+                    endpoint=''
+                else:
+                    self.assertTrue(request.full_url.startswith(prefix))
+                    endpoint=request.full_url.removeprefix(prefix)
+                self.assertEqual(request.method,'GET')
                 value=api.get(endpoint)
                 if drift and endpoint=='git/ref/heads/main' and api.calls.count(endpoint)>1:
                     value['object']['sha']='f'*40

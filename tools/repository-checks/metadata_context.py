@@ -35,7 +35,7 @@ LEGACY_HELPER_BLOB = '9c531c34ba559d17255768d8cae3129496fac55d'
 # Authenticate the only executable bootstrap BEFORE it can read API facts.
 # A guard upgrade requires a reviewed helper upgrade; local Git equality alone
 # cannot let an arbitrary historical/candidate guard authenticate itself.
-SOURCE_GUARD_BLOB = 'f6cbc9c022beb3283925a7289acb893eef1a883b'
+SOURCE_GUARD_BLOB = 'c53c354518988675ba270d3ceb7b6617a5d10e64'
 TARGETS = frozenset({'main', 'apple-main', 'apple-ios', 'android-main',
                      'android-phone', 'android-vr', 'android-vr-pico'})
 _READERS = ('inputs', 'runtime', 'execution', 'producer', 'producer_api', 'source_admission')
