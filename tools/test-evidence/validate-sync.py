@@ -75,7 +75,10 @@ def _request(args, gate, config, api):
     pr = api.json(f"repos/{args.repository}/pulls/{args.pull_request}")
     if not isinstance(pr, dict) or pr.get("number") != args.pull_request:
         raise ValidationError("actual pull request identity is incomplete")
-    request = gate.classify_event({"repository": repository, "pull_request": pr}, config, api)
+    event = {"number": args.pull_request, "repository": repository, "pull_request": pr}
+    context = gate.effective_pr_context(event, api) if os.environ.get('GITHUB_ACTIONS') == 'true' else None
+    request = (gate.classify_event(event, config, api, pr_context=context) if context is not None
+               else gate.classify_event(event, config, api))
     if request is None:
         raise ValidationError("ordinary pull requests cannot use synchronization validation")
     expected = (args.repository, args.pull_request, args.base_sha, args.head_sha, args.merge_sha, args.profile)
@@ -88,6 +91,11 @@ def _request(args, gate, config, api):
 
 
 def _recheck(api, gate, request):
+    if getattr(request, 'event_base_sha', None) is not None:
+        gate.recheck_effective_request(api, request)
+        if gate.branch_sha(api, request.repository, request.parent) != request.parent_sha:
+            raise ValidationError('direct parent moved during effective-base validation')
+        return
     current = api.json(f"repos/{request.repository}/pulls/{request.number}")
     try:
         actual = (current["number"], current["state"], current["base"]["ref"], current["base"]["sha"],
@@ -119,7 +127,9 @@ def _differential(candidate, request, documents):
 
 
 def _candidate_differential(candidate, request, gate, api):
-    documents = gate.paginate_pull_files(api, request.repository, request.number)
+    documents = (gate.immutable_change_documents(api, request.repository, request.base_sha, request.merge_sha)
+                 if getattr(request, 'event_base_sha', None) is not None
+                 else gate.paginate_pull_files(api, request.repository, request.number))
     if gate.changed_paths(documents) != set(request.changed_paths):
         raise ValidationError("synchronization file inventory changed during validation")
     with candidate_environment():
@@ -253,7 +263,12 @@ def _ci_selection(args, request, candidate, initial, registry, api):
                     or "repository-checks" not in owner_config["required_contexts"] \
                     or not (packages.activated(event) or packages.has_staged_caller(candidate)):
                 raise ValidationError("the exact package owner has no mandatory repository aggregate")
-            plan = packages.candidate_plan(candidate, event, initial[0])
+            if getattr(request, 'event_base_sha', None) is not None:
+                gate = _gate()
+                context = gate.recheck_effective_request(api, request, event_pr=event['pull_request'])
+                plan = packages.candidate_plan(candidate, event, initial[0], pr_context=context.planning())
+            else:
+                plan = packages.candidate_plan(candidate, event, initial[0])
             if plan.get("unknown") is not False or plan.get("consumer_generation") is not True \
                     or (plan.get("base"), plan.get("head"), plan.get("candidate"), plan.get("tree")) != (
                         request.base_sha, request.head_sha, initial[0], initial[1]) \

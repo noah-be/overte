@@ -89,6 +89,18 @@ jobs:
             base=pr.get('base',{}).get('sha') if isinstance(pr,dict) else event.get('before')
             source=os.environ.get('GITHUB_SHA','')
             need(target in targets and type(base) is str and re.fullmatch('[0-9a-f]{40}',base) and re.fullmatch('[0-9a-f]{40}',source))
+            if isinstance(pr,dict):
+                number=event.get('number')
+                need(os.environ.get('GITHUB_EVENT_NAME')=='pull_request' and type(number) is int and number>0
+                    and pr.get('number')==number and os.environ.get('GITHUB_REF')=='refs/pull/'+str(number)+'/merge'
+                    and os.environ.get('GITHUB_WORKFLOW_SHA')==source)
+                merge=get('commits/refs/pull/'+str(number)+'/merge')
+                parents=merge.get('parents')
+                need(merge.get('sha')==source and type(parents) is list and len(parents)==2
+                    and all(isinstance(parent,dict) for parent in parents)
+                    and parents[1].get('sha')==pr.get('head',{}).get('sha'))
+                base=parents[0].get('sha')
+                need(type(base) is str and re.fullmatch('[0-9a-f]{40}',base))
             branch=get('branches/'+target)
             need(branch.get('protected') is True and branch.get('name')==target and branch.get('commit',{}).get('sha')==(base if isinstance(pr,dict) else source))
             commit=get('git/commits/'+base)
@@ -231,6 +243,18 @@ jobs:
             base=pr.get('base',{}).get('sha') if isinstance(pr,dict) else event.get('before')
             source=os.environ.get('GITHUB_SHA','')
             need(target in targets and type(base) is str and re.fullmatch('[0-9a-f]{40}',base) and re.fullmatch('[0-9a-f]{40}',source))
+            if isinstance(pr,dict):
+                number=event.get('number')
+                need(os.environ.get('GITHUB_EVENT_NAME')=='pull_request' and type(number) is int and number>0
+                    and pr.get('number')==number and os.environ.get('GITHUB_REF')=='refs/pull/'+str(number)+'/merge'
+                    and os.environ.get('GITHUB_WORKFLOW_SHA')==source)
+                merge=get('commits/refs/pull/'+str(number)+'/merge')
+                parents=merge.get('parents')
+                need(merge.get('sha')==source and type(parents) is list and len(parents)==2
+                    and all(isinstance(parent,dict) for parent in parents)
+                    and parents[1].get('sha')==pr.get('head',{}).get('sha'))
+                base=parents[0].get('sha')
+                need(type(base) is str and re.fullmatch('[0-9a-f]{40}',base))
             branch=get('branches/'+target)
             need(branch.get('protected') is True and branch.get('name')==target and branch.get('commit',{}).get('sha')==(base if isinstance(pr,dict) else source))
             commit=get('git/commits/'+base)
@@ -715,6 +739,18 @@ jobs:
             base=pr.get('base',{}).get('sha') if isinstance(pr,dict) else event.get('before')
             source=os.environ.get('GITHUB_SHA','')
             need(target in targets and type(base) is str and re.fullmatch('[0-9a-f]{40}',base) and re.fullmatch('[0-9a-f]{40}',source))
+            if isinstance(pr,dict):
+                number=event.get('number')
+                need(os.environ.get('GITHUB_EVENT_NAME')=='pull_request' and type(number) is int and number>0
+                    and pr.get('number')==number and os.environ.get('GITHUB_REF')=='refs/pull/'+str(number)+'/merge'
+                    and os.environ.get('GITHUB_WORKFLOW_SHA')==source)
+                merge=get('commits/refs/pull/'+str(number)+'/merge')
+                parents=merge.get('parents')
+                need(merge.get('sha')==source and type(parents) is list and len(parents)==2
+                    and all(isinstance(parent,dict) for parent in parents)
+                    and parents[1].get('sha')==pr.get('head',{}).get('sha'))
+                base=parents[0].get('sha')
+                need(type(base) is str and re.fullmatch('[0-9a-f]{40}',base))
             branch=get('branches/'+target)
             need(branch.get('protected') is True and branch.get('name')==target and branch.get('commit',{}).get('sha')==(base if isinstance(pr,dict) else source))
             commit=get('git/commits/'+base)
@@ -836,6 +872,18 @@ jobs:
             base=pr.get('base',{}).get('sha') if isinstance(pr,dict) else event.get('before')
             source=os.environ.get('GITHUB_SHA','')
             need(target in targets and type(base) is str and re.fullmatch('[0-9a-f]{40}',base) and re.fullmatch('[0-9a-f]{40}',source))
+            if isinstance(pr,dict):
+                number=event.get('number')
+                need(os.environ.get('GITHUB_EVENT_NAME')=='pull_request' and type(number) is int and number>0
+                    and pr.get('number')==number and os.environ.get('GITHUB_REF')=='refs/pull/'+str(number)+'/merge'
+                    and os.environ.get('GITHUB_WORKFLOW_SHA')==source)
+                merge=get('commits/refs/pull/'+str(number)+'/merge')
+                parents=merge.get('parents')
+                need(merge.get('sha')==source and type(parents) is list and len(parents)==2
+                    and all(isinstance(parent,dict) for parent in parents)
+                    and parents[1].get('sha')==pr.get('head',{}).get('sha'))
+                base=parents[0].get('sha')
+                need(type(base) is str and re.fullmatch('[0-9a-f]{40}',base))
             branch=get('branches/'+target)
             need(branch.get('protected') is True and branch.get('name')==target and branch.get('commit',{}).get('sha')==(base if isinstance(pr,dict) else source))
             commit=get('git/commits/'+base)
@@ -961,6 +1009,18 @@ jobs:
             base=pr.get('base',{}).get('sha') if isinstance(pr,dict) else event.get('before')
             source=os.environ.get('GITHUB_SHA','')
             need(target in targets and type(base) is str and re.fullmatch('[0-9a-f]{40}',base) and re.fullmatch('[0-9a-f]{40}',source))
+            if isinstance(pr,dict):
+                number=event.get('number')
+                need(os.environ.get('GITHUB_EVENT_NAME')=='pull_request' and type(number) is int and number>0
+                    and pr.get('number')==number and os.environ.get('GITHUB_REF')=='refs/pull/'+str(number)+'/merge'
+                    and os.environ.get('GITHUB_WORKFLOW_SHA')==source)
+                merge=get('commits/refs/pull/'+str(number)+'/merge')
+                parents=merge.get('parents')
+                need(merge.get('sha')==source and type(parents) is list and len(parents)==2
+                    and all(isinstance(parent,dict) for parent in parents)
+                    and parents[1].get('sha')==pr.get('head',{}).get('sha'))
+                base=parents[0].get('sha')
+                need(type(base) is str and re.fullmatch('[0-9a-f]{40}',base))
             branch=get('branches/'+target)
             need(branch.get('protected') is True and branch.get('name')==target and branch.get('commit',{}).get('sha')==(base if isinstance(pr,dict) else source))
             commit=get('git/commits/'+base)
