@@ -1376,6 +1376,12 @@ for their exact trusted checkout, without a wildcard or inherited configuration.
 The device control-plane runner prints failed group names at the end of a failed
 run so bounded host diagnostics retain the failing group without exposing its
 arbitrary output.
+For failed parallel Python self-tests, the final line also reports up to four
+failed module basenames and their total count from the current bounded report.
+This diagnostic stays within 450 ASCII bytes so the protected host's 512-character
+tail retains it. Missing, stale, aliased or invalid reports are reported as
+unavailable; serial runs do not read a parallel report. This output never changes
+test status, timeouts, coverage or evidence authority.
 
 Under the current reviewed catalog and ownership policies, rare controller-source
 upgrades after installing generation 22 use governed maintenance: normally install
