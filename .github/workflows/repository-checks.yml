@@ -23,56 +23,6 @@ concurrency:
   group: repository-checks-${{ github.event.pull_request.number || github.ref }}-${{ ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics')) && github.run_id || 'qualification' }}
   cancel-in-progress: true
 jobs:
-  source-admission-diagnostic:
-    name: Protected source admission diagnostic (no qualification)
-    if: github.event_name == 'pull_request' && github.event.pull_request.number == 1352
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      contents: read
-      pull-requests: read
-    steps:
-    - name: Check out exact protected diagnostic controller source
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      with:
-        ref: 95de469575ab73647bc5b62cf6fdf7fe900ea8cc
-        path: trusted
-        persist-credentials: false
-        sparse-checkout-cone-mode: false
-        sparse-checkout: '.github
-
-          tools/repository-checks
-
-          tools/test-evidence
-
-          tools/sync-test-reuse
-
-          tools/sbom
-
-          tools/branch-policy/check.py
-
-          tools/native-tests/check.py
-
-          tests/run-project-tests.py
-
-          tests/platform-profile.json
-
-          tests/requirements-host.txt
-
-          tests/requirements-repository.txt'
-    - name: Diagnose exact protected source admission without qualification
-      id: source-diagnostic
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: "/usr/bin/python3 -I -S -B - <<'SOURCE_GUARD'\n# Fixed native recipe bootstrap. No repository module is imported here.\nimport hashlib, json, os, re, stat, subprocess, time, urllib.request\nfrom pathlib import Path\nimport urllib.error\n\n\nSOURCE_REASONS = {\n    'unsupported native source invocation':'NATIVE_ENV',\n    'native event repository changed':'EVENT_REPOSITORY',\n    'protected repository/default changed':'API_REPOSITORY_DEFAULT',\n    'native caller source changed':'WORKFLOW_SHA',\n    'native PR number unavailable':'PR_NUMBER',\n    'current open PR unavailable':'API_OPEN_PR',\n    'PR source branch changed':'API_PR_SOURCE',\n    'native PR caller changed':'PR_CALLER_REF',\n    'native M ordered parents changed':'API_M_PARENTS',\n    'current protected base/target changed':'API_TARGET',\n    'default ref is not a commit':'API_DEFAULT_REF',\n    'default authority protection/source changed':'API_DEFAULT_AUTHORITY',\n    'protected source API redirects are forbidden':'API_REDIRECT',\n    'protected source API redirect/status changed':'API_STATUS',\n    'protected source admission deadline exceeded':'API_DEADLINE',\n    'protected source metadata exceeds byte/time bound':'API_BYTE_TIME',\n    'protected source API budget exceeded':'API_BUDGET',\n    'incomplete immutable source tree':'API_TREE_INCOMPLETE',\n    'target or default platform declaration is not enrolled':'PROFILE',\n    'requirement source differs':'REQUIREMENT_SOURCE',\n    'complete default controller graph is unavailable':'CONTROLLER_GRAPH',\n    'original base controller differs from current default':'CONTROLLER_B_D',\n    'actual default controller bytes differ from immutable source':'CONTROLLER_ACTUAL',\n    'protected import membership is not reviewed':'IMPORT_MEMBERSHIP',\n    'protected Python import or negative lookup inventory changed':'IMPORT_B_D',\n    'actual import lookup differs from the immutable reviewed inventory':'IMPORT_ACTUAL',\n    'protected source contains an alias':'SOURCE_ALIAS',\n    'actual controller checkout is not current defaultD':'CHECKOUT_HEAD',\n    'native base/default source changed during pre-import admission':'FINAL_NATIVE',\n}\nPHASES = frozenset({'SEED_REPOSITORY','EVENT_FILE','EVENT_SHAPE','TARGET_BRANCH_API','BASE_COMMIT_API',\n                    'BASE_TREE_API','GUARD_ENTRY','GUARD_FILESYSTEM','GUARD_HASH','GUARD_EXEC','GUARD_AUTHENTICATE'})\n\n\ndef fixed_failure(error, protected_unavailable):\n    if protected_unavailable is not None and type(error) is protected_unavailable:\n        message=error.args[0] if len(error.args)==1 and type(error.args[0]) is str else None\n        return SOURCE_REASONS.get(message,'SOURCE_OTHER')\n    # Never print exception text, URL, response body, stderr or exception args.\n    if type(error) is KeyError:return 'MISSING_REQUIRED_FIELD'\n    if isinstance(error,TimeoutError):return 'TIMEOUT'\n    if isinstance(error,urllib.error.HTTPError):\n        return {401:'HTTP_UNAUTHORIZED',403:'HTTP_FORBIDDEN',404:'HTTP_NOT_FOUND',429:'HTTP_RATE_LIMIT'}.get(error.code,'HTTP_OTHER')\n    if isinstance(error,urllib.error.URLError):return 'HTTP_TRANSPORT'\n    if isinstance(error,OSError):return 'OS_OTHER'\n    if isinstance(error,ValueError):return 'INLINE_PREDICATE'\n    return 'CLOSED_OTHER'\n\n\ndef public_native_bits(event, environment):\n    # Return fixed names plus booleans only. No actual values leave this helper.\n    event=event if type(event) is dict else {}\n    pr=event.get('pull_request',{});pr=pr if type(pr) is dict else {}\n    base=pr.get('base',{});base=base if type(base) is dict else {}\n    head=pr.get('head',{});head=head if type(head) is dict else {}\n    number=event.get('number');valid_number=type(number) is int and number>0\n    reference='refs/pull/'+str(number)+'/merge' if valid_number else None\n    sha=environment.get('GITHUB_SHA')\n    fixed={'ACTIONS':environment.get('GITHUB_ACTIONS')=='true',\n           'REPOSITORY':environment.get('GITHUB_REPOSITORY')=='noah-l-frank/overte',\n           'REPOSITORY_ID':environment.get('GITHUB_REPOSITORY_ID')=='1319052603',\n           'ATTEMPT':environment.get('GITHUB_RUN_ATTEMPT')=='1',\n           'HOSTED':environment.get('RUNNER_ENVIRONMENT')=='github-hosted',\n           'IMAGE':environment.get('ImageOS')=='ubuntu24',\n           'PR_EVENT':environment.get('GITHUB_EVENT_NAME')=='pull_request',\n           'SHA':type(sha) is str and re.fullmatch('[0-9a-f]{40}',sha) is not None and sha!='0'*40,\n           'WORKFLOW_SHA':environment.get('GITHUB_WORKFLOW_SHA')==sha,\n           'BASE_REF':environment.get('GITHUB_BASE_REF')==base.get('ref'),\n           'HEAD_REF':environment.get('GITHUB_HEAD_REF')==head.get('ref'),\n           'PR_REF':valid_number and environment.get('GITHUB_REF')==reference,\n           'CALLER_REF':valid_number and environment.get('GITHUB_WORKFLOW_REF')==\n               'noah-l-frank/overte/.github/workflows/repository-checks.yml@'+reference}\n    return tuple((name,bool(value)) for name,value in fixed.items())\n\n\n\n# Diagnostic-only transport experiment. Protected source bytes/predicates stay unchanged.\n# Rewrite one exact fixed repository-root URL; preserve all other request inputs.\noriginal_request=urllib.request.Request\ndef diagnostic_request(url,*args,**kwargs):\n    if type(url) is str and url=='https://api.github.com/repos/noah-l-frank/overte/':\n        url='https://api.github.com/repos/noah-l-frank/overte'\n    return original_request(url,*args,**kwargs)\nurllib.request.Request=diagnostic_request\nprint('source-transport-diagnostic-v1 SIMULATED_URL_FIX=1')\n\ndeadline=time.monotonic()+45\ndef need(value):\n    if not value: raise ValueError('protected source unavailable')\ndef unique(pairs):\n    value={}\n    for key,item in pairs:\n        need(key not in value); value[key]=item\n    return value\nclass NoRedirect(urllib.request.HTTPRedirectHandler):\n    def redirect_request(self, request, response, code, message, headers, target):\n        raise ValueError('protected source redirect denied')\ndef get(endpoint):\n    request=urllib.request.Request('https://api.github.com/repos/noah-l-frank/overte/'+endpoint,\n        headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'},method='GET')\n    remaining=deadline-time.monotonic();need(remaining>0)\n    with urllib.request.build_opener(NoRedirect()).open(request,timeout=min(10,remaining)) as response:\n        need(response.status==200 and response.geturl()==request.full_url)\n        raw=response.read(16000001)\n    need(len(raw)<=16000000 and time.monotonic()<=deadline)\n    return json.loads(raw,object_pairs_hook=unique,parse_constant=lambda _: need(False))\nadmitted=False\nscope={}\nevent={}\nphase='SEED_REPOSITORY'\nfresh_bits={'FRESH_PR_SEEN':False,'FRESH_PR_M_PRESENT':False,'FRESH_PR_M_OID':False,'FRESH_PR_M_EQ_SHA':False,'SAVED_M_EQ_FRESH_M':False}\ntry:\n    targets={'main','android-main','android-phone','android-vr','android-vr-pico','apple-main','apple-ios'}\n    need(os.environ.get('GITHUB_REPOSITORY')=='noah-l-frank/overte' and os.environ.get('GITHUB_REPOSITORY_ID')=='1319052603')\n    phase='EVENT_FILE'\n    event_path=Path(os.environ['GITHUB_EVENT_PATH'])\n    need(not event_path.is_symlink() and event_path.is_file() and event_path.stat().st_size<=1000000)\n    event=json.loads(event_path.read_bytes(),object_pairs_hook=unique)\n    phase='EVENT_SHAPE'\n    pr=event.get('pull_request')\n    target=pr.get('base',{}).get('ref') if isinstance(pr,dict) else os.environ.get('GITHUB_REF','').removeprefix('refs/heads/')\n    base=pr.get('base',{}).get('sha') if isinstance(pr,dict) else event.get('before')\n    source=os.environ.get('GITHUB_SHA','')\n    need(target in targets and type(base) is str and re.fullmatch('[0-9a-f]{40}',base) and re.fullmatch('[0-9a-f]{40}',source))\n    phase='TARGET_BRANCH_API'\n    branch=get('branches/'+target)\n    need(branch.get('protected') is True and branch.get('name')==target and branch.get('commit',{}).get('sha')==(base if isinstance(pr,dict) else source))\n    phase='BASE_COMMIT_API'\n    commit=get('git/commits/'+base)\n    tree=commit.get('tree',{}).get('sha')\n    need(commit.get('sha')==base and type(tree) is str and re.fullmatch('[0-9a-f]{40}',tree))\n    phase='BASE_TREE_API'\n    inventory=get('git/trees/'+tree+'?recursive=1')\n    need(inventory.get('sha')==tree and inventory.get('truncated') is False and type(inventory.get('tree')) is list)\n    phase='GUARD_ENTRY'\n    name='tools/test-evidence/source_admission.py'\n    entries=[row for row in inventory['tree'] if isinstance(row,dict) and row.get('path')==name]\n    need(len(entries)==1 and entries[0].get('mode')=='100644' and entries[0].get('type')=='blob')\n    phase='GUARD_FILESYSTEM'\n    root=Path('trusted').absolute()\n    path=root/name\n    current=Path(path.anchor)\n    for part in path.parts[1:]:\n        current/=part;need(not current.is_symlink())\n    info=path.stat();need(stat.S_ISREG(info.st_mode) and not info.st_mode&0o111 and info.st_size<=1000000)\n    body=path.read_bytes();need(len(body)<=1000000)\n    phase='GUARD_HASH'\n    need(hashlib.sha1(b'blob '+str(len(body)).encode()+b'\\0'+body).hexdigest()==entries[0].get('sha'))\n    phase='GUARD_EXEC'\n    scope={'__name__':'protected_source_bootstrap','__file__':str(path)}\n    exec(compile(body,str(path),'exec'),scope)\n    phase='GUARD_AUTHENTICATE'\n    native_api=scope['GitHubSource'](deadline=deadline)\n    original_get=native_api.get\n    def observed_get(endpoint):\n        # Observe existing exact GET only; return the untouched result, no extra API.\n        value=original_get(endpoint)\n        if endpoint=='pulls/1352':\n            saved=event.get('pull_request',{}).get('merge_commit_sha')\n            fresh=value.get('merge_commit_sha')\n            fresh_bits.update(FRESH_PR_SEEN=True,FRESH_PR_M_PRESENT=fresh is not None,\n                FRESH_PR_M_OID=type(fresh) is str and re.fullmatch('[0-9a-f]{40}',fresh) is not None,\n                FRESH_PR_M_EQ_SHA=fresh==os.environ.get('GITHUB_SHA'),SAVED_M_EQ_FRESH_M=saved==fresh)\n        return value\n    native_api.get=observed_get\n    scope['authenticate'](event,os.environ,native_api,root)\n    admitted=True\nexcept (ValueError,OSError,KeyError,TypeError,AttributeError,RuntimeError,subprocess.SubprocessError) as error:\n    print('source-diagnostic-v1 phase='+phase+' code='+fixed_failure(error,scope.get('SourceUnavailable')))\nfinally:\n    bits=dict(public_native_bits(event,os.environ))\n    saved=event.get('pull_request',{}).get('merge_commit_sha') if type(event.get('pull_request')) is dict else None\n    bits.update(SAVED_M_PRESENT=saved is not None,SAVED_M_OID=type(saved) is str and re.fullmatch('[0-9a-f]{40}',saved) is not None,\n                SAVED_M_EQ_SHA=saved==os.environ.get('GITHUB_SHA'),**fresh_bits)\n    print('source-env-v1 '+' '.join(name+'='+str(int(value)) for name,value in bits.items()))\n    number=event.get('number');ref='refs/pull/'+str(number)+'/merge' if type(number) is int and number>0 else None\n    workflow_ref=os.environ.get('GITHUB_WORKFLOW_REF')\n    ref_kind=('CALLER_PR_MERGE' if ref and workflow_ref=='noah-l-frank/overte/.github/workflows/repository-checks.yml@'+ref else\n              'CALLEE_PROJECT_PR_MERGE' if ref and workflow_ref=='noah-l-frank/overte/.github/workflows/project-tests.yml@'+ref else\n              'MISSING' if not workflow_ref else 'OTHER')\n    source_sha=os.environ.get('GITHUB_WORKFLOW_SHA');pr=event.get('pull_request',{})\n    pr=pr if type(pr) is dict else {}\n    sha_kind=('MISSING' if not source_sha else 'GITHUB_SHA' if source_sha==os.environ.get('GITHUB_SHA') else\n              'EVENT_HEAD' if source_sha==pr.get('head',{}).get('sha') else 'EVENT_BASE' if source_sha==pr.get('base',{}).get('sha') else 'OTHER')\n    print('source-workflow-ref-v1='+ref_kind)\n    print('source-workflow-sha-v1='+sha_kind)\n    print('source-admitted-diagnostic-v1='+str(admitted).lower())\nwith Path(os.environ['GITHUB_OUTPUT']).open('a') as output:\n    output.write('admitted='+str(admitted).lower()+'\\n')\nprint('Protected source commitment '+('admitted.' if admitted else 'unavailable; existing execution remains required.'))\nSOURCE_GUARD\n"
-    - name: Keep this diagnostic-only revision unqualified
-      if: always()
-      run: 'echo ''Diagnostic-only revision: restore canonical caller before qualification.''
-
-        exit 1
-
-        '
-
   metadata-source:
     name: Authenticate PR text edit
     if: github.event_name == 'pull_request'
@@ -87,7 +37,7 @@ jobs:
 
   route:
     needs: metadata-source
-    if: ${{ false }}
+    if: always() && (needs.metadata-source.result == 'success' || needs.metadata-source.result == 'skipped')
     permissions:
       contents: read
       actions: read
@@ -157,7 +107,7 @@ jobs:
       contents: read
       packages: read
     needs: route
-    if: ${{ false }}
+    if: always() && !cancelled() && needs.route.result == 'success' && needs.route.outputs.metadata_only != 'true' && needs.route.outputs.native != 'skip' && !(github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics')))
     uses: ./.github/workflows/native-tests.yml
     with:
       mode: ${{ needs.route.outputs.native }}
@@ -169,7 +119,7 @@ jobs:
       checks: read
     name: ${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && 'project (metadata unchanged)' || 'project' }}
     needs: route
-    if: ${{ false }}
+    if: always() && !cancelled() && needs.route.result == 'success' && needs.route.outputs.metadata_only != 'true' && (needs.route.outputs.package_host_mode == 'full' || needs.route.outputs.package_host_mode == 'tool-dependencies' || needs.route.outputs.package_set != '[]') && !(github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics')))
     uses: ./.github/workflows/project-tests.yml
     with:
       dependency_projects: ${{ needs.route.outputs.tool_projects }}
@@ -178,7 +128,7 @@ jobs:
   android:
     name: ${{ needs.route.result == 'success' && needs.route.outputs.metadata_only == 'true' && 'android (metadata unchanged)' || 'android' }}
     needs: route
-    if: ${{ false }}
+    if: always() && !cancelled() && needs.route.result == 'success' && needs.route.outputs.metadata_only != 'true' && needs.route.outputs.android_required == 'true' && !(github.event_name == 'pull_request' && ((github.event.action == 'edited' && !github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'android-long-diagnostics')))
     uses: ./.github/workflows/android-required.yml
     with:
       android_required: ${{ needs.route.outputs.android_required }}

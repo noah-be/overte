@@ -94,6 +94,17 @@ class ReconciliationAttestation:
     privileged_entries: int
 
 
+@dataclass(frozen=True)
+class UnchangedPolicyAttestation:
+    base_branch: str
+    head_branch: str
+    repository_id: int
+    base_sha: str
+    head_sha: str
+    merge_sha: str
+    privileged_entries: int
+
+
 class GitHubBranchApi:
     """Read and compare GitHub objects without trusting pull-request code."""
 
@@ -471,6 +482,124 @@ def attest_reconciliation(
     )
 
 
+def attest_unchanged_policy(
+    branches: dict[str, Branch], *, base: str, head: str, repository: str,
+    repository_id: int, base_repository_id: int, head_repository_id: int,
+    head_sha: str, merge_sha: str, event: dict, api,
+) -> UnchangedPolicyAttestation:
+    """Verify inherited policy is unchanged in an ordinary native child PR.
+
+    The REST PR file list can still describe an older base snapshot. It is not
+    permission to transfer policy: independently compare all privileged entries
+    in the actual protected base, current head and native merge instead.
+    """
+    if (repository != "noah-l-frank/overte"
+            or repository_id != 1319052603
+            or base_repository_id != repository_id
+            or head_repository_id != repository_id
+            or base == "main"
+            or classify_pull_request(branches, base, head) not in ("task", "scoped-change", "promotion")):
+        raise PolicyError("unchanged policy attestation requires a same-fork child task")
+    validate_sha(head_sha, "current task head SHA")
+    validate_sha(merge_sha, "native task merge SHA")
+    number = event.get("number")
+    if type(number) is not int or number <= 0:
+        raise PolicyError("unchanged policy attestation requires a native PR number")
+
+    def need(condition, message):
+        if not condition:
+            raise PolicyError(message)
+
+    def read(path):
+        return api._request("repos/" + repository + path, "unchanged policy attestation")
+
+    def same_repo(value):
+        return (isinstance(value, dict) and value.get("full_name") == repository
+                and value.get("id") == repository_id)
+
+    need(same_repo(event.get("repository")), "native event repository changed")
+    owner = read("")
+    need(same_repo(owner) and owner.get("default_branch") == "main", "policy repository changed")
+    base_sha = api.branch_sha(repository, base)
+    validate_sha(base_sha, "current protected policy base")
+    protected = read("/branches/" + quote(base, safe=""))
+    need(protected.get("name") == base and protected.get("protected") is True
+         and protected.get("commit", {}).get("sha") == base_sha, "current policy base is not protected")
+    need(api.branch_sha(repository, head) == head_sha, "current policy head ref changed")
+
+    def ancestor(snapshot, descendant):
+        validate_sha(snapshot, "policy base snapshot")
+        if snapshot != descendant:
+            require_ancestor_comparison(read("/compare/" + snapshot + "..." + descendant + "?per_page=1"), snapshot)
+
+    def pr_identity(value):
+        need(isinstance(value, dict) and type(value.get("number")) is int and value.get("number") == number
+             and value.get("state") == "open", "current policy PR changed")
+        for side, ref in (("base", base), ("head", head)):
+            entry = value.get(side, {})
+            need(same_repo(entry.get("repo")) and entry.get("ref") == ref, "policy PR source changed")
+        need(value["head"].get("sha") == head_sha, "policy PR head changed")
+        ancestor(value["base"].get("sha"), base_sha)
+        return (value["number"], value["state"], value["base"]["ref"],
+                value["head"]["ref"], value["head"]["sha"])
+
+    original_identity = pr_identity(event.get("pull_request"))
+    current_identity = pr_identity(read("/pulls/" + str(number)))
+    need(current_identity == original_identity, "policy PR identity changed")
+
+    def current_merge():
+        value = read("/commits/refs/pull/" + str(number) + "/merge")
+        need(value.get("sha") == merge_sha and isinstance(value.get("parents"), list)
+             and [row.get("sha") for row in value["parents"] if isinstance(row, dict)] == [base_sha, head_sha]
+             and len(value["parents"]) == 2, "native policy merge parents changed")
+
+    current_merge()
+    need(api.commit_parents(repository, merge_sha) == (base_sha, head_sha), "immutable policy merge changed")
+    ancestor(base_sha, head_sha)
+    entries = api.tree_entries(repository, base_sha)
+    need(bool(entries) and api.tree_entries(repository, head_sha) == entries
+         and api.tree_entries(repository, merge_sha) == entries,
+         "task changes the current privileged policy tree")
+    need(pr_identity(read("/pulls/" + str(number))) == current_identity, "policy PR changed during attestation")
+    current_merge()
+    final_protected = read("/branches/" + quote(base, safe=""))
+    need(final_protected.get("name") == base and final_protected.get("protected") is True
+         and final_protected.get("commit", {}).get("sha") == base_sha
+         and api.branch_sha(repository, base) == base_sha
+         and api.branch_sha(repository, head) == head_sha, "policy refs or protection changed during attestation")
+    final_owner = read("")
+    need(same_repo(final_owner) and final_owner.get("default_branch") == "main",
+         "policy repository changed during attestation")
+    return UnchangedPolicyAttestation(base, head, repository_id, base_sha, head_sha, merge_sha, len(entries))
+
+
+def native_policy_event(base: str, head: str) -> tuple[dict, str]:
+    """Bind the optional inherited-policy proof to this native PR invocation."""
+    number = os.environ.get("PULL_REQUEST", "")
+    merge = os.environ.get("GITHUB_SHA", "")
+    if not re.fullmatch(r"[1-9][0-9]*", number):
+        raise PolicyError("unchanged policy proof requires a native PR invocation")
+    expected = {"GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "pull_request",
+                "GITHUB_REPOSITORY": "noah-l-frank/overte", "GITHUB_REPOSITORY_ID": "1319052603",
+                "GITHUB_BASE_REF": base, "GITHUB_HEAD_REF": head, "GITHUB_JOB": "branch-policy",
+                "GITHUB_REF": "refs/pull/" + number + "/merge", "GITHUB_WORKFLOW_SHA": merge,
+                "GITHUB_WORKFLOW_REF": "noah-l-frank/overte/.github/workflows/branch-policy.yml@refs/pull/" + number + "/merge"}
+    if any(os.environ.get(key) != value for key, value in expected.items()):
+        raise PolicyError("unsupported native unchanged-policy caller")
+    validate_sha(merge, "native policy merge")
+    try:
+        path = Path(os.environ["GITHUB_EVENT_PATH"])
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > 1_000_000:
+            raise PolicyError("native policy event is not an ordinary bounded file")
+        event = json.loads(path.read_bytes())
+    except (KeyError, OSError, ValueError) as error:
+        raise PolicyError("native policy event is unavailable") from error
+    if (not isinstance(event, dict) or type(event.get("number")) is not int
+            or event.get("number") != int(number)):
+        raise PolicyError("native policy event number changed")
+    return event, merge
+
+
 def evaluate_pull_request(
     branches: dict[str, Branch],
     *,
@@ -483,6 +612,7 @@ def evaluate_pull_request(
     expected_head_sha: str | None = None,
     changed_files: tuple[str, ...] = (),
     reconciliation_attestation: ReconciliationAttestation | None = None,
+    unchanged_policy_attestation: UnchangedPolicyAttestation | None = None,
     dependabot_targets: tuple[DependabotTarget, ...] = (),
     pr_author_login: str | None = None,
     pr_author_type: str | None = None,
@@ -541,7 +671,16 @@ def evaluate_pull_request(
         verified_downstream_transfer = classification in (
             "downstream-sync", "reconciliation"
         )
-        if not (same_repository_main_pr or verified_downstream_transfer):
+        inherited_policy_unchanged = (
+            classification in ("task", "scoped-change", "promotion")
+            and isinstance(unchanged_policy_attestation, UnchangedPolicyAttestation)
+            and unchanged_policy_attestation.base_branch == base
+            and unchanged_policy_attestation.head_branch == head
+            and unchanged_policy_attestation.repository_id == repository_id
+            and unchanged_policy_attestation.head_sha == head_sha
+            and unchanged_policy_attestation.privileged_entries > 0
+        )
+        if not (same_repository_main_pr or verified_downstream_transfer or inherited_policy_unchanged):
             raise PolicyError(
                 "privileged policy and workflow changes require a same-repository "
                 "pull request to main or a verified direct-parent downstream sync"
@@ -594,6 +733,7 @@ def main() -> int:
                 branches, args.base, args.head, dependabot_targets
             )
             reconciliation_attestation = None
+            unchanged_policy_attestation = None
             if classification == "reconciliation":
                 repository = args.repository or os.environ.get("GITHUB_REPOSITORY")
                 if not repository:
@@ -611,6 +751,17 @@ def main() -> int:
                     head_sha=args.head_sha,
                     api=GitHubBranchApi(),
                 )
+            elif (classification in ("task", "scoped-change", "promotion") and args.base != "main"
+                  and changes_privileged_policy(changed_files)
+                  and os.environ.get("GITHUB_ACTIONS") == "true"):
+                event, merge_sha = native_policy_event(args.base, args.head)
+                unchanged_policy_attestation = attest_unchanged_policy(
+                    branches, base=args.base, head=args.head,
+                    repository=args.repository or os.environ.get("GITHUB_REPOSITORY", ""),
+                    repository_id=args.repository_id, base_repository_id=args.base_repository_id,
+                    head_repository_id=args.head_repository_id, head_sha=args.head_sha,
+                    merge_sha=merge_sha, event=event, api=GitHubBranchApi(),
+                )
             classification = evaluate_pull_request(
                 branches,
                 base=args.base,
@@ -622,6 +773,7 @@ def main() -> int:
                 expected_head_sha=args.expected_head_sha,
                 changed_files=changed_files,
                 reconciliation_attestation=reconciliation_attestation,
+                unchanged_policy_attestation=unchanged_policy_attestation,
                 dependabot_targets=dependabot_targets,
                 pr_author_login=args.pr_author_login,
                 pr_author_type=args.pr_author_type,
