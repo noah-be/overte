@@ -41,8 +41,9 @@ VARIANTS = ["complete-reviewed-launcher", "Qt6Core/Gui/Qml/Concurrent/WebChannel
 # membership, local imports and historical child differences, remain anchored.
 # This proves only that the own host run is unaffected; it is not a passing
 # test receipt, shared-owner handoff or application-build selection authority.
-REVIEWED_CI_HOST_BOUNDARY = "14052515fad3917fd66a9fda666acbd82be124c209687b24d92af3694c2ae283"
+REVIEWED_CI_HOST_BOUNDARY = "a66799656e1f6f64e4f48fee32cb1897786a3735e7d15c254652b48447afd08d"
 CI_HOST_INDEPENDENT_PATHS = frozenset({
+    "tools/repository-health/check.py",
     '.github/workflows/documentation-checks.yml',
     '.github/workflows/workflow-security.yml',
     '.github/workflows/documentation-push-owner.yml',
@@ -222,6 +223,7 @@ CI_HOST_INDEPENDENT_PATHS = frozenset({
     'tools/test-evidence/validate-sync.py',
 })
 CI_HOST_EXECUTABLE_PATHS = frozenset({
+    "tools/repository-health/check.py",
     "tests/project-suite-self-test.py", "tests/repository-health-test.py", "tests/run-project-tests.py",
 })
 # Outside the iOS host reader graph, but a changed lock additionally requires

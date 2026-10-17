@@ -126,9 +126,14 @@ class QualificationTests(unittest.TestCase):
             deployed.write_text(canonical)
             report = health.Doctor(root, config).local()
             self.assertEqual(report["status"], "PASS", report)
-            # YAML permits this spelling, but our repository's
-            # workflow structure contract requires an unquoted trigger key.
-            previous = canonical.replace("\non:\n", "\n'on':\n", 1)
+            # Valid quoted trigger keys retain the actual workflow contract.
+            quoted = canonical.replace("\non:\n", "\n'on':\n", 1)
+            self.assertNotEqual(quoted, canonical)
+            deployed.write_text(quoted)
+            report = health.Doctor(root, config).local()
+            self.assertEqual(report["status"], "PASS", report)
+            # A mismatched quote remains invalid YAML, not a spelling waiver.
+            previous = canonical.replace("\non:\n", "\n'on\":\n", 1)
             self.assertNotEqual(previous, canonical)
             deployed.write_text(previous)
             report = health.Doctor(root, config).local()
@@ -1093,6 +1098,55 @@ class HostGenerationTests(unittest.TestCase):
             for name in ("host", "qt", "client"):
                 needs = self.needs(output);needs[name]["result"] = "success"
                 with self.assertRaises(ValueError): self.verify(output, event, source, required=needs)
+
+    def test_exact_doctor_cli_omits_only_ios_host_work_and_preserves_reader_guards(self):
+        inputs = self.host.selector(self.trusted)
+        previous = inputs.read_snapshot(self.root, self.base)
+        boundary = self.host.ci_host_boundary(previous)
+        doctor = "tools/repository-health/check.py"
+        with patch.object(self.host, "REVIEWED_CI_HOST_BOUNDARY", boundary):
+            event, source = self.candidate({doctor: ("100755", "raise RuntimeError('never run Doctor in iOS')\n")})
+            output = self.route(event, source)
+            self.assertEqual((output["required"], output["host_required"]), ("false", "false"))
+            self.assertEqual(self.verify(output, event, source), output)
+            added = inputs.read_snapshot(self.root, source)
+            removed = self.commit(source, {doctor: None})
+            self.assertIsNotNone(self.host.ci_host_omission(added, inputs.read_snapshot(self.root, removed)))
+            changes = ({doctor: ("100644", "# Wrong executable mode\n")},
+                       {doctor: ("120000", "other.py")},
+                       {"tools/repository-health/other.py": "# Unknown neighbor\n"},
+                       {"ios/tests/dsym_fixture.py": None})
+            for change in changes:
+                with self.subTest(change=change):
+                    _, candidate = self.candidate(change)
+                    self.assertIsNone(self.host.ci_host_omission(previous, inputs.read_snapshot(self.root, candidate)))
+            historical = self.commit(self.base, {"ios/tests/dsym_fixture.py": "# Historical new reader\n"})
+            _, candidate = self.candidate({doctor: ("100755", "# Later Doctor edit\n")}, base=historical)
+            self.assertIsNone(self.host.ci_host_omission(inputs.read_snapshot(self.root, historical),
+                                                       inputs.read_snapshot(self.root, candidate)))
+
+    def test_doctor_with_changed_npm_locks_needs_the_actual_bounded_package_plan(self):
+        self.npm_fixture()
+        event, source = self.candidate({**self.npm_changes(),
+            "tools/repository-health/check.py": ("100755", "# Independent Doctor update\n")})
+        owner = self.npm_owner(event, source)
+        inputs = self.host.selector(self.trusted)
+        previous = inputs.read_snapshot(self.root, self.base)
+        current = inputs.read_snapshot(self.root, source)
+        with patch.object(self.host, "REVIEWED_CI_HOST_BOUNDARY", self.npm_host_boundary):
+            self.assertIsNone(self.host.ci_host_omission(previous, current, repository=self.root,
+                                                       policy_root=self.trusted))
+            admitted = self.host.ci_host_omission(previous, current, repository=self.root,
+                                                 package_owner=owner, policy_root=self.trusted)
+            self.assertIsNotNone(admitted)
+            self.assertEqual(admitted["reason"], "reviewed-ci-and-required-npm-host-inputs")
+            self.assertEqual(set(admitted["package_ownership"]["changedPaths"]), self.host.NPM_HOST_PATHS)
+            self.assertFalse(inputs.candidate_plan(self.root, self.base, source,
+                                                   package_owner=owner)["requires_application_build"])
+            self.assertTrue(inputs.candidate_plan(self.root, self.base, source)["requires_application_build"])
+            invalid = {**owner, "plan": "0" * 64}
+            self.assertIsNone(self.host.ci_host_omission(previous, current, repository=self.root,
+                                                       package_owner=invalid, policy_root=self.trusted))
 
     def test_ci_host_boundary_is_finite_and_binds_both_historical_reader_trees(self):
         inputs = self.host.selector(self.trusted)

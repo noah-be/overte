@@ -33,7 +33,7 @@ import subprocess
 # Protected apple-ios merge of the successful host-only workflow bootstrap.
 # Its only tree delta from the previous anchor is the exact reviewed workflow.
 REVIEWED_REVISION = "2fc894a0605103843b36653f250f854714a963ee"
-REVIEWED_BOUNDARY = "sha256:439c4efe0b3640c6da33d75854296063b60f881f0cfeb0c4a5d77fca728a786d"
+REVIEWED_BOUNDARY = "sha256:8e66f6e9de251fe1a19feb867df56a714fb126cd8e66e22ba370d03af4f90aec"
 
 # Reviewed host control-plane files, not generic tests/** or tools/** patterns.
 # In particular, E2E builds can compile tests/device source and fixtures.
@@ -43,6 +43,7 @@ REVIEWED_BOUNDARY = "sha256:439c4efe0b3640c6da33d75854296063b60f881f0cfeb0c4a5d7
 # its device-control-plane-full and project-runner owners remain independently required.
 # Independent required CI must still validate these files before any app waiver.
 INDEPENDENT_HOST_PATHS = frozenset({
+    "tools/repository-health/check.py",
     '.github/workflows/documentation-checks.yml',
     '.github/workflows/documentation-push-owner.yml',
     'tools/test-evidence/source_admission.py',
@@ -211,9 +212,10 @@ INDEPENDENT_HOST_PATHS = frozenset({
     "tools/test-evidence/validate-sync-test.py",
     "tools/test-evidence/validate-sync.py",
 })
-# The reviewed project self-test, health test and runner are executable in Git. No other
+# The reviewed Doctor CLI, project self-test, health test and runner are executable in Git. No other
 # executable host path, document or mode transition gets an implicit exemption.
 INDEPENDENT_EXECUTABLE_HOST_PATHS = frozenset({
+    "tools/repository-health/check.py",
     "tests/project-suite-self-test.py", "tests/repository-health-test.py", "tests/run-project-tests.py",
 })
 INDEPENDENT_DOCUMENTS = frozenset({
