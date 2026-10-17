@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from pathlib import Path
 import importlib.util
+import copy
+import io
 import json
 import subprocess
 import sys
@@ -119,6 +121,207 @@ class FakeReconciliationApi:
         if self.failure == "tree":
             raise BRANCH_POLICY.PolicyError("simulated incomplete tree API response")
         return self.parent_entries if commit == self.parent else self.head_entries
+
+
+class FakeUnchangedPolicyApi:
+    repository = "noah-l-frank/overte"
+    repository_id = 1319052603
+    target = "android-main"
+    topic = "fix/android/retained-history"
+    number = 77
+
+    def __init__(self):
+        repo = {"full_name": self.repository, "id": self.repository_id}
+        self.pr = {"number": self.number, "state": "open",
+                   "base": {"ref": self.target, "sha": STALE_SHA, "repo": repo},
+                   "head": {"ref": self.topic, "sha": CURRENT_SHA, "repo": repo}}
+        self.event = {"number": self.number, "repository": repo, "pull_request": copy.deepcopy(self.pr)}
+        self.protected = True
+        self.parents = (BASE_SHA, CURRENT_SHA)
+        self.entries = {oid: PRIVILEGED_ENTRIES for oid in (BASE_SHA, CURRENT_SHA, RECONCILIATION_SHA)}
+        self.snapshots = []
+        self.bad_ancestor = False
+        self.move_base = False
+        self.move_head = False
+        self.ref_reads = {}
+
+    def _request(self, endpoint, label):
+        prefix = "repos/" + self.repository
+        if endpoint == prefix:
+            return {"full_name": self.repository, "id": self.repository_id, "default_branch": "main"}
+        path = endpoint.removeprefix(prefix)
+        if path == "/pulls/77":
+            value = copy.deepcopy(self.pr)
+            if self.snapshots:
+                value["base"]["sha"] = self.snapshots.pop(0)
+            return value
+        if path == "/branches/android-main":
+            return {"name": self.target, "protected": self.protected, "commit": {"sha": BASE_SHA}}
+        if path == "/commits/refs/pull/77/merge":
+            return {"sha": RECONCILIATION_SHA, "parents": [{"sha": oid} for oid in self.parents]}
+        if path.startswith("/compare/") and path.endswith("?per_page=1"):
+            ancestor = path.split("/compare/", 1)[1].split("...", 1)[0]
+            return {"status": "diverged" if self.bad_ancestor else "ahead", "behind_by": 0,
+                    "base_commit": {"sha": ancestor}, "merge_base_commit": {"sha": ancestor}}
+        raise AssertionError("unexpected API request: " + endpoint)
+
+    def branch_sha(self, repository, branch):
+        self.ref_reads[branch] = self.ref_reads.get(branch, 0) + 1
+        if branch == self.target:
+            return PARENT_SHA if self.move_base and self.ref_reads[branch] > 1 else BASE_SHA
+        if branch == self.topic:
+            return PARENT_SHA if self.move_head and self.ref_reads[branch] > 1 else CURRENT_SHA
+        raise AssertionError("unexpected branch")
+
+    def commit_parents(self, repository, commit):
+        assert commit == RECONCILIATION_SHA
+        return self.parents
+
+    def tree_entries(self, repository, commit):
+        return self.entries[commit]
+
+
+class UnchangedPolicyTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.branches = BRANCH_POLICY.load_policy(POLICY)
+
+    def attest(self, api):
+        return BRANCH_POLICY.attest_unchanged_policy(
+            self.branches, base=api.target, head=api.topic, repository=api.repository,
+            repository_id=api.repository_id, base_repository_id=api.repository_id,
+            head_repository_id=api.repository_id, head_sha=CURRENT_SHA,
+            merge_sha=RECONCILIATION_SHA, event=api.event, api=api)
+
+    def evaluate(self, proof):
+        return BRANCH_POLICY.evaluate_pull_request(
+            self.branches, base="android-main", head="fix/android/retained-history",
+            repository_id=1319052603, base_repository_id=1319052603,
+            head_repository_id=1319052603, head_sha=CURRENT_SHA,
+            changed_files=("tools/branch-policy/check.py", "interface/client.cpp"),
+            unchanged_policy_attestation=proof)
+
+    def test_inherited_policy_requires_independent_current_tree_attestation(self):
+        with self.assertRaises(BRANCH_POLICY.PolicyError):
+            self.evaluate(None)
+        api = FakeUnchangedPolicyApi()
+        original = copy.deepcopy(api.event)
+        proof = self.attest(api)
+        self.assertEqual(self.evaluate(proof), "scoped-change")
+        self.assertEqual(proof.base_sha, BASE_SHA)
+        self.assertEqual(proof.merge_sha, RECONCILIATION_SHA)
+        self.assertEqual(api.event, original)
+
+    def test_unequal_valid_snapshot_refresh_is_not_authority_drift(self):
+        api = FakeUnchangedPolicyApi()
+        api.snapshots = [PARENT_SHA, BASE_SHA]
+        self.assertEqual(self.attest(api).base_sha, BASE_SHA)
+
+    def test_changed_privileged_blob_mode_type_or_membership_stays_forbidden(self):
+        alternatives = ((), PRIVILEGED_ENTRIES[:-1],
+                        PRIVILEGED_ENTRIES + (("tools/branch-policy/extra", "100644", "blob", "8" * 40),),
+                        ((PRIVILEGED_ENTRIES[0][0], "100755", "blob", PRIVILEGED_BLOB_SHA),) + PRIVILEGED_ENTRIES[1:],
+                        ((PRIVILEGED_ENTRIES[0][0], "120000", "blob", PRIVILEGED_BLOB_SHA),) + PRIVILEGED_ENTRIES[1:],
+                        ((PRIVILEGED_ENTRIES[0][0], "160000", "commit", PRIVILEGED_BLOB_SHA),) + PRIVILEGED_ENTRIES[1:],
+                        ((PRIVILEGED_ENTRIES[0][0], "100644", "blob", "9" * 40),) + PRIVILEGED_ENTRIES[1:])
+        for revision in (CURRENT_SHA, RECONCILIATION_SHA):
+            for entries in alternatives:
+                with self.subTest(revision=revision, entries=entries):
+                    api = FakeUnchangedPolicyApi()
+                    api.entries[revision] = entries
+                    with self.assertRaises(BRANCH_POLICY.PolicyError):
+                        self.attest(api)
+
+    def test_current_identity_protection_and_ancestry_changes_reject(self):
+        for attribute in ("move_base", "move_head", "bad_ancestor"):
+            with self.subTest(attribute=attribute):
+                api = FakeUnchangedPolicyApi()
+                setattr(api, attribute, True)
+                with self.assertRaises(BRANCH_POLICY.PolicyError):
+                    self.attest(api)
+        api = FakeUnchangedPolicyApi()
+        api.protected = False
+        with self.assertRaises(BRANCH_POLICY.PolicyError):
+            self.attest(api)
+        for parents in ((CURRENT_SHA, BASE_SHA), (BASE_SHA,), (BASE_SHA, CURRENT_SHA, PARENT_SHA)):
+            api = FakeUnchangedPolicyApi()
+            api.parents = parents
+            with self.assertRaises(BRANCH_POLICY.PolicyError):
+                self.attest(api)
+
+    def test_foreign_or_stale_pr_data_is_not_a_tree_equality_escape(self):
+        for side, key, value in (("head", "sha", PARENT_SHA), ("base", "ref", "apple-main"),
+                                 ("head", "ref", "fix/android/another-task"), ("base", "sha", "invalid")):
+            api = FakeUnchangedPolicyApi()
+            api.pr[side][key] = value
+            with self.subTest(side=side, key=key):
+                with self.assertRaises(BRANCH_POLICY.PolicyError):
+                    self.attest(api)
+        api = FakeUnchangedPolicyApi()
+        api.pr["base"]["repo"] = {"full_name": "overte-org/overte", "id": 99}
+        with self.assertRaises(BRANCH_POLICY.PolicyError):
+            self.attest(api)
+
+    def test_attestation_cannot_be_relabelled_to_another_head(self):
+        from dataclasses import replace
+        proof = replace(self.attest(FakeUnchangedPolicyApi()), head_sha=PARENT_SHA)
+        with self.assertRaises(BRANCH_POLICY.PolicyError):
+            self.evaluate(proof)
+
+    def native_environment(self, path):
+        api = FakeUnchangedPolicyApi()
+        return {"GITHUB_ACTIONS": "true", "GITHUB_EVENT_NAME": "pull_request",
+                "GITHUB_REPOSITORY": api.repository, "GITHUB_REPOSITORY_ID": str(api.repository_id),
+                "GITHUB_BASE_REF": api.target, "GITHUB_HEAD_REF": api.topic, "GITHUB_JOB": "branch-policy",
+                "PULL_REQUEST": "77", "GITHUB_SHA": RECONCILIATION_SHA,
+                "GITHUB_WORKFLOW_SHA": RECONCILIATION_SHA, "GITHUB_REF": "refs/pull/77/merge",
+                "GITHUB_WORKFLOW_REF": api.repository + "/.github/workflows/branch-policy.yml@refs/pull/77/merge",
+                "GITHUB_EVENT_PATH": str(path)}
+
+    def test_native_cli_allows_only_unchanged_current_privileged_tree(self):
+        for changed in (False, True):
+            api = FakeUnchangedPolicyApi()
+            if changed:
+                api.entries[CURRENT_SHA] = PRIVILEGED_ENTRIES[:-1]
+            original = copy.deepcopy(api.event)
+            with self.subTest(changed=changed), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "event.json"
+                path.write_text(json.dumps(api.event))
+                arguments = [str(CHECKER), "check-pr", "--base", api.target, "--head", api.topic,
+                    "--repository-id", str(api.repository_id), "--base-repository-id", str(api.repository_id),
+                    "--head-repository-id", str(api.repository_id), "--head-sha", CURRENT_SHA,
+                    "--changed-files-stdin"]
+                output, errors = io.StringIO(), io.StringIO()
+                with mock.patch.dict("os.environ", self.native_environment(path), clear=True), \
+                     mock.patch.object(sys, "argv", arguments), \
+                     mock.patch.object(sys, "stdin", io.StringIO("tools/branch-policy/check.py\n")), \
+                     mock.patch.object(sys, "stdout", output), mock.patch.object(sys, "stderr", errors), \
+                     mock.patch.object(BRANCH_POLICY, "GitHubBranchApi", return_value=api):
+                    result = BRANCH_POLICY.main()
+                self.assertEqual(result, 1 if changed else 0)
+                self.assertEqual(api.event, original)
+                if changed:
+                    self.assertIn("task changes the current privileged policy tree", errors.getvalue())
+                    self.assertEqual(output.getvalue(), "")
+                else:
+                    self.assertEqual(output.getvalue(), "allowed: scoped-change: " + api.topic + " -> " + api.target + "\n")
+                    self.assertEqual(errors.getvalue(), "")
+
+    def test_native_caller_must_be_the_exact_pr_workflow(self):
+        api = FakeUnchangedPolicyApi()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "event.json"
+            path.write_text(json.dumps(api.event))
+            environment = self.native_environment(path)
+            with mock.patch.dict("os.environ", environment, clear=True):
+                event, merge = BRANCH_POLICY.native_policy_event(api.target, api.topic)
+                self.assertEqual(event, api.event)
+                self.assertEqual(merge, RECONCILIATION_SHA)
+                for key, value in (("GITHUB_EVENT_NAME", "pull_request_target"), ("GITHUB_SHA", PARENT_SHA),
+                                   ("GITHUB_HEAD_REF", "another"), ("GITHUB_JOB", "another")):
+                    with self.subTest(key=key), mock.patch.dict("os.environ", {key: value}):
+                        with self.assertRaises(BRANCH_POLICY.PolicyError):
+                            BRANCH_POLICY.native_policy_event(api.target, api.topic)
 
 
 class BranchPolicyTests(unittest.TestCase):

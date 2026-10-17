@@ -48,7 +48,7 @@ ACTIVATION_READY = False
 # A reviewed current-source attempt capability, never historical qualification.
 # Legacy admission/targets remain separate and unchanged.
 SOURCE_CAPABILITY = True
-SOURCE_GUARD_BLOB = 'f6cbc9c022beb3283925a7289acb893eef1a883b'
+SOURCE_GUARD_BLOB = '20580c3ea413e63a6779898fdd3d2c5e051625f4'
 CURRENT_SOURCE_GENERATION = "protected-producer-original-default-v1"
 CURRENT_SOURCE_TARGETS = frozenset({"android-main", "android-vr", "android-vr-pico", "android-phone"})
 CURRENT_JOBS = {
@@ -231,7 +231,7 @@ def _policy_identity(policy_root):
                    "packages": packages()._policy_inputs()})
 
 
-def _context(candidate, event, sha, event_name, policy):
+def _context(candidate, event, sha, event_name, policy, *, pr_context=None):
     if not isinstance(event, dict) or event.get("repository", {}).get("full_name") != REPOSITORY \
             or type(event["repository"].get("id")) is not int or event["repository"]["id"] != REPOSITORY_ID \
             or not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{40}", sha):
@@ -249,10 +249,9 @@ def _context(candidate, event, sha, event_name, policy):
                 or any(not isinstance(item.get("sha"), str) or not re.fullmatch(r"[0-9a-f]{40}", item["sha"])
                        for item in (base, head)):
             raise ValueError("invalid Android pull request source identity")
-        parents = current._git("show", "--no-patch", "--format=%P", sha).decode().split()
-        if parents != [base["sha"], head["sha"]]:
-            raise ValueError("Android candidate does not merge the exact event parents")
-        return current, _sources(candidate, base["sha"]), base["ref"], base["sha"], head["sha"]
+        checks = packages().load("android_candidate_context", "tools/repository-checks/check.py")
+        resolved = checks.pr_candidate_context(candidate, event, sha, pr_context=pr_context)
+        return current, _sources(candidate, resolved["base"]), base["ref"], resolved["base"], resolved["head"]
     if event_name != "workflow_dispatch" or pr is not None:
         raise ValueError("unsupported Android orchestration event")
     ref = event.get("ref", "")
@@ -300,10 +299,10 @@ def validate_non_android_absence(source, before=None):
             raise ValueError("unexpected Android or unreviewed platform profile on a non-Android target")
 
 
-def candidate_plan(candidate, event, sha, *, event_name="pull_request", policy_root=ROOT):
+def candidate_plan(candidate, event, sha, *, event_name="pull_request", policy_root=ROOT, pr_context=None):
     """No caller-supplied branch, views, omitted cases or parent-name waivers."""
     policy = load_policy(policy_root)
-    source, before, branch, base, head = _context(candidate, event, sha, event_name, policy)
+    source, before, branch, base, head = _context(candidate, event, sha, event_name, policy, pr_context=pr_context)
     branches = android()._json(android()._file(Path(policy_root), ".github/branch-policy.json"))["branches"]
     if branch not in branches:
         raise ValueError("Android event target is not a reviewed permanent branch")
@@ -412,7 +411,7 @@ def activated(event, *, policy_root=ROOT):
     return branch in targets
 
 
-def _execution_target(candidate, event, *, policy_root=ROOT):
+def _execution_target(candidate, event, *, policy_root=ROOT, pr_context=None):
     source = _sources(candidate)
     validate_tree_wiring(source.entries, policy_root=policy_root)
     policy = load_policy(policy_root)
@@ -423,24 +422,26 @@ def _execution_target(candidate, event, *, policy_root=ROOT):
     if repository.get("full_name") != REPOSITORY or repository.get("id") != REPOSITORY_ID \
             or branch not in branches or (base and any(base.get("repo", {}).get(key) != repository.get(key) for key in ("full_name", "id"))):
         raise ValueError("Android admission requires an exact reviewed event target")
+    source, before, _, before_sha, _ = _context(candidate, event,
+        source._git("rev-parse", "HEAD").decode().strip(),
+        "pull_request" if "pull_request" in event else "workflow_dispatch", policy, pr_context=pr_context)
     if branch not in policy["reviewed_sources"]:
-        source, before, *_ = _context(candidate, event,
-            source._git("rev-parse", "HEAD").decode().strip(),
-            "pull_request" if "pull_request" in event else "workflow_dispatch", policy)
         validate_non_android_absence(source, before)
-    return policy, branch, base
+    # Preserve the raw event snapshot; owned-generation admission uses actual
+    # immutable M.parent0 from the same independently recomputed context.
+    return policy, branch, before_sha or None
 
 
-def validate_execution_generation(candidate, event, *, policy_root=ROOT):
+def validate_execution_generation(candidate, event, *, policy_root=ROOT, pr_context=None):
     """Allow qualification of a complete prospective owner, never its merge.
 
     The required outer repository verifier separately calls admit(). Keeping
     activation there lets real candidate producers be qualified while protected
     branches retain the enforced old owner. A diagnostic is not merge authority.
     """
-    policy, branch, base = _execution_target(candidate, event, policy_root=policy_root)
+    policy, branch, base = _execution_target(candidate, event, policy_root=policy_root, pr_context=pr_context)
     if branch in policy["reviewed_sources"]:
-        validate_owned_generation(candidate, branch, policy_root=policy_root, before_sha=base.get("sha"))
+        validate_owned_generation(candidate, branch, policy_root=policy_root, before_sha=base)
 
 
 def admit(candidate, event, *, policy_root=ROOT):
@@ -455,7 +456,7 @@ def admit(candidate, event, *, policy_root=ROOT):
     if not activated(event, policy_root=policy_root):
         raise ValueError("Android required workflow is not activated for this target")
     branch = ((event.get("pull_request") or {}).get("base") or {}).get("ref") or event.get("ref", "").removeprefix("refs/heads/")
-    validate_owned_generation(candidate, branch, policy_root=policy_root, before_sha=base.get("sha"))
+    validate_owned_generation(candidate, branch, policy_root=policy_root, before_sha=base)
 
 
 

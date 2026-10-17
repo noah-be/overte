@@ -136,6 +136,7 @@ class Verifier:
             self.number = positive(event.get('number'))
             require(pr.get('number') == self.number, 'event PR number mismatch')
             self.base, self.head = sha(pr.get('base', {}).get('sha')), sha(pr.get('head', {}).get('sha'))
+            self.event_base = self.base
             self.base_ref, self.head_ref = branch(pr['base'].get('ref')), branch(pr['head'].get('ref'))
             repository(pr['base'].get('repo'))
             repository(pr['head'].get('repo'))
@@ -152,6 +153,7 @@ class Verifier:
                 require(event.get('ref') == self.ref and event.get('after') == self.source
                         and event.get('deleted') is False, 'push event source mismatch')
             self.number = None
+            self.event_base = self.base
         require(self.base_ref in TARGETS, 'unsupported permanent target branch')
         require(environment.get('GITHUB_WORKFLOW_SHA') == self.source
                 and environment.get('GITHUB_WORKFLOW_REF') == REPOSITORY + '/' + WORKFLOW + '@' + self.ref,
@@ -226,22 +228,40 @@ class Verifier:
             require(pr.get('number') == self.number and pr.get('state') == 'open'
                     and (pr.get('merge_commit_sha') is None or pr['merge_commit_sha'] == self.source),
                     'PR candidate changed')
-            for side, expected_ref, expected_sha in (('base', self.base_ref, self.base), ('head', self.head_ref, self.head)):
+            for side, expected_ref, expected_sha in (('base', self.base_ref, self.event_base), ('head', self.head_ref, self.head)):
                 value = pr.get(side, {})
                 repository(value.get('repo'))
-                require(value.get('ref') == expected_ref and value.get('sha') == expected_sha
-                        and self.ref_sha('heads/' + expected_ref) == expected_sha, 'PR branch changed')
+                require(value.get('ref') == expected_ref, 'PR branch changed')
+                if side == 'head':
+                    require(value.get('sha') == expected_sha and self.ref_sha('heads/' + expected_ref) == expected_sha,
+                            'PR head changed')
             # The current REST version omits merge_commit_sha on PR objects.
             # Requesting the PR above refreshes its test merge; resolve that live
             # ref through the commits endpoint and bind both ordered parents.
             commit = self.obj(f'commits/refs/pull/{self.number}/merge?per_page=1&page=1')
+            live_base = self.ref_sha('heads/' + self.base_ref)
+            if live_base != self.event_base or pr['base'].get('sha') != live_base:
+                spec = importlib.util.spec_from_file_location('trusted_codeql_base_source', ROOT / 'tools/test-evidence/source_admission.py')
+                require(spec is not None and spec.loader is not None, 'trusted live-base resolver unavailable')
+                source = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(source)
+                from types import SimpleNamespace
+                try:
+                    resolved = source.resolve_pr_base(SimpleNamespace(get=self.obj), pr, commit,
+                                                      event_pr=self.event['pull_request'])
+                except (source.SourceUnavailable, ValueError, KeyError, TypeError, OSError) as error:
+                    raise ResultError('current protected base cannot be independently resolved') from error
+                require((resolved['base'], resolved['head'], resolved['target'], resolved['head_ref'], resolved['source']) ==
+                        (live_base, self.head, self.base_ref, self.head_ref, self.source), 'live native CodeQL base differs')
+            self.base = live_base
             require(commit.get('sha') == self.source and type(commit.get('parents')) is list
                     and [p.get('sha') for p in commit['parents']] == [self.base, self.head], 'PR ordered merge parents mismatch')
         else:
             require(self.ref_sha('heads/' + self.base_ref) == self.source, 'branch has advanced beyond this analysis')
             if self.event_name == 'schedule':
                 require(repo.get('default_branch') == self.base_ref, 'schedule is not the default branch')
-        return {'workflow_id': workflow['id'], 'run_started_at': run['run_started_at'], 'start': start}
+        return {'workflow_id': workflow['id'], 'run_started_at': run['run_started_at'], 'start': start,
+                'base': self.base, 'event_base': self.event_base}
 
     def plan(self):
         try:
@@ -532,9 +552,18 @@ class MetadataVerifier:
         before = adapter.current(native['number'])
         binding, references = before
         require(binding['base_ref'] == references['default_ref'] == 'main'
-                and binding['base_sha'] == references['default'] == native['base']
+                and binding['base_sha'] == references['default']
                 and binding['head_sha'] == native['head'] and binding['merge_sha'] == native['merge'],
                 'metadata event, protected default or live candidate changed')
+        def validate_native_snapshot():
+            from types import SimpleNamespace
+            source = A.source_admission
+            try:
+                source.validate_base_snapshot(SimpleNamespace(get=adapter._object),
+                                              native.get('base_snapshot'), binding['base_sha'])
+            except source.SourceUnavailable as error:
+                raise ResultError('metadata event base snapshot is not an ancestor of protected B') from error
+        validate_native_snapshot()
         workflow = self.obj('actions/workflows/codeql.yml')
         require(workflow.get('path') == WORKFLOW and workflow.get('state') == 'active',
                 'current CodeQL workflow is unavailable')
@@ -622,6 +651,7 @@ class MetadataVerifier:
         require(adapter.current(native['number']) == before and
                 self._trusted(marker, postmerge) == (native, workflows, sources),
                 'live candidate, protected source or default branch changed')
+        validate_native_snapshot()
         return {'schema': 1, 'kind': 'revalidated-original-codeql', 'metadata_only': 'true',
                 'qualification': False, 'merge_sha': binding['merge_sha'],
                 'original_run_id': original['id'], 'run_attempt': 1, 'languages': selected,
