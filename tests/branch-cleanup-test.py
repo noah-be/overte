@@ -2729,8 +2729,17 @@ class WorkflowSafetyTests(unittest.TestCase):
         module = load_cleanup()
         retry = self.source.split("  workflow_run:\n", 1)[1].split("  schedule:", 1)[0]
         names = re.findall(r"^      - (.+)$", retry, re.M)
-        self.assertEqual(set(names), {name for name, _ in module.TERMINAL_WORKFLOWS.values()})
-        self.assertEqual(len(names), 26)
+        dynamic = 'Sync validation gate-*-attempt-*'
+        self.assertEqual(set(names), {name for name, _ in module.TERMINAL_WORKFLOWS.values()} | {dynamic})
+        self.assertEqual(len(names), 27)
+        import fnmatch
+        for name in ('Sync validation gate-38978630943-attempt-1',
+                     'Sync validation gate-38965857534-attempt-2'):
+            self.assertTrue(fnmatch.fnmatchcase(name, dynamic))
+        for name in ('Automatic branch cleanup', 'Unreviewed workflow',
+                     'Sync validation other', 'Other gate-1-attempt-1'):
+            self.assertFalse(fnmatch.fnmatchcase(name, dynamic))
+        self.assertNotIn('*', names)
         self.assertIn("types: [completed]", retry)
         branches = re.search(r"branches: \[([^]]+)\]", retry).group(1).split(", ")
         self.assertEqual(set(branches), PERMANENT)

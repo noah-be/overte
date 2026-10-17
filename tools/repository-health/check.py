@@ -812,7 +812,9 @@ class Doctor:
                         raise ValueError("document is not a mapping")
                 except (yaml.YAMLError, ValueError) as error:
                     self.fail("repository_contracts", "WORKFLOW_YAML", f"{path.relative_to(self.root)} is invalid YAML: {error}")
-            if "\t" in source or not re.search(r"(?m)^name:\s*\S", source) or not re.search(r"(?m)^on:\s*(?:$|\S)", source) or not re.search(r"(?m)^jobs:\s*(?:$|\S)", source):
+            # YAML serializers may quote the trigger key to preserve its string
+            # identity under YAML 1.1. All three spellings are valid in Actions.
+            if "\t" in source or not re.search(r"(?m)^name:\s*\S", source) or not re.search(r'''(?m)^(?:on|'on'|"on"):\s*(?:$|\S)''', source) or not re.search(r"(?m)^jobs:\s*(?:$|\S)", source):
                 self.fail("repository_contracts", "WORKFLOW_SYNTAX", f"{path.relative_to(self.root)} lacks the required YAML structure")
             for action in REMOTE_ACTION.findall(source):
                 if action.startswith(("./", "docker://")):

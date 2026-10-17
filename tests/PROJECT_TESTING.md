@@ -768,8 +768,10 @@ helpers, workflow templates, policy files and exact generic control-plane
 runner. These files are outside the protected iOS application configure,
 resource, E2E and packaging reader graph; their shared `project-runner`,
 `device-control-plane-full` and CI contract checks remain required when selected.
-Only `tests/project-suite-self-test.py` is added to the exact executable-host
-inventory. The reader boundary is recomputed from protected `apple-ios` commit
+The exact executable-host inventory includes `tests/project-suite-self-test.py`
+and the separately required Doctor CLI `tools/repository-health/check.py`,
+preserving their known `100755` modes. Both application and own-host reader
+boundaries are recomputed from protected `apple-ios` commit
 `2fc894a0605103843b36653f250f854714a963ee`, never from an unprotected candidate.
 Neither npm lockfile belongs to the unconditional CI-only inventory. Their
 separate conditional omission requires an independently enforced exact package
@@ -1321,6 +1323,26 @@ unknown, changed-reader and nonregular inputs retain the full host route.
 New candidate command variants run in the impact executor and cannot produce a
 legacy full-inventory receipt unless all commands have a supported receipt.
 
+An ordinary native PR or protected push with an exactly unchanged complete Git
+tree can select `host_mode: unchanged`. The trusted router verifies raw commit
+hashes, ordered PR merge parents or forward push ancestry, the full immutable
+inventory, and native repository/event/ref identities. PR label inventory must
+be present; an explicit Android diagnostic request retains real execution.
+An empty supplied path list is insufficient. The required aggregate independently
+recomputes this proof and requires skipped jobs with exactly empty outputs.
+This route starts no host/package test and produces no execution receipt.
+
+The dormant `protected-producer-original-default-v1` recipes extend that proof
+to authenticated synchronization and protected-parent scheduling. They recheck
+the complete current candidate and protected workflow source before omitting
+setup, then verify native validation steps and repeat source/topology bookends
+at the final gate. An unchanged parent also omits Android platform execution.
+Its report has `execution: null` and carries no reused suites, test passes,
+JUnit results or reusable evidence. These canonical recipes require the complete
+reviewed installation and hosted qualification; source-only preparation does
+not enable result reuse. The active source13 parent retains its historical Node
+setup until that installation.
+
 A partial parent run uploads its real JUnit results and a diagnostic
 `host-selection.json` with the exact candidate, package plan, selected and
 omitted names, and `reusable: false`. That report makes no passing claim for
@@ -1336,8 +1358,15 @@ The complete `npm-consumers-sync-ci-v1` successor admits the staged
 independent affected-CI execution lane; it does not reuse a partial parent
 report. The trusted validator checks live topology and exact merge parents,
 recomputes the required npm plan and both immutable reader inventories, and
-selects prerequisites before Java/Qt setup. The three finite executable CI
-scripts retain their exact ordinary `100755` modes on both trees. This separate
+selects prerequisites before Java/Qt setup. The four finite executable CI
+scripts retain their exact ordinary `100755` modes on both trees, including
+`tools/repository-health/check.py`, which the required Doctor host owner exercises.
+New executable neighbors, missing files and changed modes remain conservative.
+Android retains two finite complete reader families: the corrected source13
+tree and the reviewed future installation with its six-file legacy-owner
+handoff. Each uses its own exact fingerprint. A partial handoff, changed product
+reader or unreviewed historical difference still requires full verification.
+This separate
 inventory proof does not change the router's conservative documentation rules.
 
 That caller passes the trusted selection digest back to execution. Selection is
@@ -1392,10 +1421,13 @@ The verifier does not reuse SARIF, upload empty results for omitted languages or
 publish private source/alert payloads. Weekly full scans remain unchanged.
 
 The source verifier and exact workflow generation must be protected before
-installing the active workflow. The staged main-only ruleset payload is
-`tools/repository-checks/workflows/codeql-main.json`; apply it only after the new gate has passed
-on a real PR. This adds `codeql-security-results` to the existing required contexts on
-`main`; other branches receive this requirement only after their own deployment.
+installing the active workflow. The staged ruleset payload is
+`tools/repository-checks/workflows/codeql-main.json`. It covers all seven permanent
+branches. Update the existing selected-results ruleset only after the gate has
+been deployed and passed a real current PR on every included branch; preserve
+the existing ruleset identity and its strict GitHub Actions binding. The payload
+adds `codeql-security-results` to the other required contexts, without another
+analysis run. The historical payload filename and ruleset name remain stable.
 The staged workflow runs a selection/result check for documentation-only PRs
 so the required context is present; no language analyzer runs for that case.
 Both aggregate checkout steps and the API verifier execute in a clean job that
@@ -1410,10 +1442,13 @@ selector implementation and unknown inputs retain their cross-language checks.
 The independent trusted `sync-test-reuse` pull-request-target gate also pins
 the new exact CodeQL workflow when `codeql_results_required_branches` is
 activated for the target. A candidate cannot substitute an older workflow or
-imitate the result job name to avoid its verifier. The source prerequisite kept the target list empty. The deployed caller now
-enables `main`; all other targets retain their staged compatibility until their
-reviewed workflow deployment. The separate required-context ruleset is applied
-only after this workflow has passed live qualification.
+imitate the result job name to avoid its verifier. The trusted source policy
+enables this check for all seven permanent targets. Protect that source policy
+before extending the existing required-context ruleset to the children; a green
+job name alone cannot authenticate the verifier recipe. The separate ruleset
+also requires live qualification of the actual selected-result gate on every
+included branch. Enabling the source guard grants no successful analysis or
+native qualification.
 
 The dormant `tools/repository-checks/workflows/metadata-edits/codeql.yml`
 successor also receives PR base-retarget `edited` events. Before reading the
