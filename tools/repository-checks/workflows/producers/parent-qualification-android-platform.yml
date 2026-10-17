@@ -233,15 +233,16 @@ jobs:
         if test '${{ steps.protected-source.outputs.admitted }}' = true; then
           /usr/bin/python3 -I -S -B -c 'import runpy,sys;sys.path.insert(0,sys.argv.pop(1));runpy.run_path(sys.argv.pop(1),run_name="__main__")' trusted/tools/test-evidence trusted/tools/test-evidence/postmerge.py --report build/parent-qualification/original-proof.json
         else
-          printf '%s\n' 'shared_reused=false' 'package_work=true' >> "$GITHUB_OUTPUT"
+          printf '%s\n' 'shared_reused=false' 'package_work=true' 'no_execution=false' >> "$GITHUB_OUTPUT"
         fi
     - name: Require an explicit reuse or actual-execution route
       env:
         SHARED_REUSED: ${{ steps.reuse.outputs.shared_reused }}
         PACKAGE_WORK: ${{ steps.reuse.outputs.package_work }}
+        NO_EXECUTION: ${{ steps.reuse.outputs.no_execution }}
       run: |
-        case "$SHARED_REUSED/$PACKAGE_WORK" in
-          true/true|true/false|false/true) ;;
+        case "$SHARED_REUSED/$PACKAGE_WORK/$NO_EXECUTION" in
+          true/true/false|true/false/false|false/true/false|false/false/true) ;;
           *) printf '%s\n' 'Missing or inconsistent original-proof route' >&2; exit 1 ;;
         esac
     - name: Check out the exact parent commit
@@ -262,6 +263,18 @@ jobs:
       run: python3 trusted/tools/repository-checks/package_checks.py plan --candidate candidate --event "$GITHUB_EVENT_PATH"
         --sha "$GITHUB_SHA" --output "$GITHUB_OUTPUT"
       if: steps.reuse.outputs.shared_reused != 'true' || steps.reuse.outputs.package_work == 'true'
+    - name: Require unchanged scheduling to match actual inputs
+      if: steps.reuse.outputs.no_execution == 'true'
+      env:
+        ACTUAL_MODE: ${{ steps.route.outputs.package_host_mode }}
+      run: test "$ACTUAL_MODE" = unchanged
+    - name: Independently verify unchanged parent inputs
+      if: steps.route.outputs.package_host_mode == 'unchanged'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: /usr/bin/python3 -I -S -B -c 'import runpy,sys;sys.path.insert(0,sys.argv.pop(1));runpy.run_path(sys.argv.pop(1),run_name="__main__")'
+        trusted/tools/test-evidence trusted/tools/test-evidence/postmerge.py --verify-empty --candidate candidate
+        --report build/parent-qualification/no-execution.json
     - name: Set up Python
       if: steps.reuse.outputs.shared_reused != 'true' && (steps.route.outputs.package_host_mode == 'full')
       uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
@@ -271,7 +284,7 @@ jobs:
       uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
       with:
         node-version: '22'
-      if: steps.reuse.outputs.shared_reused != 'true' || steps.reuse.outputs.package_work == 'true'
+      if: (steps.reuse.outputs.shared_reused != 'true' || steps.reuse.outputs.package_work == 'true') && steps.route.outputs.package_host_mode != 'unchanged'
     - name: Set up Java
       if: steps.reuse.outputs.shared_reused != 'true' && (steps.route.outputs.package_host_mode == 'full')
       uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
@@ -393,6 +406,7 @@ jobs:
           build/parent-qualification/host-selection.json
 
           build/parent-qualification/original-proof.json
+          build/parent-qualification/no-execution.json
         if-no-files-found: warn
         retention-days: 7
     - name: Check only affected tool dependencies and behavior

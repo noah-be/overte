@@ -597,7 +597,13 @@ def current_platform_context(candidate, event, environment, adapter, *, root=ROO
         current.get(source_admission.PROFILE)), 'platform push declaration is unknown')
     selected = None
     partition = None
-    if package_plan['host_mode']!='full':
+    if package_plan['host_mode']=='unchanged':
+        # Equal complete native maps are necessary, but not sufficient: repeat
+        # the raw Git/event proof rather than trusting a scheduling field.
+        host.require(not paths and previous == current,
+            'unchanged platform route has changed inputs')
+        package.verify_empty_plan(package_plan, candidate, event)
+    elif package_plan['host_mode']!='full':
         # The existing exact package/documentation router owns these deltas.
         # A generic host selector must not invent a platform owner for them.
         host.require(regular and package_plan['host_mode'] in {
@@ -1077,7 +1083,7 @@ def verify_platform_project(candidate, event, environment, adapter, needs):
         if key not in {'protected_full', 'platform_required'}}
     normalized = {key: value for key, value in needs.items() if key != 'platform-tests'}
     normalized['route'] = {**route, 'outputs': ordinary}
-    return package.verify(normalized, plan)
+    return package.verify(normalized, plan, candidate=candidate, event=event)
 
 
 def parent_route_outputs(context):
@@ -1129,6 +1135,25 @@ def verify_platform_parent(candidate, event, environment, adapter, needs):
         'future parent aggregate requires its complete successful common job')
     target = environment.get('GITHUB_REF', '').removeprefix('refs/heads/')
     platform = needs['platform-tests']
+    plan = package.candidate_plan(candidate, event, environment['GITHUB_SHA'])
+    if plan['host_mode'] == 'unchanged':
+        import postmerge
+        before = postmerge.no_execution_context(event, environment, adapter, candidate=candidate)
+        if target in {'main','apple-main'}:
+            host.require(needs['route'].get('result') == 'skipped'
+                and needs['route'].get('outputs') == {}, 'unchanged shared parent has a routing claim')
+        else:
+            context = current_platform_context(candidate, event, environment, adapter)
+            host.require(context['selected'] is None and context['platform_partition'] is None
+                and needs['route'].get('result') == 'success'
+                and needs['route'].get('outputs') == parent_route_outputs(context),
+                'unchanged Android route differs from current native source')
+        host.require(platform.get('result') == 'skipped' and platform.get('outputs') == {},
+            'unchanged parent cannot claim platform execution')
+        _completed_empty_parent(adapter, before, environment)
+        host.require(postmerge.no_execution_context(event, environment, adapter, candidate=candidate) == before,
+            'unchanged parent inputs changed during aggregate verification')
+        return
     if target in {'main','apple-main'}:
         before=_empty_parent_source(candidate,event,environment,adapter)
         host.require(needs['route'].get('result')=='skipped' and needs['route'].get('outputs')=={}
@@ -1152,6 +1177,39 @@ def verify_platform_parent(candidate, event, environment, adapter, needs):
         host.require(platform.get('result')=='skipped' and platform.get('outputs')=={},
             'unselected parent platform job made a claim')
     _platform_bookend(context, event, environment, adapter)
+
+
+def _completed_empty_parent(adapter, context, environment):
+    """A successful fixed native validation step, never a test receipt."""
+    run_id = int(environment['GITHUB_RUN_ID'])
+    binding, refs = adapter._integrated_current(run_id, 15368, datetime.now(timezone.utc))
+    host.require(binding == context['binding'] and refs == context['refs'],
+        'unchanged parent native source changed')
+    latest = adapter._object(f'actions/runs/{run_id}')
+    attempt = adapter._object(f'actions/runs/{run_id}/attempts/1')
+    keys = ('id','workflow_id','check_suite_id','path','event','head_sha',
+        'head_branch','run_attempt','status','conclusion')
+    host.require(all(latest.get(key) == attempt.get(key) for key in keys)
+        and attempt.get('id') == run_id and attempt.get('run_attempt') == 1
+        and attempt.get('head_sha') == binding['merge_sha']
+        and attempt.get('path') == refs['integration']['workflow_path']
+        and attempt.get('workflow_id') == refs['integration']['workflow_id']
+        and (attempt.get('status'), attempt.get('conclusion')) == ('in_progress',None),
+        'unchanged parent aggregate has no original active native attempt')
+    jobs = adapter._pages(f'actions/runs/{run_id}/attempts/1/jobs','jobs')
+    matches = [row for row in jobs if row.get('name') == 'Common parent tests']
+    host.require(len(matches) == 1, 'unchanged parent native job is missing or ambiguous')
+    raw = matches[0]
+    job = adapter._job(raw, attempt, 15368, final_name='Common parent tests')
+    host.require((job.status,job.conclusion) == ('completed','success'),
+        'unchanged parent native validation failed')
+    steps = [step for step in raw.get('steps',[]) if step.get('name') ==
+        'Independently verify unchanged parent inputs']
+    host.require(len(steps) == 1
+        and (steps[0].get('status'),steps[0].get('conclusion')) == ('completed','success')
+        and protocol._time(job.started_at) <= protocol._time(steps[0].get('started_at'))
+        <= protocol._time(steps[0].get('completed_at')) <= protocol._time(job.completed_at)
+        <= datetime.now(timezone.utc), 'unchanged parent native validation step is unavailable')
 
 
 def _bookend(context, adapter, *, preexecution=False):

@@ -342,11 +342,44 @@ class WorkflowCostTests(unittest.TestCase):
             generation = load('native_complete_workflow_contract',
                               'tests/workflow-contract-test.py').reviewed_package_generation()
             metadata = generation in ('npm-consumers-metadata-edits-v1', 'android-owned-npm5-sync-ci-v1',
-                                      'protected-producer-metadata-ci-v1', 'protected-producer-seven-target-ci-v1')
+                                      'protected-producer-metadata-ci-v1', 'protected-producer-seven-target-ci-v1',
+                                      'protected-producer-original-default-v1')
             condition = "needs.route.outputs.native != 'skip'"
             if metadata:
                 condition = "needs.route.outputs.metadata_only != 'true' && " + condition
+            if generation == 'protected-producer-original-default-v1':
+                intent = ("github.event_name == 'pull_request' && ((github.event.action == 'edited' && "
+                          "!github.event.changes.base && (github.event.changes.title || github.event.changes.body)) || "
+                          "((github.event.action == 'labeled' || github.event.action == 'unlabeled') && "
+                          "github.event.label.name != 'android-long-diagnostics'))")
+                condition = "always() && !cancelled() && needs.route.result == 'success' && " + condition + ' && !(' + intent + ')'
             self.assertEqual(jobs['native']['if'], condition)
+            if generation == 'protected-producer-original-default-v1':
+                # Evaluate the actual, exactly bound native guard: skipped
+                # metadata ancestry must not suppress a selected ordinary job.
+                defaults = {'always()': True, 'cancelled()': False,
+                    'needs.route.result': 'success', 'needs.route.outputs.metadata_only': 'false',
+                    'needs.route.outputs.native': 'full', 'github.event_name': 'pull_request',
+                    'github.event.action': 'opened', 'github.event.changes.base': False,
+                    'github.event.changes.title': False, 'github.event.changes.body': False,
+                    'github.event.label.name': ''}
+                cases = [({}, True), ({'github.event.action': 'synchronize'}, True),
+                    ({'github.event.action': 'edited', 'github.event.changes.title': True}, False),
+                    ({'github.event.action': 'edited', 'github.event.changes.body': True}, False),
+                    ({'github.event.action': 'edited', 'github.event.changes.base': True}, True),
+                    ({'github.event.action': 'labeled', 'github.event.label.name': 'android-long-diagnostics'}, True),
+                    ({'github.event.action': 'labeled', 'github.event.label.name': 'documentation'}, False),
+                    ({'needs.route.outputs.metadata_only': 'true'}, False),
+                    ({'needs.route.outputs.native': 'skip'}, False),
+                    ({'needs.route.result': 'failure'}, False),
+                    ({'needs.route.result': 'skipped'}, False), ({'cancelled()': True}, False)]
+                for changes, expected in cases:
+                    with self.subTest(native_guard=changes):
+                        expression = jobs['native']['if']
+                        for key, value in sorted((defaults | changes).items(), key=lambda item: -len(item[0])):
+                            expression = expression.replace(key, repr(value))
+                        expression = re.sub(r'!(?!=)', ' not ', expression).replace('&&', ' and ').replace('||', ' or ')
+                        self.assertIs(eval(expression, {'__builtins__': {}}, {}), expected)
             self.assertEqual(jobs['native']['needs'], 'route')
             self.assertEqual(jobs['repository-checks']['if'],
                              "always() && (needs.route.result != 'success' || needs.route.outputs.metadata_only != 'true')"
