@@ -726,7 +726,7 @@
     },
     "snapshot-qml": {
       "kind": "reviewed-patterns",
-      "definition_digest": "sha256:50aaeab6d40756385ce24e4909ff0eb1bf8e210fb915e310c1c4ab84312eebcb",
+      "definition_digest": "sha256:93a50a29de76e61bc11bfc3fc579cda48fddd9f380ca35a78e263b99d3e1b95d",
       "setup": [
         "python",
         "qt5-qml",
@@ -867,7 +867,7 @@
       ]
     }
   },
-  "registry_digest": "sha256:02ab9737123fbf9e319ed0c5155e0d3bfe4682cbba52e100ade069c58714e6a4",
+  "registry_digest": "sha256:48bac74ebd554dbaa003f3cc58d9547a26972da9f6c6e3abd59488b8cb898970",
   "lookup_digest": "sha256:8f7c1196b5f491da11285e0973450066b0e273f2fe0ffab4f8a94becf65b2c45",
   "targets": {
     "android-main": {
