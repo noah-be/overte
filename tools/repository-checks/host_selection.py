@@ -163,6 +163,13 @@ REVIEWED_PREDECESSORS = {
     'android-vr-pico': '468db11331911666334b867bfae01d025a3827c3545fbc6cb441b15cc912dc8a',
 }
 CONTROL_PLANE = 'tests/device/run_control_plane_tests.py'
+# These inputs are read by the full Device suite. They are CI-owned for
+# routing, but remain program/reader inputs and require that suite to execute.
+DEVICE_CONTROL_INPUTS = frozenset({
+    CONTROL_PLANE,
+    'tests/device/self_tests/test_android_adapter.py',
+    'tests/device/self_tests/test_pico_property_eligibility.py',
+})
 PACKAGE_LOCKS = {
     'browser-client/package-lock.json': ('browser-client', 'source-map-postcss-v1'),
     'script-archive/marketplace/S3Server/package-lock.json':
@@ -238,7 +245,8 @@ def program_digest(tree, root=ROOT):
 def ci_owned(path):
     # Exact hyphenated test filenames are safe: admitting arbitrary tests/*.py
     # could introduce json.py/sitecustomize.py into a child interpreter path.
-    return (path in CI_TESTS or path in CI_POLICY or path in CI_ROLLOUT_PATHS or path.startswith(CI_ROOTS)
+    return (path in CI_TESTS or path in CI_POLICY or path in CI_ROLLOUT_PATHS
+            or path in DEVICE_CONTROL_INPUTS or path.startswith(CI_ROOTS)
             or path.endswith('.md') or path.endswith('.mdx'))
 
 
@@ -417,7 +425,9 @@ def _select_legacy(tree, paths, regular, *, unknown=False, trusted_tree=None, ca
             if _protected_producer_transition(tree, paths, base_tree, trusted_tree, target):
                 return {'suites': names, 'reason': 'reviewed-protected-producer-transition',
                         'full_host': True, 'include_platform': True}
-            affected = CONTROL_PLANE in paths or (base_tree is not None and base_tree.get(CONTROL_PLANE) != tree.get(CONTROL_PLANE))
+            affected = (any(path in DEVICE_CONTROL_INPUTS for path in paths)
+                        or base_tree is not None and any(
+                            base_tree.get(path) != tree.get(path) for path in DEVICE_CONTROL_INPUTS))
             result = {'suites': [name for name in names if (
                         registry['suites'][name]['layer'] == 'quick' and name not in PRODUCT_QUICK_SUITES
                         or affected and name == 'device-control-plane-full')],
