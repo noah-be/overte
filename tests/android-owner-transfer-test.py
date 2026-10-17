@@ -231,7 +231,9 @@ class AndroidOwnerTransferTests(unittest.TestCase):
             with self.subTest(path=path), self.assertRaises(ValueError):
                 gate.validate_tree_wiring(forged)
         generations = gate.packages().workflow_generations()
-        self.assertEqual(len(generations),22)
+        self.assertEqual(len(generations),23)
+        self.assertEqual(len([row for row in generations
+                              if row['name'] != 'npm-consumers-sync-ci-budget-v1']),22)
         prior = next(row for row in generations if row['name']=='protected-producer-ci37-v1')
         self.assertEqual(len(prior['workflows']),5)
         self.assertEqual(gate.packages().validate_tree_wiring(prior['workflows']),prior['name'])
