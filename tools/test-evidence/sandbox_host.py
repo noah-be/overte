@@ -561,6 +561,99 @@ def supervise(scope, plan, uid, gid, *, timeout, case="protections", _before_cle
         selector.close()
 
 
+def supervise_pair(scopes_and_plans, uid, gid, *, timeout, cancelled=None):
+    """One root thread owns two separately contained suite processes."""
+    require(type(scopes_and_plans) in (tuple, list) and len(scopes_and_plans) == 2
+            and scopes_and_plans[0][0] is not scopes_and_plans[1][0]
+            and scopes_and_plans[0][0].path != scopes_and_plans[1][0].path
+            and type(timeout) is int and 0 < timeout <= 900,
+            "parallel suite supervision requires two distinct bounded kernel scopes")
+    launcher = public_bootstrap()
+    selector = selectors.DefaultSelector()
+    entries = []
+    limit = 1_000_000
+
+    def finish(entry):
+        process, scope = entry["process"], entry["scope"]
+        cleanup = scope.kill_and_wait()
+        process.wait(timeout=3)
+        if entry["registered"]:
+            selector.unregister(process.stdout)
+            entry["registered"] = False
+        entry["data"].extend(process.stdout.read(limit + 1 - len(entry["data"])))
+        require(len(entry["data"]) <= limit, "fixed fixture diagnostic output exceeded bound")
+        entry["result"] = {"exit_code": process.returncode, "reason": entry["reason"],
+            "cleanup": cleanup, "diagnostic": bytes(entry["data"]),
+            "duration": time.monotonic() - entry["started"]}
+
+    try:
+        for scope, plan in scopes_and_plans:
+            entry = {"scope": scope, "process": None, "gate_read": None, "gate_write": None,
+                     "data": bytearray(), "reason": None, "result": None, "registered": False}
+            entries.append(entry)
+            if cancelled:
+                entry["result"] = {"exit_code": 128 + cancelled[0], "reason": "cancelled",
+                    "cleanup": scope.kill_and_wait(), "diagnostic": b"", "duration": 0.0}
+                continue
+            entry["gate_read"], entry["gate_write"] = os.pipe2(os.O_CLOEXEC)
+            entry["process"] = subprocess.Popen(
+                ["/usr/bin/python3", "-I", str(launcher), "--bootstrap",
+                 str(entry["gate_read"]), str(plan), "suite"],
+                user=uid, group=gid, extra_groups=(), pass_fds=(entry["gate_read"],),
+                close_fds=True, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT, env={"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"},
+                start_new_session=True)
+            entry["started"] = time.monotonic()
+            os.close(entry["gate_read"]); entry["gate_read"] = None
+            scope.attach(entry["process"])
+            os.write(entry["gate_write"], b"1")
+            os.close(entry["gate_write"]); entry["gate_write"] = None
+            selector.register(entry["process"].stdout, selectors.EVENT_READ, entry)
+            entry["registered"] = True
+        while any(entry["result"] is None for entry in entries):
+            for key, _ in selector.select(0.02):
+                entry = key.data
+                block = os.read(key.fileobj.fileno(), min(8192, limit + 1 - len(entry["data"])))
+                if block:
+                    entry["data"].extend(block)
+                    require(len(entry["data"]) <= limit, "fixed fixture diagnostic output exceeded bound")
+                else:
+                    selector.unregister(key.fileobj)
+                    entry["registered"] = False
+            for entry in entries:
+                if entry["result"] is not None:
+                    continue
+                process = entry["process"]
+                if cancelled:
+                    entry["reason"] = "cancelled"
+                elif time.monotonic() - entry["started"] >= timeout:
+                    entry["reason"] = "timeout"
+                elif process.poll() is None:
+                    continue
+                finish(entry)
+        return [entry["result"] for entry in entries]
+    finally:
+        # Both independent parent-owned cgroups are closed even if the second
+        # attachment, either output read, or either command fails unexpectedly.
+        def stop(process):
+            if process.poll() is None:
+                process.kill()
+            process.wait(timeout=3)
+        # ExitStack attempts every cleanup even if one actual cgroup operation
+        # fails. Such a failure still propagates and cannot become success.
+        with ExitStack() as cleanup:
+            cleanup.callback(selector.close)
+            for entry in entries:
+                process = entry["process"]
+                if process is not None:
+                    cleanup.callback(process.stdout.close)
+                    cleanup.callback(stop, process)
+                cleanup.callback(entry["scope"].kill_and_wait)
+                for name in ("gate_read", "gate_write"):
+                    if entry[name] is not None:
+                        cleanup.callback(os.close, entry[name])
+
+
 def _wait_child(pid, timeout=5):
     deadline = time.monotonic() + timeout
     while True:

@@ -167,6 +167,7 @@ CONTROL_PLANE = 'tests/device/run_control_plane_tests.py'
 # routing, but remain program/reader inputs and require that suite to execute.
 DEVICE_CONTROL_INPUTS = frozenset({
     CONTROL_PLANE,
+    'tests/device/run_artifact_identity.py',
     'tests/device/self_tests/test_android_adapter.py',
     'tests/device/self_tests/test_pico_property_eligibility.py',
 })

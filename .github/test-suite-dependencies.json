@@ -193,7 +193,7 @@
     },
     "device-control-plane-full": {
       "kind": "device-control-plane",
-      "definition_digest": "sha256:f1db35bf72fc04473e818b537feadeff86621ad5cc97bf1e3e783cac2c3879fe",
+      "definition_digest": "sha256:b4c3c70673916881c9a0c6da7e203fce7c3c7900b6d7c2d786412d248fdca61c",
       "setup": [
         "host-full"
       ],
@@ -867,7 +867,7 @@
       ]
     }
   },
-  "registry_digest": "sha256:48bac74ebd554dbaa003f3cc58d9547a26972da9f6c6e3abd59488b8cb898970",
+  "registry_digest": "sha256:25e5cd5e1b9fb1d7a16989a464f6010961e074e5d9400f959d3e0441536e39b4",
   "lookup_digest": "sha256:8f7c1196b5f491da11285e0973450066b0e273f2fe0ffab4f8a94becf65b2c45",
   "targets": {
     "android-main": {

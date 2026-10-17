@@ -84,6 +84,8 @@ _TRUSTED_EXECUTION_FILES = (
     "tools/test-evidence/run.py", "tools/test-evidence/execution.py", "tools/test-evidence/inputs.py",
     "tools/test-evidence/runtime.py", "tests/run-project-tests.py", "tools/sync-test-reuse/qualification.py",
     "tools/test-evidence/attested.py", ".github/attested-runtime.json",
+    "tools/test-evidence/sandbox_host.py", "tools/test-evidence/sandbox_shared.py",
+    "tools/test-evidence/producer_workflow.py",
 )
 _FIXED_GIT_OVERRIDES = {
     "GIT_CONFIG_COUNT": "2", "GIT_CONFIG_KEY_0": "maintenance.auto", "GIT_CONFIG_VALUE_0": "false",

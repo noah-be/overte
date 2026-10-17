@@ -203,6 +203,27 @@ class AdmissionTests(RuntimeFixture):
         old["trusted_execution"].pop("tools/test-evidence/attested.py")
         with self.assertRaises(A.AttestedReuseUnavailable): self.admit(old)
 
+    def test_pair_scheduler_controllers_reject_old_serial_E_and_changed_actual_bytes(self):
+        controllers=('tools/test-evidence/sandbox_host.py','tools/test-evidence/sandbox_shared.py',
+                     'tools/test-evidence/producer_workflow.py')
+        original=deepcopy(self.environment)
+        self.assertTrue(set(controllers)<=set(original['trusted_execution']))
+        self.assertEqual(self.admit(original)['environment_digest'],A._digest(original))
+        serial=deepcopy(original)
+        for name in controllers:serial['trusted_execution'].pop(name)
+        with self.assertRaises(A.AttestedReuseUnavailable):self.admit(serial)
+        for name in controllers:
+            with self.subTest(name=name):
+                path=self.root/name;old=path.read_bytes()
+                try:
+                    path.write_bytes(old+b'\n# Same version; changed two-scope scheduler bytes\n')
+                    with self.assertRaises(A.AttestedReuseUnavailable):self.admit(original)
+                    self.bind_controller()
+                    self.assertEqual(self.admit()['environment_digest'],A._digest(self.environment))
+                finally:
+                    path.write_bytes(old);self.bind_controller()
+        self.assertEqual(self.environment,original)
+
 
 SPEC = importlib.util.spec_from_file_location("attested_consumer_fixture", Path(__file__).with_name("validate-sync-test.py"))
 FIXTURES = importlib.util.module_from_spec(SPEC)

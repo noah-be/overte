@@ -43,10 +43,12 @@ def commands(profile: str, self_test_jobs: int | None = None) -> list[tuple[str,
     if profile == "full":
         # Isolated validation dependencies are pinned in tests/requirements-host.txt.
         # These tests also exercise their CLIs inside Linux network namespaces.
-        checks.append((
-            "artifact-identity",
-            [sys.executable, "tests/run-unittest-suite.py",
-             "tests/device/schema/artifact-identity"], False))
+        artifact_identity = [sys.executable, "tests/run-unittest-suite.py",
+                             "tests/device/schema/artifact-identity"]
+        if sys.platform == "linux":
+            artifact_identity = [sys.executable, "-I", "-S", "-B",
+                                 "tests/device/run_artifact_identity.py"]
+        checks.append(("artifact-identity", artifact_identity, False))
         checks.append((
             "python-self-tests",
             [sys.executable, "tests/run-unittest-suite.py", "tests/device/self_tests",
