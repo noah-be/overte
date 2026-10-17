@@ -5,10 +5,30 @@ import datetime
 import os
 from pathlib import Path
 import shutil
+import stat
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 BEGIN = "<!-- overte-issue-intake:start -->"
 END = "<!-- overte-issue-intake:end -->"
+
+
+def _copy_source(source, destination):
+    try:
+        existing = destination.lstat()
+    except FileNotFoundError:
+        pass
+    else:
+        if not stat.S_ISREG(existing.st_mode) or existing.st_nlink != 1:
+            raise RuntimeError("Installation destination must be an ordinary unaliased file")
+    descriptor, name = tempfile.mkstemp(prefix=".overte-issue-intake-", dir=destination.parent)
+    os.close(descriptor)
+    temporary = Path(name)
+    try:
+        shutil.copy2(source, temporary)
+        temporary.replace(destination)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def install(home, codex_home):
@@ -21,10 +41,10 @@ def install(home, codex_home):
     for directory in (tool / "tools/issue-intake", tool / ".github", skill / "agents", binary.parent):
         directory.mkdir(parents=True, exist_ok=True)
     for module in ("intake.py", "acceptance.py", "guard.py"):
-        shutil.copy2(ROOT / "tools/issue-intake" / module, tool / "tools/issue-intake" / module)
-    shutil.copy2(ROOT / ".github/issue-policy.json", tool / ".github/issue-policy.json")
+        _copy_source(ROOT / "tools/issue-intake" / module, tool / "tools/issue-intake" / module)
+    _copy_source(ROOT / ".github/issue-policy.json", tool / ".github/issue-policy.json")
     for relative in ("SKILL.md", "agents/openai.yaml"):
-        shutil.copy2(ROOT / "tools/issue-intake/skill" / relative, skill / relative)
+        _copy_source(ROOT / "tools/issue-intake/skill" / relative, skill / relative)
     # An executable Python launcher avoids shell expansion of user-supplied text.
     binary.write_text("#!/usr/bin/env python3\nimport os, sys\nos.execv(sys.executable, [sys.executable, "
                       + repr(str(tool / "tools/issue-intake/intake.py")) + "] + sys.argv[1:])\n")

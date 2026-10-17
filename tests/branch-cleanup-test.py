@@ -2636,7 +2636,9 @@ class TerminalRetryTests(unittest.TestCase):
             directory = Path(temporary)
             event, output, report = (directory / name for name in ("event.json", "output", "retry.json"))
             event.write_text(json.dumps(self.signal))
-            context = {"GITHUB_ACTIONS": "true", "GITHUB_REPOSITORY": FORK, "GITHUB_REPOSITORY_ID": "1319052603",
+            context = {"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "safe.directory",
+                       "GIT_CONFIG_VALUE_0": str(ROOT),
+                       "GITHUB_ACTIONS": "true", "GITHUB_REPOSITORY": FORK, "GITHUB_REPOSITORY_ID": "1319052603",
                        "GITHUB_EVENT_NAME": event_name, "GITHUB_RUN_ID": "999",
                        "GITHUB_WORKFLOW_REF": FORK + "/.github/workflows/branch-cleanup.yml@refs/heads/main"}
             with mock.patch.dict(os.environ, context, clear=True), mock.patch.object(self.module, "Github", return_value=self.github), \

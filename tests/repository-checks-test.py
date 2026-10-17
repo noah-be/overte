@@ -553,6 +553,7 @@ class MetadataSchedulingBoundaryTests(unittest.TestCase):
                 shutil.copy2(ROOT/relative,path)
             # D models protected main even when this suite runs on Android.
             # Keep the candidate's distinct Android declaration in `before`.
+            (root/'tests/platform-profile.json').chmod(0o644)
             (root/'tests/platform-profile.json').write_text(json.dumps(
                 {'schema':1,'platform':'shared','suites':[]},indent=2)+'\n')
             def git(*args):
@@ -635,6 +636,7 @@ except (ValueError,OSError):
             shadow=root/'tools/test-evidence/json.py'; shadow.write_text('raise RuntimeError("unreviewed import")\n')
             self.assertEqual(run(),{'success':False,'api_loaded':False}); shadow.unlink()
             guard=root/'tools/test-evidence/source_admission.py'
+            guard.chmod(0o644)
             guard.write_text('raise RuntimeError("unreviewed immutable guard")\n')
             git('add','.');git('commit','--quiet','-m','Unknown guard is still ordinary immutable Git data')
             # Even an internally consistent new Git checkout cannot choose a new

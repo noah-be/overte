@@ -1359,6 +1359,16 @@ setup until that installation.
 Protected candidate identity reads use `git --no-optional-locks` to preserve the
 private immutable index while retaining the complete snapshot verification.
 
+Protected execution presents ordinary Git files as physically read-only files.
+Tests must keep logical Git modes, exact source bytes and alias checks intact;
+when a test intentionally edits a temporary copy, make only that copied leaf
+writable. Never change the original snapshot permissions. Synthetic native-event
+fixtures that clear their environment must supply Git's safe-directory setting
+for their exact trusted checkout, without a wildcard or inherited configuration.
+The device control-plane runner prints failed group names at the end of a failed
+run so bounded host diagnostics retain the failing group without exposing its
+arbitrary output.
+
 Under the current reviewed catalog and ownership policies, rare controller-source
 upgrades after installing generation 22 use governed maintenance: normally install
 complete generation 13 (`npm-consumers-sync-ci-v1`) on main and all six children,

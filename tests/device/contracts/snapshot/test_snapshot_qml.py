@@ -15,6 +15,7 @@ with tempfile.TemporaryDirectory(prefix='overte-snapshot-qml-') as temporary:
     production = stage / 'production'
     shutil.copytree(ROOT / 'scripts/system/snapshot', production)
     review = production / 'NativeSnapshotReview.qml'
+    review.chmod(0o644)
     review.write_text('import TestSnapshot 1.0\n' + review.read_text())
     # Keep the complete actual controls module, including implicit Text/Button
     # siblings. Test the logical module and QFileSelector rather than selector

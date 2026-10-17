@@ -47,6 +47,7 @@ with tempfile.TemporaryDirectory(prefix='overte-snapshot-native-') as temporary:
     # Access the real private capture driver to deliver intentionally stale
     # render operators deterministically, without waiting for a GPU/device.
     header = stage / 'SnapshotAnimated.h'
+    header.chmod(0o644)
     header.write_text(header.read_text().replace('private:', 'public:'))
     (stage / 'third_party').mkdir()
     (stage / 'third_party/GifCreator.h').write_bytes(fixture_header)

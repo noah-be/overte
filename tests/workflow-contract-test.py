@@ -169,8 +169,8 @@ def prospective_package_tree():
     tree = {}
     for target, relative in sources.items():
         path = ROOT / 'tools/repository-checks/workflows' / relative
-        if path.is_symlink() or not path.is_file() or path.stat().st_mode & 0o777 != 0o644:
-            raise AssertionError('future recipe must be an ordinary644 source')
+        if path.is_symlink() or not path.is_file() or path.stat().st_mode & 0o777 not in {0o444, 0o644}:
+            raise AssertionError('future recipe must be an ordinary non-executable source')
         raw = path.read_bytes()
         tree[target] = {'mode': '100644', 'type': 'blob',
             'sha': hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()}
@@ -190,7 +190,7 @@ def selected_sync_recipe():
     raw = SYNC_VALIDATION_WORKFLOW.read_bytes()
     entry = {'mode': '100644', 'type': 'blob',
         'sha': hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()}
-    if SYNC_VALIDATION_WORKFLOW.is_symlink() or SYNC_VALIDATION_WORKFLOW.stat().st_mode & 0o777 != 0o644 \
+    if SYNC_VALIDATION_WORKFLOW.is_symlink() or SYNC_VALIDATION_WORKFLOW.stat().st_mode & 0o777 not in {0o444, 0o644} \
             or row['workflows']['.github/workflows/sync-validation.yml'] != entry:
         raise AssertionError('synchronization recipe differs from its whole deployed generation')
     return generation in SELECTED_SYNC_GENERATIONS
