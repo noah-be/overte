@@ -658,6 +658,16 @@ class SyncOwnerIntegrationTests(unittest.TestCase):
             return deepcopy(self.repository)
         if endpoint == "repos/" + gate.REPOSITORY + "/pulls/17":
             return deepcopy(self.pr)
+        prefix = "repos/" + gate.REPOSITORY
+        if endpoint == prefix + "/commits/refs/pull/17/merge":
+            return {"sha": self.request.merge_sha, "parents": [
+                {"sha": self.request.base_sha}, {"sha": self.request.head_sha}]}
+        if endpoint == prefix + "/compare/" + "b" * 40 + "..." + self.request.base_sha + "?per_page=1":
+            # The explicit stale-source negative is an unrelated snapshot,
+            # not a valid ancestor or an unregistered transport exception.
+            return {"status": "diverged", "ahead_by": 1, "behind_by": 1, "total_commits": 1,
+                    "base_commit": {"sha": "b" * 40}, "merge_base_commit": {"sha": "c" * 40},
+                    "commits": [{"sha": self.request.head_sha}], "files": []}
         raise AssertionError("unregistered authenticated source-PR transport")
 
     def validate(self):
@@ -677,6 +687,35 @@ class SyncOwnerIntegrationTests(unittest.TestCase):
         self.request.head_sha = self.request.parent_sha = self.args.head_sha = head
         self.request.merge_sha = self.args.merge_sha = merge
         self.request.changed_paths = tuple(self.fixture.git("diff", "--name-only", self.request.base_sha, merge).splitlines())
+
+    def test_stale_sync_snapshot_recomputes_actual_android_owner_without_native_event_rewrite(self):
+        snapshot='1'*40;original_snapshot='2'*40
+        self.pr['base']['sha']=snapshot;self.request.event_base_sha=original_snapshot
+        prefix='repos/'+gate.REPOSITORY
+        extra={
+            prefix+'/commits/refs/pull/17/merge':{'sha':self.request.merge_sha,'parents':[
+                {'sha':self.request.base_sha},{'sha':self.request.head_sha}]},
+            prefix+'/branches/'+self.request.base:{'name':self.request.base,'protected':True,
+                'commit':{'sha':self.request.base_sha}},
+        }
+        from urllib.parse import quote
+        extra[prefix+'/git/ref/heads/'+quote(self.request.head,safe='')]={
+            'ref':'refs/heads/'+self.request.head,'object':{'type':'commit','sha':self.request.head_sha}}
+        for observed in (snapshot,original_snapshot):
+            extra[prefix+'/compare/'+observed+'...'+self.request.base_sha+'?per_page=1']={
+                'status':'ahead','ahead_by':40,'behind_by':0,'total_commits':40,
+                'base_commit':{'sha':observed},'merge_base_commit':{'sha':observed},
+                'commits':[{'sha':'3'*40}],'files':[]}
+        def read(endpoint):
+            return deepcopy(extra[endpoint]) if endpoint in extra else self.api_read(endpoint)
+        api=SimpleNamespace(json=read);before=deepcopy(self.pr)
+        with patch.object(shared,'execute',side_effect=AssertionError('selection must not execute')):
+            selected=handoff.sync_platform_owner(self.candidate,self.request,api,policy_root=self.transfer.policy_root)
+        self.assertEqual(set(selected),{handoff.PICO});self.assertEqual(selected[handoff.PICO]['owner'],'required-android')
+        self.assertEqual(self.pr,before)
+        extra[prefix+'/compare/'+original_snapshot+'...'+self.request.base_sha+'?per_page=1']['status']='diverged'
+        with self.assertRaises(ValueError):
+            handoff.sync_platform_owner(self.candidate,self.request,api,policy_root=self.transfer.policy_root)
 
     def test_sync_executes_all_shared_and_every_remaining_profile_extra_once(self):
         before = {name: value for name, value in os.environ.items() if name.startswith("GITHUB_")}

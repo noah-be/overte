@@ -578,6 +578,15 @@ class MetadataSchedulingBoundaryTests(unittest.TestCase):
                 'git/commits/'+default:{'sha':default,'tree':{'sha':default_tree}},
                 'git/trees/'+base_tree+'?recursive=1':{'sha':base_tree,'truncated':False,'tree':before},
                 'git/trees/'+default_tree+'?recursive=1':{'sha':default_tree,'truncated':False,'tree':entries}}
+            repository = {'full_name':'noah-l-frank/overte','id':1319052603}
+            responses.update({
+                'pulls/23':{'number':23,'state':'open',
+                    'base':{'ref':'android-main','sha':base,'repo':deepcopy(repository)},
+                    'head':{'ref':'fix/android/source-fixture','sha':'c'*40,'repo':deepcopy(repository)}},
+                'commits/refs/pull/23/merge':{'sha':'d'*40,
+                    'commit':{'tree':{'sha':'f'*40}},'parents':[{'sha':base},{'sha':'c'*40}]},
+                'git/ref/heads/fix%2Fandroid%2Fsource-fixture':{'ref':'refs/heads/fix/android/source-fixture',
+                    'object':{'type':'commit','sha':'c'*40}}})
             data = root/'responses.json'; data.write_text(json.dumps(responses))
             script = r"""
 import importlib.util,json,os,pathlib,sys,urllib.request
@@ -585,7 +594,11 @@ root=pathlib.Path(sys.argv[1]); responses=json.loads((root/'responses.json').rea
 class Response:
  def __init__(self,request):
   self.url=request.full_url; self.status=200
-  self.raw=json.dumps(responses[self.url.removeprefix('https://api.github.com/repos/noah-l-frank/overte/')]).encode()
+  prefix='https://api.github.com/repos/noah-l-frank/overte'
+  if self.url==prefix: endpoint=''
+  elif self.url.startswith(prefix+'/') and self.url!=prefix+'/': endpoint=self.url[len(prefix)+1:]
+  else: raise ValueError('unexpected fixture API URL')
+  self.raw=json.dumps(responses[endpoint]).encode()
  def __enter__(self): return self
  def __exit__(self,*args): pass
  def geturl(self): return self.url
@@ -599,8 +612,8 @@ os.environ['GH_TOKEN']='fixed-fake-fixture-token'
 event={'action':'edited','number':23,'repository':{'full_name':m.REPOSITORY,'id':m.REPOSITORY_ID},
  'changes':{'title':{'from':'Old'}},'pull_request':{'number':23,'state':'open','title':'Current',
  'base':{'ref':'android-main','sha':'b'*40,'repo':{'full_name':m.REPOSITORY,'id':m.REPOSITORY_ID}},
- 'head':{'ref':'fix/android/source-fixture','sha':'c'*40}}}
-native={'base':'b'*40,'checkout':sys.argv[2]}
+ 'head':{'ref':'fix/android/source-fixture','sha':'c'*40,'repo':{'full_name':m.REPOSITORY,'id':m.REPOSITORY_ID}}}}
+native={'number':23,'base_snapshot':'b'*40,'head':'c'*40,'merge':'d'*40,'checkout':sys.argv[2]}
 try:
  value=m._protected_readers(event,{'GITHUB_EVENT_NAME':'pull_request','GITHUB_JOB':'recognize'},native,root)
  class Registration:
@@ -666,7 +679,7 @@ class NativeMetadataContextTests(unittest.TestCase):
         with patch.object(self.marker, 'SOURCE_READY', True):
             result = self.marker.native(self.event, self.environment, root=self.root)
         self.assertNotIn('qualification', result)
-        self.assertEqual(result['base'], self.base)
+        self.assertEqual(result['base_snapshot'], self.base)
         self.assertEqual(result['helper_blob'], self.git('rev-parse', 'HEAD:' + self.marker.SOURCE))
         for changes in ({'title': {'from': 'Old'}}, {'body': {'from': None}}, {'base': {}}):
             event_copy = deepcopy(self.event); event_copy['changes'] = changes
@@ -2670,6 +2683,84 @@ class CandidateTests(unittest.TestCase):
             value["pull_request"]["base"]["sha"] = base
             value["pull_request"]["head"]["sha"] = head
             self.assertEqual(CHECKS.changed_paths(root, value, merge), (["README.md"], False))
+
+
+class EffectiveCandidateTests(unittest.TestCase):
+    """Native depth-two M binds provisional routing; API gates own ancestry."""
+    def fixture(self, *, mode='100644', product=False):
+        temporary=tempfile.TemporaryDirectory(prefix='overte-effective-pr-')
+        self.addCleanup(temporary.cleanup);root=Path(temporary.name)/'source';root.mkdir()
+        def git(*args):
+            return subprocess.check_output(['git','-c','commit.gpgsign=false',*args],cwd=root,
+                stderr=subprocess.PIPE,text=True).strip()
+        git('init','-q','--initial-branch=main');git('config','user.name','Fixture')
+        git('config','user.email','fixture@example.invalid')
+        (root/'native.cpp').write_text('old product\n');(root/'README.md').write_text('old docs\n')
+        git('add','.');tree=git('write-tree');snapshot=git('commit-tree',tree,'-m','Original snapshot')
+        (root/'native.cpp').write_text('already integrated product\n');git('add','native.cpp')
+        tree=git('write-tree');base=git('commit-tree',tree,'-p',snapshot,'-m','Current protected B')
+        (root/'README.md').write_text('current docs\n');git('add','README.md');tree=git('write-tree')
+        head=git('commit-tree',tree,'-p',snapshot,'-m','Current PR H')
+        if product:(root/'native.cpp').write_text('new product input\n');git('add','native.cpp')
+        git('update-index','--chmod='+('+' if mode=='100755' else '-')+'x','README.md')
+        tree=git('write-tree');merge=git('commit-tree',tree,'-p',base,'-p',head,'-m','Server M')
+        git('update-ref','refs/heads/main',merge)
+        shallow=Path(temporary.name)/'shallow'
+        subprocess.run(['git','clone','--depth=2','--no-local','file://'+str(root),str(shallow)],
+            check=True,capture_output=True,timeout=30)
+        value=event();value.update(number=23,action='opened')
+        value['pull_request'].update(number=23,labels=[])
+        value['pull_request']['base']['sha']=snapshot;value['pull_request']['head']['sha']=head
+        native={'GITHUB_ACTIONS':'true','GITHUB_EVENT_NAME':'pull_request','GITHUB_REPOSITORY':CONFIG['repository'],
+            'GITHUB_REPOSITORY_ID':str(CONFIG['repository_id']),'GITHUB_SHA':merge,'GITHUB_WORKFLOW_SHA':merge,
+            'GITHUB_REF':'refs/pull/23/merge','GITHUB_BASE_REF':'main','GITHUB_HEAD_REF':'fix/main/example',
+            'GITHUB_WORKFLOW_REF':CONFIG['repository']+'/.github/workflows/repository-checks.yml@refs/pull/23/merge'}
+        return shallow,value,native,snapshot,base,head,merge
+
+    def test_actual_shallow_native_merge_selects_complete_current_delta_without_old_object(self):
+        root,value,native,snapshot,base,head,merge=self.fixture()
+        absent=subprocess.run(['git','cat-file','-e',snapshot],cwd=root,capture_output=True)
+        self.assertNotEqual(absent.returncode,0)
+        before=deepcopy(value)
+        with patch.dict(os.environ,native,clear=True):
+            context=CHECKS.pr_candidate_context(root,value,merge)
+            self.assertEqual(context,{'base':base,'head':head,'candidate':merge,'event_base':snapshot})
+            self.assertEqual(CHECKS.changed_paths(root,value,merge),(['README.md'],True))
+            self.assertEqual(value,before)
+            self.assertNotIn('verified',context);self.assertNotIn('environment',context)
+            with patch.object(PACKAGES,'consumer_generation',return_value=False), \
+                 patch.object(PACKAGES,'consumer_base',side_effect=RuntimeError('observed-current-base')) as baseline:
+                with self.assertRaisesRegex(RuntimeError,'observed-current-base'):
+                    PACKAGES.candidate_plan(root,value,merge)
+                baseline.assert_called_once_with(root,base)
+
+    def test_stale_routing_requires_native_role_or_exact_independently_authenticated_context(self):
+        root,value,native,snapshot,base,head,merge=self.fixture()
+        context={'base':base,'head':head,'candidate':merge,'event_base':snapshot}
+        for key,bad in (('GITHUB_SHA',head),('GITHUB_WORKFLOW_SHA',base),('GITHUB_EVENT_NAME','pull_request_target'),
+                        ('GITHUB_REPOSITORY','foreign/repository'),('GITHUB_BASE_REF','apple-main'),
+                        ('GITHUB_HEAD_REF','foreign'),('GITHUB_REF','refs/heads/main'),('GITHUB_WORKFLOW_REF','foreign')):
+            with self.subTest(key=key),patch.dict(os.environ,{**native,key:bad},clear=True),self.assertRaises(ValueError):
+                CHECKS.pr_candidate_context(root,value,merge)
+        with patch.dict(os.environ,{},clear=True):
+            with self.assertRaises(ValueError):CHECKS.pr_candidate_context(root,value,merge)
+            self.assertEqual(CHECKS.pr_candidate_context(root,value,merge,pr_context=context),context)
+            for key in context:
+                altered={**context,key:'f'*40}
+                with self.subTest(field=key),self.assertRaises(ValueError):
+                    CHECKS.pr_candidate_context(root,value,merge,pr_context=altered)
+        value['pull_request']['head']['sha']=base
+        with patch.dict(os.environ,native,clear=True),self.assertRaises(ValueError):
+            CHECKS.pr_candidate_context(root,value,merge)
+
+    def test_complete_native_delta_retains_product_and_nonordinary_mode_changes(self):
+        for product,mode in ((True,'100644'),(False,'100755')):
+            root,value,native,snapshot,base,head,merge=self.fixture(product=product,mode=mode)
+            with self.subTest(product=product,mode=mode),patch.dict(os.environ,native,clear=True):
+                paths,regular=CHECKS.changed_paths(root,value,merge)
+                self.assertEqual('native.cpp' in paths,product)
+                self.assertEqual(regular,mode=='100644')
+                self.assertIsNone(CHECKS.verified_empty_candidate(root,value,merge))
 
 
 class VerifiedEmptyCandidateTests(unittest.TestCase):
