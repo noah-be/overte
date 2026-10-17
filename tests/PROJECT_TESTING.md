@@ -1692,3 +1692,11 @@ pair is fixed in the trusted producer and retains registry order in JUnit.
 Ordinary project-test commands remain serial. The scheduler controller bytes
 are part of the execution identity, so evidence from the previous serial
 controller cannot be reused for this execution.
+
+The existing manual Shared sandbox host diagnostic, profile `boundary`, also
+checks the pair against real kernel controls: private descriptors and
+namespaces, cancellation with detached descendants in both scopes, and an
+actual supervisor SIGKILL followed by both guardians observing controller EOF.
+The before/after probe requires every scope to be empty. This diagnostic is
+an acceptance check, carries no reusable PR evidence authority, and does not
+run on ordinary PR events.

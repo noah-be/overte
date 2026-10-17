@@ -129,6 +129,16 @@ def protections(context):
 def main():
     mode = sys.argv[1]
     context = json.loads(Path("/overte-policy/context.json").read_text(encoding="ascii"))["fixture"]
+    if mode == "pair-protections":
+        measured = protections(context)
+        descriptors = {}
+        for entry in Path("/proc/self/fd").iterdir():
+            try:
+                descriptors[entry.name] = os.readlink(entry)
+            except FileNotFoundError:
+                pass
+        print(json.dumps({"protections": measured, "descriptors": descriptors}, sort_keys=True), flush=True)
+        return 0
     if mode == "protections":
         print(json.dumps(protections(context), sort_keys=True), flush=True)
         return 0
