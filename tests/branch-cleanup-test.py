@@ -2247,6 +2247,132 @@ class TerminalRetryTests(unittest.TestCase):
         self.signal["workflow_run"] = copy.deepcopy(self.runs[run])
         return self.module.terminal_retry(self.github, self.policy, self.signal)
 
+    def main_sync_hints(self, targets):
+        scopes = {"main": "main", "android-main": "android", "android-phone": "android-phone",
+                  "android-vr": "android-vr", "android-vr-pico": "android-pico",
+                  "apple-main": "apple", "apple-ios": "ios"}
+        self.rows = [row for row in self.rows if row["protected"]]
+        for index, row in enumerate(self.rows, 1):
+            if row["name"] != "main":
+                row["sha"] = format(index, "040x")
+        self.closed = {}
+        hints = {}
+        for target in targets:
+            branch = "fix/" + scopes[target] + "/manual-sync-held-source"
+            head = hashlib.sha1(branch.encode()).hexdigest()
+            base = next(row["sha"] for row in self.rows if row["name"] == target)
+            self.rows.append({"name": branch, "sha": head, "protected": False})
+            self.closed[branch] = [self.closed_pr(branch, target, head)]
+            hints[target] = {"branch": branch, "sha": head, "base": target, "base_sha": base}
+        self.open_prs, self.active, self.requests = [], [], []
+        self.source_changes, self.reference_changes, self.comparisons = {}, {}, {}
+        self.runs[700] = dict(self.manual_run(workflow=350930895, revision="f" * 40),
+                              name="Sync validation gate-600-attempt-1")
+        return hints
+
+    def test_main_sync_completion_retries_child_with_its_actual_protected_base(self):
+        hints = self.main_sync_hints(["apple-ios"])
+        with mock.patch.object(self.github, "activity_holds", wraps=self.github.activity_holds) as activity:
+            result = self.retry()
+        self.assertTrue(result["retry"])
+        self.assertEqual(result["hint_count"], 1)
+        self.assertEqual((result["target"], result["target_sha"], result["trigger_source_sha"]),
+                         ("main", self.revision, "f" * 40))
+        self.assertEqual(activity.call_args.args[0], [hints["apple-ios"]])
+        head = self.module.urllib.parse.quote("noah-l-frank:" + hints["apple-ios"]["branch"], safe="")
+        self.assertIn(("pulls?state=closed&head=" + head + "&base=apple-ios&per_page=100", True), self.requests)
+        self.assertIn(("git/ref/heads/apple-ios", False), self.requests)
+        self.assertIn(("git/ref/heads/main", False), self.requests)
+        self.assertNotIn("candidates", result)
+        self.assertNotIn("candidate_count", result)
+
+    def test_main_sync_completion_considers_exactly_the_seven_recognized_targets(self):
+        hints = self.main_sync_hints(sorted(PERMANENT))
+        unknown = "fix/unknown/manual-sync-held-source"
+        self.rows.append({"name": unknown, "sha": "e" * 40, "protected": False})
+        self.closed[unknown] = [self.closed_pr(unknown, "apple-ios", "e" * 40)]
+        with mock.patch.object(self.github, "activity_holds", wraps=self.github.activity_holds) as activity:
+            result = self.retry()
+        self.assertTrue(result["retry"])
+        self.assertEqual(result["hint_count"], 7)
+        self.assertEqual(sorted(activity.call_args.args[0], key=lambda row: row["base"]),
+                         [hints[target] for target in sorted(PERMANENT)])
+        queries = [self.module.urllib.parse.parse_qs(path.split("?", 1)[1])
+                   for path, _ in self.requests if path.startswith("pulls?state=closed&")]
+        self.assertEqual({query["base"][0] for query in queries}, PERMANENT)
+        self.assertEqual(len(queries), 7)
+        self.assertEqual({path for path, _ in self.requests if path.startswith("git/ref/heads/")},
+                         {"git/ref/heads/" + target for target in PERMANENT})
+        self.assertFalse(any(unknown in row["branch"] for row in activity.call_args.args[0]))
+
+    def test_main_sync_completion_rechecks_child_targets_and_original_main(self):
+        for target in ("main", "apple-ios", "android-main"):
+            self.main_sync_hints(["apple-ios", "android-main"])
+            self.reference_changes[target] = "e" * 40
+            with self.subTest(moved=target):
+                result = self.retry()
+                self.assertFalse(result["retry"])
+                self.assertEqual(result["reason"], "terminal_target_changed")
+        for change in ({"ref": "refs/heads/main"}, {"object": {"type": "tag", "sha": "e" * 40}},
+                       {"object": {"type": "commit", "sha": "invalid"}}):
+            self.main_sync_hints(["apple-ios"])
+            original = self.response
+            def altered(path="", paginate=False):
+                value = original(path, paginate)
+                return {**value, **change} if path == "git/ref/heads/apple-ios" else value
+            with self.subTest(reference=change), mock.patch.object(self.github, "get", side_effect=altered), \
+                    self.assertRaisesRegex(self.module.CleanupError, "invalid_terminal_current_target"):
+                self.retry()
+
+    def test_only_authenticated_main_sync_dispatch_expands_retry_targets(self):
+        for workflow in (350930894, 386334598):
+            self.main_sync_hints(["apple-ios"])
+            self.runs[700] = self.manual_run(workflow=workflow)
+            with self.subTest(other_manual=workflow):
+                self.assertEqual(self.retry()["reason"], "no_current_closed_pr_hint")
+        self.main_sync_hints(["apple-ios"])
+        self.runs[700] = self.manual_run(target="apple-main", workflow=350930895)
+        self.assertEqual(self.retry()["reason"], "no_current_closed_pr_hint")
+        for change in ({"event": "push"}, {"event": "pull_request"},
+                       {"head_branch": "fix/main/unprotected"},
+                       {"head_repository": {"id": 1, "full_name": "foreign/fork"}}):
+            self.main_sync_hints(["apple-ios"])
+            self.runs[700].update(change)
+            with self.subTest(untrusted=change), self.assertRaises(self.module.CleanupError):
+                self.retry()
+
+    def test_main_sync_child_hints_preserve_current_head_and_remaining_activity_holds(self):
+        for case in ("head_changed", "open", "explicit", "keep", "active"):
+            hint = self.main_sync_hints(["apple-ios"])["apple-ios"]
+            policy = copy.deepcopy(self.policy)
+            if case == "head_changed":
+                self.rows[-1]["sha"] = "e" * 40
+            elif case == "open":
+                self.open_prs = [dict(self.closed[hint["branch"]][0], state="open", closed_at=None)]
+            elif case == "explicit":
+                policy["holds"][hint["branch"]] = "Required work remains active"
+            elif case == "keep":
+                self.closed[hint["branch"]][0]["labels"] = [{"name": "keep-branch"}]
+            else:
+                self.active = [dict(self.manual_run(800, target="apple-ios", workflow=330869250),
+                                    status="in_progress", conclusion=None)]
+            self.signal["workflow_run"] = copy.deepcopy(self.runs[700])
+            with self.subTest(held=case):
+                result = self.module.terminal_retry(self.github, policy, self.signal)
+                self.assertFalse(result["retry"])
+                self.assertEqual(result["reason"], "terminal_candidates_still_held"
+                                 if case in {"keep", "active"} else "no_current_closed_pr_hint")
+
+    def test_main_sync_child_hint_cannot_prove_integration_or_retirement(self):
+        self.main_sync_hints(["apple-ios"])
+        self.runs[700].update(head_sha=self.revision, conclusion="failure")
+        self.integrated = False
+        result = self.retry()
+        self.assertTrue(result["retry"])
+        self.assertNotIn("candidates", result)
+        self.assertNotIn("candidate_count", result)
+        self.assertEqual(self.module.make_plan(self.github, self.policy)["candidate_count"], 0)
+
     def test_real_api_context_and_older_closed_heads_produce_only_a_hint(self):
         self.closed[self.branch].insert(0, self.closed_pr(self.branch, "main", "b" * 40))
         result = self.retry()

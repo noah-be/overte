@@ -854,15 +854,20 @@ def terminal_retry(github, policy, event):
     names = "|".join(re.escape(value) for value in (name, "'" + name + "'", '"' + name + '"'))
     require(len(re.findall(r"(?m)^name:[ \t]*(?:" + names + r")[ \t]*(?:#.*)?$", source)) == 1,
             "terminal_workflow_source_name_changed")
+    # Sync validation is dispatched on main even for child-target PRs. This
+    # finite expansion supplies current hints, never a source or deletion proof.
+    hint_targets = (PERMANENT if actual["workflow_id"] == 350930895
+                    and actual["event"] == "workflow_dispatch" and target == "main" else {target})
     held = github.open_pr_holds(set(indexed))
     hints = []
     for branch, row in sorted(indexed.items()):
+        base = scope_target(branch)
         if (row["protected"] or branch in PERMANENT or branch in policy["holds"]
-                or branch in held or scope_target(branch) != target):
+                or branch in held or base not in hint_targets):
             continue
         head = urllib.parse.quote("noah-l-frank:" + branch, safe="")
         prs = github.get("pulls?state=closed&head=" + head + "&base="
-                         + urllib.parse.quote(target, safe="") + "&per_page=100", paginate=True)
+                         + urllib.parse.quote(base, safe="") + "&per_page=100", paginate=True)
         require(isinstance(prs, list) and all(isinstance(pr, dict)
                 and isinstance(pr.get("head"), dict) and isinstance(pr.get("base"), dict) for pr in prs),
                 "invalid_terminal_closed_pr_inventory")
@@ -872,21 +877,22 @@ def terminal_retry(github, policy, event):
                and same_repository(pr.get("head", {}).get("repo"))
                and same_repository(pr.get("base", {}).get("repo"))
                and pr["head"].get("ref") == branch and pr["head"].get("sha") == row["sha"]
-               and pr["base"].get("ref") == target for pr in prs):
-            hints.append({"branch": branch, "sha": row["sha"], "base": target, "base_sha": revision})
+               and pr["base"].get("ref") == base for pr in prs):
+            hints.append({"branch": branch, "sha": row["sha"], "base": base, "base_sha": indexed[base]["sha"]})
     if not hints:
         return dict(result, reason="no_current_closed_pr_hint")
     activity = github.activity_holds(hints, policy)
     hints = [row for row in hints if row["branch"] not in activity]
     if not hints:
         return dict(result, reason="terminal_candidates_still_held")
-    reference = github.get("git/ref/heads/" + urllib.parse.quote(target, safe=""))
-    require(isinstance(reference, dict) and reference.get("ref") == "refs/heads/" + target
-            and isinstance(reference.get("object"), dict) and reference["object"].get("type") == "commit"
-            and isinstance(reference["object"].get("sha"), str) and SHA.fullmatch(reference["object"]["sha"]),
-            "invalid_terminal_current_target")
-    if reference["object"]["sha"] != revision:
-        return dict(result, reason="terminal_target_changed")
+    for checked_target in sorted({target} | {row["base"] for row in hints}):
+        reference = github.get("git/ref/heads/" + urllib.parse.quote(checked_target, safe=""))
+        require(isinstance(reference, dict) and reference.get("ref") == "refs/heads/" + checked_target
+                and isinstance(reference.get("object"), dict) and reference["object"].get("type") == "commit"
+                and isinstance(reference["object"].get("sha"), str) and SHA.fullmatch(reference["object"]["sha"]),
+                "invalid_terminal_current_target")
+        if reference["object"]["sha"] != indexed[checked_target]["sha"]:
+            return dict(result, reason="terminal_target_changed")
     return dict(result, retry=True, hint_count=len(hints), reason="current_closed_pr_retry")
 
 

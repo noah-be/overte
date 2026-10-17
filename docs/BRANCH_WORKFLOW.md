@@ -394,3 +394,14 @@ Ordinary task, feature, promotion, Dependabot, and fork pull requests are not
 eligible for delegation and keep their existing full path-appropriate checks.
 The machine-readable contract is
 [`../.github/sync-test-reuse.json`](../.github/sync-test-reuse.json).
+
+### Cleanup retries after manual synchronization validation
+
+`Sync validation` runs on `main` even when it validates a child-target pull
+request. Its authenticated manual completion can retry current closed topic
+heads across the seven permanent targets. Each hint retains its actual target
+and protected base; source retention, activity holds, fresh refs, complete
+integration, verified backup, and exact-head deletion checks remain mandatory.
+Other completion owners retain their existing target scope. A hint grants no
+deletion authority and does not prove that GitHub delivered the completion
+callback; the scheduled cleanup fallback remains available.
