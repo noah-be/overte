@@ -645,6 +645,38 @@ class HostSelectionTests(unittest.TestCase):
             candidate[extra] = {'mode': '100755', 'type': 'blob', 'sha': 'c' * 40}
             self.assertFalse(HOST.regular_ci_inventory({**plan, 'paths': [path, extra]}, previous, candidate))
 
+    def test_reviewed_doctor_cli_keeps_its_host_owners_without_product_setup(self):
+        path = 'tools/repository-health/check.py'
+        previous = copy_git_tree(self.tree)
+        self.assertEqual(previous[path]['mode'], '100755')
+        previous[path]['sha'] = 'b' * 40
+        plan = {'unknown': False, 'regular': False, 'paths': [path]}
+        self.assertTrue(HOST.regular_ci_inventory(plan, previous, self.tree))
+        selected = self.selected([path], regular=False, base_tree=previous)
+        self.assertFalse(selected['full_host'])
+        self.assertFalse(selected['include_platform'])
+        self.assertIn('repository-doctor', selected['suites'])
+        for side in ('base', 'candidate'):
+            for mode in ('missing', '100644', '120000', '160000'):
+                base, candidate = copy_git_tree(previous), copy_git_tree(self.tree)
+                changed = base if side == 'base' else candidate
+                if mode == 'missing':
+                    del changed[path]
+                else:
+                    changed[path]['mode'] = mode
+                    changed[path]['type'] = 'commit' if mode == '160000' else 'blob'
+                with self.subTest(side=side, mode=mode):
+                    self.assertFalse(HOST.regular_ci_inventory(plan, base, candidate))
+                    self.assertTrue(self.selected([path], regular=False,
+                                                 tree=candidate, base_tree=base)['full_host'])
+        candidate = copy_git_tree(self.tree)
+        extra = 'tools/repository-health/new-executable.py'
+        candidate[extra] = {'mode': '100755', 'type': 'blob', 'sha': 'c' * 40}
+        self.assertFalse(HOST.regular_ci_inventory(
+            {**plan, 'paths': [path, extra]}, previous, candidate))
+        self.assertTrue(self.selected([path, extra], regular=False,
+                                     tree=candidate, base_tree=previous)['full_host'])
+
     def test_two_separate_npm_owners_compose_with_the_finite_executable_inventory(self):
         previous, candidate = copy_git_tree(self.tree), copy_git_tree(self.tree)
         executable = 'tests/project-suite-self-test.py'
