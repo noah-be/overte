@@ -1003,7 +1003,7 @@ class DependencyPolicyRoutingTests(unittest.TestCase):
         # immutable reader audit; a shallow candidate need not fetch its commit.
         self.assertEqual(ios.REVIEWED_REVISION,'2fc894a0605103843b36653f250f854714a963ee')
         self.assertEqual(ios.REVIEWED_BOUNDARY,
-            'sha256:8e66f6e9de251fe1a19feb867df56a714fb126cd8e66e22ba370d03af4f90aec')
+            'sha256:8527f25d58c8ebf8eebab8a9e43517899b7afce2e511026d2873a69ab82f1794')
         self.assertEqual(host.REVIEWED_CI_HOST_BOUNDARY,
             '90da341e226f56b8dfb8b925af7c0273ecc41772ca424e3426b04c80acdb9a7b')
 
