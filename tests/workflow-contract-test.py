@@ -1335,6 +1335,46 @@ class ProjectWorkflowContracts(unittest.TestCase):
             self.assertEqual(assert_project_caller_routing(self, caller), 'package_host_mode')
             with self.assertRaises(AssertionError):
                 assert_project_caller_routing(self, caller + '\n# unreviewed caller\n')
+        # Strict source identity needs separate non-root sibling checkouts.
+        from pathlib import PurePosixPath
+        import shlex
+        caller_workflow = workflow_data(caller)
+        verifier = caller_workflow['jobs']['repository-checks']
+        trusted = next(step for step in verifier['steps']
+                       if step.get('name') == 'Check out trusted result verifier')
+        candidate = next(step for step in verifier['steps']
+                         if step.get('name') == 'Check out the exact candidate without credentials')
+        verify = next(step for step in verifier['steps']
+                      if step.get('name') == 'Require all selected checks to succeed')
+        paths = []
+        for checkout in (trusted, candidate):
+            raw_path = checkout['with'].get('path', '.')
+            self.assertIsInstance(raw_path, str)
+            self.assertTrue(raw_path)
+            path = PurePosixPath(raw_path)
+            self.assertFalse(path.is_absolute())
+            self.assertNotEqual(path, PurePosixPath('.'))
+            self.assertNotIn('..', path.parts)
+            paths.append(path)
+        trusted_path, candidate_path = paths
+        self.assertNotEqual(trusted_path, candidate_path)
+        self.assertNotIn(trusted_path, candidate_path.parents)
+        self.assertNotIn(candidate_path, trusted_path.parents)
+        self.assertEqual(trusted['with']['ref'], '${{ github.event.repository.default_branch }}')
+        self.assertIs(trusted['with']['persist-credentials'], False)
+        self.assertEqual(candidate['with']['fetch-depth'], 2)
+        self.assertIs(candidate['with']['persist-credentials'], False)
+        command = shlex.split(verify['run'])
+        self.assertEqual(command[0], 'python3')
+        self.assertEqual(PurePosixPath(command[1]), trusted_path / 'tools/repository-checks/check.py')
+        self.assertEqual(command[2], 'verify')
+        self.assertEqual(command.count('--candidate'), 1)
+        candidate_index = command.index('--candidate') + 1
+        self.assertLess(candidate_index, len(command))
+        self.assertEqual(PurePosixPath(command[candidate_index]), candidate_path)
+        self.assertNotIn('working-directory', verify)
+        self.assertNotIn('working-directory', verifier.get('defaults', {}).get('run', {}))
+        self.assertNotIn('working-directory', caller_workflow.get('defaults', {}).get('run', {}))
 
     def test_security_deferral_keeps_every_other_security_check_selected(self):
         workflow = workflow_data((WORKFLOW_DIRECTORY / 'workflow-security.yml').read_text())

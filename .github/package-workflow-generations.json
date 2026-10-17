@@ -611,7 +611,7 @@
         ".github/workflows/repository-checks.yml": {
           "mode": "100644",
           "type": "blob",
-          "sha": "bc9c4284286b5c3d2de07a3ecf3b98393e2f2a2c"
+          "sha": "81bcf1933edc435826e2de411a777cccd4dec7c7"
         },
         ".github/workflows/browser-client.yml": {
           "mode": "100644",
