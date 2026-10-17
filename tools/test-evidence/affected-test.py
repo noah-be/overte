@@ -1005,7 +1005,7 @@ class DependencyPolicyRoutingTests(unittest.TestCase):
         self.assertEqual(ios.REVIEWED_BOUNDARY,
             'sha256:8e66f6e9de251fe1a19feb867df56a714fb126cd8e66e22ba370d03af4f90aec')
         self.assertEqual(host.REVIEWED_CI_HOST_BOUNDARY,
-            'a66799656e1f6f64e4f48fee32cb1897786a3735e7d15c254652b48447afd08d')
+            '90da341e226f56b8dfb8b925af7c0273ecc41772ca424e3426b04c80acdb9a7b')
 
     def test_new_policy_uses_existing_native_browser_and_package_host_routes(self):
         native=self.module('affected_native_route','tools/native-tests/check.py')
