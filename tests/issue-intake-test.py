@@ -978,8 +978,20 @@ class InstallationTests(unittest.TestCase):
                 target = codex / "skills/overte-issue-intake" / relative
                 self.assertEqual(target.read_bytes(), expected["tools/issue-intake/skill/" + relative])
                 self.assertEqual(target.stat().st_mode & 0o777, 0o444)
-            result = subprocess.run([str(home / ".local/bin/overte-issue"), "example", "bug"],
-                                    check=True, capture_output=True, text=True)
+            offline_bin = Path(temporary) / "offline-bin"
+            offline_bin.mkdir()
+            github_called = offline_bin / "github-called"
+            fake_gh = offline_bin / "gh"
+            fake_gh.write_text("#!/usr/bin/env python3\nfrom pathlib import Path\nimport sys\n"
+                               + "Path(" + repr(str(github_called)) + ").write_text('called\\n')\n"
+                               + "sys.exit(99)\n")
+            fake_gh.chmod(0o755)
+            environment = {**os.environ, "PATH": str(offline_bin) + os.pathsep + os.environ.get("PATH", "")}
+            result = subprocess.run([str(home / ".local/bin/overte-issue"), "--policy",
+                                     str(installed / ".github/issue-policy.json"), "example", "bug"],
+                                    capture_output=True, text=True, env=environment)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(github_called.exists(), "The installed fixture must use its local policy")
             self.assertEqual(json.loads(result.stdout)["kind"], "bug")
 
     def test_install_rejects_aliased_or_nonordinary_copy_destinations(self):
