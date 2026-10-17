@@ -1131,6 +1131,15 @@ class NativeSelectedParentConsumerTests(unittest.TestCase):
 
 class VerifiedEmptyConsumerTests(unittest.TestCase):
     """Dispatch proof is a narrow fixture; differential/source books are real."""
+    def workflow_fixture_generation(self, root):
+        # Classify complete ordinary endpoint bytes against the actual trusted
+        # catalog. A matching synchronization leaf alone cannot select22.
+        source=Path(__file__).resolve().parents[1]/'repository-checks/package_checks.py'
+        packages=VALIDATION._trusted_module('verified_empty_fixture_packages',source)
+        generation=packages.validate_wiring(root)
+        self.assertIn(generation,{'npm-consumers-sync-ci-v1','protected-producer-original-default-v1'})
+        return packages,generation
+
     def setUp(self):
         self.fixture=IsolatedConsumerTests('runTest');self.fixture.setUp();self.addCleanup(self.fixture.doCleanups)
         f=self.fixture;f.request.changed_paths=()
@@ -1237,7 +1246,51 @@ class VerifiedEmptyConsumerTests(unittest.TestCase):
         normal=next(row for row in steps if row['name']=='Verify exact candidate suites and complete runtime identity')
         self.assertIn("steps.select.outputs.lane != 'verified-empty'",normal['if'])
         active=(VALIDATION.ROOT/'.github/workflows/sync-validation.yml').read_text()
-        self.assertNotIn('expected-empty-setup',active)
+        packages,generation=self.workflow_fixture_generation(VALIDATION.ROOT)
+        if generation=='protected-producer-original-default-v1':
+            self.assertEqual(active,path.read_text())
+            self.assertIn('expected-empty-setup',active)
+            # Bind every independently stored canonical endpoint as well as the
+            # deployed complete catalog; no old catalog row is rewritten.
+            sources={'.github/workflows/project-tests.yml':'producers/protected-project-tests-android-platform.yml',
+                '.github/workflows/parent-qualification.yml':'producers/parent-qualification-android-platform.yml',
+                '.github/workflows/repository-checks.yml':'producers/repository-checks.yml',
+                '.github/workflows/sync-validation.yml':'sync-ci-selection.yml',
+                '.github/workflows/browser-client.yml':'npm-consumers/browser-client.yml',
+                '.github/workflows/pr-metadata-context.yml':'metadata-edits/pr-metadata-context.yml'}
+            self.assertEqual(set(sources),set(packages.METADATA_WORKFLOW_PATHS))
+            for target,relative in sources.items():
+                self.assertEqual((VALIDATION.ROOT/target).read_bytes(),
+                    (VALIDATION.ROOT/'tools/repository-checks/workflows'/relative).read_bytes(),target)
+        else:
+            self.assertNotIn('expected-empty-setup',active)
+
+    def test_empty_workflow_state_rejects_altered_missing_alias_mode_and_mixed_recipes(self):
+        import shutil
+        packages,generation=self.workflow_fixture_generation(VALIDATION.ROOT)
+        reviewed=next(row for row in packages.workflow_generations() if row['name']==generation)
+        self.assertEqual(set(reviewed['workflows']),set(packages.CONSUMER_WORKFLOW_PATHS
+            if generation=='npm-consumers-sync-ci-v1' else packages.METADATA_WORKFLOW_PATHS))
+        sync='.github/workflows/sync-validation.yml'
+        for kind in ('altered','missing','alias','mode','mixed'):
+            with self.subTest(kind=kind),tempfile.TemporaryDirectory(prefix='sync-whole-generation-') as temporary:
+                snapshot=Path(temporary)
+                for relative in reviewed['workflows']:
+                    target=snapshot/relative;target.parent.mkdir(parents=True,exist_ok=True)
+                    shutil.copyfile(VALIDATION.ROOT/relative,target);target.chmod(0o644)
+                self.assertEqual(packages.validate_wiring(snapshot),generation)
+                target=snapshot/sync
+                if kind=='altered':target.write_text(target.read_text()+'\n# unreviewed recipe\n')
+                elif kind=='missing':target.unlink()
+                elif kind=='alias':
+                    saved=target.with_suffix('.fixture');target.rename(saved);target.symlink_to(saved.name)
+                elif kind=='mode':target.chmod(0o755)
+                elif generation=='npm-consumers-sync-ci-v1':
+                    target.write_bytes((VALIDATION.ROOT/'tools/repository-checks/workflows/sync-ci-selection.yml').read_bytes())
+                else:
+                    (snapshot/'.github/workflows/project-tests.yml').write_bytes(
+                        (VALIDATION.ROOT/'tools/repository-checks/workflows/host/project-tests.yml').read_bytes())
+                with self.assertRaises(ValueError):packages.validate_wiring(snapshot)
 
 
 if __name__ == "__main__":
