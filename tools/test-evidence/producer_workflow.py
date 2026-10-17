@@ -1536,9 +1536,10 @@ def _output(values, *, protected=False):
         host.require(stat.S_ISREG(info.st_mode) and info.st_uid in allowed and not info.st_mode & 0o022,
                      'native command file is not protected from candidate writes')
         body = ''.join(key + '=' + value + '\n' for key, value in values.items())
-        host.require(all(re.fullmatch(r'[a-z_]+', key) and (re.fullmatch(r'(?:true|false|[0-9a-f]{64})', value)
+        host.require(all((re.fullmatch(r'[a-z_]+', key) and (re.fullmatch(r'(?:true|false|[0-9a-f]{64})', value)
             or key=='parent_candidate' and re.fullmatch(r'[0-9a-f]{40}',value)
-            or key=='platform_plan' and value=='' and values.get('platform_required')=='false')
+            or key=='platform_plan' and value=='' and values.get('platform_required')=='false'))
+            or key=='receipt_sha256' and re.fullmatch(r'[0-9a-f]{64}',value)
                          for key, value in values.items()), 'unsupported native producer output')
         with os.fdopen(descriptor, 'w', encoding='ascii', closefd=False) as output:
             output.write(body)
