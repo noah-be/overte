@@ -6,6 +6,7 @@ look up proof. Unsupported proof leaves the existing actual execution selected.
 This entrypoint never executes candidate code or emits a qualification receipt.
 """
 from __future__ import annotations
+from types import SimpleNamespace
 
 from datetime import datetime, timezone
 import argparse
@@ -614,8 +615,8 @@ def verify_metadata(event, environment, adapter, *, root=ROOT, clock=lambda: dat
     native = helper.native(event, environment, root=root, caller='.github/workflows/repository-checks.yml')
     A.require(environment.get('GITHUB_JOB') == 'route', 'metadata retention requires the reviewed routing job')
     binding, refs = adapter.current(native['number'])
-    producer._event_binding(event, binding)
-    A.require(binding['merge_sha'] == native['merge'] and binding['base_sha'] == native['base']
+    producer._event_binding(event, binding, api=SimpleNamespace(get=adapter._object))
+    A.require(binding['merge_sha'] == native['merge'] and binding['head_sha'] == native['head']
         and refs['default_ref'] == 'main', 'metadata current default/candidate differs')
     previous_sha, previous = full_tree(adapter, binding['base_sha'])
     tree_sha, current = full_tree(adapter, binding['merge_sha'])

@@ -2676,6 +2676,84 @@ class CandidateTests(unittest.TestCase):
             self.assertEqual(CHECKS.changed_paths(root, value, merge), (["README.md"], False))
 
 
+class EffectiveCandidateTests(unittest.TestCase):
+    """Native depth-two M binds provisional routing; API gates own ancestry."""
+    def fixture(self, *, mode='100644', product=False):
+        temporary=tempfile.TemporaryDirectory(prefix='overte-effective-pr-')
+        self.addCleanup(temporary.cleanup);root=Path(temporary.name)/'source';root.mkdir()
+        def git(*args):
+            return subprocess.check_output(['git','-c','commit.gpgsign=false',*args],cwd=root,
+                stderr=subprocess.PIPE,text=True).strip()
+        git('init','-q','--initial-branch=main');git('config','user.name','Fixture')
+        git('config','user.email','fixture@example.invalid')
+        (root/'native.cpp').write_text('old product\n');(root/'README.md').write_text('old docs\n')
+        git('add','.');tree=git('write-tree');snapshot=git('commit-tree',tree,'-m','Original snapshot')
+        (root/'native.cpp').write_text('already integrated product\n');git('add','native.cpp')
+        tree=git('write-tree');base=git('commit-tree',tree,'-p',snapshot,'-m','Current protected B')
+        (root/'README.md').write_text('current docs\n');git('add','README.md');tree=git('write-tree')
+        head=git('commit-tree',tree,'-p',snapshot,'-m','Current PR H')
+        if product:(root/'native.cpp').write_text('new product input\n');git('add','native.cpp')
+        git('update-index','--chmod='+('+' if mode=='100755' else '-')+'x','README.md')
+        tree=git('write-tree');merge=git('commit-tree',tree,'-p',base,'-p',head,'-m','Server M')
+        git('update-ref','refs/heads/main',merge)
+        shallow=Path(temporary.name)/'shallow'
+        subprocess.run(['git','clone','--depth=2','--no-local','file://'+str(root),str(shallow)],
+            check=True,capture_output=True,timeout=30)
+        value=event();value.update(number=23,action='opened')
+        value['pull_request'].update(number=23,labels=[])
+        value['pull_request']['base']['sha']=snapshot;value['pull_request']['head']['sha']=head
+        native={'GITHUB_ACTIONS':'true','GITHUB_EVENT_NAME':'pull_request','GITHUB_REPOSITORY':CONFIG['repository'],
+            'GITHUB_REPOSITORY_ID':str(CONFIG['repository_id']),'GITHUB_SHA':merge,'GITHUB_WORKFLOW_SHA':merge,
+            'GITHUB_REF':'refs/pull/23/merge','GITHUB_BASE_REF':'main','GITHUB_HEAD_REF':'fix/main/example',
+            'GITHUB_WORKFLOW_REF':CONFIG['repository']+'/.github/workflows/repository-checks.yml@refs/pull/23/merge'}
+        return shallow,value,native,snapshot,base,head,merge
+
+    def test_actual_shallow_native_merge_selects_complete_current_delta_without_old_object(self):
+        root,value,native,snapshot,base,head,merge=self.fixture()
+        absent=subprocess.run(['git','cat-file','-e',snapshot],cwd=root,capture_output=True)
+        self.assertNotEqual(absent.returncode,0)
+        before=deepcopy(value)
+        with patch.dict(os.environ,native,clear=True):
+            context=CHECKS.pr_candidate_context(root,value,merge)
+            self.assertEqual(context,{'base':base,'head':head,'candidate':merge,'event_base':snapshot})
+            self.assertEqual(CHECKS.changed_paths(root,value,merge),(['README.md'],True))
+            self.assertEqual(value,before)
+            self.assertNotIn('verified',context);self.assertNotIn('environment',context)
+            with patch.object(PACKAGES,'consumer_generation',return_value=False), \
+                 patch.object(PACKAGES,'consumer_base',side_effect=RuntimeError('observed-current-base')) as baseline:
+                with self.assertRaisesRegex(RuntimeError,'observed-current-base'):
+                    PACKAGES.candidate_plan(root,value,merge)
+                baseline.assert_called_once_with(root,base)
+
+    def test_stale_routing_requires_native_role_or_exact_independently_authenticated_context(self):
+        root,value,native,snapshot,base,head,merge=self.fixture()
+        context={'base':base,'head':head,'candidate':merge,'event_base':snapshot}
+        for key,bad in (('GITHUB_SHA',head),('GITHUB_WORKFLOW_SHA',base),('GITHUB_EVENT_NAME','pull_request_target'),
+                        ('GITHUB_REPOSITORY','foreign/repository'),('GITHUB_BASE_REF','apple-main'),
+                        ('GITHUB_HEAD_REF','foreign'),('GITHUB_REF','refs/heads/main'),('GITHUB_WORKFLOW_REF','foreign')):
+            with self.subTest(key=key),patch.dict(os.environ,{**native,key:bad},clear=True),self.assertRaises(ValueError):
+                CHECKS.pr_candidate_context(root,value,merge)
+        with patch.dict(os.environ,{},clear=True):
+            with self.assertRaises(ValueError):CHECKS.pr_candidate_context(root,value,merge)
+            self.assertEqual(CHECKS.pr_candidate_context(root,value,merge,pr_context=context),context)
+            for key in context:
+                altered={**context,key:'f'*40}
+                with self.subTest(field=key),self.assertRaises(ValueError):
+                    CHECKS.pr_candidate_context(root,value,merge,pr_context=altered)
+        value['pull_request']['head']['sha']=base
+        with patch.dict(os.environ,native,clear=True),self.assertRaises(ValueError):
+            CHECKS.pr_candidate_context(root,value,merge)
+
+    def test_complete_native_delta_retains_product_and_nonordinary_mode_changes(self):
+        for product,mode in ((True,'100644'),(False,'100755')):
+            root,value,native,snapshot,base,head,merge=self.fixture(product=product,mode=mode)
+            with self.subTest(product=product,mode=mode),patch.dict(os.environ,native,clear=True):
+                paths,regular=CHECKS.changed_paths(root,value,merge)
+                self.assertEqual('native.cpp' in paths,product)
+                self.assertEqual(regular,mode=='100644')
+                self.assertIsNone(CHECKS.verified_empty_candidate(root,value,merge))
+
+
 class VerifiedEmptyCandidateTests(unittest.TestCase):
     """Real ordinary Git objects; no supplied path list authorizes omission."""
     def fixture(self, generation='npm-consumers-sync-ci-v1', *, changed=False, wrong_parents=False):

@@ -17,6 +17,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import quote
 
 REPOSITORY = 'noah-l-frank/overte'
 REPOSITORY_ID = 1319052603
@@ -324,6 +325,81 @@ def reuse_compatibility(base, default, target, *, read_actual, actual_imports):
     return {**current,'kind':'protected-default-reuse-controller-precheck-v1'}
 
 
+def _branch_ref(value):
+    require(type(value) is str and 0 < len(value) <= 255
+        and not value.startswith(('/', '-', 'refs/')) and not value.endswith(('/', '.'))
+        and not any(token in value for token in ('//','..','@{'))
+        and not re.search(r'[\x00-\x20\x7f~^:?*\[\\]', value)
+        and all(not part.startswith('.') and not part.endswith('.lock') for part in value.split('/')),
+        'invalid protected source branch ref')
+    return value
+
+
+def validate_base_snapshot(api, snapshot, effective_base):
+    """Validate a non-authoritative event/API observation against current B.
+
+    GitHub may retain different older base snapshots in the event and PR API.
+    Neither observation replaces the independently authenticated M.parent0/ref.
+    """
+    object_id(snapshot); object_id(effective_base)
+    if snapshot == effective_base:
+        return
+    value = api.get('compare/'+snapshot+'...'+effective_base+'?per_page=1')
+    require(type(value) is dict and value.get('status') == 'ahead'
+        and value.get('base_commit',{}).get('sha') == snapshot
+        and value.get('merge_base_commit',{}).get('sha') == snapshot,
+        'PR base snapshot is not an ancestor of current protected B')
+    ahead, behind, total = (value.get(name) for name in ('ahead_by','behind_by','total_commits'))
+    require(type(ahead) is int and ahead > 0 and type(behind) is int and behind == 0
+        and type(total) is int and total == ahead, 'invalid base ancestry comparison counts')
+    commits, files = value.get('commits'), value.get('files')
+    require(type(commits) is list and len(commits) == 1 and type(commits[0]) is dict
+        and type(files) is list and len(files) <= 300
+        and all(type(item) is dict for item in files), 'incomplete bounded base ancestry comparison')
+    object_id(commits[0].get('sha'))
+
+
+def resolve_pr_base(api, current_pr, current_merge, event_pr=None):
+    """Resolve current API/ref authority, retaining raw snapshot objects unchanged.
+
+    Native caller/source/App/attempt authentication belongs to the invoking
+    boundary. Every observation here is repeated by that boundary's bookends.
+    """
+    require(type(current_pr) is dict and type(current_merge) is dict
+        and type(current_pr.get('base')) is dict and type(current_pr.get('head')) is dict,
+            'current PR and native merge objects required')
+    number = current_pr.get('number')
+    require(type(number) is int and number > 0 and current_pr.get('state') == 'open',
+            'current open PR unavailable')
+    parents = current_merge.get('parents')
+    require(type(parents) is list and len(parents) == 2 and all(type(p) is dict for p in parents),
+            'native M must have exactly two ordered parents')
+    base, head = (object_id(p.get('sha')) for p in parents)
+    source = object_id(current_merge.get('sha'))
+    target = current_pr.get('base',{}).get('ref')
+    head_ref = _branch_ref(current_pr.get('head',{}).get('ref'))
+    require(target in TARGET_PROFILES, 'unknown protected PR target')
+    for observation in (current_pr,) if event_pr is None else (current_pr,event_pr):
+        require(type(observation) is dict and type(observation.get('number')) is int and observation['number'] == number,
+                'native PR number changed')
+        for side, ref in (('base',target),('head',head_ref)):
+            row = observation.get(side,{})
+            require(type(row) is dict and row.get('ref') == ref
+                and row.get('repo',{}).get('full_name') == REPOSITORY
+                and type(row.get('repo',{}).get('id')) is int
+                and row['repo']['id'] == REPOSITORY_ID, 'PR source repository/ref changed')
+        require(observation['head'].get('sha') == head, 'current PR head changed')
+        validate_base_snapshot(api, observation['base'].get('sha'), base)
+    branch = api.get('branches/'+target)
+    require(branch.get('name') == target and branch.get('protected') is True
+        and branch.get('commit',{}).get('sha') == base, 'current protected PR base changed')
+    reference = api.get('git/ref/heads/'+quote(head_ref,safe=''))
+    require(reference.get('ref') == 'refs/heads/'+head_ref
+        and reference.get('object',{}).get('type') == 'commit'
+        and reference['object'].get('sha') == head, 'current PR branch head changed')
+    return {'base':base,'head':head,'target':target,'head_ref':head_ref,'source':source}
+
+
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, request, response, code, message, headers, target):
         raise SourceUnavailable('protected source API redirects are forbidden')
@@ -335,7 +411,7 @@ class GitHubSource:
         current=time.monotonic()
         self.deadline=current+45 if deadline is None else min(current+45,deadline)
     def get(self, endpoint):
-        require(type(endpoint) is str and re.fullmatch(r'(?:|pulls/[1-9][0-9]*|branches/(?:'+ '|'.join(TARGET_PROFILES)+r')|git/ref/heads/main|git/commits/[0-9a-f]{40}|git/trees/[0-9a-f]{40}\?recursive=1|commits/refs/pull/[1-9][0-9]*/merge)',endpoint), 'unsupported protected source endpoint')
+        require(type(endpoint) is str and re.fullmatch(r'(?:|pulls/[1-9][0-9]*|branches/(?:'+ '|'.join(TARGET_PROFILES)+r')|git/ref/heads/(?:[A-Za-z0-9._~-]|%[0-9A-F]{2})+|compare/[0-9a-f]{40}\.\.\.[0-9a-f]{40}\?per_page=1|git/commits/[0-9a-f]{40}|git/trees/[0-9a-f]{40}\?recursive=1|commits/refs/pull/[1-9][0-9]*/merge)',endpoint), 'unsupported protected source endpoint')
         self.calls += 1
         require(self.calls <= 24, 'protected source API budget exceeded')
         request = urllib.request.Request('https://api.github.com/repos/'+REPOSITORY+('/'+endpoint if endpoint else ''),
@@ -382,18 +458,14 @@ def native(event, environment, api):
         require(type(number) is int and number>0 and pr.get('number')==number,'native PR number unavailable')
         current=api.get('pulls/'+str(number))
         require(current.get('number')==number and current.get('state')=='open','current open PR unavailable')
-        for side in ('base','head'):
-            branch=pr.get(side,{})
-            require(branch.get('repo',{}).get('id')==REPOSITORY_ID and branch.get('repo',{}).get('full_name')==REPOSITORY
-                and current.get(side,{}).get('repo',{}).get('id')==REPOSITORY_ID
-                and current.get(side,{}).get('repo',{}).get('full_name')==REPOSITORY
-                and all(current.get(side,{}).get(k)==branch.get(k) for k in ('ref','sha')),'PR source branch changed')
-        target=pr['base']['ref'];base=object_id(pr['base']['sha']);head=object_id(pr['head']['sha'])
-        require(environment.get('GITHUB_BASE_REF')==target and environment.get('GITHUB_HEAD_REF')==pr['head']['ref']
+        target=pr.get('base',{}).get('ref')
+        require(environment.get('GITHUB_BASE_REF')==target and environment.get('GITHUB_HEAD_REF')==pr.get('head',{}).get('ref')
             and environment.get('GITHUB_REF')=='refs/pull/'+str(number)+'/merge'
             and environment.get('GITHUB_WORKFLOW_REF')==REPOSITORY+'/.github/workflows/repository-checks.yml@refs/pull/'+str(number)+'/merge','native PR caller changed')
         merge=api.get('commits/refs/pull/'+str(number)+'/merge')
-        require(merge.get('sha')==source and [p.get('sha') for p in merge.get('parents',[])]==[base,head],'native M ordered parents changed')
+        require(merge.get('sha')==source, 'native M source changed')
+        resolved=resolve_pr_base(api,current,merge,pr)
+        base,head=resolved['base'],resolved['head']
     else:
         require(environment.get('GITHUB_EVENT_NAME')=='push' and event.get('forced') is False and event.get('deleted') is False,'unsupported protected source event')
         ref=environment.get('GITHUB_REF','');target=ref.removeprefix('refs/heads/')

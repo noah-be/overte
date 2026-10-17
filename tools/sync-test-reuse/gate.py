@@ -145,6 +145,197 @@ class SyncRequest:
     changed_paths: tuple[str, ...]
     parent_changed_paths: tuple[str, ...]
     repair_paths: tuple[str, ...] = ()
+    event_base_sha: str | None = None
+
+
+@dataclass(frozen=True)
+class EffectivePRContext:
+    base: str
+    head: str
+    candidate: str
+    event_base: str
+
+    def planning(self):
+        return {key: getattr(self, key) for key in ('base', 'head', 'candidate', 'event_base')}
+
+
+def _base_source():
+    spec = importlib.util.spec_from_file_location('sync_effective_base_source', ROOT / 'tools/test-evidence/source_admission.py')
+    if spec is None or spec.loader is None:
+        raise GateError('trusted live-base source resolver unavailable')
+    source = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(source)
+    return source
+
+
+def _base_reader(api, repository):
+    if repository != 'noah-l-frank/overte':
+        raise GateError('effective base source is outside the reviewed fork')
+    class Reader:
+        def get(self, endpoint):
+            return api.json('repos/' + repository + ('/' + endpoint if endpoint else ''))
+    return Reader()
+
+
+def _native_effective_role(api, event, live_base):
+    """Authenticate fixed gate/validator roles before stale-base resolution."""
+    env = os.environ
+    if any(env.get(key) != value for key, value in {
+            'GITHUB_ACTIONS': 'true', 'GITHUB_REPOSITORY': 'noah-l-frank/overte',
+            'GITHUB_REPOSITORY_ID': '1319052603', 'GITHUB_RUN_ATTEMPT': '1'}.items()):
+        raise GateError('stale-base resolution needs an actual native synchronization role')
+    repo = 'noah-l-frank/overte'
+    pr = event['pull_request']; target = pr['base']['ref']
+    try:
+        identifier = int(env.get('GITHUB_RUN_ID', ''))
+    except ValueError as error:
+        raise GateError('native synchronization run unavailable') from error
+    if identifier <= 0:
+        raise GateError('native synchronization run unavailable')
+    manual = env.get('GITHUB_EVENT_NAME') == 'workflow_dispatch'
+    if manual:
+        path, workflow, job, ref = '.github/workflows/sync-validation.yml', 350930895, 'validate', 'refs/heads/main'
+        default = api.json(f'repos/{repo}/branches/main')
+        if default.get('name') != 'main' or default.get('protected') is not True:
+            raise GateError('native validation default source unavailable')
+        source_sha = validate_sha(default.get('commit', {}).get('sha'), 'native validation source')
+    else:
+        path, workflow, job, ref = '.github/workflows/sync-test-reuse.yml', 350930894, 'sync-test-reuse', 'refs/heads/' + target
+        source_sha = live_base
+        if env.get('GITHUB_EVENT_NAME') != 'pull_request_target':
+            raise GateError('unknown native synchronization role')
+        if env.get('GITHUB_BASE_REF') != target or env.get('GITHUB_HEAD_REF') != pr['head']['ref']:
+            raise GateError('native synchronization PR branch refs differ')
+    if (env.get('GITHUB_JOB') != job or env.get('GITHUB_REF') != ref
+            or env.get('GITHUB_SHA') != source_sha or env.get('GITHUB_WORKFLOW_SHA') != source_sha
+            or env.get('GITHUB_WORKFLOW_REF') != repo + '/' + path + '@' + ref):
+        raise GateError('native synchronization source/ref differs')
+
+    def native_run(run_id, expected_source, expected_path, expected_workflow, expected_event):
+        run = api.json(f'repos/{repo}/actions/runs/{run_id}')
+        attempt = api.json(f'repos/{repo}/actions/runs/{run_id}/attempts/1')
+        fields = ('id', 'workflow_id', 'check_suite_id', 'event', 'path', 'head_sha', 'head_branch',
+                  'run_attempt', 'run_started_at', 'status', 'conclusion')
+        if (any(run.get(key) != attempt.get(key) for key in fields)
+                or (run.get('id'), run.get('workflow_id'), run.get('event'), run.get('path'), run.get('head_sha'), run.get('run_attempt')) !=
+                   (run_id, expected_workflow, expected_event, expected_path, expected_source, 1)
+                or run.get('head_branch') != ('main' if expected_event == 'workflow_dispatch' else pr['head']['ref'])
+                or not (run.get('status') in {'queued', 'in_progress', 'waiting', 'pending'} and run.get('conclusion') is None
+                        or run.get('status') == 'completed' and run.get('conclusion') == 'success')
+                or any(document.get(key, {}).get('id') != 1319052603 or document[key].get('full_name') != repo
+                       for document in (run, attempt) for key in ('repository', 'head_repository'))):
+            raise GateError('native synchronization run/attempt/source unavailable')
+        registration = api.json(f'repos/{repo}/actions/workflows/{expected_workflow}')
+        suite = api.json(f'repos/{repo}/check-suites/{run["check_suite_id"]}')
+        if (registration.get('id') != expected_workflow or registration.get('path') != expected_path or registration.get('state') != 'active'
+                or suite.get('id') != run['check_suite_id'] or suite.get('head_sha') != expected_source or suite.get('app', {}).get('id') != 15368
+                or suite.get('repository', {}).get('id') != 1319052603):
+            raise GateError('native synchronization registration/App unavailable')
+        try:
+            started = parse_time(run.get('run_started_at'), 'native synchronization start')
+        except EvidenceError as error:
+            raise GateError('native synchronization start unavailable') from error
+        if started > datetime.now(timezone.utc):
+            raise GateError('native synchronization starts in the future')
+        return run, attempt
+
+    run, attempt = native_run(identifier, source_sha if manual else pr['head']['sha'], path, workflow, env['GITHUB_EVENT_NAME'])
+    if manual:
+        manual_started = parse_time(run.get('run_started_at'), 'native validation start')
+        match = re.fullmatch(r'Sync validation gate-([1-9][0-9]*)-attempt-1', run.get('display_title', ''))
+        if match is None:
+            raise GateError('native validation gate handoff unavailable')
+        run, attempt = native_run(int(match[1]), pr['head']['sha'], '.github/workflows/sync-test-reuse.yml', 350930894, 'pull_request_target')
+        if parse_time(run.get('run_started_at'), 'native gate start') > manual_started:
+            raise GateError('native validation precedes its original gate')
+    associations = []
+    for document in (run, attempt):
+        associated = [row for row in document.get('pull_requests', []) if row.get('number') == pr['number']]
+        if len(associated) != 1 or associated[0].get('base', {}).get('ref') != target or any(
+                associated[0].get('head', {}).get(key) != pr['head'][key] for key in ('ref', 'sha')):
+            raise GateError('native synchronization PR association unavailable')
+        associations.append(associated[0])
+    source = _base_source()
+    try:
+        reader = _base_reader(api, repo)
+        for association in associations:
+            source.validate_base_snapshot(reader, association.get('base', {}).get('sha'), live_base)
+        default = reader.get('branches/main')
+        if default.get('name') != 'main' or default.get('protected') is not True:
+            raise GateError('trusted synchronization controller source unavailable')
+        default_sha = validate_sha(default.get('commit', {}).get('sha'), 'trusted default source')
+        actual = subprocess.check_output(['git', '--no-replace-objects', 'rev-parse', 'HEAD'], cwd=ROOT,
+                                         stderr=subprocess.PIPE, timeout=30).decode().strip()
+        if actual != default_sha:
+            raise GateError('synchronization controller checkout differs from current default')
+        for revision, recipe in ((source_sha, path), (live_base, '.github/workflows/sync-test-reuse.yml')):
+            inventory = source.api_tree(reader, revision)
+            row = subprocess.check_output(['git', '--no-replace-objects', 'ls-tree', default_sha, '--', recipe],
+                                          cwd=ROOT, stderr=subprocess.PIPE, timeout=30).split()
+            if len(row) != 4 or row[:2] != [b'100644', b'blob'] or inventory.get(recipe) != {
+                    'mode': '100644', 'type': 'blob', 'sha': row[2].decode()}:
+                raise GateError('native synchronization workflow recipe differs from protected controller source')
+    except (source.SourceUnavailable, KeyError, TypeError, ValueError, OSError, subprocess.SubprocessError) as error:
+        raise GateError('native synchronization base snapshot unavailable') from error
+
+
+def effective_pr_context(event, api):
+    """Return internal scheduling context only after fresh native/API proof."""
+    pr = event['pull_request']; repo = event['repository']['full_name']
+    snapshot = validate_sha(pr['base']['sha'], 'event base snapshot')
+    live = branch_sha(api, repo, pr['base']['ref'])
+    current = api.json(f'repos/{repo}/pulls/{pr["number"]}')
+    if not isinstance(current, dict):
+        raise GateError('current synchronization PR observation unavailable')
+    if live == snapshot and current.get('base', {}).get('sha') == live:
+        return None
+    _native_effective_role(api, event, live)
+    merge = api.json(f'repos/{repo}/commits/refs/pull/{pr["number"]}/merge')
+    if commit_parents(merge) != (live, pr['head']['sha']):
+        raise GateError('current synchronization merge does not use live base/head')
+    source = _base_source()
+    try:
+        resolved = source.resolve_pr_base(_base_reader(api, repo), current, merge, event_pr=pr)
+    except (source.SourceUnavailable, KeyError, TypeError, ValueError, OSError) as error:
+        raise GateError('live synchronization base cannot be independently resolved') from error
+    if resolved['base'] != live:
+        raise GateError('protected synchronization base moved')
+    return EffectivePRContext(resolved['base'], resolved['head'], resolved['source'], snapshot)
+
+
+def immutable_change_documents(api, repository, base, candidate):
+    """Complete B-to-M membership/mode/byte delta, never capped PR files."""
+    _, before = recursive_tree(api, repository, base, error_type=GateError)
+    _, after = recursive_tree(api, repository, candidate, error_type=GateError)
+    return [{'filename': path, 'status': 'added' if path not in before else 'removed' if path not in after else 'modified'}
+            for path in sorted(before.keys() | after.keys()) if before.get(path) != after.get(path)]
+
+
+def recheck_effective_request(api, request, *, event_pr=None):
+    """Reconstruct current source after work without editing an event snapshot."""
+    repo = request.repository
+    if branch_sha(api, repo, request.base) != request.base_sha:
+        raise GateError('protected synchronization base ref changed after execution')
+    current = api.json(f'repos/{repo}/pulls/{request.number}')
+    event = {'repository': {'full_name': repo, 'id': request.repository_id}, 'pull_request': current}
+    _native_effective_role(api, event, request.base_sha)
+    source = _base_source()
+    try:
+        merge = api.json(f'repos/{repo}/commits/refs/pull/{request.number}/merge')
+        if commit_parents(merge) != (request.base_sha, request.head_sha):
+            raise GateError('current synchronization merge parents changed after execution')
+        reader = _base_reader(api, repo)
+        resolved = source.resolve_pr_base(reader, current, merge, event_pr=event_pr)
+        source.validate_base_snapshot(reader, request.event_base_sha, resolved['base'])
+    except (source.SourceUnavailable, KeyError, TypeError, ValueError, OSError) as error:
+        raise GateError('effective synchronization context changed after execution') from error
+    if (resolved['base'], resolved['head'], resolved['target'], resolved['head_ref'], resolved['source']) != (
+            request.base_sha, request.head_sha, request.base, request.head, request.merge_sha):
+        raise GateError('effective synchronization context changed after execution')
+    if branch_sha(api, repo, request.base) != request.base_sha:
+        raise GateError('protected synchronization base ref changed during recheck')
+    observation = current if event_pr is None else event_pr
+    return EffectivePRContext(request.base_sha, request.head_sha, request.merge_sha, observation['base']['sha'])
 
 
 def load_config(path: Path = DEFAULT_CONFIG) -> dict:
@@ -239,7 +430,7 @@ def allowed_repair_paths(config: dict, base: str) -> set[str]:
 
 
 def attest_product_repair(api, repository, repository_id, pr, current_pr,
-                          base, parent, head, base_sha, parent_sha, head_sha, merge_sha):
+                          base, parent, head, base_sha, parent_sha, head_sha, merge_sha, *, pr_context=None):
     """Reuse the unchanged branch-policy attestation, including its drift checks."""
     class BranchApi(branch_policy.GitHubBranchApi):
         def _request(self, endpoint, label):
@@ -249,12 +440,24 @@ def attest_product_repair(api, repository, repository_id, pr, current_pr,
             return value
 
     try:
+        if pr_context is not None:
+            if not isinstance(pr_context, EffectivePRContext) or pr_context.planning() != {
+                    'base': base_sha, 'head': head_sha, 'candidate': merge_sha,
+                    'event_base': pr['base']['sha']}:
+                raise GateError('repair effective base context differs from the current candidate')
+            source = _base_source()
+            try:
+                for document in (pr, current_pr):
+                    source.validate_base_snapshot(_base_reader(api, repository), document['base']['sha'], base_sha)
+            except (source.SourceUnavailable, KeyError, TypeError, ValueError, OSError) as error:
+                raise GateError('repair base snapshot is not an ancestor of the current target') from error
         for document in (pr, current_pr):
             for side, ref, sha in (("base", base, base_sha), ("head", head, head_sha)):
                 identity = document[side]
                 if (identity["repo"]["id"] != repository_id
                         or identity["repo"]["full_name"] != repository
-                        or identity["ref"] != ref or identity["sha"] != sha):
+                        or identity["ref"] != ref
+                        or ((side == 'head' or pr_context is None) and identity["sha"] != sha)):
                     raise GateError("repair pull-request identity does not match the current event")
         adapter = BranchApi()
         branches = branch_policy.load_policy(branch_policy.DEFAULT_POLICY)
@@ -352,7 +555,7 @@ def compare_merge_base(api: GitHubApi, repository: str, base: str, head: str) ->
     return merge_base
 
 
-def classify_event(event: dict, config: dict, api: GitHubApi) -> SyncRequest | None:
+def classify_event(event: dict, config: dict, api: GitHubApi, *, pr_context=None) -> SyncRequest | None:
     try:
         repository = event["repository"]["full_name"]
         repository_id = int(event["repository"]["id"])
@@ -381,7 +584,13 @@ def classify_event(event: dict, config: dict, api: GitHubApi) -> SyncRequest | N
     current_base = branch_sha(api, repository, base)
     current_parent = branch_sha(api, repository, parent)
     if current_base != base_sha:
-        raise GateError("target head drifted after the pull-request event")
+        if pr_context is None:
+            pr_context = effective_pr_context(event, api)
+        if not isinstance(pr_context, EffectivePRContext) or (pr_context.base, pr_context.head, pr_context.event_base) != (current_base, head_sha, base_sha):
+            raise GateError("target head drifted after the pull-request event")
+    elif pr_context is not None and (not isinstance(pr_context, EffectivePRContext)
+            or (pr_context.base, pr_context.head, pr_context.event_base) != (current_base, head_sha, base_sha)):
+        raise GateError('independently resolved synchronization context differs from the event')
     if direct and head_sha != current_parent:
         raise GateError("direct synchronization does not use the current parent head")
     head_commit = commit(api, repository, head_sha)
@@ -393,7 +602,8 @@ def classify_event(event: dict, config: dict, api: GitHubApi) -> SyncRequest | N
         if (
             isinstance(current_pr, dict)
             and current_pr.get("mergeable") is not None
-            and isinstance(current_pr.get("merge_commit_sha"), str)
+            and (isinstance(current_pr.get("merge_commit_sha"), str)
+                 or isinstance(pr_context, EffectivePRContext))
         ):
             break
         if attempt < 5:
@@ -402,19 +612,22 @@ def classify_event(event: dict, config: dict, api: GitHubApi) -> SyncRequest | N
         raise GateError("GitHub API returned invalid pull request metadata")
     if current_pr.get("state") != "open" or current_pr.get("mergeable") is False:
         raise GateError("pull request is closed or has merge conflicts")
-    merge_sha = validate_sha(current_pr.get("merge_commit_sha"), "pull-request merge SHA")
+    merge_sha = (pr_context.candidate if isinstance(pr_context, EffectivePRContext)
+                 else validate_sha(current_pr.get("merge_commit_sha"), "pull-request merge SHA"))
     merge_commit = commit(api, repository, merge_sha)
     if commit_parents(merge_commit) != (current_base, head_sha):
         raise GateError("pull-request merge parents do not match current target and head")
     merge_base = compare_merge_base(api, repository, current_parent, current_base)
     _, parent_delta = compare_files(api, repository, merge_base, current_parent)
-    changed_documents = paginate_pull_files(api, repository, number)
+    changed_documents = (immutable_change_documents(api, repository, current_base, merge_sha)
+                         if isinstance(pr_context, EffectivePRContext) else paginate_pull_files(api, repository, number))
     changed = tuple(sorted(changed_paths(changed_documents)))
     allowed = allowed_repair_paths(config, base)
     repairs = tuple(sorted(set(changed) & allowed)) if reconciliation else ()
     if repairs:
+        repair_context = {} if pr_context is None else {'pr_context': pr_context}
         attest_product_repair(api, repository, repository_id, pr, current_pr,
-                              base, parent, head, current_base, current_parent, head_sha, merge_sha)
+                              base, parent, head, current_base, current_parent, head_sha, merge_sha, **repair_context)
     unexpected = sorted(set(changed) - parent_delta - set(repairs))
     if unexpected:
         authorize_retired_paths(api, repository, config, unexpected, changed_documents,
@@ -427,6 +640,11 @@ def classify_event(event: dict, config: dict, api: GitHubApi) -> SyncRequest | N
         and item.get("previous_filename", item["filename"]).endswith(".md")
         for item in changed_documents
     )
+    if doc_only and isinstance(pr_context, EffectivePRContext):
+        _, before = recursive_tree(api, repository, current_base, error_type=GateError)
+        _, after = recursive_tree(api, repository, merge_sha, error_type=GateError)
+        doc_only = all(path not in inventory or (inventory[path]['mode'] == '100644' and inventory[path]['type'] == 'blob')
+                       for inventory in (before, after) for path in changed)
     tool_only = False
     package_enabled = package_checks.activated(event)
     bounded_projects = (tool_dependencies.affected_projects(list(changed), include_s3=True)
@@ -450,6 +668,8 @@ def classify_event(event: dict, config: dict, api: GitHubApi) -> SyncRequest | N
     profile = "documentation" if doc_only and not repairs else edge["differential"]
     if tool_only:
         profile = "tool-dependencies"
+    if isinstance(pr_context, EffectivePRContext) and effective_pr_context(event, api) != pr_context:
+        raise GateError('effective synchronization candidate changed during topology validation')
     return SyncRequest(
         repository=repository, repository_id=repository_id, number=number,
         base=base, base_sha=current_base, head=head, head_sha=head_sha,
@@ -458,6 +678,7 @@ def classify_event(event: dict, config: dict, api: GitHubApi) -> SyncRequest | N
         parent_sha=current_parent, profile=profile,
         changed_paths=changed, parent_changed_paths=tuple(sorted(parent_delta)),
         repair_paths=repairs,
+        event_base_sha=base_sha if isinstance(pr_context, EffectivePRContext) else None,
     )
 
 
@@ -492,7 +713,7 @@ def recursive_tree(api: GitHubApi, repository: str, commit_sha: str, error_type=
         raise error_type(str(error)) from error
 
 
-def validate_required_codeql_workflow(event: dict, api: GitHubApi, policy_root: Path = ROOT) -> bool:
+def validate_required_codeql_workflow(event: dict, api: GitHubApi, policy_root: Path = ROOT, *, pr_context=None) -> bool:
     """Protect result-verifier invocation before even an ordinary PR can pass.
 
     Activation and the finite approved workflow blobs belong to the trusted default
@@ -580,26 +801,38 @@ def validate_required_codeql_workflow(event: dict, api: GitHubApi, policy_root: 
             return value
 
     readonly = FixedForkReadOnly()
+    snapshot = base_sha
+    if pr_context is None and (branch_sha(readonly, repository, target) != snapshot
+            or os.environ.get('GITHUB_ACTIONS') == 'true'):
+        pr_context = effective_pr_context(event, api)
+    if pr_context is not None:
+        if not isinstance(pr_context, EffectivePRContext) or (pr_context.event_base, pr_context.head) != (snapshot, head_sha):
+            raise GateError('invalid independently resolved CodeQL base context')
+        base_sha = pr_context.base
 
     def fresh():
+        if pr_context is not None and effective_pr_context(event, api) != pr_context:
+            raise GateError('effective CodeQL base changed during verification')
         current = readonly.json(f'repos/{repository}/pulls/{number}')
         if (not isinstance(current, dict) or type(current.get('number')) is not int
                 or current['number'] != number or current.get('state') != 'open'):
             raise GateError('CodeQL result PR is closed or unavailable')
         for side, ref, revision in (('base', target, base_sha), ('head', head_ref, head_sha)):
             value = current.get(side)
-            if (not isinstance(value, dict) or value.get('ref') != ref or value.get('sha') != revision
+            if (not isinstance(value, dict) or value.get('ref') != ref
+                    or ((side == 'head' or pr_context is None) and value.get('sha') != revision)
                     or not isinstance(value.get('repo'), dict) or value['repo'].get('full_name') != repository
                     or value['repo'].get('id') != repository_id
                     or branch_sha(readonly, repository, ref) != revision):
                 raise GateError('CodeQL result PR or branch head changed')
         if current.get('mergeable') is False:
             raise GateError('CodeQL result PR has merge conflicts')
-        if current.get('mergeable') is None or current.get('merge_commit_sha') is None:
+        if current.get('mergeable') is None or (pr_context is None and current.get('merge_commit_sha') is None):
             return None
         if current.get('mergeable') is not True:
             raise GateError('CodeQL result mergeability is unknown')
-        candidate = validate_sha(current.get('merge_commit_sha'), 'current CodeQL candidate')
+        candidate = (pr_context.candidate if pr_context is not None
+                     else validate_sha(current.get('merge_commit_sha'), 'current CodeQL candidate'))
         if candidate == '0' * 40:
             raise GateError('invalid current CodeQL candidate')
         return candidate
@@ -1176,8 +1409,14 @@ def inspect(args: argparse.Namespace) -> int:
     config = load_config(args.config)
     event = json.loads(args.event.read_text(encoding="utf-8"))
     api = GitHubApi()
-    validate_required_codeql_workflow(event, api)
-    request = classify_event(event, config, api)
+    context = (effective_pr_context(event, api) if os.environ.get('GITHUB_ACTIONS') == 'true'
+               and os.environ.get('GITHUB_EVENT_NAME') == 'pull_request_target' else None)
+    if context is None:
+        validate_required_codeql_workflow(event, api)
+        request = classify_event(event, config, api)
+    else:
+        validate_required_codeql_workflow(event, api, pr_context=context)
+        request = classify_event(event, config, api, pr_context=context)
     if request is None:
         write_outputs(args.output, {"classification": "ordinary", "mode": "ordinary"})
         return 0

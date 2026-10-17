@@ -815,6 +815,18 @@ class FakeCodeScanningApi:
         if path.startswith('git/ref/'):
             ref = path[len('git/ref/'):]
             return {'ref': 'refs/' + ref, 'object': {'type': 'commit', 'sha': o.refs[ref]}}
+        if path.startswith('branches/'):
+            ref = path[len('branches/'):]
+            return {'name': ref, 'protected': True, 'commit': {'sha': o.refs['heads/' + ref]}}
+        if path.startswith('compare/'):
+            before, after = path[len('compare/'):].split('...')
+            ancestor = o.git('merge-base', before, after)
+            ahead = int(o.git('rev-list', '--count', before + '..' + after))
+            behind = int(o.git('rev-list', '--count', after + '..' + before))
+            return {'status': 'ahead' if ancestor == before and ahead else 'diverged',
+                    'base_commit': {'sha': before}, 'merge_base_commit': {'sha': ancestor},
+                    'ahead_by': ahead, 'behind_by': behind, 'total_commits': ahead,
+                    'commits': [{'sha': after}], 'files': []}
         if path == 'actions/runs/12/attempts/1/jobs':
             items = o.jobs
             count = len(items) if o.job_total is None else o.job_total
@@ -1441,6 +1453,97 @@ class SelectedResultTests(unittest.TestCase):
                 self.refs['heads/main'] = self.base
                 with self.assertRaisesRegex(RESULTS.ResultError, 'advanced'): self.verify()
 
+
+
+class EffectiveBaseResultTests(unittest.TestCase):
+    git = ImmutableRepositoryTests.git
+    write = ImmutableRepositoryTests.write
+    commit = ImmutableRepositoryTests.commit
+    verify = SelectedResultTests.verify
+
+    def setUp(self):
+        SelectedResultTests.setUp(self)
+        snapshot = self.base
+        self.git('checkout', '-q', '--detach', snapshot)
+        self.write('browser/main.ts', 'export const value = 2;\n')
+        live = self.commit()
+        self.write('tools/check.py', '# Only this Python input is newly changed\n')
+        self.head = self.commit()
+        tree = self.git('rev-parse', 'HEAD^{tree}')
+        self.candidate = self.git('commit-tree', tree, '-p', live, '-p', self.head, '-m', 'Current native merge')
+        self.git('checkout', '-q', '--detach', self.candidate)
+        self.live_base, self.snapshot = live, snapshot
+        self.pr['head']['sha'] = self.head
+        self.pr['merge_commit_sha'] = self.candidate
+        self.event['pull_request'] = deepcopy(self.pr)
+        self.env.update(GITHUB_SHA=self.candidate, GITHUB_WORKFLOW_SHA=self.candidate)
+        self.refs.update({'heads/main': live, 'heads/fix/main/example': self.head, 'pull/42/merge': self.candidate})
+        self.merge = {'sha': self.candidate, 'parents': [{'sha': live}, {'sha': self.head}]}
+        self.run['head_sha'] = self.head
+        for job in self.jobs: job['head_sha'] = self.head
+        self.analyses[0]['commit_sha'] = self.candidate
+        original = self.api
+        self.ancestry_valid = True
+        owner = self
+        class CurrentApi:
+            def json(self, endpoint):
+                prefix = RESULTS.PREFIX + '/'
+                path = endpoint.removeprefix(prefix)
+                if path == 'branches/main':
+                    return {'name': 'main', 'protected': True, 'commit': {'sha': owner.refs['heads/main']}}
+                if path.startswith('compare/'):
+                    return {'status': 'ahead' if owner.ancestry_valid else 'diverged',
+                            'base_commit': {'sha': snapshot}, 'merge_base_commit': {'sha': snapshot},
+                            'ahead_by': 1, 'behind_by': 0, 'total_commits': 1,
+                            'commits': [{'sha': live}], 'files': []}
+                if path == 'git/ref/heads/fix%2Fmain%2Fexample':
+                    return {'ref': 'refs/heads/fix/main/example', 'object': {'type': 'commit', 'sha': owner.head}}
+                return original.json(endpoint)
+        self.api = CurrentApi()
+
+    def test_native_cli_selects_live_parent_delta_without_reexecuting_integrated_javascript(self):
+        event_file = Path(self.temporary.name) / 'native-event.json'
+        event_file.write_text(json.dumps(self.event))
+        with patch.dict('os.environ', {**self.env, 'GITHUB_EVENT_PATH': str(event_file)}, clear=True):
+            actual = CODEQL.cli_repository_plan(self.root, self.snapshot, self.candidate, event='pull_request')
+        self.assertEqual(actual['languages'], ['python'])
+        self.assertEqual(actual['commits']['base'], self.live_base)
+        self.assertEqual(CODEQL.select_repository(self.root, self.snapshot, self.candidate)['languages'],
+                         ['javascript-typescript', 'python'])
+        # The hosted depth-two checkout genuinely lacks the older event object.
+        # Provisional planning still uses M.parent0; final API ancestry remains
+        # mandatory in the independent verifier below.
+        shallow = Path(self.temporary.name) / 'depth-two'
+        subprocess.run(['git', 'clone', '--quiet', '--no-local', '--depth=2', str(self.root), str(shallow)],
+                       check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        absent = subprocess.run(['git', 'cat-file', '-e', self.snapshot], cwd=shallow,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.assertNotEqual(absent.returncode, 0)
+        self.assertFalse((shallow / '.git/objects/info/alternates').exists())
+        with patch.dict('os.environ', {**self.env, 'GITHUB_EVENT_PATH': str(event_file)}, clear=True):
+            self.assertEqual(CODEQL.cli_repository_plan(shallow, self.snapshot, self.candidate, event='pull_request'), actual)
+        with patch.dict('os.environ', {}, clear=True):
+            self.assertEqual(CODEQL.cli_repository_plan(self.root, self.snapshot, self.candidate, event='pull_request'),
+                             CODEQL.select_repository(self.root, self.snapshot, self.candidate))
+
+    def test_final_native_verifier_rederives_live_base_and_rejects_nonancestor_snapshot(self):
+        self.assertEqual(self.verify()['languages'], ['python'])
+        self.pr['base']['sha'] = self.live_base
+        self.assertEqual(self.verify()['languages'], ['python'])
+        self.ancestry_valid = False
+        with self.assertRaises(RESULTS.ResultError): self.verify()
+
+    def test_native_provisional_context_and_final_language_claim_cannot_be_forged(self):
+        event_file = Path(self.temporary.name) / 'native-event.json'
+        event_file.write_text(json.dumps(self.event))
+        for key, value in (('GITHUB_SHA', self.head), ('GITHUB_WORKFLOW_SHA', self.head),
+                           ('GITHUB_REPOSITORY', 'elsewhere/overte'), ('GITHUB_EVENT_NAME', 'workflow_dispatch')):
+            env = {**self.env, 'GITHUB_EVENT_PATH': str(event_file), key: value}
+            with self.subTest(key=key), patch.dict('os.environ', env, clear=True):
+                with self.assertRaises(ValueError):
+                    CODEQL.cli_repository_plan(self.root, self.snapshot, self.candidate, event='pull_request')
+        self.env['CODEQL_EXPECTED_LANGUAGES'] = '["javascript-typescript","python"]'
+        with self.assertRaises(RESULTS.ResultError): self.verify()
 
 
 class ResultFailureDiagnosticsTests(unittest.TestCase):

@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 from urllib.parse import quote
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 POLICY = ".github/ios-host-orchestration.json"
@@ -352,7 +353,7 @@ def participates(candidate, revision, event, *, policy_root=ROOT):
     approved = generations(policy_root)["host-v1"][WORKFLOW]
     revisions = [revision]
     if event.get("pull_request") is not None:
-        revisions.append(event["pull_request"]["base"]["sha"])
+        revisions.append(context(event, candidate, revision)[0])
     return any(entries(inputs.read_snapshot(candidate, item)).get(WORKFLOW) == approved for item in revisions)
 
 
@@ -371,10 +372,12 @@ def context(event, candidate, source):
                     and type(item.get("repo", {}).get("id")) is int and item["repo"]["id"] == REPOSITORY_ID
                     and isinstance(item.get("sha"), str) and SHA.fullmatch(item["sha"]), "foreign iOS host PR source")
         require(pr["base"].get("ref") == "apple-ios", "iOS host target must be apple-ios")
-        base, head = pr["base"]["sha"], pr["head"]["sha"]
-        require(git(candidate, "show", "-s", "--format=%P", source).decode().split() == [base, head],
-                "iOS host candidate must merge the exact ordered event parents")
-        return base, head
+        checks = package_controller(ROOT).load("ios_host_candidate_context", "tools/repository-checks/check.py")
+        try:
+            resolved = checks.pr_candidate_context(candidate, event, source)
+        except ValueError as exc:
+            raise ValueError("iOS host candidate must merge the exact ordered event parents") from exc
+        return resolved["base"], resolved["head"]
     require(event.get("ref") in {"apple-ios", "refs/heads/apple-ios"}, "manual iOS host target must be apple-ios")
     return "", source
 
@@ -455,18 +458,17 @@ def fresh_context(event, candidate, source, *, policy_root=ROOT):
     prefix = "repos/" + REPOSITORY
     live = _api_get(prefix + "/pulls/" + str(number))
     require(type(live.get("number")) is int and live["number"] == number and live.get("state") == "open"
-            and live.get("merged") is False and live.get("merge_commit_sha") == source,
+            and live.get("merged") is False and live.get("merge_commit_sha") in (None,source),
             "iOS PR is closed or its current merge candidate changed")
-    for side, revision, name in (("base", base, "apple-ios"), ("head", head, branch)):
-        value = live.get(side, {})
-        require(isinstance(value, dict) and value.get("ref") == name and value.get("sha") == revision
-                and isinstance(value.get("repo"), dict) and value["repo"].get("full_name") == REPOSITORY
-                and type(value["repo"].get("id")) is int and value["repo"]["id"] == REPOSITORY_ID,
-                "current iOS PR target, source or repository changed")
-        reference = _api_get(prefix + "/git/ref/heads/" + quote(name, safe=""))
-        require(reference.get("ref") == "refs/heads/" + name and isinstance(reference.get("object"), dict)
-                and reference["object"].get("type") == "commit"
-                and reference["object"].get("sha") == revision, "current iOS PR branch head changed")
+    guard_path = trusted_file(policy_root, "tools/test-evidence/source_admission.py")
+    spec = importlib.util.spec_from_file_location("ios_fresh_source_context", guard_path)
+    guard = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(guard)
+    api = SimpleNamespace(get=lambda endpoint: _api_get(prefix+"/"+endpoint))
+    merge = api.get("commits/refs/pull/"+str(number)+"/merge")
+    resolved = guard.resolve_pr_base(api, live, merge, pr)
+    require(resolved["source"] == source and resolved["base"] == base and resolved["head"] == head,
+            "current iOS PR protected base/head/candidate changed")
     return {"repository": REPOSITORY, "repositoryId": REPOSITORY_ID, "number": number,
             "baseRef": "apple-ios", "base": base, "headRef": branch, "head": head, "candidate": source}
 

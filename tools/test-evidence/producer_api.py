@@ -19,6 +19,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 import re
 import selectors
 import shutil
@@ -28,6 +29,7 @@ import time
 from urllib.parse import quote
 
 import producer as P
+import source_admission
 
 
 REPOSITORY = "noah-l-frank/overte"
@@ -449,7 +451,7 @@ class Adapter:
                 return values
         raise ApiError("merged PR association exceeds reviewed pagination bound")
 
-    def _introduced_pr(self, revision, now):
+    def _introduced_pr(self, revision, now, *, parents, target):
         """Classify every actual association; only its introducer supplies proof.
 
         Non-default commits may also be associated with open/downstream PRs.
@@ -462,6 +464,8 @@ class Adapter:
             require(isinstance(pr, dict) and all(key in pr for key in (
                 "id", "number", "state", "base", "head", "merged", "merge_commit_sha", "merged_at", "closed_at")),
                 "versioned full PR identity is unavailable")
+            introduces = pr["merge_commit_sha"] == revision
+            snapshots = []
             identity = {}
             for value in (summary, pr):
                 current = {"id": positive(value.get("id")), "number": positive(value.get("number")),
@@ -479,8 +483,21 @@ class Adapter:
                             "associated PR ref identity is unavailable")
                     current[side] = {"ref": ref, "sha": sha(branch.get("sha")),
                                      "repository_id": repo["id"], "repository": repo["full_name"]}
+                if introduces:
+                    require(current["base"]["ref"] == target and current["head"]["sha"] == parents[1],
+                            "introducing PR differs from normal integration parents/target")
+                    snapshots.append(current["base"]["sha"])
+                    # These are authority facts, not a rewrite of either raw
+                    # response. Snapshot SHAs are validated separately below.
+                    current["base"] = {key: value for key, value in current["base"].items() if key != "sha"}
                 require(not identity or identity == current, "associated PR summary/full identity differs")
                 identity = current
+            if introduces:
+                try:
+                    for snapshot in dict.fromkeys(snapshots):
+                        source_admission.validate_base_snapshot(SimpleNamespace(get=self._object), snapshot, parents[0])
+                except source_admission.SourceUnavailable as error:
+                    raise ApiError(str(error)) from error
             require(type(pr["merged"]) is bool, "associated PR merged state is unavailable")
             merge = pr["merge_commit_sha"]
             if merge is not None:
@@ -564,7 +581,7 @@ class Adapter:
                 and suite.get("app", {}).get("id") == app_id, "protected push check-suite/app mismatch")
         tree, parents = self._commit(revision)
         require(len(parents) == 2, "integrated source requires a normal two-parent PR merge")
-        pr, associations = self._introduced_pr(revision, now)
+        pr, associations = self._introduced_pr(revision, now, parents=parents, target=target)
         number = positive(pr["number"])
         merged = P._time(pr.get("merged_at"))
         require(merged <= P._time(pr.get("closed_at")) <= now
@@ -572,7 +589,7 @@ class Adapter:
                 "integrated PR/push chronology unavailable")
         binding = {"repository": REPOSITORY, "repository_id": 1319052603, "pull_request": number,
                    "head_repository_id": 1319052603, "base_ref": pr["base"].get("ref"),
-                   "base_sha": sha(pr["base"].get("sha")), "head_ref": pr["head"].get("ref"),
+                   "base_sha": parents[0], "head_ref": pr["head"].get("ref"),
                    "head_sha": sha(pr["head"].get("sha")), "merge_sha": revision,
                    "merge_tree": tree, "merge_parents": parents}
         P.validate_binding(binding)
@@ -598,21 +615,19 @@ class Adapter:
             repo = pr.get(side, {}).get("repo", {})
             require(repo.get("full_name") == REPOSITORY and repo.get("id") == 1319052603,
                     "foreign-head source-chain contract is not implemented")
-        base, head = sha(pr["base"].get("sha")), sha(pr["head"].get("sha"))
-        # Resolve the live synthetic merge without relying on the PR payload's
-        # merge_commit_sha. Bind the result to independent immutable commit
-        # facts and current base/head refs before accepting its identity.
+        # The PR payload base SHA is a snapshot. Only M's actual first
+        # parent plus independent protected live target/head refs selects B.
         merge_commit = self._object(f"commits/refs/pull/{number}/merge")
-        merge = sha(merge_commit.get("sha"))
-        require(isinstance(merge_commit.get("commit"), dict)
-                and isinstance(merge_commit.get("parents"), list)
-                and all(isinstance(parent, dict) for parent in merge_commit["parents"]),
-                "current PR merge commit is unavailable")
+        try:
+            resolved = source_admission.resolve_pr_base(SimpleNamespace(get=self._object), pr, merge_commit)
+        except source_admission.SourceUnavailable as error:
+            raise ApiError(str(error)) from error
+        base, head, merge = resolved['base'], resolved['head'], resolved['source']
         binding = {"repository": REPOSITORY, "repository_id": 1319052603, "pull_request": number,
-                   "head_repository_id": pr["head"]["repo"]["id"], "base_ref": pr["base"].get("ref"),
-                   "base_sha": base, "head_ref": pr["head"].get("ref"), "head_sha": head,
+                   "head_repository_id": pr["head"]["repo"]["id"], "base_ref": resolved['target'],
+                   "base_sha": base, "head_ref": resolved['head_ref'], "head_sha": head,
                    "merge_sha": merge, "merge_tree": "1" * 40, "merge_parents": [base, head]}
-        P.validate_binding(binding)  # Validate ref spellings before constructing endpoints.
+        P.validate_binding(binding)
         default = repository.get("default_branch")
         require(isinstance(default, str) and default, "current default branch unavailable")
         P.validate_binding({**binding, "head_ref": default})

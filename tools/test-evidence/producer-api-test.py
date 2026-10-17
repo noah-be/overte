@@ -69,6 +69,18 @@ class FakeApi:
         elif path == "commits/refs/pull/17/merge":
             result = {"sha": binding["merge_sha"], "commit": {"tree": {"sha": binding["merge_tree"]}},
                       "parents": [{"sha": sha} for sha in binding["merge_parents"]]}
+        elif path.startswith("branches/"):
+            target = unquote(path.removeprefix("branches/"))
+            require(target == binding["base_ref"])
+            result = {"name": target, "protected": True, "commit": {"sha": binding["base_sha"]}}
+        elif path.startswith("compare/"):
+            snapshot, effective = path.removeprefix("compare/").split("...")
+            require(effective == binding["base_sha"] and query == {"per_page": ["1"]})
+            known = snapshot in getattr(case, "base_ancestors", set())
+            result = {"status": "ahead" if known else "diverged", "ahead_by": 1,
+                      "behind_by": 0, "total_commits": 1, "commits": [{"sha": effective}], "files": [],
+                      "base_commit": {"sha": snapshot},
+                      "merge_base_commit": {"sha": snapshot if known else "f" * 40}}
         elif path.startswith("git/ref/"):
             ref = unquote(path[len("git/ref/"):])
             identities = {"heads/main": binding["base_sha"], "heads/" + binding["head_ref"]: binding["head_sha"]}
@@ -1449,6 +1461,155 @@ class IntegratedSourceTests(unittest.TestCase):
                 return result
             self.api.mutate = changed
             with self.subTest(mode=mode), self.assertRaises(P.ProtocolError): self.capture()
+
+
+class EffectiveBaseSnapshotTests(unittest.TestCase):
+    """Real adapter/ancestry checks distinguish mutable snapshots from authority."""
+    def setUp(self):
+        self.case = AdapterTests(methodName='runTest')
+        self.case.setUp()
+        self.case.base_ancestors = {'1' * 40, '2' * 40}
+
+    def test_current_snapshot_refresh_preserves_binding_native_proof_and_raw_observations(self):
+        seen, responses = [], []
+        def changed(endpoint, value):
+            if endpoint.endswith('/pulls/17'):
+                value['base']['sha'] = ('1' if len(seen) % 2 == 0 else '2') * 40
+                seen.append(value['base']['sha'])
+                responses.append((value, deepcopy(value)))
+            return value
+        self.case.api.mutate = changed
+        before = deepcopy(self.case.context)
+        snapshot = self.case.capture()
+        self.assertEqual(snapshot.binding, self.case.binding)
+        self.assertEqual(snapshot.references['base'], self.case.binding['base_sha'])
+        self.assertGreaterEqual(len(set(seen)), 2)
+        self.assertEqual(self.case.verify()['run_id'], 100)
+        self.assertEqual(self.case.context, before)
+        self.assertTrue(all(raw == original for raw, original in responses))
+        self.assertTrue(all('/compare/' + value + '...' + self.case.binding['base_sha'] + '?per_page=1'
+                            in ''.join(self.case.api.calls) for value in self.case.base_ancestors))
+
+    def test_effective_parent_never_replaces_protected_live_target_or_exact_head(self):
+        for mode in ('protection', 'branch', 'base-ref', 'head-ref', 'head-payload', 'parents'):
+            def changed(endpoint, value):
+                if endpoint.endswith('/pulls/17'):
+                    value['base']['sha'] = '1' * 40
+                    if mode == 'head-payload': value['head']['sha'] = 'f' * 40
+                elif endpoint.endswith('/branches/main'):
+                    if mode == 'protection': value['protected'] = False
+                    elif mode == 'branch': value['commit']['sha'] = 'f' * 40
+                elif mode == 'base-ref' and endpoint.endswith('/git/ref/heads/main'):
+                    value['object']['sha'] = 'f' * 40
+                elif mode == 'head-ref' and '/git/ref/heads/fix/' in endpoint:
+                    value['object']['sha'] = 'f' * 40
+                elif mode == 'parents' and endpoint.endswith('/commits/refs/pull/17/merge'):
+                    value['parents'].reverse()
+                return value
+            self.case.api.mutate = changed
+            with self.subTest(mode=mode), self.assertRaises(P.ProtocolError):
+                self.case.adapter.current(17)
+
+    def test_unknown_divergent_descendant_or_malformed_snapshot_is_not_an_authority(self):
+        for snapshot, relation in (('f' * 40, 'diverged'), ('e' * 40, 'behind'),
+                                   ('0' * 40, None), (None, None), ('../main', None)):
+            def changed(endpoint, value):
+                if endpoint.endswith('/pulls/17'): value['base']['sha'] = snapshot
+                elif '/compare/' in endpoint and relation == 'behind':
+                    value.update(status='behind', ahead_by=0, behind_by=1, total_commits=0, commits=[])
+                return value
+            self.case.api.mutate = changed
+            with self.subTest(snapshot=snapshot), self.assertRaises(P.ProtocolError):
+                self.case.adapter.current(17)
+
+    def test_snapshot_ancestry_cannot_hide_authoritative_change_at_final_read(self):
+        reads = 0
+        def changed(endpoint, value):
+            nonlocal reads
+            if endpoint.endswith('/pulls/17'):
+                reads += 1
+                value['base']['sha'] = ('1' if reads == 1 else '2') * 40
+                if reads > 1: value['head']['sha'] = 'f' * 40
+            return value
+        self.case.api.mutate = changed
+        with self.assertRaises(P.ProtocolError): self.case.capture()
+
+    def integrated(self):
+        value = IntegratedSourceTests(methodName='runTest')
+        value.setUp()
+        value.case.base_ancestors = set(self.case.base_ancestors)
+        return value
+
+    def test_normal_integration_uses_raw_first_parent_and_preserves_original_receipt(self):
+        value = self.integrated()
+        responses = []
+        def changed(endpoint, result):
+            if '/commits/' in endpoint and '/pulls?' in endpoint:
+                result[0]['base']['sha'] = '1' * 40
+            elif endpoint.endswith('/pulls/17'):
+                result['base']['sha'] = '2' * 40
+            if '/pulls?' in endpoint or endpoint.endswith('/pulls/17'):
+                responses.append((result, deepcopy(result)))
+            return result
+        value.api.mutate = changed
+        before = deepcopy(value.case.aggregate)
+        snapshot = value.capture()
+        self.assertEqual(snapshot.binding, value.case.binding)
+        self.assertEqual(snapshot.references['integration']['parents'], value.case.binding['merge_parents'])
+        self.assertNotIn('sha', snapshot.references['associated_prs'][0]['base'])
+        self.assertEqual(value.verify()['source_chain']['producer_commit'], value.case.binding['merge_sha'])
+        self.assertEqual(value.case.aggregate, before)
+        self.assertTrue(all(raw == original for raw, original in responses))
+        self.assertFalse(any('/git/ref/heads/' + value.case.binding['head_ref'] in endpoint
+                             or 'commits/refs/pull/' in endpoint for endpoint in value.api.calls))
+
+    def test_integrated_snapshot_refresh_is_separate_from_authority_bookends(self):
+        value = self.integrated()
+        reads = 0
+        def changed(endpoint, result):
+            nonlocal reads
+            if endpoint.endswith('/pulls/17'):
+                reads += 1
+                result['base']['sha'] = ('1' if reads % 2 else '2') * 40
+            return result
+        value.api.mutate = changed
+        self.assertEqual(value.verify()['run_id'], 100)
+        self.assertGreater(reads, 1)
+
+    def test_integrated_unknown_snapshot_head_and_nonintroducer_changes_still_deny(self):
+        for mode in ('unknown-base', 'head', 'nonintroducer'):
+            value = self.integrated()
+            if mode == 'nonintroducer': value.add_association()
+            def changed(endpoint, result):
+                if endpoint.endswith('/pulls/17'):
+                    if mode == 'unknown-base': result['base']['sha'] = 'f' * 40
+                    elif mode == 'head': result['head']['sha'] = 'f' * 40
+                elif mode == 'nonintroducer' and endpoint.endswith('/pulls/18'):
+                    result['base']['sha'] = '1' * 40
+                return result
+            value.api.mutate = changed
+            with self.subTest(mode=mode), self.assertRaises(P.ProtocolError): value.capture()
+
+    def test_event_snapshot_requires_real_ancestry_but_head_and_raw_event_stay_exact(self):
+        from types import SimpleNamespace
+        import producer_workflow as workflow
+        binding = self.case.binding
+        repository = {'id': 1319052603, 'full_name': A.REPOSITORY}
+        event = {'repository': repository, 'number': 17,
+                 'pull_request': {'number': 17, **{side: {'repo': deepcopy(repository),
+                     'ref': binding[side + '_ref'], 'sha': binding[side + '_sha']}
+                     for side in ('base', 'head')}}}
+        event['pull_request']['base']['sha'] = '1' * 40
+        original = deepcopy(event)
+        api = SimpleNamespace(get=self.case.adapter._object)
+        workflow._event_binding(event, binding, api=api)
+        self.assertEqual(event, original)
+        with self.assertRaises(workflow.host.Unavailable): workflow._event_binding(event, binding)
+        for side, sha in (('base', 'f' * 40), ('head', 'f' * 40)):
+            changed = deepcopy(event)
+            changed['pull_request'][side]['sha'] = sha
+            with self.subTest(side=side), self.assertRaises(workflow.host.Unavailable):
+                workflow._event_binding(changed, binding, api=api)
 
 
 class ReadOnlyBoundaryTests(unittest.TestCase):
