@@ -1275,6 +1275,14 @@ def protected_receipt(batch, context, cancelled, installed):
                 context['source_context'],root=ROOT)
         except (ci_profile.CIProfileError,OSError,ValueError) as error:
             raise PreExecutionUnavailable('original source projection cannot be retained') from error
+    if source is not None:
+        original = git_context(batch.snapshot)
+        host.require(original == context['git_context'], 'actual materialized Git context differs from immutable API source')
+        execution.validate_git_context(source['binding']['git_context'],
+            context['binding']['merge_sha'], context['binding']['merge_tree'])
+        if source['binding']['source'] != context['binding']['merge_sha'] \
+                or source['binding']['git_context'] != original:
+            raise execution.ExecutionError('retained source does not bind original materialized candidate before execution')
     options = {'preexecution_unavailable':PreExecutionUnavailable} if context.get('profile') == ci_profile.PROFILE else {}
     statuses, before, after = shared.check_batch(batch, context['registry'], cancelled, installed,
         names=context['plan']['owners']['shared-host']['suites'], admit=admit, **options)
@@ -1585,7 +1593,7 @@ def shared_execution(candidate, event, environment, adapter):
             _descriptor(context, adapter, run)
             projection = shared.project_policy(policy_path, shared.sources(), trusted_source=context['refs']['default'])
             binding = {'source': context['binding']['merge_sha'], 'run_id': context['run_id'], 'run_attempt': 1,
-                'profile': shared.PROFILE, 'snapshot': snapshot['digest'], 'git_context': snapshot['git_context'],
+                'profile': shared.PROFILE, 'snapshot': snapshot['digest'], 'git_context': git_context(snapshot),
                 'runtime_profile':context['profile'],'selection':context['selected'],
                 'profile_binding':context['profile_binding'],
                 'registry': execution.digest(context['registry']), 'prepared': installed, 'projection': execution.digest(projection),

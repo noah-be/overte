@@ -756,6 +756,128 @@ class HostSelectionTests(unittest.TestCase):
             'mode': '100644', 'type': 'blob', 'sha': 'b' * 40}
         self.assertEqual(set(self.selected([fixture], tree=drift)['suites']), self.all_names)
 
+    def test_exact_owned_inputs_keep_their_declared_host_and_workflow_owners(self):
+        expected = {
+            '.github/workflows/issue-intake.yml': {'workflow-contracts'},
+            'tests/device/contracts/chat/test_chat_qml.py': {'shared-script-behavior'},
+            'tests/device/contracts/snapshot/test_snapshot_qml.py': {'snapshot-qml', 'snapshot-native'},
+            'tests/device/contracts/snapshot/test_snapshot_native.py': {'snapshot-qml', 'snapshot-native'},
+        }
+        self.assertEqual({path: set(names) for path, names in HOST.REQUIRED_INPUT_OWNERS.items()}, expected)
+        for path, owners in expected.items():
+            previous = copy_git_tree(self.tree);previous[path]['sha'] = 'a' * 40
+            with self.subTest(path=path):
+                selected = self.selected([path], base_tree=previous)
+                self.assertEqual(set(selected['suites']), self.ci_quick | owners)
+                self.assertEqual(selected['full_host'], any(self.registry['suites'][name]['layer'] == 'host' for name in owners))
+                self.assertFalse(selected['include_platform'])
+                self.assertNotIn('device-control-plane-full', selected['suites'])
+                self.assertEqual(len(selected['suites']), len(set(selected['suites'])))
+
+    def test_hidden_owned_inputs_and_device_deltas_preserve_the_complete_owner_union(self):
+        expected = {
+            '.github/workflows/issue-intake.yml': {'workflow-contracts'},
+            'tests/device/contracts/chat/test_chat_qml.py': {'shared-script-behavior'},
+            'tests/device/contracts/snapshot/test_snapshot_qml.py': {'snapshot-qml', 'snapshot-native'},
+            'tests/device/contracts/snapshot/test_snapshot_native.py': {'snapshot-qml', 'snapshot-native'},
+        }
+        for path, owners in expected.items():
+            previous = copy_git_tree(self.tree);previous[path]['sha'] = 'b' * 40
+            with self.subTest(hidden=path):
+                selected = self.selected(['tests/branch-cleanup-test.py'], base_tree=previous)
+                self.assertEqual(set(selected['suites']), self.ci_quick | owners)
+                self.assertFalse(selected['include_platform'])
+        previous = copy_git_tree(self.tree)
+        paths = sorted(expected) + ['tests/device/self_tests/test_android_adapter.py']
+        for path in paths: previous[path]['sha'] = 'c' * 40
+        selected = self.selected(paths, base_tree=previous)
+        self.assertEqual(set(selected['suites']), self.ci_quick |
+                         {'shared-script-behavior', 'snapshot-qml', 'snapshot-native', 'device-control-plane-full'})
+        self.assertTrue(selected['full_host'])
+        self.assertFalse(selected['include_platform'])
+
+    def test_affected_subset_cannot_drop_an_independently_required_input_owner(self):
+        for path, owners in HOST.REQUIRED_INPUT_OWNERS.items():
+            previous = copy_git_tree(self.tree);previous[path]['sha'] = 'a' * 40
+            for omitted in owners:
+                mandatory = self.ci_quick | set(owners)
+                smaller = {'suites': sorted(mandatory - {omitted}),
+                    'full_host': False, 'include_platform': False, 'reason': 'protected-affected-dependencies'}
+                with self.subTest(path=path, omitted=omitted), \
+                        patch.object(HOST, 'affected_selection', return_value=smaller):
+                    selected = self.selected([path], base_tree=previous)
+                self.assertEqual(set(selected['suites']), mandatory)
+
+    def test_owned_inputs_reject_unknown_missing_modes_neighbors_and_reader_drift(self):
+        path = 'tests/device/contracts/chat/test_chat_qml.py'
+        for paths, options in (([path], {'unknown': True}),
+                ([path, 'tests/device/contracts/chat/test_chat_extra.py'], {}),
+                ([path, 'interface/src/Application.cpp'], {})):
+            with self.subTest(paths=paths, options=options):
+                self.assertEqual(set(self.selected(paths, base_tree=self.tree, **options)['suites']), self.all_names)
+        for side in ('base', 'candidate'):
+            for defect in ('missing', '100755', '120000', '160000'):
+                previous, candidate = copy_git_tree(self.tree), copy_git_tree(self.tree)
+                snapshot = previous if side == 'base' else candidate
+                if defect == 'missing': snapshot.pop(path)
+                else: snapshot[path] = {'mode': defect, 'type': 'commit' if defect == '160000' else 'blob', 'sha': 'a' * 40}
+                with self.subTest(side=side, defect=defect):
+                    self.assertEqual(set(self.selected(['tests/branch-cleanup-test.py'], tree=candidate,
+                        base_tree=previous)['suites']), self.all_names)
+        drift = copy_git_tree(self.tree)
+        drift['libraries/shared/src/unreviewed-contract-reader.cpp'] = {'mode': '100644', 'type': 'blob', 'sha': 'c' * 40}
+        self.assertEqual(set(self.selected([path], tree=drift, base_tree=self.tree)['suites']), self.all_names)
+        incomplete = deepcopy(self.registry);del incomplete['suites']['shared-script-behavior']
+        with patch.object(HOST.inputs, 'load_registry', return_value=incomplete), self.assertRaisesRegex(ValueError, 'mandatory input owner'):
+            self.selected([path], base_tree=self.tree)
+
+    def test_ios_unproved_fixture_readers_keep_device_for_direct_and_hidden_deltas(self):
+        paths = ('tests/device/contracts/chat/test_chat_qml.py',
+                 'tests/device/contracts/snapshot/test_snapshot_qml.py',
+                 'tests/device/contracts/snapshot/test_snapshot_native.py')
+        with patch.dict(HOST.REVIEWED_CHILD_PROGRAMS, {'apple-ios': HOST.program_digest(self.tree)}):
+            for path in paths:
+                previous = copy_git_tree(self.tree);previous[path]['sha'] = 'a' * 40
+                owners = set(HOST.REQUIRED_INPUT_OWNERS[path]) | {'device-control-plane-full'}
+                for hint in ([path], ['tests/branch-cleanup-test.py']):
+                    with self.subTest(path=path, hint=hint):
+                        selected = self.selected(hint, base_tree=previous, target='apple-ios')
+                        self.assertEqual(set(selected['suites']), self.ci_quick | owners)
+                        self.assertTrue(selected['full_host'])
+                        self.assertFalse(selected['include_platform'])
+                smaller = {'suites': sorted(self.ci_quick | (owners - {'device-control-plane-full'})),
+                    'full_host': True, 'include_platform': False, 'reason': 'protected-affected-dependencies'}
+                with self.subTest(omission=path), patch.object(HOST, 'affected_selection', return_value=smaller):
+                    selected = self.selected([path], base_tree=previous, target='apple-ios')
+                self.assertEqual(set(selected['suites']), self.ci_quick | owners)
+                self.assertIn('device-control-plane-full', HOST.required_input_owners(
+                    self.tree, [path], previous, target='apple-ios'))
+                self.assertNotIn('device-control-plane-full', HOST.required_input_owners(
+                    self.tree, [path], self.tree, target='apple-ios'))
+
+    def test_ios_fixture_fallback_does_not_broaden_workflow_or_proved_targets(self):
+        reviewed = {target: HOST.program_digest(self.tree) for target in HOST.REVIEWED_CHILD_PROGRAMS}
+        with patch.dict(HOST.REVIEWED_CHILD_PROGRAMS, reviewed):
+            path = '.github/workflows/issue-intake.yml'
+            previous = copy_git_tree(self.tree);previous[path]['sha'] = 'b' * 40
+            selected = self.selected([path], base_tree=previous, target='apple-ios')
+            self.assertEqual(set(selected['suites']), self.ci_quick)
+            self.assertFalse(selected['full_host'])
+            self.assertNotIn('device-control-plane-full', selected['suites'])
+            for target in ('main', 'apple-main', 'android-main', 'android-phone', 'android-vr', 'android-vr-pico'):
+                for path, owners in HOST.REQUIRED_INPUT_OWNERS.items():
+                    previous = copy_git_tree(self.tree);previous[path]['sha'] = 'c' * 40
+                    with self.subTest(target=target, path=path):
+                        selected = self.selected([path], base_tree=previous, target=target)
+                        self.assertEqual(set(selected['suites']), self.ci_quick | set(owners))
+                        self.assertNotIn('device-control-plane-full', selected['suites'])
+                        self.assertFalse(selected['include_platform'])
+            selected = self.selected(['tests/device/contracts/chat/test_chat_qml.py'],
+                                     base_tree=self.tree, target='apple-ios-unknown')
+            self.assertEqual(set(selected['suites']), self.all_names)
+            self.assertTrue(selected['full_host'])
+            self.assertTrue(selected['include_platform'])
+
     def test_qt_script_contracts_are_required_for_product_changes_and_omitted_for_ci_only(self):
         self.assertEqual(self.registry['suites']['shared-script-behavior']['layer'],'host')
         ci=self.selected(['tools/branch-cleanup/cleanup.py'])
