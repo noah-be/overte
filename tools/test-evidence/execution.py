@@ -44,7 +44,7 @@ def digest(value):
 
 def _git(candidate, *arguments):
     try:
-        return subprocess.check_output(["git", *arguments], cwd=candidate, text=True, stderr=subprocess.PIPE).strip()
+        return subprocess.check_output(["git", "--no-optional-locks", *arguments], cwd=candidate, text=True, stderr=subprocess.PIPE).strip()
     except (OSError, subprocess.CalledProcessError) as error:
         raise ExecutionError("candidate checkout identity cannot be verified") from error
 

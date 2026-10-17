@@ -779,6 +779,19 @@ owner and both reviewed application and own-host reader boundaries. Unknown neig
 files, mode changes and historical application reader drift still require the
 application build. This classification does not publish IPA or reuse evidence.
 
+The schema 2 iOS host policy also recognizes the exact reviewed
+`host-v1-compiler-data-v1` workflow tuple for the guarded compiler-data restore.
+The existing `legacy` and `host-v1` tuples retain their identities. Same-run
+host requirements and application input selection apply independently;
+registering a workflow tuple supplies no build or test result.
+
+The exact reviewed compiler-cache transition can omit the application build
+while retaining the mandatory iOS host checks. Subsequent independent CI and
+documentation changes can use the exact installed cache profile. Temporary
+comparison entries are normalized to the original reviewed reader boundaries;
+actual source identities and test inputs stay intact. Unknown cache bytes, modes,
+readers or mixed product changes retain the ordinary application gate.
+
 For those two ordinary lockfiles, a complete required JavaScript package owner
 also permits omission when dependency changes exceed the focused security-fix
 profiles. The full package checks must still succeed in the required repository
@@ -1342,6 +1355,39 @@ JUnit results or reusable evidence. These canonical recipes require the complete
 reviewed installation and hosted qualification; source-only preparation does
 not enable result reuse. The active source13 parent retains its historical Node
 setup until that installation.
+
+Protected candidate identity reads use `git --no-optional-locks` to preserve the
+private immutable index while retaining the complete snapshot verification.
+
+Under the current reviewed catalog and ownership policies, rare controller-source
+upgrades after installing generation 22 use governed maintenance: normally install
+complete generation 13 (`npm-consumers-sync-ci-v1`) on main and all six children,
+restore Android's six original owner/contract files, and preserve every required
+owner and platform profile. Upgrade controller source through the normal 13 checks,
+then obtain fresh native 22 qualification before reinstalling 22. This sequence
+does not authorize automatic downgrades, waive B/D source checks or mint E. Routine
+product PRs with unchanged controllers need no staging.
+
+Original evidence lookup on the four parent branches can traverse at most eight
+normal, exactly equal-tree integrations whose native PR and parent jobs prove
+that no tests executed. The lookup retains the original execution's base,
+candidate, default source, environment and expiry; the original merge time
+still bounds publication. Every hop and the current protected parent are
+independently authenticated. A failed, retried or execution-bearing newer run
+cannot expose an older passing result. Leaf branches retain their existing
+direct lookup; this is not transparent historical reuse on all seven branches.
+
+The canonical Documentation push owner on `main`, `android-phone`,
+`android-vr-pico` and `apple-ios` also supports the unchanged-tree route. Its
+early output only schedules a sparse candidate checkout. The trusted
+`postmerge.py --verify-empty --candidate <checkout>` entrypoint independently
+checks the complete raw candidate, current source and native Documentation job
+again before suppressing the three standalone documentation commands. It does
+not wait for a parallel parent/project job, capture an environment or publish
+test passes. The result remains `reusable: false`, `execution: null` and has no
+evidence authority. Missing initial proof keeps the existing documentation
+fallback; changed proof during final verification fails the owner. These source
+contracts still require actual native qualification before reuse is enabled.
 
 A partial parent run uploads its real JUnit results and a diagnostic
 `host-selection.json` with the exact candidate, package plan, selected and

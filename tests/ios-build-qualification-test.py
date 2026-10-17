@@ -725,6 +725,10 @@ class HostGenerationTests(unittest.TestCase):
             target.write_bytes((ROOT / relative).read_bytes())
         self.host = load("host")
         document = json.loads((self.trusted / self.host.POLICY).read_text())
+        # Existing historical cases use their own complete immutable schema-1
+        # source tuple, independently of later protected registrations.
+        document["schema"] = 1
+        document.pop("reviewedGenerations", None)
         document["activationTargets"] = ["apple-ios"]
         launcher = (ROOT / "tools/ios-build-qualification/fixtures/host-launcher-52f.sh").read_text()
         sources = {self.host.WORKFLOW: (ROOT / "tools/ios-build-qualification/workflow.yml").read_text(),
@@ -842,6 +846,205 @@ class HostGenerationTests(unittest.TestCase):
             self.host.route(event, self.root, source, policy_root=self.trusted)
         self.assertTrue(load("host").SOURCE_READY)
         self.assertEqual(json.loads((ROOT / self.host.POLICY).read_text())["activationTargets"], ["apple-ios"])
+
+    def compiler_data_policy(self):
+        """Explicit disposable reviewed tuple; never candidate policy authority."""
+        callee = "# Fixed disposable verified compiler-data client callee.\n"
+        oid = self.git("hash-object", "--stdin", data=callee.encode())
+        path = self.trusted / self.host.POLICY
+        document = json.loads(path.read_text())
+        row = self.host.generations(self.trusted)["host-v1"]
+        row = {name: dict(entry) for name, entry in row.items()}
+        row[".github/workflows/ios-integrated.yml"]["oid"] = oid
+        document["schema"] = 2
+        document["reviewedGenerations"] = {self.host.COMPILER_DATA_GENERATION: row}
+        path.write_text(json.dumps(document))
+        return callee, oid, document
+
+    def test_protected_compiler_data_registration_preserves_both_original_tuples(self):
+        approved = self.host.generations()
+        document = self.host.policy()
+        self.assertEqual(document["schema"], 2)
+        self.assertEqual(set(approved), {"legacy", "host-v1", "host-v1-compiler-data-v1"})
+        self.assertEqual(approved["legacy"], document["legacy"])
+        caller = self.git("hash-object", "--stdin", data=(ROOT / self.host.TEMPLATE).read_bytes())
+        original = {**document["legacy"], self.host.WORKFLOW: {"mode": "100644", "type": "blob", "oid": caller}}
+        self.assertEqual(approved["host-v1"], original)
+        self.assertEqual(self.host.COMPILER_DATA_CALLEE, "66892fd2b87b7aa4b0ffe8c12407fc5a7597db44")
+        self.assertEqual(approved[self.host.COMPILER_DATA_GENERATION], {
+            **original, ".github/workflows/ios-integrated.yml": {
+                "mode": "100644", "type": "blob", "oid": "66892fd2b87b7aa4b0ffe8c12407fc5a7597db44"}})
+
+    def test_preregistered_compiler_generation_retains_app_and_host_owners(self):
+        original = self.host.generations(self.trusted)
+        callee, oid, _ = self.compiler_data_policy()
+        with patch.object(self.host, "COMPILER_DATA_CALLEE", oid):
+            approved = self.host.generations(self.trusted)
+            self.assertEqual({name: approved[name] for name in original}, original)
+            self.assertEqual(self.host.resolve(self.root, self.legacy, policy_root=self.trusted)[0], "legacy")
+            self.assertEqual(self.host.resolve(self.root, self.base, policy_root=self.trusted)[0], "host-v1")
+            event, source = self.candidate({".github/workflows/ios-integrated.yml": callee})
+            self.assertEqual(self.host.resolve(self.root, source, policy_root=self.trusted)[0],
+                             self.host.COMPILER_DATA_GENERATION)
+            output = self.route(event, source)
+            self.assertEqual((output["required"], output["host_required"]), ("true", "true"))
+            self.assertEqual(self.verify(output, event, source), output)
+            for owner in ("host", "qt", "client"):
+                required = self.needs(output)
+                required[owner]["result"] = "skipped"
+                with self.subTest(owner=owner), self.assertRaises(ValueError):
+                    self.verify(output, event, source, required=required)
+            with patch.object(self.host, "SOURCE_READY", False), self.assertRaisesRegex(ValueError, "not qualified or activated"):
+                self.host.route(event, self.root, source, policy_root=self.trusted)
+
+    def test_compiler_generation_policy_rejects_unknown_partial_mixed_and_ambiguous_rows(self):
+        _, oid, valid = self.compiler_data_policy()
+        name = self.host.COMPILER_DATA_GENERATION
+        cases = []
+        def changed(label, edit):
+            value = json.loads(json.dumps(valid))
+            edit(value)
+            cases.append((label, value))
+        changed("schema-bool", lambda value: value.update(schema=True))
+        changed("schema-unknown", lambda value: value.update(schema=3))
+        changed("schema1-extra-row", lambda value: value.update(schema=1))
+        changed("missing-registration", lambda value: value.pop("reviewedGenerations"))
+        changed("unknown-name", lambda value: value["reviewedGenerations"].update(unknown=value["reviewedGenerations"][name]))
+        changed("partial", lambda value: value["reviewedGenerations"][name].pop("tests/requirements-host.txt"))
+        changed("wrong-mode", lambda value: value["reviewedGenerations"][name][".github/workflows/ios-integrated.yml"].update(mode="100755"))
+        changed("symlink", lambda value: value["reviewedGenerations"][name][".github/workflows/ios-integrated.yml"].update(mode="120000"))
+        changed("nonblob", lambda value: value["reviewedGenerations"][name][".github/workflows/ios-integrated.yml"].update(type="tree"))
+        changed("mixed-caller", lambda value: value["reviewedGenerations"][name].update({self.host.WORKFLOW: value["legacy"][self.host.WORKFLOW]}))
+        changed("foreign-callee", lambda value: value["reviewedGenerations"][name][".github/workflows/ios-integrated.yml"].update(oid="f" * 40))
+        changed("ambiguous-old-callee", lambda value: value["reviewedGenerations"][name].update({
+            ".github/workflows/ios-integrated.yml": value["legacy"][".github/workflows/ios-integrated.yml"]}))
+        with patch.object(self.host, "COMPILER_DATA_CALLEE", oid):
+            for label, value in cases:
+                with self.subTest(policy=label), self.assertRaises(ValueError):
+                    (self.trusted / self.host.POLICY).write_text(json.dumps(value))
+                    self.host.generations(self.trusted)
+
+    def test_compiler_generation_requires_all_six_exact_ordinary_candidate_entries(self):
+        callee, oid, _ = self.compiler_data_policy()
+        current = self.commit(self.base, {".github/workflows/ios-integrated.yml": callee})
+        with patch.object(self.host, "COMPILER_DATA_CALLEE", oid):
+            for path in sorted(self.host.PATHS):
+                for label, value in (("changed", "Unreviewed component\n"), ("missing", None),
+                                     ("symlink", ("120000", "other"))):
+                    revision = self.commit(current, {path: value})
+                    with self.subTest(path=path, mutation=label), self.assertRaisesRegex(ValueError, "complete reviewed generation"):
+                        self.host.resolve(self.root, revision, policy_root=self.trusted)
+
+    def test_schema2_preserves_exact_original_bootstrap_and_cannot_extend_it(self):
+        event, source = self.bootstrap_candidate()
+        inputs = CHECK.input_selector(self.trusted)
+        previous = inputs.read_snapshot(self.root, self.legacy)
+        current = inputs.read_snapshot(self.root, source)
+        head = inputs.read_snapshot(self.root, event["pull_request"]["head"]["sha"])
+        with patch.object(self.host, "BOOTSTRAP_REVIEWED_TREE", self.bootstrap_tree()):
+            original = self.host.workflow_bootstrap(self.root, previous, current, head, policy_root=self.trusted)
+            self.assertIsNotNone(original)
+            callee, oid, _ = self.compiler_data_policy()
+            with patch.object(self.host, "COMPILER_DATA_CALLEE", oid):
+                self.assertEqual(self.host.workflow_bootstrap(self.root, previous, current, head,
+                    policy_root=self.trusted), original)
+                self.assertEqual(set(original["generations"]), {"legacy", "host-v1"})
+                event, source = self.bootstrap_candidate({".github/workflows/ios-integrated.yml": callee})
+                self.assertIsNone(self.host.workflow_bootstrap(self.root, previous,
+                    inputs.read_snapshot(self.root, source),
+                    inputs.read_snapshot(self.root, event["pull_request"]["head"]["sha"]), policy_root=self.trusted))
+
+    def compiler_input_fixture(self):
+        """Pin complete old/new disposable source, with independently fixed anchors."""
+        callee, oid, _ = self.compiler_data_policy()
+        original, updated, changes = {}, {}, {}
+        old_sources = {}
+        for path, (mode, _) in self.host.COMPILER_DATA_ORIGINAL.items():
+            old = self.git("cat-file", "blob", self.base + ":" + path) + "\n" if path in self.host.PATHS \
+                else "# Original reviewed fixture: " + path + "\n"
+            new = callee if path == ".github/workflows/ios-integrated.yml" else "# Updated reviewed fixture: " + path + "\n"
+            original[path] = (mode, self.git("hash-object", "--stdin", data=old.encode()))
+            updated[path] = (mode, self.git("hash-object", "--stdin", data=new.encode()))
+            old_sources[path], changes[path] = (mode, old), (mode, new)
+        base = self.commit(self.base, old_sources)
+        inputs = self.host.selector(self.trusted)
+        snapshot = inputs.read_snapshot(self.root, base)
+        boundary = inputs.review_boundary(self.root, base)["boundary"]
+        path = self.trusted / "tools/ios-build-qualification/inputs.py"
+        path.write_text(path.read_text().replace(inputs.REVIEWED_BOUNDARY, boundary)
+                        + "\n# Exact compiler-data fixture reader anchor.\n")
+        replacement = patch.multiple(self.host, COMPILER_DATA_CALLEE=oid,
+            COMPILER_DATA_ORIGINAL=original, COMPILER_DATA_UPDATED=updated,
+            REVIEWED_CI_HOST_BOUNDARY=self.host.ci_host_boundary(snapshot))
+        replacement.start()
+        self.addCleanup(replacement.stop)
+        return base, changes
+
+    def test_exact_compiler_data_transition_skips_only_app_and_preserves_actual_sources(self):
+        base, changes = self.compiler_input_fixture()
+        event, source = self.candidate(changes, base=base)
+        inputs = self.host.selector(self.trusted)
+        previous = inputs.read_snapshot(self.root, base)
+        current = inputs.read_snapshot(self.root, source)
+        head = inputs.read_snapshot(self.root, event["pull_request"]["head"]["sha"])
+        actual = [self.host.entries(snapshot) for snapshot in (previous, current, head)]
+        self.assertTrue(inputs.candidate_plan(self.root, base, source)["requires_application_build"])
+        proof = self.host.compiler_data_selection(previous, current, head, policy_root=self.trusted)
+        self.assertEqual(proof["candidate"], {"revision": source, "tree": current.tree})
+        self.assertEqual(proof["base"], {"revision": base, "tree": previous.tree})
+        self.assertEqual(proof["changedPaths"], sorted(changes))
+        self.assertEqual([self.host.entries(snapshot) for snapshot in (previous, current, head)], actual)
+        output = self.route(event, source)
+        self.assertEqual((output["required"], output["host_required"], output["reason"]),
+                         ("false", "true", "reviewed-compiler-data-only-inputs"))
+        self.assertEqual(self.verify(output, event, source), output)
+        needs = self.needs(output);needs["host"]["result"] = "skipped"
+        with self.assertRaises(ValueError): self.verify(output, event, source, required=needs)
+
+    def test_installed_compiler_profile_preserves_ci_omission_but_keeps_guide_host_tests(self):
+        base, changes = self.compiler_input_fixture()
+        installed = self.commit(base, changes)
+        inputs = self.host.selector(self.trusted)
+        self.assertNotEqual(self.host.ci_host_boundary(inputs.read_snapshot(self.root, installed)),
+                            self.host.REVIEWED_CI_HOST_BOUNDARY)
+        for path, host_required in (("tools/test-evidence/source-admission-test.py", "false"),
+                ("docs/ios-fixture.md", "true"), ("docs/ios/SIGNING_AND_DEVICE_TESTS.md", "true")):
+            event, source = self.candidate({path: "# Independent reviewed update\n"}, base=installed)
+            output = self.route(event, source)
+            self.assertEqual((output["required"], output["host_required"]), ("false", host_required), path)
+            self.assertEqual(self.verify(output, event, source), output)
+            if host_required == "false":
+                self.assertIsNone(self.host.ci_host_omission(inputs.read_snapshot(self.root, installed),
+                    inputs.read_snapshot(self.root, source), policy_root=self.trusted))
+        manual = {"repository": {"full_name": CHECK.REPOSITORY, "id": CHECK.REPOSITORY_ID}, "ref": "apple-ios"}
+        self.assertEqual(self.route(manual, source)["required"], "true")
+
+    def test_compiler_selection_rejects_unreviewed_profiles_readers_modes_and_neighbors(self):
+        base, changes = self.compiler_input_fixture()
+        for path in sorted(changes):
+            for label, value in (("body", "# Unreviewed replacement\n"), ("missing", None),
+                                 ("alias", ("120000", "outside")),
+                                 ("mode", ("100644" if changes[path][0] == "100755" else "100755", changes[path][1]))):
+                event, source = self.candidate({**changes, path: value}, base=base)
+                with self.subTest(path=path, mutation=label):
+                    inputs = self.host.selector(self.trusted)
+                    self.assertIsNone(self.host.compiler_data_selection(inputs.read_snapshot(self.root, base),
+                        inputs.read_snapshot(self.root, source),
+                        inputs.read_snapshot(self.root, event["pull_request"]["head"]["sha"]), policy_root=self.trusted))
+        for extra in ({"ios/ci/qt-checkpoint-artifact-neighbor.py": "# Unknown reader\n"},
+                      {"CMakeLists.txt": "file(READ ios/ci/qt-checkpoint-artifact.py INPUT)\n"},
+                      {"browser-client/package-lock.json": "{}\n"}):
+            event, source = self.candidate({**changes, **extra}, base=base)
+            self.assertEqual((self.route(event, source)["required"], self.route(event, source)["host_required"]),
+                             ("true", "true"))
+        drift = self.commit(base, {"CMakeLists.txt": "# Historical product reader drift\n"})
+        event, source = self.candidate(changes, base=drift)
+        self.assertEqual(self.route(event, source)["required"], "true")
+        installed = self.commit(base, changes)
+        drift = self.commit(installed, {"CMakeLists.txt": "# Historical installed-profile reader drift\n"})
+        event, source = self.candidate({"tools/test-evidence/source-admission-test.py": "# Independent change\n"}, base=drift)
+        self.assertEqual((self.route(event, source)["required"], self.route(event, source)["host_required"]),
+                         ("true", "true"))
 
     def bootstrap_tree(self):
         return self.git("rev-parse", self.legacy + "^{tree}")

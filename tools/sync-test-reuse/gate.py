@@ -1245,7 +1245,17 @@ def native_parent_evidence(api, config, request, now=None):
         adapter = A.Adapter(api.native_producer_api(controller))
         child_binding, child_refs, local = _native_sync_context(controller, adapter, request)
         push_id, push_inventory = _native_parent_run(controller, adapter, request, now)
-        binding, references = adapter._integrated_current(push_id, 15368, now)
+        policy = controller.producer._host_policy()
+        workflows, helpers = controller.producer.metadata_generations(policy, root=ROOT)
+        metadata = None
+        if workflows is not None:
+            caller = adapter._object('actions/workflows/repository-checks.yml')
+            A.require(caller.get('path') == '.github/workflows/repository-checks.yml',
+                'retained original caller registration differs')
+            metadata = A.MetadataPolicy(A.positive(caller.get('id')), '.github/workflows/repository-checks.yml',
+                workflows, helpers)
+        origin = adapter.integrated_origin(push_id, 15368, metadata, now=now)
+        binding, references = origin.binding, origin.references
         A.require(binding['base_ref'] == request.parent and references['target'] == request.parent_sha
             and references['default'] == child_refs['default']
             and references['integration']['push_status'] == 'completed'
@@ -1253,7 +1263,6 @@ def native_parent_evidence(api, config, request, now=None):
             'native parent/default completed context changed')
         tree_sha, parent = controller.full_tree(adapter, request.parent_sha)
         _, previous = controller.full_tree(adapter, binding['base_sha'])
-        policy = controller.producer._host_policy()
         generation=policy.package_policy().validate_tree_wiring(parent)
         future=generation==controller.producer.PLATFORM_GENERATION
         parent_template=controller.producer.PLATFORM_PARENT_TEMPLATE if future else controller.TEMPLATE
@@ -1363,6 +1372,7 @@ def native_parent_evidence(api, config, request, now=None):
         final = _native_sync_context(controller, adapter, request)
         A.require(final == (child_binding, child_refs, local)
             and _native_parent_run(controller, adapter, request, clock()) == (push_id, push_inventory)
+            and adapter.integrated_origin(push_id, 15368, metadata, now=clock()) == origin
             and controller_check(policy, previous, parent, local, request.parent, ROOT) == source
             and controller.producer.retained_receipt_source(receipt,snapshot.binding,adapter,registry,selected,authority['run_id'],root=ROOT)==retained
             and controller.producer.platform_partition(policy,profile,registry,parent,previous,local,
