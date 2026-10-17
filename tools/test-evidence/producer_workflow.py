@@ -206,7 +206,7 @@ def reuse_source_profile(snapshot, adapter, api_policy, policy, registry, candid
     return profile,default
 
 
-def _event_binding(event, binding):
+def _event_binding(event, binding, *, api=None):
     repository = {'full_name': 'noah-l-frank/overte', 'id': 1319052603}
     host.require(isinstance(event, dict) and all(event.get('repository', {}).get(key) == value
                  for key, value in repository.items()), 'event repository differs from native producer')
@@ -215,10 +215,18 @@ def _event_binding(event, binding):
                  'event PR number differs from current candidate')
     for side in ('base', 'head'):
         branch = pr.get(side, {})
-        host.require(isinstance(branch, dict) and branch.get('sha') == binding[side + '_sha']
-                     and branch.get('ref') == binding[side + '_ref']
+        host.require(isinstance(branch, dict) and branch.get('ref') == binding[side + '_ref']
                      and all(branch.get('repo', {}).get(key) == value for key, value in repository.items()),
                      'event branch differs from independently read current candidate')
+        if side == 'head':
+            host.require(branch.get('sha') == binding['head_sha'],
+                         'event head differs from independently read current candidate')
+        elif branch.get('sha') != binding['base_sha']:
+            host.require(api is not None, 'event base snapshot requires independent ancestry proof')
+            try:
+                source_admission.validate_base_snapshot(api, branch.get('sha'), binding['base_sha'])
+            except source_admission.SourceUnavailable as error:
+                raise host.Unavailable(str(error)) from error
 
 
 def _native(environment):
@@ -804,7 +812,8 @@ def prepare(candidate, event, environment, adapter):
     binding, refs = adapter.current(number)
     host.require(binding['merge_sha'] == environment['GITHUB_SHA'] and binding['base_ref'] == environment.get('GITHUB_BASE_REF') in source_admission.TARGET_PROFILES
                  and binding['head_ref'] == environment.get('GITHUB_HEAD_REF'), 'current PR differs from native invocation')
-    _event_binding(event, binding)
+    from types import SimpleNamespace
+    _event_binding(event, binding, api=SimpleNamespace(get=lambda endpoint: adapter._object(endpoint)))
     host.require(execution.checkout_identity(ROOT)[0] == refs['default'] and refs['default_ref'] == 'main',
                  'trusted checkout differs from current protected default source')
     policy = _host_policy()

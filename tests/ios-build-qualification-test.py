@@ -718,7 +718,8 @@ class HostGenerationTests(unittest.TestCase):
         self.git("config", "user.email", "fixture@example.invalid")
         self.git("config", "user.name", "Offline source fixture")
         for relative in (".github/ios-build-qualification.json", ".github/ios-host-orchestration.json",
-                         "tools/ios-build-qualification/inputs.py", "tools/ios-build-qualification/host-workflow.yml"):
+                         "tools/ios-build-qualification/inputs.py", "tools/ios-build-qualification/host-workflow.yml",
+                         "tools/test-evidence/source_admission.py"):
             target = self.trusted / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes((ROOT / relative).read_bytes())
@@ -903,11 +904,14 @@ class HostGenerationTests(unittest.TestCase):
         event = copy.deepcopy(event);event["number"] = event["pull_request"]["number"] = 42
         prefix = "repos/" + CHECK.REPOSITORY
         live = {**copy.deepcopy(event["pull_request"]), "state": "open", "merged": False, "merge_commit_sha": source}
-        facts = {prefix + "/pulls/42": live}
-        for side in ("base", "head"):
-            item = event["pull_request"][side]
-            key = prefix + "/git/ref/heads/" + self.host.quote(item["ref"], safe="")
-            facts[key] = {"ref": "refs/heads/" + item["ref"], "object": {"type": "commit", "sha": item["sha"]}}
+        facts = {prefix + "/pulls/42": live,
+                 prefix + "/commits/refs/pull/42/merge": {"sha":source,"parents":[
+                     {"sha":event["pull_request"][side]["sha"]} for side in ("base","head")]}}
+        item=event["pull_request"]["base"]
+        facts[prefix+"/branches/apple-ios"]={"name":"apple-ios","protected":True,"commit":{"sha":item["sha"]}}
+        item=event["pull_request"]["head"]
+        key=prefix+"/git/ref/heads/"+self.host.quote(item["ref"],safe="")
+        facts[key]={"ref":"refs/heads/"+item["ref"],"object":{"type":"commit","sha":item["sha"]}}
         return event, facts
 
     def test_fresh_context_independently_reads_pr_and_both_current_branch_heads(self):
@@ -924,6 +928,29 @@ class HostGenerationTests(unittest.TestCase):
         self.assertEqual(observed["number"], 42)
         self.assertEqual(observed["baseRef"], "apple-ios")
 
+    def test_fresh_stale_snapshots_bind_current_ios_base_without_rewriting_observations(self):
+        event,source=self.bootstrap_candidate();event,facts=self.live_facts(event,source)
+        prefix="repos/"+CHECK.REPOSITORY
+        actual_base=event["pull_request"]["base"]["sha"]
+        snapshots=("1"*40,"2"*40)
+        event["pull_request"]["base"]["sha"]=snapshots[0]
+        facts[prefix+"/pulls/42"]["base"]["sha"]=snapshots[1]
+        for snapshot in snapshots:
+            facts[prefix+"/compare/"+snapshot+"..."+actual_base+"?per_page=1"]={"status":"ahead",
+                "ahead_by":40,"behind_by":0,"total_commits":40,"base_commit":{"sha":snapshot},
+                "merge_base_commit":{"sha":snapshot},"commits":[{"sha":"3"*40}],"files":[]}
+        native={"GITHUB_ACTIONS":"true","GITHUB_EVENT_NAME":"pull_request","GITHUB_REPOSITORY":CHECK.REPOSITORY,
+            "GITHUB_REPOSITORY_ID":str(CHECK.REPOSITORY_ID),"GITHUB_SHA":source,"GITHUB_WORKFLOW_SHA":source,
+            "GITHUB_REF":"refs/pull/42/merge","GITHUB_BASE_REF":"apple-ios","GITHUB_HEAD_REF":event["pull_request"]["head"]["ref"],
+            "GITHUB_WORKFLOW_REF":CHECK.REPOSITORY+"/.github/workflows/ios-build-qualification.yml@refs/pull/42/merge"}
+        original=copy.deepcopy(event)
+        with patch.dict(self.host.os.environ,native,clear=True),patch.object(self.host,"SOURCE_READY",True), \
+             patch.object(self.host,"_api_get",side_effect=lambda key:copy.deepcopy(facts[key])):
+            self.assertEqual(self.host.fresh_context(event,self.root,source,policy_root=self.trusted)["base"],actual_base)
+            self.assertEqual(event,original)
+            facts[prefix+"/compare/"+snapshots[0]+"..."+actual_base+"?per_page=1"]["merge_base_commit"]["sha"]="4"*40
+            with self.assertRaises(ValueError):self.host.fresh_context(event,self.root,source,policy_root=self.trusted)
+
     def test_stale_foreign_closed_or_unavailable_current_metadata_never_authorizes_bootstrap(self):
         event, source = self.bootstrap_candidate();event, facts = self.live_facts(event, source)
         pull = "repos/" + CHECK.REPOSITORY + "/pulls/42"
@@ -931,11 +958,11 @@ class HostGenerationTests(unittest.TestCase):
                      lambda f: f[pull].update(number=True), lambda f: f[pull].update(merge_commit_sha=SOURCE),
                      lambda f: f[pull]["base"].update(ref="main"), lambda f: f[pull]["base"].update(sha=SOURCE),
                      lambda f: f[pull]["head"]["repo"].update(id=1), lambda f: f[pull].update(head=[]),
-                     lambda f: f[next(k for k in f if k.endswith("apple-ios"))]["object"].update(sha=SOURCE),
+                     lambda f: f[next(k for k in f if k.endswith("apple-ios"))]["commit"].update(sha=SOURCE),
                      lambda f: f[list(f)[-1]]["object"].update(type="tag"))
         for mutate in mutations:
             changed = copy.deepcopy(facts);mutate(changed)
-            with patch.object(self.host, "SOURCE_READY", True), patch.object(self.host, "_api_get", side_effect=lambda key: changed[key]), self.assertRaises(ValueError):
+            with patch.object(self.host, "SOURCE_READY", True), patch.object(self.host, "_api_get", side_effect=lambda key: changed.get(key, {})), self.assertRaises(ValueError):
                 self.host.fresh_context(event, self.root, source, policy_root=self.trusted)
         with patch.object(self.host, "SOURCE_READY", True), patch.object(self.host, "_api_get", side_effect=ValueError("unavailable")), self.assertRaises(ValueError):
             self.host.fresh_context(event, self.root, source, policy_root=self.trusted)
@@ -949,7 +976,7 @@ class HostGenerationTests(unittest.TestCase):
               patch.object(self.host, "_api_get", side_effect=lambda key: copy.deepcopy(facts[key])) as api):
             with CHECK.fresh_host_candidate(event, self.root, source, policy_root=self.trusted):
                 pass
-            self.assertEqual(api.call_count, 6)
+            self.assertEqual(api.call_count, 8)
             with self.assertRaisesRegex(ValueError, "branch head changed"):
                 with CHECK.fresh_host_candidate(event, self.root, source, policy_root=self.trusted):
                     facts[list(facts)[-1]]["object"]["sha"] = SOURCE
@@ -1002,7 +1029,7 @@ class HostGenerationTests(unittest.TestCase):
                 def api(endpoint):
                     calls.append(endpoint)
                     value = copy.deepcopy(facts[endpoint])
-                    if changed and len(calls) == 4:
+                    if changed and endpoint.endswith("/pulls/42") and calls.count(endpoint) > 1:
                         value["merge_commit_sha"] = SOURCE
                     return value
                 with (patch.object(self.host, "SOURCE_READY", True), patch.object(self.host, "BOOTSTRAP_REVIEWED_TREE", self.bootstrap_tree()),
@@ -1014,7 +1041,7 @@ class HostGenerationTests(unittest.TestCase):
                     code = CHECK.main()
                 self.assertEqual(code, 1 if changed else 0, (action, calls))
                 self.assertEqual(output.exists(), not changed)
-                self.assertEqual(len(calls), 4 if changed else 6)
+                self.assertEqual(len(calls), 5 if changed else 8)
 
     def test_manual_cli_keeps_full_build_without_pr_api_and_rejects_another_target(self):
         event_file = self.trusted / "manual-event.json"
@@ -1098,6 +1125,29 @@ class HostGenerationTests(unittest.TestCase):
             for name in ("host", "qt", "client"):
                 needs = self.needs(output);needs[name]["result"] = "success"
                 with self.assertRaises(ValueError): self.verify(output, event, source, required=needs)
+
+    def test_exact_governance_document_omits_host_only_with_regular_reviewed_inputs(self):
+        document = "docs/BRANCH_GOVERNANCE.md"
+        base = self.commit(self.base, {document: "# Reviewed governance\n"})
+        inputs = self.host.selector(self.trusted)
+        previous = inputs.read_snapshot(self.root, base)
+        boundary = self.host.ci_host_boundary(previous)
+        with patch.object(self.host, "REVIEWED_CI_HOST_BOUNDARY", boundary):
+            event, source = self.candidate({document: "# Updated governance\n"}, base=base)
+            output = self.route(event, source)
+            self.assertEqual((output["required"], output["host_required"], output["reason"]),
+                             ("false", "false", "reviewed-ci-only-host-inputs"))
+            self.assertEqual(self.verify(output, event, source), output)
+            changes = ({document: ("100755", "# Unexpected executable document\n")},
+                       {document: ("120000", "BRANCH_WORKFLOW.md")},
+                       {"docs/BRANCH_GOVERNANCE-extra.md": "# Unknown neighboring document\n"},
+                       {document: "# Mixed governance edit\n",
+                        "ios/tests/dsym_fixture.py": "# Changed host reader\n"})
+            for change in changes:
+                with self.subTest(change=change):
+                    _, candidate = self.candidate(change, base=base)
+                    self.assertIsNone(self.host.ci_host_omission(
+                        previous, inputs.read_snapshot(self.root, candidate)))
 
     def test_exact_doctor_cli_omits_only_ios_host_work_and_preserves_reader_guards(self):
         inputs = self.host.selector(self.trusted)
