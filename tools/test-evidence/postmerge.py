@@ -726,12 +726,86 @@ def verify_metadata(event, environment, adapter, *, root=ROOT, clock=lambda: dat
         'original_protected_source':retained}
 
 
+def no_execution_context(event, environment, adapter, *, candidate=None, root=ROOT,
+                         clock=lambda: datetime.now(timezone.utc)):
+    """Authenticate unchanged push inputs, without an executor or original E.
+
+    Omitting candidate is allowed only for the early scheduling observation.
+    The fixed recipe and final aggregate repeat this with actual Git objects.
+    No successful/reused suite or reusable execution receipt is produced.
+    """
+    A.require(_source_qualified(), 'unchanged consumer source is unavailable')
+    source, run_id = _native(event, environment)
+    # Fast refusal only: ordinary pushes must not pay for a second complete
+    # source/native lookup. These two immutable IDs confer no skip authority.
+    source_tree, _ = adapter._commit(source)
+    previous_tree, _ = adapter._commit(A.sha(event.get('before')))
+    A.require(source_tree == previous_tree, 'current push has changed inputs')
+    binding, refs = adapter._integrated_current(run_id, 15368, clock())
+    target = binding['base_ref']
+    A.require(target in {'main','apple-main','android-main','android-vr'}
+        and refs['target'] == source == binding['merge_sha'] and refs['default_ref'] == 'main'
+        and event.get('before') == binding['base_sha']
+        and refs['integration']['workflow_path'] == '.github/workflows/parent-qualification.yml',
+        'unchanged parent has no current native source')
+    authority = default_authority(adapter, refs)
+    tree, current = full_tree(adapter, source)
+    before_tree, previous = full_tree(adapter, binding['base_sha'])
+    default_tree, local = full_tree(adapter, refs['default'])
+    A.require(tree == before_tree == binding['merge_tree'] == refs['integration']['tree']
+        and current == previous and execution.checkout_identity(root) == (refs['default'], default_tree)
+        and inputs.full_tree(root, refs['default']) == local,
+        'complete unchanged inputs or trusted source differ')
+    policy = producer._host_policy()
+    package = policy.package_policy()
+    A.require(package.validate_tree_wiring(current) == producer.PLATFORM_GENERATION
+        and current.get('.github/workflows/parent-qualification.yml') == local.get(producer.PLATFORM_PARENT_TEMPLATE)
+        and local.get(producer.PLATFORM_PARENT_TEMPLATE, {}).get('mode') == '100644',
+        'unchanged parent requires the complete fixed future recipe')
+    controller = integrated_controller_for_reuse(policy, previous, current, local, target, root)
+    if candidate is not None:
+        A.require(execution.checkout_identity(candidate) == (source, tree)
+            and inputs.full_tree(candidate, source) == current,
+            'unchanged parent candidate differs from complete native inventory')
+        plan = package.candidate_plan(candidate, event, source)
+        A.require(plan['host_mode'] == 'unchanged', 'unchanged parent plan is not independently empty')
+        package.verify_empty_plan(plan, candidate, event)
+        A.require(plan['verified_empty_delta']['tree'] == tree,
+            'raw unchanged proof differs from native tree')
+    return {'schema': 1, 'kind': 'protected-parent-no-execution-v1', 'authority': 'none',
+        'reusable': False, 'qualification': False, 'execution': None,
+        'executed_suites': [], 'reused_suites': [], 'binding': binding, 'refs': refs,
+        'controller': controller, 'default_authority': authority, 'tree': tree}
+
+
+def verify_no_execution(event, environment, adapter, *, candidate, root=ROOT,
+                        clock=lambda: datetime.now(timezone.utc)):
+    before = no_execution_context(event, environment, adapter, candidate=candidate, root=root, clock=clock)
+    context = {'run_id': int(environment['GITHUB_RUN_ID']), 'binding': before['binding'],
+        'refs': before['refs'], 'integration': before['refs']['integration']}
+    producer._push_platform_job(context, adapter, 'Common parent tests')
+    A.require(no_execution_context(event, environment, adapter, candidate=candidate, root=root, clock=clock) == before,
+        'unchanged parent source changed during verification')
+    return before
+
+
 def lookup(event, environment, adapter=None, *, root=ROOT, clock=lambda: datetime.now(timezone.utc)):
     """Pre-execution only: no failure is hidden by retrying an alternate executor."""
     try:
         if not _source_qualified():
             return {'reused': False, 'reason': 'protected-consumer-not-qualified'}
-        proof = verify_main(event, environment, adapter or A.Adapter(), root=root, clock=clock)
+        adapter = adapter or A.Adapter()
+        # This is scheduling only. Missing proof still takes the existing
+        # execution route; the final no-setup recipe must rederive raw equality.
+        try:
+            empty = no_execution_context(event, environment, adapter, root=root, clock=clock)
+        except (P.ProtocolError, inputs.InputError, execution.ExecutionError,
+                producer.PreExecutionUnavailable, OSError, subprocess.SubprocessError,
+                KeyError, TypeError, ValueError, AttributeError):
+            empty = None
+        if empty is not None:
+            return {'reused': False, 'no_execution': True, 'proof': empty}
+        proof = verify_main(event, environment, adapter, root=root, clock=clock)
         return {'reused': True, 'proof': proof}
     except (P.ProtocolError, attested.AttestedReuseUnavailable, inputs.InputError, execution.ExecutionError,
             sandbox.SandboxUnavailable, ci_profile.CIProfileError, runtime_ci.CIEnvironmentError,
@@ -745,6 +819,8 @@ def lookup(event, environment, adapter=None, *, root=ROOT, clock=lambda: datetim
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--report', type=Path, required=True)
+    parser.add_argument('--candidate', type=Path)
+    parser.add_argument('--verify-empty', action='store_true')
     args = parser.parse_args(argv)
     event = {}
     try:
@@ -755,12 +831,19 @@ def main(argv=None):
             event = json.loads(path.read_bytes(), object_pairs_hook=inputs._unique_object)
     except (P.ProtocolError, OSError, KeyError, TypeError, ValueError):
         event = {}  # The bounded lookup selects actual fallback without API proof.
-    result = lookup(event, os.environ)
+    if args.verify_empty:
+        A.require(args.candidate is not None, 'unchanged verification requires actual candidate objects')
+        result = {'reused': False, 'no_execution': True, 'proof': verify_no_execution(
+            event, os.environ, A.Adapter(), candidate=args.candidate)}
+    else:
+        result = lookup(event, os.environ)
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_bytes(P.canonical(result))
     with Path(os.environ['GITHUB_OUTPUT']).open('a') as output:
         output.write('shared_reused=' + str(result['reused']).lower() + '\n')
-        output.write('package_work=' + str(not result['reused'] or result['proof']['package_work']).lower() + '\n')
+        output.write('package_work=' + str(not result.get('no_execution', False)
+            and (not result['reused'] or result['proof']['package_work'])).lower() + '\n')
+        output.write('no_execution=' + str(result.get('no_execution', False)).lower() + '\n')
     return 0
 
 

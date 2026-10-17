@@ -310,6 +310,9 @@ def candidate_plan(candidate, event, sha, *, include_browser=False, include_cons
     selected = select(paths, regular, legacy_mode=legacy["mode"],
                       legacy_projects=legacy.get("tool_projects", "").split(",") if legacy.get("tool_projects") else (),
                       unknown=unknown, include_browser=include_browser or focused_browser)
+    empty = checks.verified_empty_candidate(candidate,event,sha) if not paths and not unknown else None
+    if empty is not None:
+        selected = {'host_mode':'unchanged','tool_projects':[],'package_set':[]}
     if consumers is not None:
         selected['package_set'] = [project for project in selected['package_set']
                                   if consumers['projects'][project]['profile'] != 'none']
@@ -319,6 +322,8 @@ def candidate_plan(candidate, event, sha, *, include_browser=False, include_cons
     result = {"schema": 1, "candidate": sha, "tree": _git(candidate, "rev-parse", "HEAD^{tree}"),
               "base": base, "head": head, "paths": paths, "regular": regular, "unknown": unknown,
               "policy": policy, **selected}
+    if empty is not None:
+        result['verified_empty_delta'] = empty
     result["plan"] = _digest(result)
     return result
 
@@ -358,7 +363,18 @@ def has_staged_caller(candidate):
                         for generation in workflow_generations()}
 
 
-def verify(needs, plan):
+def verify_empty_plan(plan, candidate, event):
+    """No route marker can replace fresh exact-candidate zero-work planning."""
+    if candidate is None or event is None or not isinstance(plan,dict) or plan.get('host_mode') != 'unchanged':
+        raise ValueError('unchanged route requires its immutable candidate and native event')
+    current = candidate_plan(candidate,event,plan.get('candidate'))
+    if current != plan or current.get('verified_empty_delta') is None:
+        raise ValueError('unchanged route differs from independently verified empty inputs')
+
+
+def verify(needs, plan, *, candidate=None, event=None):
+    if plan.get('host_mode') == 'unchanged':
+        verify_empty_plan(plan,candidate,event)
     if not isinstance(needs, dict) or set(needs) != {"route", "project-tests", "tool-dependencies", "package-checks"}:
         raise ValueError("incomplete required package project dependencies")
     if needs["route"].get("result") != "success" or needs["route"].get("outputs") != outputs(plan):
@@ -372,10 +388,12 @@ def verify(needs, plan):
             raise ValueError(f"{name}: selected package/host check did not succeed")
         if required and name != "project-tests" and job.get("outputs") != receipt(plan, name):
             raise ValueError(f"{name}: exact package execution receipt missing")
-    return receipt(plan)
+        if plan['host_mode']=='unchanged' and job.get('outputs') != {}:
+            raise ValueError(f"{name}: unchanged route requires exact empty unselected outputs")
+    return {} if plan['host_mode']=='unchanged' else receipt(plan)
 
 
-def verify_protected_route(needs, plan, candidate):
+def verify_protected_route(needs, plan, candidate, *, event=None):
     """Admit one fixed routing field from an actual complete protected recipe.
 
     The literal flag describes dispatch only. It grants no execution, receipt
@@ -392,7 +410,7 @@ def verify_protected_route(needs, plan, candidate):
         raise ValueError("protected route output differs from the reviewed producer contract")
     ordinary = {key:value for key,value in published.items() if key!='protected_full'}
     normalized = {**needs,'route':{**route,'outputs':ordinary}}
-    return verify(normalized,plan)
+    return verify(normalized,plan,candidate=candidate,event=event)
 
 
 def validate_wiring(candidate):
@@ -562,8 +580,8 @@ def main():
             result = execute(args.candidate, plan, args.lane)
         else:
             needs = json.loads(args.needs_json)
-            result = (verify_protected_route(needs,plan,args.candidate)
-                      if generation in _PROTECTED_ROUTE_GENERATIONS else verify(needs,plan))
+            result = (verify_protected_route(needs,plan,args.candidate,event=event)
+                      if generation in _PROTECTED_ROUTE_GENERATIONS else verify(needs,plan,candidate=args.candidate,event=event))
         with args.output.open("a") as output:
             output.write("".join(f"{key}={value}\n" for key, value in result.items()))
         print(json.dumps(result, sort_keys=True))
