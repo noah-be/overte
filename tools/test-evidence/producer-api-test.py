@@ -1083,6 +1083,160 @@ class IntegratedFakeApi(FakeApi):
         if not condition: self._unexpected(endpoint)
 
 
+class RetainedIntegratedFakeApi(IntegratedFakeApi):
+    """Complete finite native facts for normal unchanged first-parent hops."""
+    def __init__(self, case, count):
+        super().__init__(case)
+        self.details, self.commits, self.extra_runs, self.extra_jobs = {}, {}, {}, {}
+        self.by_head, self.pushes = {}, {}
+        self.tree = case.binding['merge_tree']
+        self.metadata = {**deepcopy(case.generation),
+            '.github/workflows/browser-client.yml': {'mode':'100644','type':'blob','sha':'b'*40},
+            A.METADATA_WORKFLOW: {'mode':'100644','type':'blob','sha':'c'*40}}
+        self.helper = {'mode':'100644','type':'blob','sha':'d'*40}
+        self.policy = A.MetadataPolicy(99, case.policy.caller_path,
+            {'protected-producer-original-default-v1': self.metadata},
+            {'protected-producer-original-default-v1': {A.METADATA_SOURCE:self.helper}})
+        self.commits[case.integrated] = (self.tree, case.binding['merge_parents'])
+        self.commits[case.binding['base_sha']] = ('e'*40, [])
+        self.maps = {self.tree:{**deepcopy(self.metadata),A.METADATA_SOURCE:deepcopy(self.helper),
+            'native.cpp':{'mode':'100644','type':'blob','sha':'f'*40}}}
+        self.hops = []
+        previous = case.integrated
+        for index in range(1, count+1):
+            number, push_id, ordinary_id = 17+index, 500+index, 700+index
+            revision = hashlib.sha1(f'normal unchanged integration {index}'.encode()).hexdigest()
+            head = hashlib.sha1(f'unchanged topic {index}'.encode()).hexdigest()
+            merge = hashlib.sha1(f'original unchanged candidate {index}'.encode()).hexdigest()
+            when = f'2026-10-15T10:04:{50+index:02}Z'
+            parents = [previous,head]
+            self.commits[revision] = self.commits[merge] = (self.tree,parents)
+            detail = {'id':number*100,'number':number,'state':'closed','merged':True,
+                'merge_commit_sha':revision,'merged_at':when,'closed_at':when,
+                'base':{'ref':case.binding['base_ref'],'sha':previous,
+                    'repo':{'id':1319052603,'full_name':A.REPOSITORY}},
+                'head':{'ref':f'task/main/unchanged-{index}','sha':head,
+                    'repo':{'id':1319052603,'full_name':A.REPOSITORY}}}
+            self.details[number] = detail
+            common = {'run_attempt':1,'repository':{'id':1319052603,'full_name':A.REPOSITORY},
+                'head_repository':{'id':1319052603,'full_name':A.REPOSITORY},
+                'status':'completed','conclusion':'success','updated_at':when}
+            ordinary = {**common,'id':ordinary_id,'workflow_id':99,'check_suite_id':ordinary_id+1000,
+                'event':'pull_request','path':case.policy.caller_path,'head_sha':head,
+                'head_branch':detail['head']['ref'],'display_title':A.ORDINARY_RUN_NAME,
+                'run_started_at':'2026-10-15T10:04:50Z','pull_requests':[],
+                'referenced_workflows':[{'path':A.REPOSITORY+'/'+A.METADATA_WORKFLOW+'@'+merge,
+                    'sha':merge,'ref':f'refs/pull/{number}/merge'}]}
+            push = {**common,'id':push_id,'workflow_id':350930890,'check_suite_id':push_id+1000,
+                'event':'push','path':'.github/workflows/parent-qualification.yml',
+                'head_sha':revision,'head_branch':case.binding['base_ref'],
+                'run_started_at':when,'referenced_workflows':[]}
+            self.extra_runs[ordinary_id],self.extra_runs[push_id] = ordinary,push
+            self.by_head[head] = [ordinary]
+            self.pushes[revision] = [push]
+            expected={A.METADATA_JOB:'success','Select required repository checks':'success',
+                'native':'skipped','project':'skipped','android':'skipped',
+                'documentation / documentation':'success',
+                'workflow-security / Actionlint, Zizmor, and Gitleaks':'success',
+                'workflow-contracts':'success','repository-checks':'success'}
+            self.extra_jobs[ordinary_id] = self.jobs(ordinary,expected)
+            self.step(ordinary_id,A.METADATA_JOB,A.ORDINARY_SOURCE_STEP+' (diagnostics absent)')
+            self.step(ordinary_id,'repository-checks','Require all selected checks to succeed')
+            expected={'Plan current parent owners':'success' if case.binding['base_ref'] in {'android-main','android-vr'} else 'skipped',
+                'Common parent tests':'success','Android platform tests':'skipped','Qualify exact parent':'success'}
+            self.extra_jobs[push_id] = self.jobs(push,expected)
+            for name in ('Authenticate the protected base commitment before repository imports','Independently verify unchanged parent inputs'):
+                self.step(push_id,'Common parent tests',name)
+            for name in ('Execute common parent suites without claiming platform evidence','Run complete host qualification',
+                    'Run independently selected parent host contracts','Create content-addressed qualification evidence',
+                    'Upload immutable qualification evidence','Check only affected tool dependencies and behavior',
+                    'Check independently selected S3 package dependencies and behavior'):
+                self.step(push_id,'Common parent tests',name,'skipped')
+            for name in ('Require protected parent aggregate source admission','Require both actual parent owners'):
+                self.step(push_id,'Qualify exact parent',name)
+            self.hops.append({'revision':revision,'head':head,'candidate':merge,'number':number,
+                'ordinary':ordinary_id,'push':push_id,'previous':previous})
+            previous=revision
+        self.current = previous
+        self.default = previous
+        self.fallback_json = None
+        self.run_id = self.hops[-1]['push'] if self.hops else 500
+
+    def jobs(self, run, expected):
+        return [{'id':run['id']*100+index,'run_id':run['id'],'run_attempt':1,'head_sha':run['head_sha'],
+            'name':name,'status':'completed','conclusion':conclusion,'steps':[],
+            'started_at':run['run_started_at'],'completed_at':run['updated_at'],
+            'check_run_url':f"https://api.github.com/{A.PREFIX}/check-runs/{run['id']*100+index}"}
+            for index,(name,conclusion) in enumerate(expected.items(),1)]
+
+    def step(self, run_id, job, name, conclusion='success'):
+        row=next(value for value in self.extra_jobs[run_id] if value['name']==job)
+        row['steps'].append({'name':name,'status':'completed','conclusion':conclusion,
+            'started_at':row['started_at'],'completed_at':row['completed_at']})
+
+    def integrated_pr(self, number):
+        if number not in self.details:return super().integrated_pr(number)
+        endpoint=A.PREFIX+f'/pulls/{number}';self.calls.append(endpoint)
+        return self.mutate(endpoint,deepcopy(self.details[number]))
+
+    def immutable_tree(self, identity):
+        value={'sha':identity,'truncated':False,'tree':[{'path':name,**entry} for name,entry in self.maps[identity].items()]}
+        return self.mutate(A.PREFIX+'/git/trees/'+identity+'?recursive=1',deepcopy(value))
+
+    def fallback(self, endpoint):
+        return self.fallback_json(endpoint) if self.fallback_json is not None else super().json(endpoint)
+
+    def json(self, endpoint):
+        path=endpoint[len(A.PREFIX):].lstrip('/').split('?',1)[0]
+        query=parse_qs(urlsplit(endpoint).query)
+        if path == 'branches/'+self.case.binding['base_ref']:
+            result={'name':self.case.binding['base_ref'],'protected':True,'commit':{'sha':self.current}}
+        elif path.startswith('git/ref/heads/') and unquote(path[len('git/ref/'):]) in {'heads/main','heads/'+self.case.binding['base_ref']}:
+            ref=unquote(path[len('git/ref/'):]);self._require(ref in {'heads/main','heads/'+self.case.binding['base_ref']},endpoint)
+            result={'ref':'refs/'+ref,'object':{'type':'commit','sha':self.default if ref=='heads/main' else self.current}}
+        elif path.startswith('git/commits/') and path.rsplit('/',1)[1] in self.commits:
+            revision=path.rsplit('/',1)[1];tree,parents=self.commits[revision]
+            result={'sha':revision,'tree':{'sha':tree},'parents':[{'sha':value} for value in parents]}
+        elif path.startswith('commits/') and path.endswith('/pulls'):
+            revision=path.split('/')[1]
+            rows=[value for value in self.details.values() if value['merge_commit_sha']==revision]
+            if not rows:return self.fallback(endpoint)
+            result=[{key:deepcopy(value[key]) for key in ('id','number','state','base','head')} for value in rows]
+        elif path.startswith('git/trees/'):
+            identity=path.rsplit('/',1)[1]
+            ordinary=lambda name,sha:{'path':name,'mode':'040000','type':'tree','sha':sha}
+            nodes={'e'*40:[],self.tree:[ordinary('.github','1'*40),ordinary('tools','a'*40)],
+                '1'*40:[ordinary('workflows','2'*40)],
+                '2'*40:[{'path':name.rsplit('/',1)[1],**entry} for name,entry in self.metadata.items()],
+                'a'*40:[ordinary('repository-checks','b'*40)],
+                'b'*40:[{'path':'metadata_context.py',**self.helper}]}
+            if identity not in nodes:return self.fallback(endpoint)
+            result={'sha':identity,'truncated':False,'tree':nodes[identity]}
+        elif path=='actions/workflows/99/runs' and query.get('head_sha',[None])[0] in self.by_head:
+            self._require(set(query)=={'head_sha','per_page','page'},endpoint)
+            result=self.page(self.by_head[query['head_sha'][0]],'workflow_runs',query)
+        elif path=='actions/workflows/350930890/runs':
+            self._require(query.get('branch')==[self.case.binding['base_ref']] and query.get('event')==['push']
+                and query.get('head_sha',[None])[0] in self.pushes,endpoint)
+            result=self.page(self.pushes[query['head_sha'][0]],'workflow_runs',query)
+        elif path.startswith('actions/runs/') and int(path.split('/')[2]) in self.extra_runs:
+            identity=int(path.split('/')[2]);parts=path.split('/')
+            if len(parts)==3 or len(parts)==5 and parts[3]=='attempts':result=self.extra_runs[identity]
+            elif parts[-1]=='jobs':result=self.page(self.extra_jobs[identity],'jobs',query)
+            elif parts[-1]=='artifacts':result=self.page([],'artifacts',query)
+            else:self._unexpected(endpoint)
+        elif path.startswith('check-suites/') and any(row['check_suite_id']==int(path.rsplit('/',1)[1]) for row in self.extra_runs.values()):
+            run=next(row for row in self.extra_runs.values() if row['check_suite_id']==int(path.rsplit('/',1)[1]))
+            result={'id':run['check_suite_id'],'head_sha':run['head_sha'],'repository':{'id':1319052603,'full_name':A.REPOSITORY},'app':{'id':15368}}
+        elif path.startswith('check-runs/') and any(job['id']==int(path.rsplit('/',1)[1]) for jobs in self.extra_jobs.values() for job in jobs):
+            job=next(job for jobs in self.extra_jobs.values() for job in jobs if job['id']==int(path.rsplit('/',1)[1]))
+            run=self.extra_runs[job['run_id']]
+            result={'id':job['id'],'head_sha':job['head_sha'],'app':{'id':15368},'check_suite':{'id':run['check_suite_id']},
+                **{key:job[key] for key in ('name','status','conclusion','started_at','completed_at')}}
+        else:return self.fallback(endpoint)
+        self.calls.append(endpoint);return self.mutate(endpoint,deepcopy(result))
+
+
 class IntegratedSourceTests(unittest.TestCase):
     def setUp(self):
         self.case = AdapterTests(methodName="runTest")
@@ -1461,6 +1615,118 @@ class IntegratedSourceTests(unittest.TestCase):
                 return result
             self.api.mutate = changed
             with self.subTest(mode=mode), self.assertRaises(P.ProtocolError): self.capture()
+
+    def retained(self, count=1):
+        api = RetainedIntegratedFakeApi(self.case,count)
+        self.adapter = A.Adapter(api); self.api = api
+        self.case.policy = replace(self.case.policy,metadata_generations=api.policy.generations,metadata_sources=api.policy.sources)
+        return api
+
+    def test_one_and_two_validated_same_tree_hops_retain_original_candidate_E_and_expiry(self):
+        for count in (1,2):
+            with self.subTest(hops=count):
+                api=self.retained(count)
+                snapshot=self.adapter.capture_integrated(api.run_id,self.case.plan,self.case.policy,now=NOW)
+                result=self.adapter.verify_integrated(api.run_id,self.case.plan,self.case.policy,{'shared-host':self.case.context},clock=lambda:NOW)
+                self.assertEqual(snapshot.binding,self.case.binding)
+                self.assertEqual(result['integration']['commit'],api.current)
+                self.assertEqual(result['origin_integration']['commit'],self.case.integrated)
+                self.assertEqual(len(result['retained_no_execution_hops']),count)
+                self.assertEqual(result['source_chain']['producer_commit'],self.case.binding['merge_sha'])
+                self.assertEqual(result['qualified_at'],self.case.aggregate['qualified_at'])
+                self.assertEqual(result['expires_at'],self.case.aggregate['expires_at'])
+                self.assertNotIn('environment',result['retained_no_execution_hops'][0])
+
+    def test_same_tree_hops_never_pass_unknown_failed_or_changed_native_evidence(self):
+        original_run = deepcopy(self.case.runs[100])
+        for change in ('failed-pr','retry-pr','failed-push','retry-push','step','app','recipe','helper','tree','mode','parents','missing-pr','original-failed','original-retry','descriptor','publisher-hash','expiry','cap'):
+            with self.subTest(change=change):
+                self.case.runs[100] = deepcopy(original_run)
+                api=self.retained(9 if change=='cap' else 2);hop=api.hops[-1]
+                if change=='failed-pr':api.extra_runs[hop['ordinary']]['conclusion']='failure'
+                elif change=='retry-pr':api.extra_runs[hop['ordinary']]['run_attempt']=2
+                elif change=='failed-push':api.extra_runs[hop['push']]['conclusion']='failure'
+                elif change=='retry-push':api.extra_runs[hop['push']]['run_attempt']=2
+                elif change=='step':
+                    next(row for row in api.extra_jobs[hop['push']] if row['name']=='Common parent tests')['steps'][1]['conclusion']='skipped'
+                elif change=='app':
+                    api.mutate=lambda endpoint,value:{**value,'app':{'id':42}} if '/check-suites/' in endpoint else value
+                elif change in {'recipe','helper'}:
+                    def source_drift(endpoint,value):
+                        if endpoint.endswith('/git/trees/'+('2'*40 if change=='recipe' else 'b'*40)):
+                            value['tree'][0]['sha']='0'*40
+                        return value
+                    api.mutate=source_drift
+                elif change=='tree':api.commits[hop['previous']]=('e'*40,api.commits[hop['previous']][1])
+                elif change=='mode':api.maps[api.tree]['native.cpp']['mode']='120000'
+                elif change=='parents':api.commits[hop['revision']]=(api.tree,[hop['head'],hop['previous']])
+                elif change=='missing-pr':api.by_head[hop['head']]=[]
+                elif change=='original-failed':self.case.runs[100]['conclusion']='failure'
+                elif change=='original-retry':self.case.runs[100]['run_attempt']=2
+                elif change in {'descriptor','publisher-hash'}:
+                    def original_drift(endpoint,value):
+                        if change=='descriptor' and '/actions/runs/100/artifacts?' in endpoint:
+                            value['artifacts']=[row for row in value['artifacts'] if not row['name'].startswith('ci-descriptor-')]
+                            value['total_count']=len(value['artifacts'])
+                        if change=='publisher-hash' and '/actions/runs/100/attempts/1/jobs?' in endpoint:
+                            for job in value['jobs']:
+                                if job['name'].startswith(self.case.policy.final_publisher_prefix):
+                                    job['name']=self.case.policy.final_publisher_prefix+'0'*64
+                        return value
+                    api.mutate=original_drift
+                elif change=='expiry':
+                    api.mutate=lambda endpoint,value: ({**value,'expired':True} if '/actions/artifacts/' in endpoint else value)
+                with self.assertRaises((P.ProtocolError,KeyError)):
+                    self.adapter.verify_integrated(api.run_id,self.case.plan,self.case.policy,{'shared-host':self.case.context},clock=lambda:NOW)
+
+    def test_retained_chain_and_original_publication_cutoff_are_bookended(self):
+        api=self.retained(2);reads=0
+        def mutate(endpoint,value):
+            nonlocal reads
+            if '/actions/workflows/99/runs?head_sha='+api.hops[-1]['head'] in endpoint:
+                reads+=1
+            if reads>2 and '/check-suites/' in endpoint:
+                value['app']['id']=42
+            return value
+        api.mutate=mutate
+        with self.assertRaises(P.ProtocolError):
+            self.adapter.verify_integrated(api.run_id,self.case.plan,self.case.policy,{'shared-host':self.case.context},clock=lambda:NOW)
+        api=self.retained(1)
+        # The later unchanged merge cannot make late original evidence timely.
+        self.case.merged_at='2026-10-15T10:02:00Z'
+        with self.assertRaisesRegex(P.ProtocolError,'before integration'):
+            self.adapter.verify_integrated(api.run_id,self.case.plan,self.case.policy,{'shared-host':self.case.context},clock=lambda:NOW)
+
+    def test_leaf_original_lookup_never_invents_a_parent_no_execution_validation(self):
+        self.case.binding['base_ref']='apple-ios'
+        self.case.push.update(workflow_id=330551824,path='.github/workflows/project-tests.yml',head_branch='apple-ios')
+        api=self.retained(0)
+        with patch.object(self.adapter,'_origin_pr_inventory',side_effect=AssertionError('no parent-only hop on a leaf')):
+            value=self.adapter.integrated_origin(500,15368,api.policy,now=NOW)
+        self.assertEqual(value.binding['merge_sha'],self.case.integrated)
+        self.assertEqual(value.references['integration']['workflow_path'],'.github/workflows/project-tests.yml')
+        self.assertNotIn('retained_no_execution_hops',value.references)
+        self.assertNotIn('environment',value.references)
+
+    def test_newer_original_failure_or_retry_cannot_be_walked_past_through_empty_hops(self):
+        api=self.retained(2)
+        original=self.adapter.capture_integrated(api.run_id,self.case.plan,self.case.policy,now=NOW).observations[0].run
+        for status,conclusion,attempt in (('queued',None,1),('completed','failure',1),
+                ('completed','cancelled',1),('completed','success',2)):
+            later=replace(original,run_id=101,attempt=attempt,latest_attempt=attempt,status=status,conclusion=conclusion,
+                attempt_started_at='2026-10-15T10:01:00Z',publisher=None,owners={},final_publisher=None)
+            if attempt==1:
+                later=replace(later,publisher=replace(original.publisher,job_id=111,
+                    started_at='2026-10-15T10:01:00Z',completed_at='2026-10-15T10:01:30Z'))
+            self.case.add_run(later,descriptor=attempt==1)
+            try:
+                with self.subTest(status=status,attempt=attempt),self.assertRaises(P.ProtocolError):
+                    self.adapter.verify_integrated(api.run_id,self.case.plan,self.case.policy,{'shared-host':self.case.context},clock=lambda:NOW)
+            finally:
+                del self.case.runs[101];del self.case.jobs[101];del self.case.artifacts[101]
+
+
+
 
 
 class EffectiveBaseSnapshotTests(unittest.TestCase):
@@ -3537,6 +3803,134 @@ class UnchangedParentTests(unittest.TestCase):
         self.assertLess(steps.index(verify),steps.index(by_name['Set up Node.js']))
         self.assertIn("steps.route.outputs.package_host_mode != 'unchanged'",by_name['Set up Node.js']['if'])
         self.assertIn('false/false/true',by_name['Require an explicit reuse or actual-execution route']['run'])
+    def documentation_native(self, target='main'):
+        """Real Adapter + raw normal merge; original source closure is held above."""
+        from types import SimpleNamespace
+        C=self.C
+        path=self.candidate/C.A.DOCUMENTATION_PUSH_WORKFLOW
+        path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes((C.ROOT/C.A.DOCUMENTATION_PUSH_WORKFLOW).read_bytes())
+        canonical=self.candidate/C.producer.PLATFORM_PARENT_TEMPLATE
+        canonical.parent.mkdir(parents=True,exist_ok=True);canonical.write_bytes((C.ROOT/C.producer.PLATFORM_PARENT_TEMPLATE).read_bytes())
+        shared=(C.ROOT/C.source_admission.PROFILE).read_bytes()
+        profile=shared
+        if target in {'android-phone','android-vr-pico'}:
+            values=json.loads((C.ROOT/'.github/android-owner-transfer.json').read_bytes())['profiles'][target]['required_suites']
+            profile=(json.dumps({'schema':1,'platform':'android','suites':values},indent=2)+'\n').encode()
+        self.assertEqual(C.source_admission.blob_id(profile),C.source_admission.TARGET_PROFILES[target])
+        profile_path=self.candidate/C.source_admission.PROFILE
+        profile_path.parent.mkdir(parents=True,exist_ok=True);profile_path.write_bytes(profile)
+        self.git('add','.');self.git('commit','--allow-empty','-qm','Complete unchanged documentation fixture')
+        self.base=self.git('rev-parse','HEAD');self.tree=self.git('rev-parse','HEAD^{tree}')
+        head=self.git('commit-tree',self.tree,'-p',self.base,'-m','Retained documentation history')
+        self.source=self.git('commit-tree',self.tree,'-p',self.base,'-p',head,'-m','Normal unchanged documentation merge')
+        self.git('checkout','-q','--detach',self.source)
+        self.current=C.inputs.full_tree(self.candidate,self.source)
+        self.local=deepcopy(self.current)
+        self.default=self.source if target=='main' else 'd'*40
+        self.default_tree=self.tree if target=='main' else 'e'*40
+        if target!='main':self.local[C.source_admission.PROFILE]={'mode':'100644','type':'blob','sha':C.source_admission.blob_id(shared)}
+        self.event.update(ref='refs/heads/'+target,before=self.base,after=self.source)
+        self.native.update(GITHUB_REF='refs/heads/'+target,GITHUB_JOB='documentation-source',
+            GITHUB_SHA=self.source,GITHUB_WORKFLOW_SHA=self.source,
+            GITHUB_WORKFLOW_REF=A.REPOSITORY+'/'+A.DOCUMENTATION_PUSH_WORKFLOW+'@refs/heads/'+target)
+        self.attempt.update(id=500,workflow_id=77,check_suite_id=91,run_attempt=1,status='in_progress',conclusion=None,
+            path=A.DOCUMENTATION_PUSH_WORKFLOW,head_sha=self.source,head_branch=target,
+            repository={'id':1319052603,'full_name':A.REPOSITORY},head_repository={'id':1319052603,'full_name':A.REPOSITORY},
+            run_started_at='2026-10-15T10:00:01Z')
+        self.job={'id':9,'run_id':500,'run_attempt':1,'head_sha':self.source,
+            'name':'Authenticate original documentation owner','status':'in_progress','conclusion':None,
+            'started_at':'2026-10-15T10:00:01Z','completed_at':None,'steps':[],
+            'check_run_url':'https://api.github.com/'+A.PREFIX+'/check-runs/9'}
+        repo={'id':1319052603,'full_name':A.REPOSITORY}
+        pr={'id':1700,'number':17,'state':'closed','merged':True,'merge_commit_sha':self.source,
+            'merged_at':'2026-10-15T10:00:00Z','closed_at':'2026-10-15T10:00:00Z',
+            'base':{'ref':target,'sha':self.base,'repo':repo},
+            'head':{'ref':'task/main/documentation-history','sha':head,'repo':repo}}
+        outer=self
+        class API:
+            def __init__(self):self.calls=[];self.mutate=lambda endpoint,value:value
+            def json(self,endpoint):
+                self.calls.append(endpoint)
+                suffix=endpoint[len(A.PREFIX):].lstrip('/').split('?',1)[0]
+                if not suffix:value={**repo,'default_branch':'main'}
+                elif suffix in {'actions/runs/500','actions/runs/500/attempts/1'}:value=outer.attempt
+                elif suffix in {'actions/workflows/77','actions/workflows/documentation-push-owner.yml'}:
+                    value={'id':77,'path':A.DOCUMENTATION_PUSH_WORKFLOW,'state':'active'}
+                elif suffix.startswith('branches/'):
+                    branch=unquote(suffix[len('branches/'):]);outer.assertIn(branch,{'main',target})
+                    value={'name':branch,'protected':True,'commit':{'sha':outer.default if branch=='main' else outer.source}}
+                elif suffix.startswith('git/ref/heads/'):
+                    branch=unquote(suffix[len('git/ref/heads/'):]);outer.assertIn(branch,{'main',target})
+                    value={'ref':'refs/heads/'+branch,'object':{'type':'commit','sha':outer.default if branch=='main' else outer.source}}
+                elif suffix=='check-suites/91':value={'id':91,'head_sha':outer.source,'app':{'id':15368},'repository':repo}
+                elif suffix=='check-runs/9':value={'id':9,'head_sha':outer.source,'app':{'id':15368},'check_suite':{'id':91},
+                    **{key:outer.job[key] for key in ('name','status','conclusion','started_at','completed_at')}}
+                elif suffix=='actions/runs/500/attempts/1/jobs':value={'total_count':1,'jobs':[outer.job]}
+                elif suffix=='commits/'+outer.source+'/pulls':value=[{key:pr[key] for key in ('id','number','state','base','head')}]
+                elif suffix.startswith('git/commits/'):
+                    revision=suffix.rsplit('/',1)[1]
+                    if revision==outer.default and target!='main':tree,parents=outer.default_tree,[]
+                    else:
+                        tree=outer.git('rev-parse',revision+'^{tree}')
+                        parents=outer.git('show','-s','--format=%P',revision).split()
+                    value={'sha':revision,'tree':{'sha':tree},'parents':[{'sha':item} for item in parents]}
+                else:raise AssertionError('unexpected documentation fake native endpoint')
+                return self.mutate(endpoint,deepcopy(value))
+            def integrated_pr(self,number):
+                outer.assertEqual(number,17);self.calls.append(A.PREFIX+'/pulls/17')
+                return self.mutate(A.PREFIX+'/pulls/17',deepcopy(pr))
+            def immutable_tree(self,oid):
+                outer.assertIn(oid,{outer.tree,outer.default_tree})
+                value={'sha':oid,'truncated':False,'tree':[{'path':name,**entry} for name,entry in
+                    (outer.local if oid==outer.default_tree else outer.current).items()]}
+                return self.mutate(A.PREFIX+'/git/trees/'+oid+'?recursive=1',deepcopy(value))
+        api=API();self.adapter=A.Adapter(api)
+        return api
+
+    def test_documentation_four_native_targets_verify_raw_empty_without_original_E_or_primary_wait(self):
+        import os
+        for target in sorted(A.DOCUMENTATION_PUSH_BRANCHES):
+            with self.subTest(target=target):
+                api=self.documentation_native(target)
+                with patch.dict(os.environ,self.native,clear=True):
+                    scheduling=self.C.lookup(self.event,self.native,self.adapter,clock=lambda:NOW)
+                    result=self.C.verify_no_execution(self.event,self.native,self.adapter,candidate=self.candidate,clock=lambda:NOW)
+                self.assertFalse(scheduling['reused']);self.assertTrue(scheduling['no_execution'])
+                self.assertEqual(result,scheduling['proof']);self.assertEqual(result['authority'],'none')
+                self.assertFalse(result['reusable']);self.assertFalse(result['qualification'])
+                self.assertIsNone(result['execution']);self.assertEqual(result['executed_suites'],[])
+                self.assertEqual(result['reused_suites'],[]);self.assertNotIn('environment',result)
+                self.assertFalse(any('/actions/workflows/350930890/runs' in endpoint or '/actions/workflows/330551824/runs' in endpoint
+                    for endpoint in api.calls),'documentation must not wait for or reinterpret a parallel primary push')
+
+    def test_documentation_empty_native_and_complete_source_bookends_fail_closed(self):
+        import os
+        for kind in ('job','app','attempt','recipe','missing-member','raw-change','late-job','late-current'):
+            with self.subTest(kind=kind):
+                api=self.documentation_native();reads=0
+                if kind=='job':self.job['name']='Common parent tests'
+                elif kind=='attempt':self.attempt['run_attempt']=2
+                elif kind=='recipe':self.local[A.DOCUMENTATION_PUSH_WORKFLOW]['sha']='f'*40
+                elif kind=='raw-change':
+                    (self.candidate/'native.cpp').write_text('actual changed content\n')
+                    self.git('add','.');self.git('commit','-qm','Actual unmatched documentation candidate')
+                def mutate(endpoint,value):
+                    nonlocal reads
+                    if kind=='app' and '/check-suites/' in endpoint:value['app']['id']=42
+                    if kind=='missing-member' and '?recursive=1' in endpoint:
+                        value['tree']=[row for row in value['tree'] if row['path']!='native.cpp']
+                    if kind=='late-job' and '/check-runs/9' in endpoint:
+                        reads+=1
+                        if reads>1:value['conclusion']='success';value['status']='completed'
+                    if kind=='late-current' and '/git/ref/heads/main' in endpoint:
+                        reads+=1
+                        if reads>2:value['object']['sha']='f'*40
+                    return value
+                api.mutate=mutate
+                with patch.dict(os.environ,self.native,clear=True),self.assertRaises(ValueError):
+                    self.C.verify_no_execution(self.event,self.native,self.adapter,candidate=self.candidate,clock=lambda:NOW)
+
+
 
 
 if __name__ == "__main__":
