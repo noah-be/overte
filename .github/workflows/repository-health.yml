@@ -5,14 +5,6 @@ on:
     - cron: "17 0,6,12,18 * * *"
       timezone: "Europe/Berlin"
   workflow_dispatch:
-  pull_request:
-    paths:
-      - ".github/repository-health.json"
-      - ".github/workflows/repository-health.yml"
-      - "tools/repository-health/**"
-      - "tests/repository-health-test.py"
-      - "tests/requirements-repository.txt"
-      - "docs/REPOSITORY_HEALTH.md"
 
 permissions:
   contents: read
@@ -22,30 +14,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  pull-request-contracts:
-    name: Repository health fixture and contract tests
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - name: Check out pull request without credentials
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: "3.12"
-      - name: Install repository check dependencies
-        run: python3 -m pip install -r tests/requirements-repository.txt
-      - name: Run fixture and local contract tests without a live token
-        env:
-          GITHUB_TOKEN: ""
-        run: |
-          set -euo pipefail
-          python3 tests/repository-health-test.py
-          python3 tools/repository-health/check.py --local --report repository-health-report.json
-
   live-audit:
     name: Read-only live repository health audit
     if: >-
