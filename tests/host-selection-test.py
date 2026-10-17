@@ -712,6 +712,50 @@ class HostSelectionTests(unittest.TestCase):
                 self.assertFalse(plan['full_host'])
                 self.assertNotIn('device-control-plane-full',plan['suites'])
 
+    def test_eligibility_fixtures_keep_the_required_device_owner(self):
+        for path in ('tests/device/self_tests/test_android_adapter.py',
+                     'tests/device/self_tests/test_pico_property_eligibility.py'):
+            previous = copy_git_tree(self.tree)
+            previous[path]['sha'] = 'a' * 40
+            with self.subTest(path=path):
+                selected = self.selected([path], base_tree=previous)
+                self.assertEqual(set(selected['suites']), self.ci_quick | {'device-control-plane-full'})
+                self.assertTrue(selected['full_host'])
+                self.assertFalse(selected['include_platform'])
+
+    def test_hidden_device_input_changes_cannot_use_the_ci_only_route(self):
+        for path in ('tests/device/run_control_plane_tests.py',
+                     'tests/device/self_tests/test_android_adapter.py',
+                     'tests/device/self_tests/test_pico_property_eligibility.py'):
+            previous = copy_git_tree(self.tree)
+            previous[path]['sha'] = 'a' * 40
+            with self.subTest(path=path):
+                selected = self.selected(['tests/branch-cleanup-test.py'], base_tree=previous)
+                self.assertEqual(set(selected['suites']), self.ci_quick | {'device-control-plane-full'})
+                self.assertTrue(selected['full_host'])
+                self.assertFalse(selected['include_platform'])
+
+    def test_device_fixture_ownership_does_not_hide_unreviewed_inputs(self):
+        fixture = 'tests/device/self_tests/test_android_adapter.py'
+        adjacent = next(path for path in self.tree
+                        if path.startswith('tests/device/self_tests/test_')
+                        and path not in {fixture, 'tests/device/self_tests/test_pico_property_eligibility.py'})
+        for paths, options in (([adjacent], {}),
+                               ([fixture, 'libraries/shared/src/SharedUtil.cpp'], {}),
+                               ([fixture], {'unknown': True})):
+            with self.subTest(paths=paths, options=options):
+                self.assertEqual(set(self.selected(paths, **options)['suites']), self.all_names)
+        for mode in ('100755', '120000'):
+            candidate = copy_git_tree(self.tree)
+            candidate[fixture]['mode'] = mode
+            with self.subTest(mode=mode):
+                selected = self.selected([fixture], tree=candidate, base_tree=self.tree, regular=False)
+                self.assertEqual(set(selected['suites']), self.all_names)
+        drift = copy_git_tree(self.tree)
+        drift['libraries/shared/src/unreviewed-fixture-reader.cpp'] = {
+            'mode': '100644', 'type': 'blob', 'sha': 'b' * 40}
+        self.assertEqual(set(self.selected([fixture], tree=drift)['suites']), self.all_names)
+
     def test_qt_script_contracts_are_required_for_product_changes_and_omitted_for_ci_only(self):
         self.assertEqual(self.registry['suites']['shared-script-behavior']['layer'],'host')
         ci=self.selected(['tools/branch-cleanup/cleanup.py'])
