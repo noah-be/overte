@@ -1419,6 +1419,35 @@ class HostSelectionTests(unittest.TestCase):
         self.assertEqual(result,143)
         controller.run_suites.assert_called_once()
 
+    def test_cli_fail_fast_preserves_failure_partial_xml_and_all_success_coverage(self):
+        import xml.etree.ElementTree as ET
+        result, controller = self.cli()
+        self.assertEqual(result, 0)
+        actual = controller.run_suites.call_args.args[0]
+        self.assertTrue(actual.fail_fast)
+        self.assertEqual(actual.timeout, 240)
+        self.assertEqual(actual.host_timeout, 900)
+        runner = HOST.execution._runner()
+        for failing in (True, False):
+            with self.subTest(failing=failing), tempfile.TemporaryDirectory() as folder:
+                canary = Path(folder) / 'later-canary'
+                report = Path(folder) / 'partial.xml'
+                suites = [runner.Suite('early-pass','quick',(sys.executable,'-c','print("early pass")')),
+                    runner.Suite('selected-failure' if failing else 'middle-pass','quick',
+                        (sys.executable,'-c','import sys; print("controlled middle"); sys.exit('+('7' if failing else '0')+')')),
+                    runner.Suite('later-canary','quick',(sys.executable,'-c',
+                        'from pathlib import Path; Path('+repr(str(canary))+').write_text("executed")'))]
+                args = SimpleNamespace(**{**vars(actual),'junit':report})
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    status = runner.run_suites(args,suites,[])
+                self.assertEqual(status, 1 if failing else 0)
+                cases = ET.parse(report).getroot().findall('testcase')
+                self.assertEqual([case.get('name') for case in cases],
+                    ['early-pass','selected-failure'] if failing else ['early-pass','middle-pass','later-canary'])
+                self.assertEqual(sum(case.find('failure') is not None for case in cases), 1 if failing else 0)
+                self.assertTrue(all(case.find('skipped') is None for case in cases))
+                self.assertEqual(canary.exists(), not failing)
+
 
 if __name__=='__main__':
     unittest.main()

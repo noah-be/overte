@@ -287,7 +287,7 @@ def _source_policy(root, adapter, binding, references, native_value, protected, 
         catalog = json.loads(_git(root, 'show', 'HEAD:.github/package-workflow-generations.json'),
                              object_pairs_hook=source.unique)
         require(type(catalog) is dict and catalog.get('schema') == 1
-            and type(catalog.get('generations')) is list and len(catalog['generations']) <= 22,
+            and type(catalog.get('generations')) is list and len(catalog['generations']) <= 23,
             'scheduling trusted generation catalog unavailable')
         for row in catalog['generations']:
             entries = row.get('workflows', {})

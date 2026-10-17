@@ -609,7 +609,7 @@ def _current_source(candidate, event, sha, environment, adapter, policy_root):
     # B is authenticated data and may be a finite historical recipe on first
     # install. D alone supplies executable controllers; handoff checks B below.
     A.require(packages().validate_tree_wiring(before) in {
-        "npm-consumers-sync-ci-v1","android-owned-npm5-sync-ci-v1",CURRENT_SOURCE_GENERATION},
+        "npm-consumers-sync-ci-v1","npm-consumers-sync-ci-budget-v1","android-owned-npm5-sync-ci-v1",CURRENT_SOURCE_GENERATION},
         'current Android predecessor is not a finite protected recipe')
     A.require(validate_tree_wiring(current,policy_root=root)==CURRENT_SOURCE_GENERATION,
         'current Android owner requires the exact complete new generation')
@@ -767,7 +767,7 @@ def _source_generation(candidate,sha,policy_root):
     if type(value) is not dict or set(value)!={'schema','repository','generations'} or type(value['schema']) is not int \
             or value['schema']!=1 or value['repository']!={'full_name':REPOSITORY,'id':REPOSITORY_ID} \
             or type(value['repository'].get('id')) is not int \
-            or type(value['generations']) is not list or not 1<=len(value['generations'])<=22:
+            or type(value['generations']) is not list or not 1<=len(value['generations'])<=23:
         raise ValueError('Android source catalog is not the finite protected schema')
     four={'.github/workflows/'+name+'.yml' for name in ('project-tests','parent-qualification','sync-validation','repository-checks')}
     five=four|{'.github/workflows/browser-client.yml'};six=five|{'.github/workflows/pr-metadata-context.yml'}

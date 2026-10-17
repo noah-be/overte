@@ -43,6 +43,8 @@ REVIEWED_BOUNDARY = "sha256:8527f25d58c8ebf8eebab8a9e43517899b7afce2e511026d2873
 # its device-control-plane-full and project-runner owners remain independently required.
 # Independent required CI must still validate these files before any app waiver.
 INDEPENDENT_HOST_PATHS = frozenset({
+    # Linux-only shared Device launcher; its required Device owner is unchanged.
+    "tests/device/run_artifact_identity.py",
     # App-only negative dependencies. The iOS host launcher directly executes
     # the chat/Snapshot fixtures; admitting app omission never omits that host.
     '.github/workflows/issue-intake.yml',

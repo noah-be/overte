@@ -56,7 +56,7 @@ PROTECTED_GENERATIONS = (
 )
 METADATA_PRODUCER_GENERATIONS = PROTECTED_GENERATIONS[-3:]
 SELECTED_SYNC_GENERATIONS = (
-    'npm-consumers-sync-ci-v1', 'npm-consumers-metadata-edits-v1',
+    'npm-consumers-sync-ci-v1', 'npm-consumers-sync-ci-budget-v1', 'npm-consumers-metadata-edits-v1',
     'android-owned-npm5-sync-ci-v1', *PROTECTED_GENERATIONS,
 )
 
@@ -1153,6 +1153,18 @@ class ArchivedRefRetirementContracts(unittest.TestCase):
         self.assertEqual([len(batch) for batch in batches], [4, 4, 4, 1])
         self.assertEqual([source for batch in batches for source in batch], sources)
 
+def source13_budget_recipe():
+    raw = (ROOT / 'tools/repository-checks/workflows/host/project-tests.yml').read_bytes()
+    if hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest() != '8920a91e79c8e25c34c0afdeda610d71a625dde9':
+        raise AssertionError('historical source13 recipe must remain immutable')
+    raw = raw.replace(b'    timeout-minutes: 20\n', b'    timeout-minutes: 30\n').replace(
+        b'          qml-module-qttest qtdeclarative5-dev-tools',
+        b'          bubblewrap qml-module-qttest qtdeclarative5-dev-tools')
+    if hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest() != '2408b21e0e4e4c4426b23f5bfa5664502fd0214b':
+        raise AssertionError('budget source recipe requires its exact reviewed bytes')
+    return raw.decode('utf-8')
+
+
 def assert_reviewed_host_selection(case, source):
     """Accept the exact reviewed successor while retaining execution authority."""
     template = ROOT / 'tools/repository-checks/workflows/host/project-tests.yml'
@@ -1162,7 +1174,19 @@ def assert_reviewed_host_selection(case, source):
     android_owned = source == owned.read_text(encoding='utf-8')
     platform_owner = source == platform.read_text(encoding='utf-8')
     protected_owner = source == protected.read_text(encoding='utf-8') or platform_owner
-    if android_owned or protected_owner:
+    budget_owner = source == source13_budget_recipe()
+    if budget_owner:
+        spec = importlib.util.spec_from_file_location(
+            'budget_contract_packages', ROOT / 'tools/repository-checks/package_checks.py')
+        packages = importlib.util.module_from_spec(spec); spec.loader.exec_module(packages)
+        row = next(row for row in packages.workflow_generations()
+                   if row['name'] == 'npm-consumers-sync-ci-budget-v1')
+        raw = source.encode()
+        case.assertEqual(row['workflows']['.github/workflows/project-tests.yml'],
+            {'mode':'100644','type':'blob','sha':hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()})
+        if source == WORKFLOW.read_text(encoding='utf-8'):
+            case.assertEqual(reviewed_package_generation(), 'npm-consumers-sync-ci-budget-v1')
+    elif android_owned or protected_owner:
         # Historical staged templates retain their exact approved identities
         # when a newer complete generation becomes the deployed workflow.
         spec = importlib.util.spec_from_file_location(
@@ -1498,6 +1522,32 @@ class ProjectWorkflowContracts(unittest.TestCase):
         else:
             self.assertIn("--profile host --timeout 240 --host-timeout 900", self.source)
         self.assertIn("device-e2e-control-plane.xml", self.source)
+
+    def test_budget_source_recipe_keeps_commands_and_rejects_other_budget_or_setup_changes(self):
+        source = source13_budget_recipe()
+        assert_reviewed_host_selection(self, source)
+        jobs = workflow_data(source)['jobs']
+        self.assertEqual(jobs['project-tests']['timeout-minutes'], 30)
+        old = workflow_data((ROOT / 'tools/repository-checks/workflows/host/project-tests.yml').read_text())
+        old['jobs']['project-tests']['timeout-minutes'] = 30
+        new_apt = next(step for step in jobs['project-tests']['steps']
+                       if step['name'] == 'Install QML and portable C++ contract prerequisites')
+        old_apt = next(step for step in old['jobs']['project-tests']['steps']
+                       if step['name'] == 'Install QML and portable C++ contract prerequisites')
+        self.assertEqual(new_apt['if'], "steps.host.outputs.full_host == 'true'")
+        old_apt['run'] = old_apt['run'].replace('qml-module-qttest qtdeclarative5-dev-tools',
+                                              'bubblewrap qml-module-qttest qtdeclarative5-dev-tools')
+        self.assertEqual(jobs, old['jobs'])
+        for changed in (source.replace('timeout-minutes: 30','timeout-minutes: 31'),
+                        source.replace('bubblewrap qml-module-qttest','qml-module-qttest'),
+                        source.replace('bubblewrap qml-module-qttest','bubblewrap curl qml-module-qttest'),
+                        source.replace('host_selection.py','foreign_selection.py')):
+            with self.subTest(changed=changed[:100]), self.assertRaises(AssertionError):
+                assert_reviewed_host_selection(self, changed)
+        with mock.patch.object(sys.modules[__name__], 'WORKFLOW') as current, \
+             mock.patch.object(sys.modules[__name__], 'reviewed_package_generation',return_value='unknown-or-mixed-generation'):
+            current.read_text.return_value = source
+            with self.assertRaises(AssertionError): assert_reviewed_host_selection(self, source)
 
 
 class HostWorkflowRoutingContracts(unittest.TestCase):

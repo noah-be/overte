@@ -2185,6 +2185,58 @@ class PackageChecksTests(unittest.TestCase):
             if step.get('name') in ('Set up Python', 'Set up Java', 'Install QML and portable C++ contract prerequisites'):
                 self.assertEqual(step['if'], "steps.route.outputs.package_host_mode == 'full'")
 
+    def test_budget_source23_is_atomic_trusted_only_and_keeps_original22_immutable(self):
+        rows = PACKAGES.workflow_generations()
+        self.assertEqual(len(rows), 23)
+        historical = rows[:22]
+        self.assertEqual(hashlib.sha256(json.dumps(historical, sort_keys=True,
+            separators=(',', ':')).encode()).hexdigest(), 'f87a5456efacc646cb4647ed66e5460c9f995366a49f1c1470909b1aec746cd5')
+        source = next(row for row in rows if row['name'] == 'npm-consumers-sync-ci-v1')
+        budget = next(row for row in rows if row['name'] == 'npm-consumers-sync-ci-budget-v1')
+        self.assertEqual(set(budget['workflows']), set(PACKAGES.CONSUMER_WORKFLOW_PATHS))
+        changed = {path for path in source['workflows']
+                   if source['workflows'][path] != budget['workflows'][path]}
+        self.assertEqual(changed, {'.github/workflows/project-tests.yml'})
+        recipe = (ROOT / 'tools/repository-checks/workflows/host/project-tests.yml').read_bytes()
+        self.assertEqual(hashlib.sha1(b'blob '+str(len(recipe)).encode()+b'\0'+recipe).hexdigest(),
+                         '8920a91e79c8e25c34c0afdeda610d71a625dde9')
+        self.assertEqual(recipe.count(b'    timeout-minutes: 20\n'), 1)
+        self.assertEqual(recipe.count(b'          qml-module-qttest qtdeclarative5-dev-tools'), 1)
+        proposed = recipe.replace(b'    timeout-minutes: 20\n', b'    timeout-minutes: 30\n').replace(
+            b'          qml-module-qttest qtdeclarative5-dev-tools',
+            b'          bubblewrap qml-module-qttest qtdeclarative5-dev-tools')
+        self.assertEqual(budget['workflows']['.github/workflows/project-tests.yml'],
+            {'mode':'100644','type':'blob','sha':hashlib.sha1(
+                b'blob '+str(len(proposed)).encode()+b'\0'+proposed).hexdigest()})
+        self.assertEqual(PACKAGES.validate_tree_wiring(source['workflows']), 'npm-consumers-sync-ci-v1')
+        self.assertEqual(PACKAGES.validate_tree_wiring(budget['workflows']), 'npm-consumers-sync-ci-budget-v1')
+        old_policy = json.dumps({'schema':1,'repository':{'full_name':PACKAGES.REPOSITORY,
+            'id':PACKAGES.REPOSITORY_ID},'generations':historical}).encode()
+        with patch.object(PACKAGES, '_trusted_bytes', return_value=old_policy):
+            self.assertEqual(PACKAGES.validate_tree_wiring(source['workflows']), 'npm-consumers-sync-ci-v1')
+            with self.assertRaises(ValueError): PACKAGES.validate_tree_wiring(budget['workflows'])
+        for mutation in ('unknown-project','mixed-caller','missing','executable','symlink','submodule'):
+            tree = deepcopy(budget['workflows'])
+            if mutation == 'unknown-project': tree['.github/workflows/project-tests.yml']['sha'] = 'a'*40
+            elif mutation == 'mixed-caller': tree['.github/workflows/repository-checks.yml']['sha'] = 'b'*40
+            elif mutation == 'missing': del tree['.github/workflows/browser-client.yml']
+            elif mutation in ('executable','symlink'):
+                tree['.github/workflows/project-tests.yml']['mode'] = '100755' if mutation=='executable' else '120000'
+            else: tree['.github/workflows/project-tests.yml']['type'] = 'commit'
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                PACKAGES.validate_tree_wiring(tree)
+        original22 = rows[21]
+        self.assertEqual(original22['name'], 'protected-producer-original-default-v1')
+        self.assertEqual(original22['workflows']['.github/workflows/project-tests.yml']['sha'],
+                         'b540a1f26c3fbe2a60e7b7ecde91d814cfa0060c')
+        self.assertNotIn(budget['name'], PACKAGES._PROTECTED_ROUTE_GENERATIONS)
+        over = deepcopy(rows); extra = deepcopy(budget); extra['name'] = 'unreviewed-extra-budget'
+        extra['workflows']['.github/workflows/project-tests.yml']['sha'] = 'c'*40; over.append(extra)
+        raw = json.dumps({'schema':1,'repository':{'full_name':PACKAGES.REPOSITORY,
+            'id':PACKAGES.REPOSITORY_ID},'generations':over}).encode()
+        with patch.object(PACKAGES,'_trusted_bytes',return_value=raw), self.assertRaises(ValueError):
+            PACKAGES.workflow_generations()
+
 
 class NpmConsumerSelectionTests(unittest.TestCase):
     """Exercise source-bound decisions with actual immutable Git objects."""

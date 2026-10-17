@@ -392,7 +392,7 @@ class ShippingPolicyTests(unittest.TestCase):
         # Installed workflow authority changes only through a complete enrolled
         # tuple, exactly as shipping_context overlays the reviewed templates.
         generations=json.loads((root/'.github/package-workflow-generations.json').read_bytes())['generations']
-        accepted={'npm-consumers-sync-ci-v1','android-owned-npm5-sync-ci-v1',
+        accepted={'npm-consumers-sync-ci-v1','npm-consumers-sync-ci-budget-v1','android-owned-npm5-sync-ci-v1',
                   'protected-producer-original-default-v1'}
         matches=[row['workflows'] for row in generations if row['name'] in accepted
                  and all(source.get(path)==entry for path,entry in row['workflows'].items())]
@@ -437,7 +437,7 @@ class ShippingPolicyTests(unittest.TestCase):
         # the distinct approved preinstallation B; do not bind R to B instead S.
         generations=json.loads((root/'.github/package-workflow-generations.json').read_bytes())['generations']
         previous_rows=[row['workflows'] for row in generations if row['name'] in {
-            'npm-consumers-sync-ci-v1','android-owned-npm5-sync-ci-v1'}]
+            'npm-consumers-sync-ci-v1','npm-consumers-sync-ci-budget-v1','android-owned-npm5-sync-ci-v1'}]
         previous=next(row['workflows'] for row in generations if row['name']=='npm-consumers-sync-ci-v1')
         future=next((row['workflows'] for row in generations
             if row['name']=='protected-producer-original-default-v1'),None)

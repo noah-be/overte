@@ -142,7 +142,7 @@ def workflow_generations():
             or type(document["repository"].get("id")) is not int:
         raise ValueError("invalid trusted package workflow-generation policy")
     generations = document["generations"]
-    if not isinstance(generations, list) or not 1 <= len(generations) <= 22:
+    if not isinstance(generations, list) or not 1 <= len(generations) <= 23:
         raise ValueError("invalid trusted package workflow-generation inventory")
     names, tuples = set(), set()
     for generation in generations:

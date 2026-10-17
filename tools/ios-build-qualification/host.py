@@ -62,6 +62,8 @@ VARIANTS = ["complete-reviewed-launcher", "Qt6Core/Gui/Qml/Concurrent/WebChannel
 # test receipt, shared-owner handoff or application-build selection authority.
 REVIEWED_CI_HOST_BOUNDARY = "90da341e226f56b8dfb8b925af7c0273ecc41772ca424e3426b04c80acdb9a7b"
 CI_HOST_INDEPENDENT_PATHS = frozenset({
+    # Linux-only shared Device launcher; its required Device owner is unchanged.
+    "tests/device/run_artifact_identity.py",
     "tools/repository-health/check.py",
     '.github/workflows/documentation-checks.yml',
     '.github/workflows/workflow-security.yml',

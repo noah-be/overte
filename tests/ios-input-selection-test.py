@@ -116,6 +116,47 @@ class ImmutableInputTests(unittest.TestCase):
         self.assertNotEqual(plan["base"]["tree"], plan["candidate"]["tree"])
         json.dumps(plan, allow_nan=False)
 
+    def test_exact_artifact_identity_launcher_add_edit_delete_are_app_independent(self):
+        relative = "tests/device/run_artifact_identity.py"
+        self.write(relative, "raise RuntimeError('candidate helper must never execute')\n")
+        added = self.commit("Add the exact Linux shared Device launcher")
+        plan = self.assert_independent(added)
+        self.assertEqual([(change["path"], change["kind"]) for change in plan["changes"]],
+                         [(relative, "independent-host")])
+        self.write(relative, "raise RuntimeError('changed helper remains independently owned')\n")
+        changed = self.commit("Edit the exact Linux shared Device launcher")
+        self.assert_independent(changed, added)
+        (self.root / relative).unlink()
+        removed = self.commit("Remove the independently required Device launcher")
+        self.assert_independent(removed, changed)
+
+    def test_artifact_identity_launcher_exception_keeps_modes_neighbors_and_historical_readers(self):
+        relative = "tests/device/run_artifact_identity.py"
+        for mode in ("100755", "120000"):
+            with self.subTest(mode=mode):
+                self.git("checkout", "-q", "--detach", self.base)
+                self.write(relative, "# Unexpected launcher mode\n")
+                if mode == "120000":
+                    (self.root / relative).unlink()
+                    (self.root / relative).symlink_to("other.py")
+                else:
+                    (self.root / relative).chmod(0o755)
+                self.assertTrue(self.plan(self.commit("Reject unreviewed launcher mode"))["requires_application_build"])
+        for changes in ({"tests/device/run_artifact_identity_extra.py": "# Unknown neighbor\n"},
+                        {relative: "# Exact helper\n", "interface/src/main.cpp": "int main() { return 1; }\n"}):
+            with self.subTest(paths=sorted(changes)):
+                self.git("checkout", "-q", "--detach", self.base)
+                for path, content in changes.items():
+                    self.write(path, content)
+                self.assertTrue(self.plan(self.commit("Keep unknown and mixed product inputs required"))["requires_application_build"])
+        self.git("checkout", "-q", "--detach", self.base)
+        self.write("CMakeLists.txt", "project(InputFixture)\nfile(GLOB INPUTS tests/device/*.py)\n")
+        historical = self.commit("Introduce an unreviewed historical helper reader")
+        self.write(relative, "# A later helper edit cannot hide reader drift\n")
+        plan = self.plan(self.commit("Change helper after historical application reader drift"), historical)
+        self.assertTrue(plan["requires_application_build"])
+        self.assertEqual(plan["reason"], "reader-boundary-not-reviewed")
+
     def test_exact_doctor_cli_is_executable_ci_with_a_required_owner(self):
         relative = "tools/repository-health/check.py"
         self.write(relative, "raise RuntimeError('the iOS selector must not execute Doctor')\n")

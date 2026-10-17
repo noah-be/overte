@@ -348,7 +348,7 @@ def _protected_producer_transition(tree, paths, base_tree, trusted_tree, target)
         # The pre-sole-owner source recipe keeps the original Android owners
         # during source propagation. This exact installation still requires a
         # new full producer run; neither recipe grants execution evidence.
-        for name in ('npm-consumers-sync-ci-v1', 'android-owned-npm5-sync-ci-v1'):
+        for name in ('npm-consumers-sync-ci-v1', 'npm-consumers-sync-ci-budget-v1', 'android-owned-npm5-sync-ci-v1'):
             previous = generations.get(name, {})
             if set(previous) != consumers or set(producer) != set(policy.METADATA_WORKFLOW_PATHS) \
                     or {path for path in consumers | set(producer)
@@ -684,7 +684,7 @@ def main():
         try:
             with execution.candidate_process_environment():
                 status = package.run_suites(SimpleNamespace(timeout=240, host_timeout=900, native_build_dir=None,
-                                           junit=args.junit, fail_fast=False), suites, cancelled)
+                                           junit=args.junit, fail_fast=True), suites, cancelled)
         finally:
             for signum, handler in previous.items():
                 signal.signal(signum, handler)
