@@ -200,6 +200,15 @@ def sync_condition(legacy, selected, *, setup=False):
     """Admit selected conditions only with an exact complete reviewed caller."""
     if not selected_sync_recipe():
         return legacy
+    installed_empty = reviewed_package_generation() == 'protected-producer-original-default-v1'
+    if installed_empty:
+        # The extra lane belongs to installed22, never to an older caller just
+        # because a newer canonical recipe is staged beside it. Both complete
+        # endpoint maps must independently match the enrolled catalog row.
+        prospective_package_tree()
+        canonical = ROOT / 'tools/repository-checks/workflows/sync-ci-selection.yml'
+        if SYNC_VALIDATION_WORKFLOW.read_bytes() != canonical.read_bytes():
+            raise AssertionError('installed empty synchronization requires the exact canonical recipe')
     if setup:
         steps = workflow_data(SYNC_VALIDATION_WORKFLOW.read_text())['jobs']['validate']['steps']
         product = next(step for step in steps if step['name'] == 'Verify exact candidate suites and complete runtime identity')
@@ -208,6 +217,11 @@ def sync_condition(legacy, selected, *, setup=False):
             if product['env']['SYNC_VALIDATOR_PYTHON'] != expected or '--expected-native-setup "$EXPECTED_NATIVE_SETUP"' not in product['run']:
                 raise AssertionError('unreviewed no-setup interpreter or expected proof transport')
             selected = "(steps.select.outputs.consumer_setup != 'none' || steps.select.outputs.native_setup == '') && " + selected
+    if installed_empty:
+        if setup:
+            selected += " && !(steps.select.outputs.lane == 'verified-empty' && steps.select.outputs.consumer_setup == 'none' && steps.select.outputs.empty_setup != '')"
+        elif selected == "steps.select.outputs.lane != 'legacy-bounded'":
+            selected += " && steps.select.outputs.lane != 'verified-empty'"
     return selected
 
 
@@ -871,6 +885,40 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
             changed[relative]['sha'] = '0' * 40
             with self.subTest(path=relative), self.assertRaises(ValueError):
                 packages.validate_tree_wiring(changed)
+
+    def test_verified_empty_sync_conditions_require_the_complete_installed_generation(self):
+        packages, future = prospective_package_tree()
+        generation = reviewed_package_generation()
+        deployed = next(row['workflows'] for row in packages.workflow_generations()
+                        if row['name'] == generation)
+        self.assertEqual(packages.validate_tree_wiring(deployed), generation)
+        product = "steps.select.outputs.lane != 'legacy-bounded'"
+        setup = "steps.select.outputs.full_host == 'true'"
+        if generation == 'protected-producer-original-default-v1':
+            self.assertEqual(deployed, future)
+            self.assertEqual(SYNC_VALIDATION_WORKFLOW.read_bytes(),
+                (ROOT / 'tools/repository-checks/workflows/sync-ci-selection.yml').read_bytes())
+            product += " && steps.select.outputs.lane != 'verified-empty'"
+            setup = "(steps.select.outputs.consumer_setup != 'none' || steps.select.outputs.native_setup == '') && " + setup
+            setup += " && !(steps.select.outputs.lane == 'verified-empty' && steps.select.outputs.consumer_setup == 'none' && steps.select.outputs.empty_setup != '')"
+        else:
+            self.assertNotEqual(deployed['.github/workflows/sync-validation.yml'],
+                                future['.github/workflows/sync-validation.yml'])
+        self.assertEqual(sync_condition('legacy-product', "steps.select.outputs.lane != 'legacy-bounded'"), product)
+        self.assertEqual(sync_condition('legacy-setup', "steps.select.outputs.full_host == 'true'", setup=True), setup)
+        self.assertEqual(sync_condition('legacy-bounded', "steps.select.outputs.lane == 'legacy-bounded'"),
+                         "steps.select.outputs.lane == 'legacy-bounded'")
+        # A scheduling suffix grants no recipe authority: every future endpoint
+        # remains mandatory with its complete ordinary mode/type/hash identity.
+        for relative in future:
+            for change in ('foreign', 'mode', 'alias', 'missing'):
+                changed = {path: dict(entry) for path, entry in future.items()}
+                if change == 'foreign': changed[relative]['sha'] = '0' * 40
+                elif change == 'mode': changed[relative]['mode'] = '100755'
+                elif change == 'alias': changed[relative]['mode'] = '120000'
+                else: del changed[relative]
+                with self.subTest(path=relative, change=change), self.assertRaises(ValueError):
+                    packages.validate_tree_wiring(changed)
 
     def test_qualification_is_exact_push_only_and_bounded(self):
         source = PARENT_QUALIFICATION_WORKFLOW.read_text(encoding="utf-8")
