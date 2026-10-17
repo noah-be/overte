@@ -1521,6 +1521,14 @@ class EffectiveBaseTopologyTests(unittest.TestCase):
         for path in ('.github/workflows/sync-test-reuse.yml', '.github/workflows/sync-validation.yml', '.github/workflows/codeql.yml'):
             oid = subprocess.check_output(['git', 'rev-parse', self.default + ':' + path], cwd=gate.ROOT, text=True).strip()
             recipes.append(entry(path, oid))
+        companion = '.github/workflows/pr-metadata-context.yml'
+        row = subprocess.check_output(['git', 'ls-tree', self.default, '--', companion],
+                                      cwd=gate.ROOT).split()
+        if row:
+            self.assertEqual(row[:2], [b'100644', b'blob'])
+            self.assertEqual(len(row), 4)
+            self.assertEqual(row[3].decode(), companion)
+            recipes.append(entry(companion, row[2].decode()))
         for tree_id, doc_sha in ((CODEQL_BASE_TREE, BASE), (TREE, HEAD), (METADATA_WORKFLOW_BLOB, BASE)):
             put('git/trees/' + tree_id + '?recursive=1', {'sha': tree_id, 'truncated': False,
                 'tree': [*deepcopy(recipes), entry('docs/change.md', doc_sha)]})

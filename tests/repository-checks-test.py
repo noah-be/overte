@@ -578,6 +578,15 @@ class MetadataSchedulingBoundaryTests(unittest.TestCase):
                 'git/commits/'+default:{'sha':default,'tree':{'sha':default_tree}},
                 'git/trees/'+base_tree+'?recursive=1':{'sha':base_tree,'truncated':False,'tree':before},
                 'git/trees/'+default_tree+'?recursive=1':{'sha':default_tree,'truncated':False,'tree':entries}}
+            repository = {'full_name':'noah-l-frank/overte','id':1319052603}
+            responses.update({
+                'pulls/23':{'number':23,'state':'open',
+                    'base':{'ref':'android-main','sha':base,'repo':deepcopy(repository)},
+                    'head':{'ref':'fix/android/source-fixture','sha':'c'*40,'repo':deepcopy(repository)}},
+                'commits/refs/pull/23/merge':{'sha':'d'*40,
+                    'commit':{'tree':{'sha':'f'*40}},'parents':[{'sha':base},{'sha':'c'*40}]},
+                'git/ref/heads/fix%2Fandroid%2Fsource-fixture':{'ref':'refs/heads/fix/android/source-fixture',
+                    'object':{'type':'commit','sha':'c'*40}}})
             data = root/'responses.json'; data.write_text(json.dumps(responses))
             script = r"""
 import importlib.util,json,os,pathlib,sys,urllib.request
@@ -603,8 +612,8 @@ os.environ['GH_TOKEN']='fixed-fake-fixture-token'
 event={'action':'edited','number':23,'repository':{'full_name':m.REPOSITORY,'id':m.REPOSITORY_ID},
  'changes':{'title':{'from':'Old'}},'pull_request':{'number':23,'state':'open','title':'Current',
  'base':{'ref':'android-main','sha':'b'*40,'repo':{'full_name':m.REPOSITORY,'id':m.REPOSITORY_ID}},
- 'head':{'ref':'fix/android/source-fixture','sha':'c'*40}}}
-native={'base':'b'*40,'checkout':sys.argv[2]}
+ 'head':{'ref':'fix/android/source-fixture','sha':'c'*40,'repo':{'full_name':m.REPOSITORY,'id':m.REPOSITORY_ID}}}}
+native={'number':23,'base_snapshot':'b'*40,'head':'c'*40,'merge':'d'*40,'checkout':sys.argv[2]}
 try:
  value=m._protected_readers(event,{'GITHUB_EVENT_NAME':'pull_request','GITHUB_JOB':'recognize'},native,root)
  class Registration:
@@ -670,7 +679,7 @@ class NativeMetadataContextTests(unittest.TestCase):
         with patch.object(self.marker, 'SOURCE_READY', True):
             result = self.marker.native(self.event, self.environment, root=self.root)
         self.assertNotIn('qualification', result)
-        self.assertEqual(result['base'], self.base)
+        self.assertEqual(result['base_snapshot'], self.base)
         self.assertEqual(result['helper_blob'], self.git('rev-parse', 'HEAD:' + self.marker.SOURCE))
         for changes in ({'title': {'from': 'Old'}}, {'body': {'from': None}}, {'base': {}}):
             event_copy = deepcopy(self.event); event_copy['changes'] = changes

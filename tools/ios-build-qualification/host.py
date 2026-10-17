@@ -372,7 +372,10 @@ def context(event, candidate, source):
                     and type(item.get("repo", {}).get("id")) is int and item["repo"]["id"] == REPOSITORY_ID
                     and isinstance(item.get("sha"), str) and SHA.fullmatch(item["sha"]), "foreign iOS host PR source")
         require(pr["base"].get("ref") == "apple-ios", "iOS host target must be apple-ios")
-        checks = package_controller(ROOT).load("ios_host_candidate_context", "tools/repository-checks/check.py")
+        path = trusted_file(ROOT, "tools/repository-checks/check.py")
+        spec = importlib.util.spec_from_file_location("ios_host_candidate_context", path)
+        checks = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(checks)
         try:
             resolved = checks.pr_candidate_context(candidate, event, source)
         except ValueError as exc:

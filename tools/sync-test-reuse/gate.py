@@ -183,7 +183,7 @@ def _native_effective_role(api, event, live_base):
     if any(env.get(key) != value for key, value in {
             'GITHUB_ACTIONS': 'true', 'GITHUB_REPOSITORY': 'noah-l-frank/overte',
             'GITHUB_REPOSITORY_ID': '1319052603', 'GITHUB_RUN_ATTEMPT': '1'}.items()):
-        raise GateError('stale-base resolution needs an actual native synchronization role')
+        raise GateError('target snapshot drifted; stale-base resolution needs an actual native synchronization role')
     repo = 'noah-l-frank/overte'
     pr = event['pull_request']; target = pr['base']['ref']
     try:

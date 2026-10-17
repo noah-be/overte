@@ -1603,6 +1603,13 @@ class FakeMetadataCodeQLApi:
             value = c.repository
         elif path == 'actions/workflows/codeql.yml':
             value = {'id': 7, 'path': RESULTS.WORKFLOW, 'state': 'active'}
+        elif path == 'branches/main':
+            value = {'name': 'main', 'protected': True, 'commit': {'sha': c.default}}
+        elif path == 'compare/' + '9' * 40 + '...' + b['base_sha']:
+            assert query == {'per_page': ['1']}
+            value = {'status': 'ahead', 'base_commit': {'sha': '9' * 40},
+                     'merge_base_commit': {'sha': '9' * 40}, 'ahead_by': 1, 'behind_by': 0,
+                     'total_commits': 1, 'commits': [{'sha': b['base_sha']}], 'files': []}
         elif path == 'pulls/42':
             value = {'number': 42, 'state': 'open', **{side: {'ref': b[side + '_ref'],
                 'sha': b[side + '_sha'], 'repo': c.repository} for side in ('base', 'head')}}
@@ -1611,8 +1618,12 @@ class FakeMetadataCodeQLApi:
                      'parents': [{'sha': oid} for oid in b['merge_parents']]}
         elif path.startswith('git/ref/'):
             ref = path[len('git/ref/'):]
-            oid = c.default if ref == 'heads/main' else b['head_sha']
-            value = {'ref': 'refs/' + ref, 'object': {'type': 'commit', 'sha': oid}}
+            references = {'heads/main': ('refs/heads/main', c.default),
+                'heads/fix/main/example': ('refs/heads/fix/main/example', b['head_sha']),
+                'heads/fix%2Fmain%2Fexample': ('refs/heads/fix/main/example', b['head_sha'])}
+            assert ref in references, 'unexpected fixed native branch reference'
+            native_ref, oid = references[ref]
+            value = {'ref': native_ref, 'object': {'type': 'commit', 'sha': oid}}
         elif path.startswith('git/commits/'):
             oid = path.rsplit('/', 1)[1]
             assert oid in {b['base_sha'], b['merge_sha'], '8' * 40}
@@ -1691,7 +1702,7 @@ class MetadataResultTests(unittest.TestCase):
                                 ('pr-metadata-context.yml', self.workflows[self.A.METADATA_WORKFLOW])]})
         self.candidate_tree = deepcopy(self.base_tree)
         self.candidate_tree['tools/check.py'] = entry('b')
-        self.native = {'number': 42, 'base': 'a' * 40, 'head': 'b' * 40, 'merge': 'c' * 40,
+        self.native = {'number': 42, 'base_snapshot': 'a' * 40, 'head': 'b' * 40, 'merge': 'c' * 40,
                        'run_id': 13, 'helper_blob': 'f' * 40}
         self.marker = SimpleNamespace(SOURCE_READY=True, SOURCE=self.A.METADATA_SOURCE,
                                       native=lambda *a, **k: deepcopy(self.native))
@@ -1733,6 +1744,33 @@ class MetadataResultTests(unittest.TestCase):
                 patch.object(self.postmerge, '_source_qualified', return_value=True), \
                 patch.object(RESULTS.codeql.inputs, 'full_tree', return_value=deepcopy(self.base_tree)):
             return RESULTS.MetadataVerifier(ROOT, {}, self.env, api=self.api).verify(processing_seconds=0)
+
+    def test_native_snapshot_is_separate_from_live_B_and_nonancestor_or_legacy_field_refuses(self):
+        self.native['base_snapshot'] = '9' * 40
+        self.assertEqual(self.verify()['languages'], ['python'])
+        self.assertEqual(self.native['base_snapshot'], '9' * 40)
+        self.api.mutate = lambda endpoint, value: ({**value, 'status': 'diverged'}
+            if '/compare/' in endpoint else value)
+        with self.assertRaisesRegex(RESULTS.ResultError, 'base snapshot'): self.verify()
+        self.api.mutate = lambda endpoint, value: value
+        self.native['base'] = self.native.pop('base_snapshot')
+        with self.assertRaisesRegex(RESULTS.ResultError, 'base snapshot'): self.verify()
+
+    def test_current_protected_branch_and_exact_native_head_ref_remain_required(self):
+        for change in ('protection', 'base', 'head-ref', 'head-sha'):
+            def mutate(endpoint, value):
+                if endpoint.endswith('/branches/main'):
+                    if change == 'protection': value['protected'] = False
+                    elif change == 'base': value['commit']['sha'] = '8' * 40
+                if endpoint.endswith('/git/ref/heads/fix%2Fmain%2Fexample'):
+                    if change == 'head-ref': value['ref'] = 'refs/heads/fix/main/foreign'
+                    elif change == 'head-sha': value['object']['sha'] = '8' * 40
+                return value
+            self.api.mutate = mutate
+            with self.subTest(change=change), self.assertRaises(ValueError): self.verify()
+        self.api.mutate = lambda endpoint, value: value
+        with self.assertRaisesRegex(AssertionError, 'unexpected fixed native branch reference'):
+            self.api.json(RESULTS.PREFIX + '/git/ref/heads/foreign')
 
     def test_future_recipe_is_exact_and_keeps_existing_pinned_language_selection(self):
         for name, oid in [('codeql-metadata.yml', CODEQL._SCHEDULING_RESULTS_WORKFLOW),

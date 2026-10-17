@@ -813,7 +813,7 @@ def prepare(candidate, event, environment, adapter):
     host.require(binding['merge_sha'] == environment['GITHUB_SHA'] and binding['base_ref'] == environment.get('GITHUB_BASE_REF') in source_admission.TARGET_PROFILES
                  and binding['head_ref'] == environment.get('GITHUB_HEAD_REF'), 'current PR differs from native invocation')
     from types import SimpleNamespace
-    _event_binding(event, binding, api=SimpleNamespace(get=adapter._object))
+    _event_binding(event, binding, api=SimpleNamespace(get=lambda endpoint: adapter._object(endpoint)))
     host.require(execution.checkout_identity(ROOT)[0] == refs['default'] and refs['default_ref'] == 'main',
                  'trusted checkout differs from current protected default source')
     policy = _host_policy()

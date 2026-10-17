@@ -552,9 +552,18 @@ class MetadataVerifier:
         before = adapter.current(native['number'])
         binding, references = before
         require(binding['base_ref'] == references['default_ref'] == 'main'
-                and binding['base_sha'] == references['default'] == native['base']
+                and binding['base_sha'] == references['default']
                 and binding['head_sha'] == native['head'] and binding['merge_sha'] == native['merge'],
                 'metadata event, protected default or live candidate changed')
+        def validate_native_snapshot():
+            from types import SimpleNamespace
+            source = A.source_admission
+            try:
+                source.validate_base_snapshot(SimpleNamespace(get=adapter._object),
+                                              native.get('base_snapshot'), binding['base_sha'])
+            except source.SourceUnavailable as error:
+                raise ResultError('metadata event base snapshot is not an ancestor of protected B') from error
+        validate_native_snapshot()
         workflow = self.obj('actions/workflows/codeql.yml')
         require(workflow.get('path') == WORKFLOW and workflow.get('state') == 'active',
                 'current CodeQL workflow is unavailable')
@@ -642,6 +651,7 @@ class MetadataVerifier:
         require(adapter.current(native['number']) == before and
                 self._trusted(marker, postmerge) == (native, workflows, sources),
                 'live candidate, protected source or default branch changed')
+        validate_native_snapshot()
         return {'schema': 1, 'kind': 'revalidated-original-codeql', 'metadata_only': 'true',
                 'qualification': False, 'merge_sha': binding['merge_sha'],
                 'original_run_id': original['id'], 'run_attempt': 1, 'languages': selected,

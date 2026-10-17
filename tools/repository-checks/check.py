@@ -439,7 +439,7 @@ def pr_candidate_context(candidate: Path, event: dict, sha: str, *, pr_context=N
         raise ValueError('candidate raw commit identity changed')
     parents=[row[7:].decode('ascii') for row in raw.split(b'\n\n',1)[0].splitlines() if row.startswith(b'parent ')]
     if len(parents)!=2 or parents[1]!=head:
-        raise ValueError('candidate does not merge the exact event head')
+        raise ValueError('candidate does not merge the exact event base and head')
     base=oid(parents[0])
     result={'base':base,'head':head,'candidate':sha,'event_base':snapshot}
     if pr_context is not None:

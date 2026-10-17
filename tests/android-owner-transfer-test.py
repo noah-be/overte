@@ -658,6 +658,16 @@ class SyncOwnerIntegrationTests(unittest.TestCase):
             return deepcopy(self.repository)
         if endpoint == "repos/" + gate.REPOSITORY + "/pulls/17":
             return deepcopy(self.pr)
+        prefix = "repos/" + gate.REPOSITORY
+        if endpoint == prefix + "/commits/refs/pull/17/merge":
+            return {"sha": self.request.merge_sha, "parents": [
+                {"sha": self.request.base_sha}, {"sha": self.request.head_sha}]}
+        if endpoint == prefix + "/compare/" + "b" * 40 + "..." + self.request.base_sha + "?per_page=1":
+            # The explicit stale-source negative is an unrelated snapshot,
+            # not a valid ancestor or an unregistered transport exception.
+            return {"status": "diverged", "ahead_by": 1, "behind_by": 1, "total_commits": 1,
+                    "base_commit": {"sha": "b" * 40}, "merge_base_commit": {"sha": "c" * 40},
+                    "commits": [{"sha": self.request.head_sha}], "files": []}
         raise AssertionError("unregistered authenticated source-PR transport")
 
     def validate(self):

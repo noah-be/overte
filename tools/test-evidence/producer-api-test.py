@@ -2479,7 +2479,8 @@ class MetadataRetentionConsumerTests(unittest.TestCase):
                 **{side: {"repo": deepcopy(repository), "ref": c.binding[side + "_ref"],
                            "sha": c.binding[side + "_sha"]} for side in ("base", "head")}}}
         self.environment = {"GITHUB_JOB": "route"}
-        native = {"number": 17, "run_id": 101, "merge": c.binding["merge_sha"], "base": c.binding["base_sha"]}
+        native = {"number": 17, "run_id": 101, "merge": c.binding["merge_sha"],
+                  "head": c.binding["head_sha"], "base_snapshot": c.binding["base_sha"]}
         helper = SimpleNamespace(SOURCE_READY=True, native=lambda *args, **kwargs: deepcopy(native))
         package = SimpleNamespace(validate_tree_wiring=real_package.validate_tree_wiring,
             workflow_generations=real_package.workflow_generations, load=real_package.load,
