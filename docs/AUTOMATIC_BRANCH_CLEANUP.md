@@ -36,6 +36,13 @@ For registered completion owners, the workflow identity comes from the exact
 numeric registration, its static name and path, and the immutable YAML source.
 A dynamic run display name is allowed only when the callback and freshly read
 API run agree on it; it does not replace those workflow identity checks.
+The completion trigger includes the exact `Sync validation gate-*-attempt-*`
+display-name family alongside the static `Sync validation` workflow name.
+GitHub's [workflow-name glob filter](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_runworkflows)
+can therefore wake the existing native-ID/source preflight for those runs.
+Matching this trigger pattern grants no cleanup permission; the registered
+workflow ID, immutable source, current heads and full integration checks remain
+mandatory. Actual callback delivery must be observed on the installed workflow.
 There is no last-event election: an older callback delivered after a newer one
 can perform the same fresh check. Once a branch is deleted, later callbacks
 find no matching current head. No durable marker or deletion-decision cache is
