@@ -8,6 +8,7 @@ import io
 import json
 import os
 from pathlib import Path
+import shutil
 import sys
 import subprocess
 import tempfile
@@ -945,6 +946,76 @@ class RenamedOwnerHistoryTests(unittest.TestCase):
 
 
 class InstallationTests(unittest.TestCase):
+    def test_readonly_source_installs_twice_without_mutating_source_or_installed_modes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "source"
+            home = Path(temporary) / "home"
+            codex = home / ".codex"
+            paths = ("tools/issue-intake/install.py", "tools/issue-intake/intake.py",
+                     "tools/issue-intake/acceptance.py", "tools/issue-intake/guard.py",
+                     ".github/issue-policy.json", "tools/issue-intake/skill/SKILL.md",
+                     "tools/issue-intake/skill/agents/openai.yaml")
+            expected = {}
+            for relative in paths:
+                target = source / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(ROOT / relative, target)
+                target.chmod(0o444)
+                expected[relative] = target.read_bytes()
+            args = [sys.executable, str(source / "tools/issue-intake/install.py"),
+                    "--home", str(home), "--codex-home", str(codex)]
+            for _ in range(2):
+                result = subprocess.run(args, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+            for relative, body in expected.items():
+                self.assertEqual((source / relative).read_bytes(), body)
+                self.assertEqual((source / relative).stat().st_mode & 0o777, 0o444)
+            installed = home / ".local/share/overte-issue-intake"
+            for relative in paths[1:5]:
+                self.assertEqual((installed / relative).read_bytes(), expected[relative])
+                self.assertEqual((installed / relative).stat().st_mode & 0o777, 0o444)
+            for relative in ("SKILL.md", "agents/openai.yaml"):
+                target = codex / "skills/overte-issue-intake" / relative
+                self.assertEqual(target.read_bytes(), expected["tools/issue-intake/skill/" + relative])
+                self.assertEqual(target.stat().st_mode & 0o777, 0o444)
+            offline_bin = Path(temporary) / "offline-bin"
+            offline_bin.mkdir()
+            github_called = offline_bin / "github-called"
+            fake_gh = offline_bin / "gh"
+            fake_gh.write_text("#!/usr/bin/env python3\nfrom pathlib import Path\nimport sys\n"
+                               + "Path(" + repr(str(github_called)) + ").write_text('called\\n')\n"
+                               + "sys.exit(99)\n")
+            fake_gh.chmod(0o755)
+            environment = {**os.environ, "PATH": str(offline_bin) + os.pathsep + os.environ.get("PATH", "")}
+            result = subprocess.run([str(home / ".local/bin/overte-issue"), "--policy",
+                                     str(installed / ".github/issue-policy.json"), "example", "bug"],
+                                    capture_output=True, text=True, env=environment)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(github_called.exists(), "The installed fixture must use its local policy")
+            self.assertEqual(json.loads(result.stdout)["kind"], "bug")
+
+    def test_install_rejects_aliased_or_nonordinary_copy_destinations(self):
+        for kind in ("symlink", "hardlink", "directory"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
+                home = Path(temporary) / "home"
+                codex = home / ".codex"
+                target = home / ".local/share/overte-issue-intake/tools/issue-intake/intake.py"
+                target.parent.mkdir(parents=True)
+                other = Path(temporary) / "retained.txt"
+                other.write_text("Preserve this unrelated file.\n")
+                if kind == "symlink": target.symlink_to(other)
+                elif kind == "hardlink": os.link(other, target)
+                else: target.mkdir()
+                result = subprocess.run([sys.executable, str(ROOT / "tools/issue-intake/install.py"),
+                                         "--home", str(home), "--codex-home", str(codex)],
+                                        capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("ordinary unaliased file", result.stderr)
+                self.assertEqual(other.read_text(), "Preserve this unrelated file.\n")
+                if kind == "symlink": self.assertTrue(target.is_symlink())
+                elif kind == "hardlink": self.assertEqual(target.stat().st_ino, other.stat().st_ino)
+                else: self.assertTrue(target.is_dir())
+
     def test_install_is_repeatable_and_preserves_existing_instructions(self):
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary); codex = home / ".codex"; codex.mkdir()

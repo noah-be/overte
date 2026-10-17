@@ -354,9 +354,15 @@ class PublicBootstrapTests(unittest.TestCase):
         self.source.chmod(0o600)
         self.assertEqual(self.private.stat().st_mode & 0o777, 0o700)
         actual_lstat, actual_fstat = Path.lstat, os.fstat
+        public_tmp = actual_lstat(Path("/tmp"))
 
         def root_owned(info):
-            return os.stat_result((*info[:4], 0, *info[5:]))
+            # Model only the fixed public parent, even when the test itself
+            # runs inside a candidate capsule whose private /tmp is 0755.
+            mode = (stat.S_IFMT(info.st_mode) | 0o1777
+                    if (info.st_dev, info.st_ino) == (public_tmp.st_dev, public_tmp.st_ino)
+                    else info.st_mode)
+            return os.stat_result((mode, *info[1:4], 0, *info[5:]))
 
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
@@ -1456,6 +1462,11 @@ class SharedHostSourceTests(unittest.TestCase):
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(H.ROOT / name, path)
+        # Only these private fixture files are rewritten below/by the negative
+        # source test. Original snapshot bytes and every other copied mode stay
+        # immutable when the caller supplies a read-only source checkout.
+        for name in ('tests/platform-profile.json', 'tools/test-evidence/sandbox_shared.py'):
+            (self.root / name).chmod(0o644)
         # This immutable fixture is the shared-main manual source. Never inherit
         # Android/child setup merely from the branch running these unit tests.
         profile = (json.dumps({'schema': 1, 'platform': 'shared', 'suites': []}, indent=2) + "\n").encode()
@@ -1515,6 +1526,31 @@ class SharedHostSourceTests(unittest.TestCase):
         observed.check_returncode()
         self.assertEqual(observed.stdout.strip(), b"3")
 
+    def test_readonly_source_retains_modes_and_rejects_changed_private_controls(self):
+        with tempfile.TemporaryDirectory(prefix='shared-host-readonly-source-') as temporary:
+            source = Path(temporary)
+            for name in self.names:
+                original = H.ROOT / name
+                path = source / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(original.read_bytes())
+                path.chmod(0o555 if original.stat().st_mode & 0o111 else 0o444)
+            before = {name: ((source / name).read_bytes(), (source / name).stat().st_mode & 0o777)
+                      for name in self.names}
+            case = SharedHostSourceTests('test_modified_loaded_control_or_missing_executable_source_is_rejected')
+            self.addCleanup(case.doCleanups)
+            with patch.object(H, 'ROOT', source):
+                case.setUp()
+                rewritten = {'tests/platform-profile.json', 'tools/test-evidence/sandbox_shared.py'}
+                for name in self.names:
+                    expected = 0o644 if name in rewritten else before[name][1]
+                    self.assertEqual((case.root / name).stat().st_mode & 0o777, expected, name)
+                with patch.object(SHARED, 'ROOT', case.root):
+                    self.assertEqual(SHARED.verify_source(case.revision), case.names)
+                case.test_modified_loaded_control_or_missing_executable_source_is_rejected()
+            self.assertEqual({name: ((source / name).read_bytes(), (source / name).stat().st_mode & 0o777)
+                              for name in self.names}, before)
+
     def test_modified_loaded_control_or_missing_executable_source_is_rejected(self):
         path = self.root / "tools/test-evidence/sandbox_shared.py"
         path.write_bytes(path.read_bytes() + b"\n# altered loaded source\n")
@@ -1535,6 +1571,54 @@ class ProtectedSelectedProducerTests(unittest.TestCase):
     def setUp(self):
         import producer_workflow
         self.producer = producer_workflow
+
+    def test_producer_cli_failure_remains_fatal_and_reports_only_closed_source_facts(self):
+        source = H.ROOT / 'tools/test-evidence/producer_workflow.py'
+        secret = 'PRIVATE-fixture-::error::-command-env-output'
+        script = ('import runpy,sys\n'
+            'sys.path.insert(0,' + repr(str(source.parent)) + ')\n'
+            'import sandbox\n'
+            'def refused(root):\n'
+            ' try:\n'
+            '  raise FileNotFoundError(2,' + repr(secret) + ',' + repr('/private/' + secret) + ')\n'
+            ' except FileNotFoundError as inner:\n'
+            '  raise ValueError(' + repr(secret) + ') from inner\n'
+            'sandbox.require_protected_execution=refused\n'
+            'sys.argv=[' + repr(str(source)) + ',"shared","--candidate","/unused-fixture"]\n'
+            'runpy.run_path(' + repr(str(source)) + ',run_name="__main__")\n')
+        result = subprocess.run([sys.executable, '-I', '-S', '-B', '-c', script],
+            capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, '')
+        prefix = 'Protected shared producer failed closed: '
+        self.assertTrue(result.stderr.startswith(prefix), result.stderr)
+        report = json.loads(result.stderr[len(prefix):])
+        self.assertEqual(report['chain'][0]['exception_class'], 'ValueError')
+        self.assertEqual(report['chain'][0]['source'], 'tools/test-evidence/producer_workflow.py')
+        self.assertEqual(report['chain'][0]['stage'], 'protected-source-admission')
+        self.assertEqual(report['chain'][1]['exception_class'], 'FileNotFoundError')
+        self.assertEqual(report['chain'][1]['errno'], 2)
+        self.assertNotIn(secret, result.stderr)
+        self.assertNotIn('/private/', result.stderr)
+        self.assertNotIn('Traceback', result.stderr)
+        self.assertNotIn('::error::', result.stderr)
+        self.assertLess(len(result.stderr), 5000)
+
+    def test_producer_api_failure_reports_the_fixed_boundary_without_request_data(self):
+        api = self.producer.producer_api
+        secret = 'PRIVATE-fixture-::error::-endpoint'
+        with patch.object(api.subprocess, 'Popen') as process:
+            try:
+                api.GitHubReadOnly().json('/private/' + secret)
+            except api.ApiError as error:
+                report = H.failure_summary(error)
+            else:
+                self.fail('unreviewed endpoint was accepted')
+        process.assert_not_called()
+        self.assertEqual(report['chain'][0]['source'], 'tools/test-evidence/producer_api.py')
+        self.assertEqual(report['chain'][0]['stage'], 'github-get-boundary')
+        self.assertNotIn(secret, json.dumps(report))
+        self.assertNotIn('/private/', json.dumps(report))
 
     def test_selected_subset_uses_existing_runner_once_with_real_device_timeout_rule(self):
         registry = SHARED.inputs.load_registry(H.ROOT / '.github/test-suites.json')

@@ -744,11 +744,14 @@ def no_execution_context(event, environment, adapter, *, candidate=None, root=RO
     A.require(source_tree == previous_tree, 'current push has changed inputs')
     binding, refs = adapter._integrated_current(run_id, 15368, clock())
     target = binding['base_ref']
-    A.require(target in {'main','apple-main','android-main','android-vr'}
+    documentation = refs['integration']['workflow_path'] == A.DOCUMENTATION_PUSH_WORKFLOW
+    targets = A.DOCUMENTATION_PUSH_BRANCHES if documentation else {'main','apple-main','android-main','android-vr'}
+    workflow = A.DOCUMENTATION_PUSH_WORKFLOW if documentation else '.github/workflows/parent-qualification.yml'
+    A.require(target in targets
         and refs['target'] == source == binding['merge_sha'] and refs['default_ref'] == 'main'
         and event.get('before') == binding['base_sha']
-        and refs['integration']['workflow_path'] == '.github/workflows/parent-qualification.yml',
-        'unchanged parent has no current native source')
+        and refs['integration']['workflow_path'] == workflow,
+        'unchanged consumer has no current native source')
     authority = default_authority(adapter, refs)
     tree, current = full_tree(adapter, source)
     before_tree, previous = full_tree(adapter, binding['base_sha'])
@@ -759,10 +762,11 @@ def no_execution_context(event, environment, adapter, *, candidate=None, root=RO
         'complete unchanged inputs or trusted source differ')
     policy = producer._host_policy()
     package = policy.package_policy()
+    template = workflow if documentation else producer.PLATFORM_PARENT_TEMPLATE
     A.require(package.validate_tree_wiring(current) == producer.PLATFORM_GENERATION
-        and current.get('.github/workflows/parent-qualification.yml') == local.get(producer.PLATFORM_PARENT_TEMPLATE)
-        and local.get(producer.PLATFORM_PARENT_TEMPLATE, {}).get('mode') == '100644',
-        'unchanged parent requires the complete fixed future recipe')
+        and current.get(workflow) == local.get(template)
+        and local.get(template, {}).get('mode') == '100644',
+        'unchanged consumer requires the complete fixed future recipe')
     controller = integrated_controller_for_reuse(policy, previous, current, local, target, root)
     if candidate is not None:
         A.require(execution.checkout_identity(candidate) == (source, tree)
@@ -779,14 +783,48 @@ def no_execution_context(event, environment, adapter, *, candidate=None, root=RO
         'controller': controller, 'default_authority': authority, 'tree': tree}
 
 
+def _running_documentation_no_execution(adapter, context, environment, now):
+    """Actual current validation job, never completion or test/E authority."""
+    run_id = int(environment['GITHUB_RUN_ID'])
+    A.require(environment.get('GITHUB_JOB') == 'documentation-source'
+        and context['refs']['integration']['workflow_path'] == A.DOCUMENTATION_PUSH_WORKFLOW,
+        'unchanged documentation has no fixed native role')
+    latest = adapter._object(f'actions/runs/{run_id}')
+    attempt = adapter._object(f'actions/runs/{run_id}/attempts/1')
+    fields = ('id','workflow_id','check_suite_id','path','event','head_sha','head_branch',
+        'run_attempt','status','conclusion')
+    A.require(all(latest.get(key) == attempt.get(key) for key in fields)
+        and attempt.get('id') == run_id and attempt.get('run_attempt') == 1
+        and attempt.get('head_sha') == context['binding']['merge_sha']
+        and attempt.get('head_branch') == context['binding']['base_ref']
+        and attempt.get('event') == 'push' and attempt.get('path') == A.DOCUMENTATION_PUSH_WORKFLOW
+        and attempt.get('workflow_id') == context['refs']['integration']['workflow_id']
+        and (attempt.get('status'),attempt.get('conclusion')) == ('in_progress',None),
+        'unchanged documentation is not the current original native attempt')
+    name = 'Authenticate original documentation owner'
+    jobs = adapter._pages(f'actions/runs/{run_id}/attempts/1/jobs','jobs')
+    matches = [job for job in jobs if job.get('name') == name]
+    A.require(len(matches) == 1, 'unchanged documentation native job is missing or ambiguous')
+    observed = adapter._job(matches[0],attempt,15368,final_name=name)
+    A.require((observed.status,observed.conclusion) == ('in_progress',None)
+        and P._time(observed.started_at) <= now and observed.completed_at is None,
+        'unchanged documentation validation is not running')
+    return {'run':attempt,'job':matches[0],'native_check':vars(observed)}
+
+
 def verify_no_execution(event, environment, adapter, *, candidate, root=ROOT,
                         clock=lambda: datetime.now(timezone.utc)):
     before = no_execution_context(event, environment, adapter, candidate=candidate, root=root, clock=clock)
     context = {'run_id': int(environment['GITHUB_RUN_ID']), 'binding': before['binding'],
         'refs': before['refs'], 'integration': before['refs']['integration']}
-    producer._push_platform_job(context, adapter, 'Common parent tests')
+    documentation = before['refs']['integration']['workflow_path'] == A.DOCUMENTATION_PUSH_WORKFLOW
+    native = (_running_documentation_no_execution(adapter,before,environment,clock()) if documentation else
+        producer._push_platform_job(context, adapter, 'Common parent tests'))
     A.require(no_execution_context(event, environment, adapter, candidate=candidate, root=root, clock=clock) == before,
-        'unchanged parent source changed during verification')
+        'unchanged consumer source changed during verification')
+    if documentation:
+        A.require(_running_documentation_no_execution(adapter,before,environment,clock()) == native,
+            'unchanged documentation native validation changed')
     return before
 
 
