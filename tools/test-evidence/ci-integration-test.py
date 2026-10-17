@@ -610,6 +610,43 @@ class CurrentOriginalOwnerTests(unittest.TestCase):
 
 
 class ExecutionIntegrationTests(unittest.TestCase):
+    def test_shared_role_publishes_the_finished_canonical_receipt_digest(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);candidate=root/'candidate';candidate.mkdir()
+            event=root/'event.json';event.write_text('{}')
+            output=root/'output';output.touch(mode=0o600)
+            destination=root/'receipt';destination.mkdir(mode=0o700)
+            receipt={'schema':4,'results':{'fixture':{'status':'passed'}}}
+            with (patch.dict(P.os.environ,{'GITHUB_WORKSPACE':str(root),
+                    'GITHUB_EVENT_PATH':str(event),'GITHUB_OUTPUT':str(output)}),
+                  patch.object(P,'protected_admission'),
+                  patch.object(P.producer_api,'Adapter'),
+                  patch.object(P,'shared_execution',return_value=receipt) as execute,
+                  patch.object(P,'_directory',return_value=destination) as directory):
+                self.assertEqual(P.main(['shared','--candidate',str(candidate)]),0)
+            execute.assert_called_once()
+            directory.assert_called_once_with('ci-protected-receipt',root_only=True)
+            raw=(destination/'receipt.json').read_bytes()
+            self.assertEqual(raw,P.protocol.canonical(receipt))
+            self.assertEqual(stat.S_IMODE(destination.stat().st_mode),0o755)
+            self.assertEqual(stat.S_IMODE((destination/'receipt.json').stat().st_mode),0o444)
+            self.assertEqual(output.read_text(),'protected_executed=true\nreceipt_sha256='
+                +hashlib.sha256(raw).hexdigest()+'\n')
+
+    def test_receipt_output_rejects_invalid_values_and_other_numbered_keys(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output=Path(temporary)/'output';output.touch(mode=0o600)
+            with patch.dict(P.os.environ,{'GITHUB_OUTPUT':str(output)}):
+                for values in ({'receipt_sha256':''},{'receipt_sha256':'true'},
+                        {'receipt_sha256':'false'},{'receipt_sha256':'a'*40},
+                        {'receipt_sha256':'g'*64},{'receipt_sha256':'A'*64},
+                        {'receipt_sha256':'a'*64+'\nforged=true'},
+                        {'receipt_sha512':'a'*64},{'receipt_sha256\nforged':'a'*64},
+                        {'protected_executed':'true','receipt_sha256':'a'*40}):
+                    with self.subTest(values=values),self.assertRaises(H.Unavailable):
+                        P._output(values,protected=True)
+                    self.assertEqual(output.read_bytes(),b'')
+
     def batch(self,probe):
         return SimpleNamespace(candidate=Path('/fixture'),snapshot={},policy=Path('/policy'),projection={},
             protected=Path('/protected'),prepared=((),None,None,None),probe=probe,empty=Mock())
