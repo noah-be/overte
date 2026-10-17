@@ -1394,6 +1394,16 @@ reviewed installation and hosted qualification; source-only preparation does
 not enable result reuse. The active source13 parent retains its historical Node
 setup until that installation.
 
+The synchronization gate dispatches validation once with the fixed compatible
+GitHub API version and `return_run_details: true`. It binds the returned positive
+run ID and exact fork URLs, then polls only that run. Empty or malformed replies,
+foreign workflows, rerun attempts, changed protected sources and non-native
+suites fail closed without a second dispatch or a first-page run search. The
+child runs at the actual trusted default-branch checkout commit; the still-running
+PR-target gate's API head remains the PR head, a separate role. This orchestration
+identity does not grant reusable evidence or change the independent source,
+current-candidate, runtime, artifact and expiry checks.
+
 Protected candidate identity reads use `git --no-optional-locks` to preserve the
 private immutable index while retaining the complete snapshot verification.
 

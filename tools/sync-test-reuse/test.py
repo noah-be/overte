@@ -1131,11 +1131,17 @@ class RetiredCancellationContracts(unittest.TestCase):
 class DispatchContracts(unittest.TestCase):
     def run_document(self, correlation="gate-700-attempt-2", *, run_id=902,
                      status="completed", conclusion="success"):
+        repository = {"id": REPOSITORY_ID, "full_name": REPOSITORY}
         return {"id": run_id, "display_title": f"Sync validation {correlation}",
-                "status": status, "conclusion": conclusion,
+                "status": status, "conclusion": conclusion, "workflow_id": 350930895,
+                "path": ".github/workflows/sync-validation.yml", "event": "workflow_dispatch",
+                "head_branch": "main", "head_sha": PARENT, "run_attempt": 1, "check_suite_id": 904,
+                "repository": repository, "head_repository": repository,
+                "url": f"https://api.github.com/repos/{REPOSITORY}/actions/runs/{run_id}",
                 "html_url": f"https://github.com/{REPOSITORY}/actions/runs/{run_id}"}
 
-    def dispatch(self, snapshots, *, mode="reuse", attempt=2, arguments=None):
+    def dispatch(self, snapshots, *, mode="reuse", attempt=2, arguments=None,
+                 reply="valid", mutate=None, checkout_source=PARENT):
         args = SimpleNamespace(
             config=gate.DEFAULT_CONFIG, repository=REPOSITORY, pull_request=610,
             mode=mode, profile="android-family", base_sha=BASE, head_sha=HEAD,
@@ -1143,13 +1149,41 @@ class DispatchContracts(unittest.TestCase):
             timeout=30, output=None,
         )
         self.api = mock.Mock()
-        self.api.json.side_effect = [{}, *({"workflow_runs": runs} for runs in snapshots)]
+        queue = list(snapshots)
+        current = None
+        def request(endpoint, **kwargs):
+            nonlocal current
+            prefix = f"repos/{REPOSITORY}"
+            if endpoint == prefix:
+                value = {"id": REPOSITORY_ID, "full_name": REPOSITORY, "default_branch": "main"}
+            elif endpoint == prefix + "/branches/main":
+                value = {"name": "main", "protected": True, "commit": {"sha": PARENT}}
+            elif endpoint == prefix + "/actions/workflows/sync-validation.yml":
+                value = {"id": 350930895, "path": ".github/workflows/sync-validation.yml",
+                         "name": "Sync validation", "state": "active"}
+            elif endpoint.endswith("/dispatches"):
+                value = ({"workflow_run_id": 902,
+                          "run_url": f"https://api.github.com/{prefix}/actions/runs/902",
+                          "html_url": f"https://github.com/{REPOSITORY}/actions/runs/902"}
+                         if reply == "valid" else reply)
+            elif endpoint == prefix + "/actions/runs/902":
+                if queue:
+                    current = queue.pop(0)
+                value = current
+            elif endpoint == prefix + "/actions/runs/902/attempts/1":
+                value = current
+            elif endpoint == prefix + "/check-suites/904":
+                value = {"id": 904, "head_sha": PARENT, "repository": {"id": REPOSITORY_ID,
+                         "full_name": REPOSITORY}, "app": {"id": 15368}}
+            else:
+                raise AssertionError("unexpected API endpoint: " + endpoint)
+            return mutate(endpoint, deepcopy(value)) if mutate else deepcopy(value)
+        self.api.json.side_effect = request
         clock = [0]
-
         def sleep(seconds):
             clock[0] += seconds
-
         with mock.patch.object(gate, "GitHubApi", return_value=self.api), \
+             mock.patch.object(gate, "_dispatch_checkout_source", return_value=checkout_source), \
              mock.patch.object(gate.time, "monotonic", side_effect=lambda: clock[0]), \
              mock.patch.object(gate.time, "sleep", side_effect=sleep) as self.sleep, \
              mock.patch.object(gate, "write_outputs") as self.outputs:
@@ -1167,25 +1201,26 @@ class DispatchContracts(unittest.TestCase):
         ]
 
     def assert_dispatch_binding(self, mode, attempt=2):
-        self.assertEqual(self.api.json.call_args_list[0], mock.call(
+        posts = [call for call in self.api.json.call_args_list if call.kwargs.get("method") == "POST"]
+        self.assertEqual(posts, [mock.call(
             f"repos/{REPOSITORY}/actions/workflows/{config()['validation_workflow']}/dispatches",
             method="POST", fields={
                 "ref": "main", "inputs[correlation]": f"gate-700-attempt-{attempt}",
                 "inputs[mode]": mode, "inputs[profile]": "android-family",
                 "inputs[pull_request]": "610", "inputs[expected_base_sha]": BASE,
                 "inputs[expected_head_sha]": HEAD, "inputs[expected_merge_sha]": MERGE,
-            },
-        ))
+            }, dispatch_details=True,
+        )])
+        self.assertFalse(any("/runs?" in call.args[0] for call in self.api.json.call_args_list))
 
     def test_retry_ignores_old_failures_until_current_run_becomes_visible(self):
-        old = [self.run_document("gate-700", run_id=900, conclusion="failure"),
-               self.run_document("gate-700-attempt-1", run_id=901, conclusion="failure"),
-               self.run_document("gate-701-attempt-2", run_id=903, conclusion="failure")]
-        current = self.run_document(status="in_progress", conclusion=None)
+        # Direct ownership replaces first-page discovery: old runs are never read.
         for mode in ("reuse", "fallback"):
             with self.subTest(mode=mode):
-                self.assertEqual(self.dispatch([old, [*old, current],
-                                                [*old, self.run_document()]], mode=mode), 0)
+                self.assertEqual(self.dispatch([
+                    self.run_document(status="requested", conclusion=None),
+                    self.run_document(status="in_progress", conclusion=None),
+                    self.run_document()], mode=mode), 0)
                 self.assert_dispatch_binding(mode)
                 self.assertEqual(self.sleep.call_count, 2)
                 self.outputs.assert_called_once_with(None, {
@@ -1196,19 +1231,19 @@ class DispatchContracts(unittest.TestCase):
     def test_first_attempt_and_retry_dispatch_distinct_correlations(self):
         for attempt in (1, 2):
             with self.subTest(attempt=attempt):
-                self.assertEqual(self.dispatch([[self.run_document(
-                    f"gate-700-attempt-{attempt}")]], attempt=attempt), 0)
+                self.assertEqual(self.dispatch([self.run_document(
+                    f"gate-700-attempt-{attempt}")], attempt=attempt), 0)
                 self.assert_dispatch_binding("reuse", attempt)
+                self.sleep.assert_not_called()
 
     def test_legacy_workflow_uses_environment_attempt_and_ignores_old_failure(self):
-        old = self.run_document("gate-700-attempt-1", run_id=901, conclusion="failure")
         for mode in ("reuse", "fallback"):
             with self.subTest(mode=mode), mock.patch.dict(
-                gate.os.environ, {"GITHUB_RUN_ATTEMPT": "2"}, clear=True
+                gate.os.environ, {"GITHUB_RUN_ATTEMPT": "2", "GITHUB_WORKFLOW_SHA": HEAD}, clear=True
             ):
                 self.assertEqual(self.dispatch([
-                    [old], [old, self.run_document(status="in_progress", conclusion=None)],
-                    [old, self.run_document()],
+                    self.run_document(status="queued", conclusion=None),
+                    self.run_document(status="in_progress", conclusion=None), self.run_document(),
                 ], arguments=self.legacy_arguments(mode)), 0)
                 self.assert_dispatch_binding(mode)
                 self.assertEqual(self.sleep.call_count, 2)
@@ -1230,7 +1265,7 @@ class DispatchContracts(unittest.TestCase):
         for value in (None, "1", "invalid", "0", "-1"):
             environment = {} if value is None else {"GITHUB_RUN_ATTEMPT": value}
             with self.subTest(value=value), mock.patch.dict(gate.os.environ, environment, clear=True):
-                self.assertEqual(self.dispatch([[self.run_document()]], arguments=[
+                self.assertEqual(self.dispatch([self.run_document()], arguments=[
                     *self.legacy_arguments(), "--gate-run-attempt", "2",
                 ]), 0)
                 self.assert_dispatch_binding("reuse", 2)
@@ -1254,30 +1289,156 @@ class DispatchContracts(unittest.TestCase):
                 self.outputs.assert_not_called()
 
     def test_current_unsuccessful_run_cannot_be_hidden_by_old_success(self):
-        old = self.run_document("gate-700-attempt-1", run_id=901)
         for mode in ("reuse", "fallback"):
             for conclusion in ("failure", "cancelled", "timed_out", "skipped", None):
                 with self.subTest(mode=mode, conclusion=conclusion):
                     with self.assertRaisesRegex(gate.GateError, f"{mode} validation did not succeed"):
-                        self.dispatch([[old, self.run_document(conclusion=conclusion)]], mode=mode)
+                        self.dispatch([self.run_document(status="in_progress", conclusion=None),
+                                       self.run_document(conclusion=conclusion)], mode=mode)
                     self.outputs.assert_not_called()
+                    self.assert_dispatch_binding(mode)
 
     def test_duplicate_current_correlation_fails_before_accepting_success(self):
+        # A same-title success with another ID cannot replace our returned ID.
         for mode in ("reuse", "fallback"):
-            with self.subTest(mode=mode), self.assertRaisesRegex(gate.GateError, "ambiguous"):
-                self.dispatch([[self.run_document(), self.run_document(run_id=903)]], mode=mode)
+            with self.subTest(mode=mode), self.assertRaisesRegex(gate.GateError, "identity"):
+                self.dispatch([self.run_document(run_id=903)], mode=mode)
             self.outputs.assert_not_called()
+            self.assert_dispatch_binding(mode)
 
     def test_missing_or_nonterminal_current_run_times_out(self):
         for mode in ("reuse", "fallback"):
-            for runs in ([], [self.run_document("gate-700-attempt-1", run_id=901)],
-                         [self.run_document(status="queued", conclusion=None)],
-                         [self.run_document(status="in_progress", conclusion=None)]):
-                with self.subTest(mode=mode, runs=runs):
+            for status in ("requested", "queued", "in_progress"):
+                with self.subTest(mode=mode, status=status):
                     with self.assertRaisesRegex(gate.GateError, "before timeout"):
-                        self.dispatch([runs] * 3, mode=mode)
+                        self.dispatch([self.run_document(status=status, conclusion=None)] * 3, mode=mode)
                     self.outputs.assert_not_called()
                     self.assertEqual(self.sleep.call_count, 3)
+                    self.assert_dispatch_binding(mode)
+
+    def test_empty_or_malformed_reply_never_rediscovers_or_redispatches(self):
+        good = {"workflow_run_id": 902,
+                "run_url": f"https://api.github.com/repos/{REPOSITORY}/actions/runs/902",
+                "html_url": f"https://github.com/{REPOSITORY}/actions/runs/902"}
+        invalid = [None, {}, [], {"workflow_run_id": True}, *[
+            {**good, "workflow_run_id": value} for value in ("902", 0, -1, False)], *[
+            {**good, key: value} for key, value in (
+                ("run_url", good["run_url"] + "?x=1"), ("run_url", good["run_url"].replace(REPOSITORY, "overte-org/overte")),
+                ("html_url", good["html_url"] + "/"), ("html_url", None))]]
+        for reply in invalid:
+            with self.subTest(reply=reply), self.assertRaises(gate.GateError):
+                self.dispatch([], reply=reply)
+            self.assert_dispatch_binding("reuse")
+            self.outputs.assert_not_called()
+            self.assertFalse(any("/actions/runs/" in call.args[0] for call in self.api.json.call_args_list))
+
+    def test_foreign_run_attempt_source_workflow_or_native_app_fails_closed(self):
+        cases = [("/actions/runs/902", key, value) for key, value in (
+            ("id", True), ("workflow_id", 12), ("event", "pull_request_target"),
+            ("head_sha", HEAD), ("head_branch", "apple-main"), ("run_attempt", 2),
+            ("display_title", "Sync validation gate-700-attempt-1"),
+            ("path", ".github/workflows/other.yml"), ("check_suite_id", True), ("status", []),
+            ("repository", {"id": 9, "full_name": REPOSITORY}),
+            ("head_repository", {"id": REPOSITORY_ID, "full_name": "overte-org/overte"}))]
+        cases += [("/actions/runs/902/attempts/1", "run_attempt", 2),
+                  ("/check-suites/904", "app", {"id": 57789}),
+                  ("/check-suites/904", "head_sha", HEAD),
+                  ("/check-suites/904", "repository", {"id": 9, "full_name": REPOSITORY})]
+        for suffix, key, value in cases:
+            def mutate(endpoint, document):
+                if endpoint.endswith(suffix):
+                    document[key] = value
+                return document
+            with self.subTest(suffix=suffix, key=key), self.assertRaises(gate.GateError):
+                self.dispatch([self.run_document()], mutate=mutate)
+            self.outputs.assert_not_called()
+            self.assert_dispatch_binding("reuse")
+
+    def test_missing_individual_run_or_changed_suite_never_uses_list_fallback(self):
+        for absent in (None, []):
+            def missing(endpoint, document):
+                return absent if endpoint.endswith("/actions/runs/902") else document
+            with self.subTest(absent=absent), self.assertRaises(gate.GateError):
+                self.dispatch([self.run_document()], mutate=missing)
+            self.assert_dispatch_binding("reuse")
+            self.outputs.assert_not_called()
+        changed = self.run_document()
+        changed["check_suite_id"] = 905
+        with self.assertRaisesRegex(gate.GateError, "identity changed"):
+            self.dispatch([self.run_document(status="in_progress", conclusion=None), changed])
+        self.assert_dispatch_binding("reuse")
+        self.outputs.assert_not_called()
+
+    def test_changed_default_source_or_registration_rejects_before_dispatch_or_output(self):
+        for suffix, key, value in (("/branches/main", "commit", {"sha": HEAD}),
+                                   ("/actions/workflows/sync-validation.yml", "id", 9)):
+            def mutate(endpoint, document):
+                if endpoint.endswith(suffix):
+                    document[key] = value
+                return document
+            with self.subTest(suffix=suffix), self.assertRaises(gate.GateError):
+                self.dispatch([], mutate=mutate)
+            self.assertFalse(any(call.kwargs.get("method") == "POST" for call in self.api.json.call_args_list))
+            self.outputs.assert_not_called()
+        branches = [0]
+        def changed(endpoint, document):
+            if endpoint.endswith("/branches/main"):
+                branches[0] += 1
+                if branches[0] == 2:
+                    document["commit"]["sha"] = HEAD
+            return document
+        with self.assertRaises(gate.GateError):
+            self.dispatch([self.run_document()], mutate=changed)
+        self.outputs.assert_not_called()
+        self.assert_dispatch_binding("reuse")
+
+    def test_api_error_never_repeats_post_or_uses_an_old_success(self):
+        def failed(endpoint, document):
+            if endpoint.endswith("/dispatches"):
+                raise gate.GateError("synthetic uncertain POST failure")
+            return document
+        with self.assertRaisesRegex(gate.GateError, "uncertain"):
+            self.dispatch([], mutate=failed)
+        self.assert_dispatch_binding("reuse")
+        self.outputs.assert_not_called()
+
+
+class DispatchTransportContracts(unittest.TestCase):
+    def test_dispatch_uses_fixed_version_and_real_boolean_without_changing_string_inputs(self):
+        endpoint = f"repos/{REPOSITORY}/actions/workflows/sync-validation.yml/dispatches"
+        with mock.patch.object(gate.subprocess, "run", return_value=SimpleNamespace(stdout='{"workflow_run_id":902}')) as run:
+            self.assertEqual(gate.GitHubApi().json(endpoint, method="POST", fields={
+                "ref": "main", "inputs[correlation]": "gate-700-attempt-2"}, dispatch_details=True),
+                {"workflow_run_id": 902})
+        self.assertEqual(run.call_args.args[0], ["gh", "api", "--method", "POST", endpoint,
+            "-H", "X-GitHub-Api-Version: 2022-11-28", "-F", "return_run_details=true",
+            "-f", "ref=main", "-f", "inputs[correlation]=gate-700-attempt-2"])
+        with mock.patch.object(gate.subprocess, "run", return_value=SimpleNamespace(stdout="{}")) as run:
+            gate.GitHubApi().json("repos/" + REPOSITORY, method="PATCH", fields={"value": "true"})
+        self.assertEqual(run.call_args.args[0], ["gh", "api", "--method", "PATCH", "repos/" + REPOSITORY,
+                                               "-f", "value=true"])
+
+    def test_checkout_source_reads_actual_git_head_without_optional_index_writes(self):
+        with mock.patch.object(gate.subprocess, "run", return_value=SimpleNamespace(stdout=PARENT + "\n")) as run:
+            self.assertEqual(gate._dispatch_checkout_source(), PARENT)
+        self.assertEqual(run.call_args.kwargs["cwd"], gate.ROOT)
+        self.assertIn("--no-optional-locks", run.call_args.args[0])
+        self.assertIn("--no-replace-objects", run.call_args.args[0])
+        self.assertEqual(run.call_args.args[0][-1], "HEAD^{commit}")
+        with mock.patch.object(gate.subprocess, "run", return_value=SimpleNamespace(stdout="not-a-commit")):
+            with self.assertRaises(gate.GateError):
+                gate._dispatch_checkout_source()
+        with mock.patch.object(gate.subprocess, "run", side_effect=subprocess.TimeoutExpired("git", 30)):
+            with self.assertRaisesRegex(gate.GateError, "unavailable"):
+                gate._dispatch_checkout_source()
+
+    def test_run_details_cannot_be_requested_for_another_transport_operation(self):
+        for endpoint, method in (("repos/" + REPOSITORY, "POST"),
+                (f"repos/{REPOSITORY}/actions/workflows/sync-validation.yml/dispatches", "GET")):
+            with self.subTest(endpoint=endpoint, method=method), mock.patch.object(gate.subprocess, "run") as run:
+                with self.assertRaises(gate.GateError):
+                    gate.GitHubApi().json(endpoint, method=method, dispatch_details=True)
+                run.assert_not_called()
 
 
 class DifferentialCandidateTests(unittest.TestCase):
