@@ -267,7 +267,7 @@ def consumer_base(candidate, revision):
                for generation in workflow_generations())
 
 
-def candidate_plan(candidate, event, sha, *, include_browser=False, include_consumers=None):
+def candidate_plan(candidate, event, sha, *, include_browser=False, include_consumers=None, pr_context=None):
     repository = event.get("repository", {})
     if repository.get("full_name") != REPOSITORY or repository.get("id") != REPOSITORY_ID:
         raise ValueError("package repository identity mismatch")
@@ -282,8 +282,9 @@ def candidate_plan(candidate, event, sha, *, include_browser=False, include_cons
         repo = pr["base"].get("repo") or {}
         if repo.get("full_name") != REPOSITORY or repo.get("id") != REPOSITORY_ID:
             raise ValueError("foreign package PR base")
-        base, head = pr["base"]["sha"], pr["head"]["sha"]
-        paths, regular = checks.changed_paths(candidate, event, sha)
+        context = checks.pr_candidate_context(candidate, event, sha, pr_context=pr_context)
+        base, head = context["base"], context["head"]
+        paths, regular = checks.changed_paths(candidate, event, sha, pr_context=context)
     elif "before" in event or "after" in event:
         base, head = event.get("before"), event.get("after")
         if any(not isinstance(v, str) or not re.fullmatch(r"[0-9a-f]{40}", v) for v in (base, head)) or head != sha:

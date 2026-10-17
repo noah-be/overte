@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import sys
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 POLICY = ".github/android-owner-transfer.json"
@@ -134,12 +135,14 @@ def platform_owner(candidate, event, sha, event_name, *, policy_root=ROOT):
     return _planned_platform_owner(candidate, event, sha, event_name, policy_root=policy_root)
 
 
-def _planned_platform_owner(candidate, event, sha, event_name, *, policy_root=ROOT):
+def _planned_platform_owner(candidate, event, sha, event_name, *, policy_root=ROOT, pr_context=None):
     controller = gate()
-    current = controller.candidate_plan(candidate, event, sha, event_name=event_name, policy_root=policy_root)
+    current = controller.candidate_plan(candidate, event, sha, event_name=event_name, policy_root=policy_root,
+                                        **({"pr_context":pr_context} if pr_context is not None else {}))
     if not current["required"] or current["target"] not in policy(policy_root)["profiles"]:
         return {}
-    controller.validate_execution_generation(candidate, event, policy_root=policy_root)
+    controller.validate_execution_generation(candidate, event, policy_root=policy_root,
+                                             **({"pr_context":pr_context} if pr_context is not None else {}))
     return {PICO: {"owner": "required-android", **{key: current[key] for key in ("candidate", "plan", "inventory")}}}
 
 
@@ -167,10 +170,8 @@ def sync_platform_owner(candidate, request, api, *, policy_root=ROOT):
     repository = api.json(prefix)
     pr = api.json(prefix + "/pulls/" + str(request.number))
     try:
-        actual = (pr["number"], pr["state"], pr["base"]["ref"], pr["base"]["sha"],
-                  pr["head"]["ref"], pr["head"]["sha"], pr["merge_commit_sha"])
-        expected = (request.number, "open", request.base, request.base_sha,
-                    request.head, request.head_sha, request.merge_sha)
+        actual = (pr["number"], pr["state"], pr["base"]["ref"], pr["head"]["ref"], pr["head"]["sha"])
+        expected = (request.number, "open", request.base, request.head, request.head_sha)
         identities = (repository, pr["base"]["repo"], pr["head"]["repo"])
         if actual != expected or type(pr["number"]) is not int or pr.get("mergeable") is not True \
                 or not isinstance(pr.get("labels"), list) or any(
@@ -182,7 +183,25 @@ def sync_platform_owner(candidate, request, api, *, policy_root=ROOT):
     # These are unmodified authenticated API documents, not a caller-supplied
     # workflow event or an invented workflow_dispatch target approximation.
     event = {"repository": repository, "number": pr["number"], "pull_request": pr}
-    return _planned_platform_owner(candidate, event, request.merge_sha, "pull_request", policy_root=policy_root)
+    if pr["base"].get("sha") == request.base_sha and getattr(request,"event_base_sha",None) is None:
+        if pr.get("merge_commit_sha") != request.merge_sha:
+            raise ValueError("Android sync source PR or repository changed")
+        return _planned_platform_owner(candidate,event,request.merge_sha,"pull_request",policy_root=policy_root)
+    # This internal entry is called only after native sync request admission.
+    # Recompute live B/H/M again; preserve the API snapshot as an observation.
+    spec=importlib.util.spec_from_file_location("android_sync_source_context", ROOT/"tools/test-evidence/source_admission.py")
+    source_guard=importlib.util.module_from_spec(spec);spec.loader.exec_module(source_guard)
+    reader=SimpleNamespace(get=lambda endpoint:api.json(prefix+("/"+endpoint if endpoint else "")))
+    merge=reader.get("commits/refs/pull/"+str(request.number)+"/merge")
+    resolved=source_guard.resolve_pr_base(reader,pr,merge)
+    if (resolved["base"],resolved["head"],resolved["source"]) != (request.base_sha,request.head_sha,request.merge_sha):
+        raise ValueError("Android sync effective candidate changed")
+    if getattr(request,"event_base_sha",None) is not None:
+        source_guard.validate_base_snapshot(reader,request.event_base_sha,resolved["base"])
+    planning={"base":resolved["base"],"head":resolved["head"],"candidate":resolved["source"],
+              "event_base":pr["base"]["sha"]}
+    return _planned_platform_owner(candidate, event, request.merge_sha, "pull_request", policy_root=policy_root,
+                                   pr_context=planning)
 
 
 def host_selection():
