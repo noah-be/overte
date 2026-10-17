@@ -656,9 +656,13 @@ class IsolatedConsumerTests(unittest.TestCase):
         for name in ("Set up candidate Java", "Install candidate host prerequisites"):
             step = next(step for step in steps if step["name"] == name)
             self.assertGreater(steps.index(step), steps.index(selection))
-            self.assertEqual(step["if"], "(steps.select.outputs.consumer_setup != 'none' || steps.select.outputs.native_setup == '') && steps.select.outputs.full_host == 'true'")
+            self.assertEqual(step["if"], "(steps.select.outputs.consumer_setup != 'none' || steps.select.outputs.native_setup == '') && steps.select.outputs.full_host == 'true' && !(steps.select.outputs.lane == 'verified-empty' && steps.select.outputs.consumer_setup == 'none' && steps.select.outputs.empty_setup != '')")
         executions = [step for step in steps if "--expected-selection" in step.get("run", "")]
-        self.assertEqual(len(executions), 2)
+        self.assertEqual(len(executions), 3)
+        self.assertEqual({step['name'] for step in executions}, {
+            'Verify bounded synchronization without product setup',
+            'Verify exact candidate suites and complete runtime identity',
+            'Validate the exact unchanged synchronization without test execution'})
         for step in executions:
             self.assertEqual(step["env"]["EXPECTED_SELECTION"], "${{ steps.select.outputs.selection }}")
             self.assertIn('trusted/tools/test-evidence/validate-sync.py', step["run"])
@@ -670,6 +674,12 @@ class IsolatedConsumerTests(unittest.TestCase):
                 self.assertIn('--expected-native-setup "$EXPECTED_NATIVE_SETUP"', step['run'])
             else:
                 self.assertIn('python3 -B ', step['run'])
+                if step['name'] == 'Validate the exact unchanged synchronization without test execution':
+                    self.assertEqual(step['if'], "steps.select.outputs.lane == 'verified-empty'")
+                    self.assertEqual(step['env']['EXPECTED_EMPTY_SETUP'], '${{ steps.select.outputs.empty_setup }}')
+                    self.assertIn('--expected-empty-setup "$EXPECTED_EMPTY_SETUP"', step['run'])
+                    self.assertNotIn('--expected-native-setup', step['run'])
+                    self.assertNotIn('SYNC_VALIDATOR_PYTHON', step['env'])
         self.assertEqual(data["permissions"], {"actions": "read", "checks": "read", "contents": "read", "pull-requests": "read"})
         # The source-preparation PR still runs the deployed historical recipe.
         # The distinct prospective recipe above is not deployed by changing a
@@ -1116,6 +1126,171 @@ class NativeSelectedParentConsumerTests(unittest.TestCase):
                 VALIDATION._ci_commands(selected, f.registry, suite_names=names)
         self.assertEqual(VALIDATION._ci_commands(selected, f.registry),
             {name:f.registry['suites'][name]['command'] for name in ('alpha','beta')})
+
+
+
+class VerifiedEmptyConsumerTests(unittest.TestCase):
+    """Dispatch proof is a narrow fixture; differential/source books are real."""
+    def workflow_fixture_generation(self, root):
+        # Classify complete ordinary endpoint bytes against the actual trusted
+        # catalog. A matching synchronization leaf alone cannot select22.
+        source=Path(__file__).resolve().parents[1]/'repository-checks/package_checks.py'
+        packages=VALIDATION._trusted_module('verified_empty_fixture_packages',source)
+        generation=packages.validate_wiring(root)
+        self.assertIn(generation,{'npm-consumers-sync-ci-v1','protected-producer-original-default-v1'})
+        return packages,generation
+
+    def setUp(self):
+        self.fixture=IsolatedConsumerTests('runTest');self.fixture.setUp();self.addCleanup(self.fixture.doCleanups)
+        f=self.fixture;f.request.changed_paths=()
+        f.gate.paginate_pull_files=lambda *args:[]
+        self.proof={'schema':1,'kind':'verified-empty-sync-v1','reusable':False,'qualification':False,
+            'immutable':{'base':f.base,'head':f.parent,'candidate':f.commit,'tree':f.tree_sha},
+            'native':{'job_id':702},'source':{'controller':'fixed actual default'}}
+        f.gate.verified_empty_sync=Mock(side_effect=lambda *args:deepcopy(self.proof))
+        f.gate.native_parent_evidence=Mock(side_effect=AssertionError('no prior test proof'))
+        f.gate.verify_evidence=lambda *args:(_ for _ in ()).throw(AssertionError('no qualification capsule'))
+        self.stack=self.enterContext(ExitStack())
+        self.stack.enter_context(patch.object(VALIDATION,'_gate',return_value=f.gate))
+        self.stack.enter_context(patch.object(inputs,'load_registry',return_value=f.registry))
+
+    def prepare(self):
+        f=self.fixture;selected=VALIDATION.select_sync(f.args,api=f.api)
+        f.args.expected_selection=selected['selection']
+        f.args.expected_empty_setup=selected.get('empty_setup','')
+        return selected
+
+    def run_without_tests(self):
+        f=self.fixture
+        with patch.object(execution,'execute',side_effect=AssertionError('no candidate command')), \
+                patch.object(execution,'capture_execution_environment',side_effect=AssertionError('no unused E')), \
+                patch.object(VALIDATION,'_execute_ci',side_effect=AssertionError('no CI command')), \
+                patch.object(VALIDATION,'_bounded_junit',side_effect=AssertionError('no fictitious JUnit suite')), \
+                patch.object(VALIDATION,'_native_zero_setup',side_effect=AssertionError('no prior-proof setup')):
+            return VALIDATION.validate_sync(f.args,api=f.api)
+
+    def test_early_empty_selection_and_final_validation_need_no_test_or_original_E(self):
+        f=self.fixture
+        with patch.object(execution,'execute',side_effect=AssertionError('no early candidate command')), \
+                patch.object(execution,'capture_execution_environment',side_effect=AssertionError('no early E')), \
+                patch.object(VALIDATION,'_native_zero_setup',side_effect=AssertionError('not native reused evidence')):
+            selected=self.prepare()
+        self.assertEqual(selected['lane'],'verified-empty');self.assertFalse(selected['full_host'])
+        self.assertEqual(selected['consumer_setup'],'none');self.assertEqual(selected['empty_setup'],selected['selection'])
+        self.assertNotIn('native_setup',selected);self.assertEqual(selected['suites'],[])
+        with patch.object(VALIDATION,'_differential',wraps=VALIDATION._differential) as actual:
+            result=self.run_without_tests()
+        actual.assert_called_once();self.assertEqual(result['mode'],'verified-empty')
+        self.assertEqual(result['kind'],'sync-no-execution-validation-v1')
+        self.assertIsNone(result['execution']);self.assertIsNone(result['parent_evidence'])
+        self.assertFalse(result['reusable']);self.assertFalse(result['qualification'])
+        self.assertEqual(result['executed_suites'],[]);self.assertEqual(result['reused_suites'],[])
+        self.assertFalse(f.args.junit.exists());self.assertEqual(f.executed(),[])
+        self.assertEqual(json.loads(f.args.receipt.read_bytes()),result)
+        self.assertGreaterEqual(f.gate.verified_empty_sync.call_count,4)
+        f.gate.native_parent_evidence.assert_not_called()
+
+    def test_forged_marker_prior_native_marker_and_nonempty_selection_cannot_skip_work(self):
+        f=self.fixture;self.prepare()
+        for kind in ('missing','changed','prior-native','no-proof','not-empty'):
+            f.args.expected_empty_setup=self.proof_selection=f.args.expected_selection
+            f.args.expected_native_setup=''
+            f.gate.verified_empty_sync.side_effect=lambda *args:deepcopy(self.proof)
+            if kind=='missing':f.args.expected_empty_setup=''
+            elif kind=='changed':f.args.expected_empty_setup='sha256:'+'f'*64
+            elif kind=='prior-native':f.args.expected_native_setup='sha256:'+'e'*64
+            elif kind=='no-proof':f.gate.verified_empty_sync.side_effect=lambda *args:None
+            else:f.request.changed_paths=('libraries/alpha.cpp',)
+            with self.subTest(kind=kind),self.assertRaises(VALIDATION.ValidationError):self.run_without_tests()
+            self.assertFalse(f.args.receipt.exists());self.assertEqual(f.executed(),[])
+        f.request.changed_paths=()
+
+    def test_missing_initial_proof_retains_default_setup_not_an_empty_execution_claim(self):
+        f=self.fixture;f.gate.verified_empty_sync.return_value=None;f.gate.verified_empty_sync.side_effect=None
+        # Avoid the independently existing native reuse lookup. Its absence is
+        # unrelated to no-change source equality and cannot authorize omission.
+        with patch.object(VALIDATION,'_native_zero_setup',return_value=(None,None)):
+            selected=VALIDATION.select_sync(f.args,api=f.api)
+        self.assertEqual(selected['lane'],'complete');self.assertTrue(selected['full_host'])
+        self.assertNotIn('consumer_setup',selected);self.assertNotIn('empty_setup',selected)
+        self.assertEqual(f.executed(),[])
+
+    def test_source_or_ref_bookend_drift_after_real_differential_fails_without_fallback(self):
+        f=self.fixture;self.prepare()
+        original=deepcopy(self.proof)
+        for kind in ('source','ref','tree'):
+            self.proof=deepcopy(original)
+            f.api.pr=deepcopy(f.pr)
+            def differential(*args):
+                if kind=='source':self.proof['source']['controller']='changed default'
+                elif kind=='ref':f.api.pr['head']['sha']='f'*40
+                else:self.proof['immutable']['tree']='f'*40
+            with self.subTest(kind=kind),patch.object(VALIDATION,'_differential',side_effect=differential), \
+                    self.assertRaises(VALIDATION.ValidationError):self.run_without_tests()
+            self.assertFalse(f.args.receipt.exists());self.assertEqual(f.executed(),[])
+
+    def test_future_workflow_gates_all_setup_and_uses_distinct_final_source_proof(self):
+        import yaml
+        path=VALIDATION.ROOT/'tools/repository-checks/workflows/sync-ci-selection.yml'
+        steps=yaml.safe_load(path.read_text())['jobs']['validate']['steps']
+        for name in ('Set up candidate Python','Set up candidate Node.js','Set up candidate Java',
+                'Install candidate host prerequisites','Prepare isolated shared and product Python validators'):
+            condition=next(step['if'] for step in steps if step['name']==name)
+            self.assertIn("!(steps.select.outputs.lane == 'verified-empty' && steps.select.outputs.consumer_setup == 'none' && steps.select.outputs.empty_setup != '')",condition)
+            self.assertIn("steps.select.outputs.native_setup == ''",condition)
+        step=next(row for row in steps if row['name']=='Validate the exact unchanged synchronization without test execution')
+        self.assertEqual(step['if'],"steps.select.outputs.lane == 'verified-empty'")
+        self.assertTrue(step['run'].startswith('python3 -B '))
+        self.assertIn('--expected-empty-setup "$EXPECTED_EMPTY_SETUP"',step['run'])
+        self.assertNotIn('--expected-native-setup',step['run'])
+        normal=next(row for row in steps if row['name']=='Verify exact candidate suites and complete runtime identity')
+        self.assertIn("steps.select.outputs.lane != 'verified-empty'",normal['if'])
+        active=(VALIDATION.ROOT/'.github/workflows/sync-validation.yml').read_text()
+        packages,generation=self.workflow_fixture_generation(VALIDATION.ROOT)
+        if generation=='protected-producer-original-default-v1':
+            self.assertEqual(active,path.read_text())
+            self.assertIn('expected-empty-setup',active)
+            # Bind every independently stored canonical endpoint as well as the
+            # deployed complete catalog; no old catalog row is rewritten.
+            sources={'.github/workflows/project-tests.yml':'producers/protected-project-tests-android-platform.yml',
+                '.github/workflows/parent-qualification.yml':'producers/parent-qualification-android-platform.yml',
+                '.github/workflows/repository-checks.yml':'producers/repository-checks.yml',
+                '.github/workflows/sync-validation.yml':'sync-ci-selection.yml',
+                '.github/workflows/browser-client.yml':'npm-consumers/browser-client.yml',
+                '.github/workflows/pr-metadata-context.yml':'metadata-edits/pr-metadata-context.yml'}
+            self.assertEqual(set(sources),set(packages.METADATA_WORKFLOW_PATHS))
+            for target,relative in sources.items():
+                self.assertEqual((VALIDATION.ROOT/target).read_bytes(),
+                    (VALIDATION.ROOT/'tools/repository-checks/workflows'/relative).read_bytes(),target)
+        else:
+            self.assertNotIn('expected-empty-setup',active)
+
+    def test_empty_workflow_state_rejects_altered_missing_alias_mode_and_mixed_recipes(self):
+        import shutil
+        packages,generation=self.workflow_fixture_generation(VALIDATION.ROOT)
+        reviewed=next(row for row in packages.workflow_generations() if row['name']==generation)
+        self.assertEqual(set(reviewed['workflows']),set(packages.CONSUMER_WORKFLOW_PATHS
+            if generation=='npm-consumers-sync-ci-v1' else packages.METADATA_WORKFLOW_PATHS))
+        sync='.github/workflows/sync-validation.yml'
+        for kind in ('altered','missing','alias','mode','mixed'):
+            with self.subTest(kind=kind),tempfile.TemporaryDirectory(prefix='sync-whole-generation-') as temporary:
+                snapshot=Path(temporary)
+                for relative in reviewed['workflows']:
+                    target=snapshot/relative;target.parent.mkdir(parents=True,exist_ok=True)
+                    shutil.copyfile(VALIDATION.ROOT/relative,target);target.chmod(0o644)
+                self.assertEqual(packages.validate_wiring(snapshot),generation)
+                target=snapshot/sync
+                if kind=='altered':target.write_text(target.read_text()+'\n# unreviewed recipe\n')
+                elif kind=='missing':target.unlink()
+                elif kind=='alias':
+                    saved=target.with_suffix('.fixture');target.rename(saved);target.symlink_to(saved.name)
+                elif kind=='mode':target.chmod(0o755)
+                elif generation=='npm-consumers-sync-ci-v1':
+                    target.write_bytes((VALIDATION.ROOT/'tools/repository-checks/workflows/sync-ci-selection.yml').read_bytes())
+                else:
+                    (snapshot/'.github/workflows/project-tests.yml').write_bytes(
+                        (VALIDATION.ROOT/'tools/repository-checks/workflows/host/project-tests.yml').read_bytes())
+                with self.assertRaises(ValueError):packages.validate_wiring(snapshot)
 
 
 if __name__ == "__main__":
