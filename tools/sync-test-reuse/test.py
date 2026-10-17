@@ -604,6 +604,12 @@ class TopologyContracts(unittest.TestCase):
 class ProductRepairContracts(unittest.TestCase):
     """Exercise real gate and branch attestation code against fake GET responses."""
 
+    def setUp(self):
+        # Pure fake-GET contracts must not inherit a hosting job's native role.
+        environment = mock.patch.dict('os.environ', {'GITHUB_ACTIONS': 'false'})
+        self.addCleanup(environment.stop)
+        environment.start()
+
     def fixture(self, changes=None, target="android-vr-pico"):
         settings = config()
         paths = settings["reconciliation_repair_paths"].get(target, [])
@@ -1669,6 +1675,10 @@ class EffectiveBaseTopologyTests(unittest.TestCase):
 class RequiredCodeQLInvocationTests(unittest.TestCase):
     """Actual trusted gate hook and immutable API tree; no caller job facts."""
     def setUp(self):
+        # Native PRT/manual roles have separate explicit environment fixtures.
+        environment = mock.patch.dict('os.environ', {'GITHUB_ACTIONS': 'false'})
+        self.addCleanup(environment.stop)
+        environment.start()
         temporary = tempfile.TemporaryDirectory(prefix='overte-required-codeql-fixture-')
         self.addCleanup(temporary.cleanup)
         self.policy_root = Path(temporary.name)
