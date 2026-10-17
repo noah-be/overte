@@ -779,6 +779,19 @@ owner and both reviewed application and own-host reader boundaries. Unknown neig
 files, mode changes and historical application reader drift still require the
 application build. This classification does not publish IPA or reuse evidence.
 
+The schema 2 iOS host policy also recognizes the exact reviewed
+`host-v1-compiler-data-v1` workflow tuple for the guarded compiler-data restore.
+The existing `legacy` and `host-v1` tuples retain their identities. Same-run
+host requirements and application input selection apply independently;
+registering a workflow tuple supplies no build or test result.
+
+The exact reviewed compiler-cache transition can omit the application build
+while retaining the mandatory iOS host checks. Subsequent independent CI and
+documentation changes can use the exact installed cache profile. Temporary
+comparison entries are normalized to the original reviewed reader boundaries;
+actual source identities and test inputs stay intact. Unknown cache bytes, modes,
+readers or mixed product changes retain the ordinary application gate.
+
 For those two ordinary lockfiles, a complete required JavaScript package owner
 also permits omission when dependency changes exceed the focused security-fix
 profiles. The full package checks must still succeed in the required repository
@@ -896,6 +909,14 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `shared-script-behavior` | `host` | `python3 tests/run-project-tests.py --suite shared-script-behavior` |
 | `native-ctest` | `native` | `python3 tests/run-project-tests.py --suite native-ctest` |
 <!-- generated:test-suites:end -->
+
+Pull requests run the `issue-intake` contracts through the required central
+repository/project gate. Its registered command remains
+`python tests/issue-intake-test.py`, including the CI37 owner set. Both the
+source generation 13 and reviewed generation 22 recipes retain that owner and
+their required host-result aggregation. The dedicated Issue intake workflow
+handles issue, milestone, scheduled and manual reconciliation; it has no
+separate pull-request contracts job.
 
 ## Complete portable host contracts
 
@@ -1260,6 +1281,26 @@ and their Qt development installation.
 This is dependency-based impact selection; an omitted group is not reported as
 a successful test or reused evidence.
 
+Four exact shared inputs retain explicit mandatory owners: `.github/workflows/issue-intake.yml`
+keeps `workflow-contracts`, the chat QML fixture keeps `shared-script-behavior`, and
+both Snapshot Python fixtures keep `snapshot-qml` and `snapshot-native` under their
+complete declared fixture/import root. The controller checks complete ordinary
+base and candidate entries, including historical differences absent from a path
+hint, and unions these owners with the existing CI and Device selections. A finer
+dependency selector cannot remove a mandatory owner. Missing or nonregular entries,
+unknown inputs and unreviewed reader changes keep the full fallback; an absent
+required registry owner is an error. These admissions do not remove Device reader
+inputs, broaden CI independence, or waive the required host work.
+
+The `apple-ios` Device reader graph has additional unproved code edges, so an
+actual change to any of the three mapped chat/Snapshot fixtures also retains
+`device-control-plane-full` for that target, including hidden base/candidate
+differences. The finer selector cannot remove this owner. An issue-workflow-only
+change does not add Device, and the proved main, Apple parent and four Android
+reader scopes keep their precise mapped owners. Unknown targets retain the full
+fallback. The cumulative source rollout already changes the two independently
+Device-owned eligibility fixtures; this conservative rule adds no work there.
+
 The exclusion requires the exact reviewed host reader, discovery, manifest,
 fixture and production-source generation in the candidate and trusted checkout.
 Six separately reviewed child inventories preserve their own production sources,
@@ -1270,6 +1311,16 @@ historical differences, changed readers, mixed product changes, symlinks,
 submodules and incomplete inventories retain every shared and declared platform
 suite. The exact 32 additional CI paths are listed in `CI_ROLLOUT_PATHS`; no
 directory-wide exemption for `tools/test-evidence` or `tests` is added.
+
+The app selector separately classifies exactly the issue-intake workflow, its
+installed-wrapper test and installer, the chat QML fixture, both Snapshot Python
+fixtures and the two Android eligibility fixtures as independent of the reviewed
+iOS configure/build/package/E2E graph. Both immutable trees must match the reviewed
+app-reader complement and expected ordinary modes. This skips app work only:
+`ios/tests/run-tests.sh` directly executes the chat and Snapshot fixtures, so the
+required iOS host remains selected. Unknown neighbors, executable or aliased
+fixtures, mixed product changes and historical reader drift retain app work or
+fail source validation. No IPA, test PASS or reusable evidence is inferred.
 
 For mixed CI and npm-lock changes, the trusted package plan can separately own
 the two reviewed security updates or formatting-only changes. The shared host
@@ -1342,6 +1393,55 @@ JUnit results or reusable evidence. These canonical recipes require the complete
 reviewed installation and hosted qualification; source-only preparation does
 not enable result reuse. The active source13 parent retains its historical Node
 setup until that installation.
+
+Protected candidate identity reads use `git --no-optional-locks` to preserve the
+private immutable index while retaining the complete snapshot verification.
+
+Protected execution presents ordinary Git files as physically read-only files.
+Tests must keep logical Git modes, exact source bytes and alias checks intact;
+when a test intentionally edits a temporary copy, make only that copied leaf
+writable. Never change the original snapshot permissions. Synthetic native-event
+fixtures that clear their environment must supply Git's safe-directory setting
+for their exact trusted checkout, without a wildcard or inherited configuration.
+The device control-plane runner prints failed group names at the end of a failed
+run so bounded host diagnostics retain the failing group without exposing its
+arbitrary output.
+For failed parallel Python self-tests, the final line also reports up to four
+failed module basenames and their total count from the current bounded report.
+This diagnostic stays within 450 ASCII bytes so the protected host's 512-character
+tail retains it. Missing, stale, aliased or invalid reports are reported as
+unavailable; serial runs do not read a parallel report. This output never changes
+test status, timeouts, coverage or evidence authority.
+
+Under the current reviewed catalog and ownership policies, rare controller-source
+upgrades after installing generation 22 use governed maintenance: normally install
+complete generation 13 (`npm-consumers-sync-ci-v1`) on main and all six children,
+restore Android's six original owner/contract files, and preserve every required
+owner and platform profile. Upgrade controller source through the normal 13 checks,
+then obtain fresh native 22 qualification before reinstalling 22. This sequence
+does not authorize automatic downgrades, waive B/D source checks or mint E. Routine
+product PRs with unchanged controllers need no staging.
+
+Original evidence lookup on the four parent branches can traverse at most eight
+normal, exactly equal-tree integrations whose native PR and parent jobs prove
+that no tests executed. The lookup retains the original execution's base,
+candidate, default source, environment and expiry; the original merge time
+still bounds publication. Every hop and the current protected parent are
+independently authenticated. A failed, retried or execution-bearing newer run
+cannot expose an older passing result. Leaf branches retain their existing
+direct lookup; this is not transparent historical reuse on all seven branches.
+
+The canonical Documentation push owner on `main`, `android-phone`,
+`android-vr-pico` and `apple-ios` also supports the unchanged-tree route. Its
+early output only schedules a sparse candidate checkout. The trusted
+`postmerge.py --verify-empty --candidate <checkout>` entrypoint independently
+checks the complete raw candidate, current source and native Documentation job
+again before suppressing the three standalone documentation commands. It does
+not wait for a parallel parent/project job, capture an environment or publish
+test passes. The result remains `reusable: false`, `execution: null` and has no
+evidence authority. Missing initial proof keeps the existing documentation
+fallback; changed proof during final verification fails the owner. These source
+contracts still require actual native qualification before reuse is enabled.
 
 A partial parent run uploads its real JUnit results and a diagnostic
 `host-selection.json` with the exact candidate, package plan, selected and

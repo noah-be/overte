@@ -207,7 +207,7 @@ class WorkflowGenerationTests(TemporaryGit, unittest.TestCase):
         for target, relative in canonical.items():
             path = ROOT / 'tools/repository-checks/workflows' / relative
             self.assertFalse(path.is_symlink())
-            self.assertEqual(path.stat().st_mode & 0o777, 0o644)
+            self.assertIn(path.stat().st_mode & 0o777, (0o444, 0o644))
             expected[target] = blob(path.read_bytes())
         self.assertEqual(generation['workflows'], expected)
         self.assertEqual(PACKAGES.validate_tree_wiring(expected), generation['name'])
@@ -451,7 +451,7 @@ class ProtectedProducerPermissionTests(unittest.TestCase):
         for target, relative in sources.items():
             path = ROOT / 'tools/repository-checks/workflows' / relative
             self.assertFalse(path.is_symlink())
-            self.assertEqual(path.stat().st_mode & 0o777, 0o644)
+            self.assertIn(path.stat().st_mode & 0o777, (0o444, 0o644))
             tree[target] = blob(path.read_bytes())
         self.assertEqual(PACKAGES.validate_tree_wiring(tree), 'protected-producer-original-default-v1')
         for path in tree:

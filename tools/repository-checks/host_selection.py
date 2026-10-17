@@ -144,25 +144,42 @@ PROGRAM_INPUTS = (
 # legacy-retirement/contract handoff files. Only the two separately owned foreign
 # locks are outside this complement; changed locks need mandatory package coverage.
 # These identities are not execution receipts or application-build evidence.
-REVIEWED_PROGRAMS = 'b1da62db5e0624d4104b78311cdd343889fe39f226f64e29ecf0ad20aed7cb27'
+REVIEWED_PROGRAMS = '2f78db664037e86e63c659de558d204f823d8726f6e0fe0ab1ef959c2a06e373'
 REVIEWED_CHILD_PROGRAMS = {
-    'apple-main': '31ed16c6be40f876e965ceccf29e3bc44d77216aff5187d6b7f6013bf8fe9ac2',
-    'apple-ios': '4818a94affa6ea612722eb1a4b5510547b4a1ac171f5c7324ff6a8ccb60a0c00',
-    'android-main': 'fc7966aa2d5a8778422b705187a221811681437ee5940a2ebf58b5720e2d6aaf',
-    'android-phone': '28bb6231e8d118ba05daaad365ef2733f38a589e02adfd4a46e7b25cfd37c6cc',
-    'android-vr': 'fc7966aa2d5a8778422b705187a221811681437ee5940a2ebf58b5720e2d6aaf',
-    'android-vr-pico': 'ee7bb5f90198eaf271d6e0e3c6947e5a1fe54c2cf7f60c0733537703462c9fad',
+    'apple-main': 'c36e8f6524583626c5dc1d2a3d6a33ff39585474445df81b5d70f8ec1b33112a',
+    'apple-ios': 'dab29ade46d34044d38d14d438251a06d3e1a0b81c1200a28691c38b93bb2c10',
+    'android-main': '34a0a521545fc5a15b4f06a662ff62410700e8bcba4ae36595c5b8ee79e55b21',
+    'android-phone': '4a9d3a543c0fa6941f97333aaa16833bc710f750e984a2bbb5f49f33537a1889',
+    'android-vr': '34a0a521545fc5a15b4f06a662ff62410700e8bcba4ae36595c5b8ee79e55b21',
+    'android-vr-pico': '3b6adaf319bb4674ff4f8f31f1875c0023346c414380ea4837cd341d486d4b67',
 }
 REVIEWED_PREDECESSORS = {
     'main': '6c6064992d2e2e189e06af5957c147fd1ac0996b886b8d0b6f30dbf856ee9afe',
     'apple-main': 'ad02726fc123ea762f37e077f6ad11bf54b568542c89ebba9ae6477d9225288a',
     'apple-ios': '5cd6ed41804507a65889ceacbf54133cbcebb4e27bb0fa2b75f482bc75580204',
-    'android-main': '6a9946d1e1e4a607dad305b5e868ba392349946e0837e7b8c74f39ab2d74476f',
-    'android-phone': 'c0e8478a09080498367731cd34616b573b09763d3d46f890edb53de6a771255d',
-    'android-vr': '6a9946d1e1e4a607dad305b5e868ba392349946e0837e7b8c74f39ab2d74476f',
-    'android-vr-pico': '6cb207f96939da4388daa73b12a3928f47ee0a23070bfea05c5988703b4e06b1',
+    'android-main': '48ffa066aca05d45cb1596ec2410865c01d364711b0964c80007d33e230e8894',
+    'android-phone': '960e7ba488c9749594ba71236a4b134d6a2fb23698e745b572d1a3825bc480c4',
+    'android-vr': '48ffa066aca05d45cb1596ec2410865c01d364711b0964c80007d33e230e8894',
+    'android-vr-pico': '48e1ea3774eacdfedb165d6396add7393c8058dbd3945164a4fe120fb6ca4b7c',
 }
 CONTROL_PLANE = 'tests/device/run_control_plane_tests.py'
+# These inputs are read by the full Device suite. They are CI-owned for
+# routing, but remain program/reader inputs and require that suite to execute.
+DEVICE_CONTROL_INPUTS = frozenset({
+    CONTROL_PLANE,
+    'tests/device/self_tests/test_android_adapter.py',
+    'tests/device/self_tests/test_pico_property_eligibility.py',
+})
+# These exact controls have mandatory owners outside the ordinary CI quick set.
+# A routing admission never removes their bytes from PROGRAM_INPUTS or the
+# protected Device reader inventory. Snapshot's complete declared import/fixture
+# root requires both snapshot owners when either Python fixture changes.
+REQUIRED_INPUT_OWNERS = {
+    '.github/workflows/issue-intake.yml': frozenset({'workflow-contracts'}),
+    'tests/device/contracts/chat/test_chat_qml.py': frozenset({'shared-script-behavior'}),
+    'tests/device/contracts/snapshot/test_snapshot_qml.py': frozenset({'snapshot-qml', 'snapshot-native'}),
+    'tests/device/contracts/snapshot/test_snapshot_native.py': frozenset({'snapshot-qml', 'snapshot-native'}),
+}
 PACKAGE_LOCKS = {
     'browser-client/package-lock.json': ('browser-client', 'source-map-postcss-v1'),
     'script-archive/marketplace/S3Server/package-lock.json':
@@ -235,10 +252,34 @@ def program_digest(tree, root=ROOT):
     return hashlib.sha256((json.dumps(payload, sort_keys=True, separators=(',', ':')) + '\n').encode()).hexdigest()
 
 
+def required_input_owners(tree, paths, base_tree=None, *, target='main'):
+    """Bind direct and historical owner deltas to ordinary immutable inputs."""
+    owners = set()
+    for path, required in REQUIRED_INPUT_OWNERS.items():
+        if path not in paths and not (isinstance(base_tree, dict)
+                and base_tree.get(path) != tree.get(path)):
+            continue
+        for snapshot in (base_tree, tree):
+            entry = snapshot.get(path) if isinstance(snapshot, dict) else None
+            if not isinstance(entry, dict) or entry.get('mode') != '100644' or entry.get('type') != 'blob':
+                raise ValueError('mandatory input owners require complete ordinary base and candidate entries')
+        owners.update(required)
+        if target == 'apple-ios' and path in {
+                'tests/device/contracts/chat/test_chat_qml.py',
+                'tests/device/contracts/snapshot/test_snapshot_qml.py',
+                'tests/device/contracts/snapshot/test_snapshot_native.py'} \
+                and base_tree.get(path) != tree.get(path):
+            # This child's additional Device readers are not yet proved
+            # independent. A path hint alone cannot manufacture a new delta.
+            owners.add('device-control-plane-full')
+    return owners
+
+
 def ci_owned(path):
     # Exact hyphenated test filenames are safe: admitting arbitrary tests/*.py
     # could introduce json.py/sitecustomize.py into a child interpreter path.
-    return (path in CI_TESTS or path in CI_POLICY or path in CI_ROLLOUT_PATHS or path.startswith(CI_ROOTS)
+    return (path in CI_TESTS or path in CI_POLICY or path in CI_ROLLOUT_PATHS
+            or path in DEVICE_CONTROL_INPUTS or path in REQUIRED_INPUT_OWNERS or path.startswith(CI_ROOTS)
             or path.endswith('.md') or path.endswith('.mdx'))
 
 
@@ -363,6 +404,10 @@ def select(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_
     if legacy['reason'] in {'unknown-or-nonregular-inventory', 'unowned-inputs',
                             'reviewed-protected-producer-transition'}:
         return legacy
+    try:
+        mandatory = required_input_owners(tree, paths, base_tree, target=target)
+    except ValueError:
+        return legacy
     registry = inputs.load_registry(ROOT / '.github/test-suites.json')
     affected = affected_selection(registry, tree, base_tree, trusted_tree, paths,
                                   allow_full_host=legacy['full_host'], legacy_selection=legacy, target=target)
@@ -374,6 +419,9 @@ def select(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_
         return legacy
     # Do not replace a stronger existing CI37/package proof with broad unproved
     # repository owners, or relabel that proof as an unsupported environment.
+    # A dependency subset cannot erase an independently required input owner.
+    if not mandatory <= set(affected['suites']):
+        return legacy
     narrower = set(affected['suites']) < set(legacy['suites'])
     # Fewer owners cannot justify broader preparation. In particular, keep the
     # existing Qt-free route until a subset has equivalent setup authority.
@@ -394,6 +442,7 @@ def _select_legacy(tree, paths, regular, *, unknown=False, trusted_tree=None, ca
         reason = 'unowned-inputs'
     else:
         try:
+            required = required_input_owners(tree, paths, base_tree, target=target)
             # These exact foreign lock bytes are not product reader inputs.
             # Changed locks still require their separate mandatory owner and
             # ordinary entries on both sides; unchanged locks need no new run.
@@ -414,15 +463,21 @@ def _select_legacy(tree, paths, regular, *, unknown=False, trusted_tree=None, ca
         except (ValueError, OSError, subprocess.SubprocessError):
             reviewed = False
         if reviewed:
+            if not required <= set(registry['suites']):
+                raise ValueError('mandatory input owner is absent from the trusted registry')
             if _protected_producer_transition(tree, paths, base_tree, trusted_tree, target):
                 return {'suites': names, 'reason': 'reviewed-protected-producer-transition',
                         'full_host': True, 'include_platform': True}
-            affected = CONTROL_PLANE in paths or (base_tree is not None and base_tree.get(CONTROL_PLANE) != tree.get(CONTROL_PLANE))
+            affected = (any(path in DEVICE_CONTROL_INPUTS for path in paths)
+                        or base_tree is not None and any(
+                            base_tree.get(path) != tree.get(path) for path in DEVICE_CONTROL_INPUTS))
             result = {'suites': [name for name in names if (
                         registry['suites'][name]['layer'] == 'quick' and name not in PRODUCT_QUICK_SUITES
-                        or affected and name == 'device-control-plane-full')],
-                    'reason': 'reviewed-ci-with-control-plane-update' if affected else 'reviewed-ci-only-inputs',
-                    'full_host': affected, 'include_platform': False}
+                        or affected and name == 'device-control-plane-full' or name in required)],
+                    'reason': 'reviewed-ci-with-control-plane-update' if affected else
+                        'reviewed-ci-with-required-input-owners' if required else 'reviewed-ci-only-inputs',
+                    'full_host': affected or any(registry['suites'][name]['layer'] == 'host' for name in required),
+                    'include_platform': False}
             if package_paths:
                 result['package_owned_paths'] = sorted(package_paths)
                 result['reason'] = ('reviewed-ci-control-plane-and-package-owners' if affected

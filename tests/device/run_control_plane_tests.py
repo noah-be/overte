@@ -8,9 +8,11 @@ from contextlib import contextmanager
 import ctypes
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import time
@@ -252,11 +254,93 @@ def run_owned_command(command, timeout, cancelled, reap):
         raise
 
 
+def python_failure_diagnostic(item, started_ns):
+    """Bounded diagnostic only; this report grants no test-result authority."""
+    duration = item["durationSeconds"]
+    value = {"kind": "device-python-failure",
+             "message": ("timeout" if re.fullmatch(r"timeout after [1-9][0-9]*s", item["message"])
+                         else "interrupted" if re.fullmatch(r"interrupted by signal [1-9][0-9]*", item["message"])
+                         else "failed"),
+             "seconds": round(duration, 3) if type(duration) in (int, float) and 0 <= duration <= 1_000_000 else None,
+             "report": "unavailable", "failed": None, "modules": [], "omitted": None, "truncated": False}
+    directories = []
+    try:
+        if type(started_ns) is not int or started_ns <= 0:
+            raise ValueError("missing diagnostic start")
+        flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+        directories.append(os.open(REPOSITORY, flags))
+        for name in ("build", "test-results"):
+            directories.append(os.open(name, flags, dir_fd=directories[-1]))
+        descriptor = os.open("device-self-tests.json",
+                             os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC,
+                             dir_fd=directories[-1])
+        with os.fdopen(descriptor, "rb") as stream:
+            before = os.fstat(stream.fileno())
+            if (not stat.S_ISREG(before.st_mode) or before.st_nlink != 1
+                    or not 0 < before.st_size <= 4 * 1024 * 1024
+                    or before.st_mtime_ns < started_ns):
+                raise ValueError("unavailable diagnostic report")
+            raw = stream.read(4 * 1024 * 1024 + 1)
+            after = os.fstat(stream.fileno())
+            identity = lambda info: (info.st_dev, info.st_ino, info.st_mode, info.st_nlink,
+                                     info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+            if identity(before) != identity(after) or len(raw) != before.st_size:
+                raise ValueError("diagnostic report changed")
+        document = json.loads(raw)
+        counters = ("selected", "loaded", "ran", "skipped", "failed_modules")
+        if (type(document) is not dict
+                or set(document) != {"schema", "selected", "loaded", "ran", "skipped", "failed_modules", "workers", "modules"}
+                or document["schema"] != 1
+                or any(type(document[key]) is not int or not 0 <= document[key] <= 100_000 for key in counters)
+                or type(document["workers"]) is not int or not 2 <= document["workers"] <= 8
+                or type(document["modules"]) is not list or not 0 < len(document["modules"]) <= 256):
+            raise ValueError("invalid diagnostic shape")
+        failed, selected, seen = [], 0, set()
+        for row in document["modules"]:
+            if (type(row) is not dict or set(row) != {"module", "selected_ids", "result", "exit_code", "error"}
+                    or type(row["module"]) is not str or len(row["module"]) > 160
+                    or not re.fullmatch(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*", row["module"], re.ASCII)
+                    or row["module"] in seen or type(row["exit_code"]) is not int
+                    or type(row["error"]) is not str or type(row["selected_ids"]) is not list
+                    or not 0 < len(row["selected_ids"]) <= 100_000
+                    or any(type(identifier) is not str or len(identifier) > 512 for identifier in row["selected_ids"])
+                    or (row["result"] is not None
+                        and (type(row["result"]) is not dict or row["result"].get("schema") != 1
+                             or type(row["result"].get("successful")) is not bool))):
+                raise ValueError("invalid diagnostic module")
+            seen.add(row["module"])
+            selected += len(row["selected_ids"])
+            if row["exit_code"] != 0 or row["error"] or row["result"] is None or not row["result"]["successful"]:
+                failed.append(row["module"].rsplit(".", 1)[-1])
+        if selected != document["selected"] or len(failed) != document["failed_modules"]:
+            raise ValueError("inconsistent diagnostic counts")
+        names = [name if len(name) <= 48 else name[:47] + "~" for name in failed[:4]]
+        value.update(report="ok", failed=len(failed), modules=names, omitted=len(failed) - len(names),
+                     truncated=len(failed) > len(names) or any(len(name) > 48 for name in failed[:4]))
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RecursionError):
+        pass
+    finally:
+        for descriptor in reversed(directories):
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+    encoded = json.dumps(value, ensure_ascii=True, separators=(",", ":"))
+    while len(encoded) > 450 and value["modules"]:
+        value["modules"].pop()
+        value["omitted"] += 1
+        value["truncated"] = True
+        encoded = json.dumps(value, ensure_ascii=True, separators=(",", ":"))
+    return encoded
+
+
 def run_checks(args: argparse.Namespace, cancelled: list[int]) -> int:
     results = []
+    python_started_ns = None
     started = time.monotonic()
     for name, command, qml in commands(args.profile, args.self_test_jobs):
         if name == "python-self-tests":
+            python_started_ns = time.time_ns() if args.self_test_jobs > 1 else None
             command.extend(("--timeout-seconds", str(args.timeout_seconds)))
             if args.self_test_jobs > 1:
                 command.extend(("--report-json", "build/test-results/device-self-tests.json"))
@@ -283,6 +367,13 @@ def run_checks(args: argparse.Namespace, cancelled: list[int]) -> int:
         write_junit(args.junit.resolve(), results, elapsed)
     failed = sum(item["status"] == "failed" for item in results)
     print(f"Device control plane: {len(results) - failed} non-failing, {failed} failed")
+    if failed:
+        print("Device control plane failed groups: " + json.dumps(
+            [item["name"] for item in results if item["status"] == "failed"], ensure_ascii=True))
+    python_failure = next((item for item in results
+                           if item["name"] == "python-self-tests" and item["status"] == "failed"), None)
+    if python_failure is not None:
+        print(python_failure_diagnostic(python_failure, python_started_ns))
     return 128 + cancelled[0] if cancelled else 1 if failed else 0
 
 

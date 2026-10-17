@@ -48,6 +48,7 @@ class Unavailable(ValueError):
 _PUBLIC_FAILURE_SOURCES = (
     'sandbox_host.py', 'sandbox_shared.py', 'sandbox.py', 'sandbox_probe.py',
     'runtime.py', 'runtime_ci.py', 'execution.py', 'inputs.py', 'ci_profile.py',
+    'producer_workflow.py', 'producer_api.py', 'producer.py',
 )
 _PUBLIC_FAILURE_STAGES = {
     'host_context': 'native-context', 'verify_account': 'account-permissions',
@@ -65,6 +66,10 @@ _PUBLIC_FAILURE_STAGES = {
     'supervise': 'contained-process', '_write_receipt': 'diagnostic-report-write',
     'run_host': 'profile-control', 'main': 'profile-entry',
     '_shared_controller_module': 'trusted-module-identity',
+    'protected_admission': 'protected-source-admission',
+    'prepare': 'protected-owner-selection', 'current_run': 'native-current-role',
+    '_descriptor': 'native-descriptor-read', '_request': 'github-get-boundary',
+    'shared_execution': 'protected-shared-execution', 'protected_receipt': 'protected-receipt',
 }
 _PUBLIC_EXCEPTION_KINDS = (
     (Unavailable, 'Unavailable'), (FileNotFoundError, 'FileNotFoundError'),
