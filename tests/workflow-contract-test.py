@@ -805,15 +805,31 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
             previous, current = dict(old_steps[name]), dict(actual)
             previous.pop('if'); current.pop('if')
             self.assertEqual(previous, current)
+            self.assertIn("&& !(steps.select.outputs.lane == 'verified-empty' && steps.select.outputs.consumer_setup == 'none' && steps.select.outputs.empty_setup != '')", actual['if'])
         for name in ('Set up candidate Java', 'Install candidate host prerequisites'):
             self.assertEqual(next(step for step in steps if step['name'] == name)['if'],
-                             "(steps.select.outputs.consumer_setup != 'none' || steps.select.outputs.native_setup == '') && steps.select.outputs.full_host == 'true'")
+                             "(steps.select.outputs.consumer_setup != 'none' || steps.select.outputs.native_setup == '') && steps.select.outputs.full_host == 'true' && !(steps.select.outputs.lane == 'verified-empty' && steps.select.outputs.consumer_setup == 'none' && steps.select.outputs.empty_setup != '')")
         executions = [step for step in steps if 'trusted/tools/test-evidence/validate-sync.py' in step.get('run', '')
                       and step.get('id') != 'select']
-        self.assertEqual(len(executions), 2)
+        self.assertEqual(len(executions), 3)
+        self.assertEqual({step['name'] for step in executions}, {
+            'Verify bounded synchronization without product setup',
+            'Verify exact candidate suites and complete runtime identity',
+            'Validate the exact unchanged synchronization without test execution'})
         for step in executions:
             self.assertIn('--expected-selection "$EXPECTED_SELECTION"', step['run'])
             self.assertEqual(step['env']['EXPECTED_SELECTION'], '${{ steps.select.outputs.selection }}')
+            if step['name'] == 'Validate the exact unchanged synchronization without test execution':
+                self.assertEqual(step['if'], "steps.select.outputs.lane == 'verified-empty'")
+                self.assertEqual(step['env']['EXPECTED_EMPTY_SETUP'], '${{ steps.select.outputs.empty_setup }}')
+                self.assertTrue(step['run'].startswith('python3 -B '))
+                self.assertIn('--expected-empty-setup "$EXPECTED_EMPTY_SETUP"', step['run'])
+                self.assertNotIn('--expected-native-setup', step['run'])
+                self.assertNotIn('SYNC_VALIDATOR_PYTHON', step['env'])
+            elif step['name'] == 'Verify exact candidate suites and complete runtime identity':
+                self.assertIn("steps.select.outputs.lane != 'verified-empty'", step['if'])
+                self.assertEqual(step['env']['EXPECTED_NATIVE_SETUP'], '${{ steps.select.outputs.native_setup }}')
+                self.assertIn('--expected-native-setup "$EXPECTED_NATIVE_SETUP"', step['run'])
         self.assertNotIn('candidate/tests/run-project-tests.py', source)
 
     def test_selected_sync_contract_rejects_foreign_mode_and_alias_recipes(self):
@@ -961,7 +977,10 @@ class RulesetManifestContracts(unittest.TestCase):
             self.assertEqual(parameters["required_status_checks"], expected_checks)
             if name == "Selected CodeQL security results on main":
                 self.assertEqual(self.manifests[name]["conditions"]["ref_name"],
-                                 {"include": ["refs/heads/main"], "exclude": []})
+                                 {"include": ["refs/heads/" + branch for branch in (
+                                     "main", "apple-main", "apple-ios", "android-main",
+                                     "android-phone", "android-vr", "android-vr-pico")],
+                                  "exclude": []})
                 self.assertEqual(len(self.manifests[name]["rules"]), 1)
 
 
@@ -1091,8 +1110,10 @@ def assert_reviewed_host_selection(case, source):
     template = ROOT / 'tools/repository-checks/workflows/host/project-tests.yml'
     owned = ROOT / 'tools/repository-checks/workflows/android-owned/project-tests.yml'
     protected = ROOT / 'tools/repository-checks/workflows/producers/protected-project-tests.yml'
+    platform = protected.with_name('protected-project-tests-android-platform.yml')
     android_owned = source == owned.read_text(encoding='utf-8')
-    protected_owner = source == protected.read_text(encoding='utf-8')
+    platform_owner = source == platform.read_text(encoding='utf-8')
+    protected_owner = source == protected.read_text(encoding='utf-8') or platform_owner
     if android_owned or protected_owner:
         # Historical staged templates retain their exact approved identities
         # when a newer complete generation becomes the deployed workflow.
@@ -1104,7 +1125,8 @@ def assert_reviewed_host_selection(case, source):
         identity = hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
         matches = {row['name'] for row in packages.workflow_generations()
                    if row['workflows']['.github/workflows/project-tests.yml']['sha'] == identity}
-        allowed = set(PROTECTED_GENERATIONS) if protected_owner else {'android-owned-npm5-sync-ci-v1'}
+        allowed = ({'protected-producer-original-default-v1'} if platform_owner else
+                   set(PROTECTED_GENERATIONS) if protected_owner else {'android-owned-npm5-sync-ci-v1'})
         case.assertTrue(matches & allowed, 'host template requires an exact reviewed Git blob')
         if source == WORKFLOW.read_text(encoding='utf-8'):
             case.assertIn(reviewed_package_generation(), matches & allowed)
@@ -1173,7 +1195,15 @@ def assert_reviewed_host_selection(case, source):
     case.assertIn('project-tests', final['needs'])
     verify = final['steps'][-1]
     case.assertEqual(verify['env']['CHECK_RESULTS'], '${{ toJSON(needs) }}')
-    case.assertIn('trusted/tools/repository-checks/package_checks.py verify', verify['run'])
+    if platform_owner:
+        case.assertIn('platform-tests', final['needs'])
+        case.assertEqual(jobs['platform-tests']['needs'], 'route')
+        case.assertEqual(jobs['platform-tests']['if'], "needs.route.outputs.platform_required == 'true'")
+        case.assertIn('trusted/tools/test-evidence/producer_workflow.py project-verify', verify['run'])
+        case.assertIn('producer_workflow.py fallback-common', execution['run'])
+        case.assertEqual(execution['env']['PLATFORM_REQUIRED'], '${{ needs.route.outputs.platform_required }}')
+    else:
+        case.assertIn('trusted/tools/repository-checks/package_checks.py verify', verify['run'])
 
 
 class ProjectWorkflowContracts(unittest.TestCase):
@@ -1226,7 +1256,8 @@ class ProjectWorkflowContracts(unittest.TestCase):
 
     def test_reviewed_host_selection_rejects_foreign_workflow_bytes(self):
         for relative in ('host/project-tests.yml', 'android-owned/project-tests.yml',
-                         'producers/protected-project-tests.yml'):
+                         'producers/protected-project-tests.yml',
+                         'producers/protected-project-tests-android-platform.yml'):
             source = (ROOT / 'tools/repository-checks/workflows' / relative).read_text()
             with self.subTest(relative=relative), self.assertRaises(AssertionError):
                 assert_reviewed_host_selection(self, source + '\n# foreign workflow bytes\n')
@@ -1264,7 +1295,10 @@ class ProjectWorkflowContracts(unittest.TestCase):
         self.assertIn('with controller.candidate_process_environment():', controller)
         final = jobs['project-results']
         self.assertEqual(final['if'], 'always()')
-        self.assertEqual(set(final['needs']), {'route', 'project-tests', 'tool-dependencies', 'package-checks'})
+        expected_needs = {'route', 'project-tests', 'tool-dependencies', 'package-checks'}
+        if reviewed_package_generation() == 'protected-producer-original-default-v1':
+            expected_needs.add('platform-tests')
+        self.assertEqual(set(final['needs']), expected_needs)
         aggregate = (WORKFLOW_DIRECTORY / 'repository-checks.yml').read_text()
         mode = assert_project_caller_routing(self, aggregate)
         caller = workflow_data(aggregate)['jobs']['project']
@@ -1543,18 +1577,27 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
         self.assertIn('--execution-receipt build/parent-qualification/execution.json', source)
         self.assertIn('--receipt build/parent-qualification/execution.json', source)
         self.assertIn('--candidate candidate', source)
-        steps = workflow_data(source)['jobs']['qualify-parent']['steps']
+        jobs = workflow_data(source)['jobs']
+        platform = (ROOT / 'tools/repository-checks/workflows/producers/parent-qualification-android-platform.yml').read_text()
+        platform_owner = source == platform
+        if platform_owner:
+            self.assertEqual(reviewed_package_generation(), 'protected-producer-original-default-v1')
+            self.assertEqual(set(jobs['qualify-parent']['needs']), {'route', 'common-parent', 'platform-tests'})
+            self.assertIn('producer_workflow.py parent-verify', jobs['qualify-parent']['steps'][-1]['run'])
+        steps = jobs['common-parent' if platform_owner else 'qualify-parent']['steps']
         create = next(step for step in steps if step['name'] == 'Create content-addressed qualification evidence')
         upload = next(step for step in steps if step['name'] == 'Upload immutable qualification evidence')
         canonical = (ROOT / 'tools/repository-checks/workflows/host/parent-qualification.yml').read_text()
         protected = (ROOT / 'tools/repository-checks/workflows/producers/parent-qualification.yml').read_text()
-        if source in (canonical, protected):
-            protected_owner = source == protected
+        if source in (canonical, protected, platform):
+            protected_owner = source == protected or platform_owner
             if protected_owner:
                 self.assertIn(reviewed_package_generation(), METADATA_PRODUCER_GENERATIONS)
             expected = "steps.host.outputs.complete_receipt == 'true'"
             if protected_owner:
                 expected = "steps.reuse.outputs.shared_reused != 'true' && (" + expected + ")"
+            if platform_owner:
+                expected = "needs.route.outputs.platform_required != 'true' && (" + expected + ")"
             selected = next(step for step in steps if step.get('id') == 'host')
             route = next(step for step in steps if step['name'] == 'Require a complete host execution route')
             qt = next(step for step in steps if step['name'] == 'Install QML and portable C++ contract prerequisites')
