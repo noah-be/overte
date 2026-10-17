@@ -601,12 +601,12 @@
         ".github/workflows/parent-qualification.yml": {
           "mode": "100644",
           "type": "blob",
-          "sha": "e838066a4b54dad73433f0057b46ff5c4e87de25"
+          "sha": "98abf45ca6c475af1e1ac3b20ec20f074048fb64"
         },
         ".github/workflows/sync-validation.yml": {
           "mode": "100644",
           "type": "blob",
-          "sha": "50ce7a881ffcf6d99d4393ef4b13ff4efa2f3601"
+          "sha": "50cbb324de358c5f8cd019a8e9b9aed45ea6868d"
         },
         ".github/workflows/repository-checks.yml": {
           "mode": "100644",

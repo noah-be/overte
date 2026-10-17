@@ -37,6 +37,12 @@
   ],
   "browser_client_required_branches": [],
   "codeql_results_required_branches": [
-    "main"
+    "main",
+    "apple-main",
+    "apple-ios",
+    "android-main",
+    "android-phone",
+    "android-vr",
+    "android-vr-pico"
   ]
 }

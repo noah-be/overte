@@ -1215,7 +1215,8 @@ class AndroidPlatformPartitionTests(unittest.TestCase):
         self.base={'.github/test-suites.json':deepcopy(registry_entry)}
         self.tree=deepcopy(self.base)
         self.tree['.github/workflows/project-tests.yml']=deepcopy(template)
-        self.package_boundary=SimpleNamespace(validate_tree_wiring=Mock(return_value=P.PLATFORM_GENERATION))
+        self.package_boundary=SimpleNamespace(validate_tree_wiring=Mock(return_value=P.PLATFORM_GENERATION),
+            candidate_plan=Mock(return_value={'host_mode':'full'}))
         self.policy=SimpleNamespace(package_policy=lambda:self.package_boundary)
         self.select_target(self.target)
 
