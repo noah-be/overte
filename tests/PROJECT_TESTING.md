@@ -910,6 +910,14 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `native-ctest` | `native` | `python3 tests/run-project-tests.py --suite native-ctest` |
 <!-- generated:test-suites:end -->
 
+Pull requests run the `issue-intake` contracts through the required central
+repository/project gate. Its registered command remains
+`python tests/issue-intake-test.py`, including the CI37 owner set. Both the
+source generation 13 and reviewed generation 22 recipes retain that owner and
+their required host-result aggregation. The dedicated Issue intake workflow
+handles issue, milestone, scheduled and manual reconciliation; it has no
+separate pull-request contracts job.
+
 ## Complete portable host contracts
 
 ```bash

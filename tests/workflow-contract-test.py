@@ -1255,6 +1255,58 @@ def assert_reviewed_host_selection(case, source):
 
 
 class ProjectWorkflowContracts(unittest.TestCase):
+    def test_issue_intake_has_one_required_central_pull_request_owner(self):
+        issue = workflow_data((WORKFLOW_DIRECTORY / 'issue-intake.yml').read_text())
+        self.assertEqual(set(issue.get('on', issue.get(True))),
+                         {'issues', 'milestone', 'schedule', 'workflow_dispatch'})
+        self.assertEqual(set(issue['jobs']), {'reconcile'})
+        self.assertEqual(issue['permissions'], {'contents': 'read'})
+        self.assertEqual(issue['jobs']['reconcile']['if'],
+                         "github.repository == 'noah-l-frank/overte' && github.event_name != 'pull_request'")
+        self.assertEqual(issue['jobs']['reconcile']['permissions'],
+                         {'contents': 'read', 'issues': 'write'})
+        registry = json.loads((ROOT / '.github/test-suites.json').read_text())
+        owner = registry['suites']['issue-intake']
+        self.assertEqual(owner['command'], ['python', 'tests/issue-intake-test.py'])
+        self.assertEqual(owner['layer'], 'quick')
+        ci37 = json.loads((ROOT / '.github/ci37-runtime.json').read_text())
+        self.assertEqual(ci37['suites'].count('issue-intake'), 1)
+        dependencies = json.loads((ROOT / '.github/test-suite-dependencies.json').read_text())
+        self.assertEqual(dependencies['suites']['issue-intake']['kind'], 'repository')
+        catalog = json.loads((ROOT / '.github/package-workflow-generations.json').read_text())
+        generations = {row['name']: row['workflows'] for row in catalog['generations']}
+        for generation, caller_path, project_path in (
+                ('npm-consumers-sync-ci-v1', 'npm-consumers/repository-checks.yml', 'host/project-tests.yml'),
+                ('protected-producer-original-default-v1', 'producers/repository-checks.yml',
+                 'producers/protected-project-tests-android-platform.yml')):
+            with self.subTest(generation=generation):
+                recipes = {}
+                for endpoint, relative in (('repository-checks', caller_path), ('project-tests', project_path)):
+                    raw = (ROOT / 'tools/repository-checks/workflows' / relative).read_bytes()
+                    self.assertEqual(generations[generation]['.github/workflows/' + endpoint + '.yml'],
+                                     {'mode': '100644', 'type': 'blob',
+                                      'sha': hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()})
+                    recipes[endpoint] = workflow_data(raw.decode())
+                caller, project = recipes['repository-checks'], recipes['project-tests']
+                events = caller.get('on', caller.get(True))
+                self.assertIn('pull_request', events)
+                self.assertNotIn('paths', events['pull_request'])
+                self.assertNotIn('paths-ignore', events['pull_request'])
+                route = caller['jobs']['project']
+                self.assertEqual(route['uses'], './.github/workflows/project-tests.yml')
+                self.assertIn("needs.route.outputs.package_host_mode == 'full'", route['if'])
+                self.assertIn('project', caller['jobs']['repository-checks']['needs'])
+                self.assertIn('always()', caller['jobs']['repository-checks']['if'])
+                host = project['jobs']['project-tests']
+                self.assertEqual(host['if'], "needs.route.outputs.package_host_mode == 'full'")
+                execution = next(step for step in host['steps']
+                                 if step.get('name') == 'Run independently selected host contracts')
+                self.assertIn('trusted/tools/repository-checks/host_selection.py', execution['run'])
+                self.assertIn('--expected-plan "$EXPECTED_PLAN"', execution['run'])
+                final = project['jobs']['project-results']
+                self.assertEqual(final['if'], 'always()')
+                self.assertIn('project-tests', final['needs'])
+
     def test_prospective_seven_target_recipes_require_the_complete_canonical_generation(self):
         spec = importlib.util.spec_from_file_location(
             'prospective_workflow_contract_packages', ROOT / 'tools/repository-checks/package_checks.py')
