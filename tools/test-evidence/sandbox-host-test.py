@@ -354,9 +354,15 @@ class PublicBootstrapTests(unittest.TestCase):
         self.source.chmod(0o600)
         self.assertEqual(self.private.stat().st_mode & 0o777, 0o700)
         actual_lstat, actual_fstat = Path.lstat, os.fstat
+        public_tmp = actual_lstat(Path("/tmp"))
 
         def root_owned(info):
-            return os.stat_result((*info[:4], 0, *info[5:]))
+            # Model only the fixed public parent, even when the test itself
+            # runs inside a candidate capsule whose private /tmp is 0755.
+            mode = (stat.S_IFMT(info.st_mode) | 0o1777
+                    if (info.st_dev, info.st_ino) == (public_tmp.st_dev, public_tmp.st_ino)
+                    else info.st_mode)
+            return os.stat_result((mode, *info[1:4], 0, *info[5:]))
 
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
