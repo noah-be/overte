@@ -144,23 +144,23 @@ PROGRAM_INPUTS = (
 # legacy-retirement/contract handoff files. Only the two separately owned foreign
 # locks are outside this complement; changed locks need mandatory package coverage.
 # These identities are not execution receipts or application-build evidence.
-REVIEWED_PROGRAMS = '4433b41b0bdd4fc79e141e8660f0e4f01eb5d4aeca1d622b358bf8294efb862d'
+REVIEWED_PROGRAMS = 'b1da62db5e0624d4104b78311cdd343889fe39f226f64e29ecf0ad20aed7cb27'
 REVIEWED_CHILD_PROGRAMS = {
-    'apple-main': '74242d738a67619e80c460fbc5645dad9a935942b56302fb1c49fa38750d804e',
-    'apple-ios': '03366118f78687b3838cadabd07c6ac6cb46120f9e23df9fbb5732c5235b12bd',
-    'android-main': '46be1cd4d6e8bd508d66b50f0fc0d89a42e849a80847292338928a3b0010f8b1',
-    'android-phone': 'f8f356436a988d27482de71af5346cac387fedfe105d7c66545398bf9f701afc',
-    'android-vr': '46be1cd4d6e8bd508d66b50f0fc0d89a42e849a80847292338928a3b0010f8b1',
-    'android-vr-pico': 'a0081360768fa65947311cf719b50f613397da7a8f1b96ff96aec55de4e16246',
+    'apple-main': '31ed16c6be40f876e965ceccf29e3bc44d77216aff5187d6b7f6013bf8fe9ac2',
+    'apple-ios': '4818a94affa6ea612722eb1a4b5510547b4a1ac171f5c7324ff6a8ccb60a0c00',
+    'android-main': 'fc7966aa2d5a8778422b705187a221811681437ee5940a2ebf58b5720e2d6aaf',
+    'android-phone': '28bb6231e8d118ba05daaad365ef2733f38a589e02adfd4a46e7b25cfd37c6cc',
+    'android-vr': 'fc7966aa2d5a8778422b705187a221811681437ee5940a2ebf58b5720e2d6aaf',
+    'android-vr-pico': 'ee7bb5f90198eaf271d6e0e3c6947e5a1fe54c2cf7f60c0733537703462c9fad',
 }
 REVIEWED_PREDECESSORS = {
     'main': '6c6064992d2e2e189e06af5957c147fd1ac0996b886b8d0b6f30dbf856ee9afe',
     'apple-main': 'ad02726fc123ea762f37e077f6ad11bf54b568542c89ebba9ae6477d9225288a',
     'apple-ios': '5cd6ed41804507a65889ceacbf54133cbcebb4e27bb0fa2b75f482bc75580204',
-    'android-main': 'ab514220a0f49bef3c49f2fd62ec15bb686b21392e69ae6c76de4c207abac74b',
-    'android-phone': 'f214dea5333b861c95a54a5afc442c42389a9d62840ea7c9510982e4605b315d',
-    'android-vr': 'ab514220a0f49bef3c49f2fd62ec15bb686b21392e69ae6c76de4c207abac74b',
-    'android-vr-pico': '8716aee57f0484b6905c3367f6390f22e9fbc4005b65320dea6a1f10f5c7d05a',
+    'android-main': '6a9946d1e1e4a607dad305b5e868ba392349946e0837e7b8c74f39ab2d74476f',
+    'android-phone': 'c0e8478a09080498367731cd34616b573b09763d3d46f890edb53de6a771255d',
+    'android-vr': '6a9946d1e1e4a607dad305b5e868ba392349946e0837e7b8c74f39ab2d74476f',
+    'android-vr-pico': '6cb207f96939da4388daa73b12a3928f47ee0a23070bfea05c5988703b4e06b1',
 }
 CONTROL_PLANE = 'tests/device/run_control_plane_tests.py'
 PACKAGE_LOCKS = {
