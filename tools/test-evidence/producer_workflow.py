@@ -1715,6 +1715,7 @@ if __name__ == '__main__':
     except (host.Unavailable, producer_api.ApiError, protocol.ProtocolError, execution.ExecutionError,
             inputs.InputError, OSError, ValueError, KeyError, zipfile.BadZipFile) as error:
         # Candidate output and server/private metadata are never log commands.
-        detail = sandbox.safe_diagnostic(str(error).encode()[:8192]) if isinstance(error, host.Unavailable) else 'required protected operation failed'
+        detail = (sandbox.safe_diagnostic(str(error).encode()[:8192]) if isinstance(error, host.Unavailable)
+                  else json.dumps(host.failure_summary(error), sort_keys=True))
         print('Protected shared producer failed closed: ' + detail, file=sys.stderr)
         raise SystemExit(1)

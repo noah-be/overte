@@ -1536,6 +1536,54 @@ class ProtectedSelectedProducerTests(unittest.TestCase):
         import producer_workflow
         self.producer = producer_workflow
 
+    def test_producer_cli_failure_remains_fatal_and_reports_only_closed_source_facts(self):
+        source = H.ROOT / 'tools/test-evidence/producer_workflow.py'
+        secret = 'PRIVATE-fixture-::error::-command-env-output'
+        script = ('import runpy,sys\n'
+            'sys.path.insert(0,' + repr(str(source.parent)) + ')\n'
+            'import sandbox\n'
+            'def refused(root):\n'
+            ' try:\n'
+            '  raise FileNotFoundError(2,' + repr(secret) + ',' + repr('/private/' + secret) + ')\n'
+            ' except FileNotFoundError as inner:\n'
+            '  raise ValueError(' + repr(secret) + ') from inner\n'
+            'sandbox.require_protected_execution=refused\n'
+            'sys.argv=[' + repr(str(source)) + ',"shared","--candidate","/unused-fixture"]\n'
+            'runpy.run_path(' + repr(str(source)) + ',run_name="__main__")\n')
+        result = subprocess.run([sys.executable, '-I', '-S', '-B', '-c', script],
+            capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, '')
+        prefix = 'Protected shared producer failed closed: '
+        self.assertTrue(result.stderr.startswith(prefix), result.stderr)
+        report = json.loads(result.stderr[len(prefix):])
+        self.assertEqual(report['chain'][0]['exception_class'], 'ValueError')
+        self.assertEqual(report['chain'][0]['source'], 'tools/test-evidence/producer_workflow.py')
+        self.assertEqual(report['chain'][0]['stage'], 'protected-source-admission')
+        self.assertEqual(report['chain'][1]['exception_class'], 'FileNotFoundError')
+        self.assertEqual(report['chain'][1]['errno'], 2)
+        self.assertNotIn(secret, result.stderr)
+        self.assertNotIn('/private/', result.stderr)
+        self.assertNotIn('Traceback', result.stderr)
+        self.assertNotIn('::error::', result.stderr)
+        self.assertLess(len(result.stderr), 5000)
+
+    def test_producer_api_failure_reports_the_fixed_boundary_without_request_data(self):
+        api = self.producer.producer_api
+        secret = 'PRIVATE-fixture-::error::-endpoint'
+        with patch.object(api.subprocess, 'Popen') as process:
+            try:
+                api.GitHubReadOnly().json('/private/' + secret)
+            except api.ApiError as error:
+                report = H.failure_summary(error)
+            else:
+                self.fail('unreviewed endpoint was accepted')
+        process.assert_not_called()
+        self.assertEqual(report['chain'][0]['source'], 'tools/test-evidence/producer_api.py')
+        self.assertEqual(report['chain'][0]['stage'], 'github-get-boundary')
+        self.assertNotIn(secret, json.dumps(report))
+        self.assertNotIn('/private/', json.dumps(report))
+
     def test_selected_subset_uses_existing_runner_once_with_real_device_timeout_rule(self):
         registry = SHARED.inputs.load_registry(H.ROOT / '.github/test-suites.json')
         names = ['device-control-plane-full', 'branch-policy']
