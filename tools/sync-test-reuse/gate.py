@@ -869,6 +869,109 @@ def _native_sync_context(controller, adapter, request):
     return binding, references, local
 
 
+
+def _empty_sync_invocation(controller, adapter, references, environment):
+    """Authenticate the current dispatch, separately from its candidate PR M."""
+    A = controller.A
+    source = references['default']
+    required = {'GITHUB_ACTIONS':'true','GITHUB_REPOSITORY':A.REPOSITORY,
+        'GITHUB_REPOSITORY_ID':'1319052603','GITHUB_EVENT_NAME':'workflow_dispatch',
+        'GITHUB_RUN_ATTEMPT':'1','GITHUB_JOB':'validate','GITHUB_REF':'refs/heads/main',
+        'GITHUB_SHA':source,'GITHUB_WORKFLOW_SHA':source,
+        'GITHUB_WORKFLOW_REF':A.REPOSITORY+'/.github/workflows/sync-validation.yml@refs/heads/main',
+        'RUNNER_ENVIRONMENT':'github-hosted','ImageOS':'ubuntu24'}
+    A.require(all(environment.get(key)==value for key,value in required.items()),
+        'empty sync must use its actual protected native dispatch')
+    run_id = A.positive(int(environment.get('GITHUB_RUN_ID','0')))
+    registration = adapter._object('actions/workflows/sync-validation.yml')
+    A.require(registration.get('id')==350930895 and registration.get('path')=='.github/workflows/sync-validation.yml'
+        and registration.get('state')=='active' and registration.get('name')=='Sync validation',
+        'empty sync workflow registration changed')
+    latest = adapter._object('actions/runs/'+str(run_id))
+    attempt = adapter._object(f'actions/runs/{run_id}/attempts/1')
+    keys = ('id','workflow_id','check_suite_id','path','event','head_sha','head_branch',
+        'run_attempt','status','conclusion','run_started_at')
+    A.require(all(latest.get(key)==attempt.get(key) for key in keys)
+        and attempt.get('id')==run_id and attempt.get('run_attempt')==1
+        and attempt.get('workflow_id')==registration['id'] and attempt.get('path')==registration['path']
+        and attempt.get('event')=='workflow_dispatch' and attempt.get('head_sha')==source
+        and attempt.get('head_branch')=='main'
+        and (attempt.get('status'),attempt.get('conclusion'))==('in_progress',None)
+        and all(row.get(key,{}).get('id')==1319052603
+            and row[key].get('full_name')==A.REPOSITORY
+            for row in (latest,attempt) for key in ('repository','head_repository')),
+        'empty sync is not its original current native attempt')
+    suite = adapter._object('check-suites/'+str(A.positive(attempt.get('check_suite_id'))))
+    A.require(suite.get('id')==attempt['check_suite_id'] and suite.get('head_sha')==source
+        and suite.get('repository',{}).get('id')==1319052603 and suite.get('app',{}).get('id')==15368,
+        'empty sync native check suite is foreign')
+    jobs = adapter._pages(f'actions/runs/{run_id}/attempts/1/jobs','jobs')
+    A.require(len(jobs)==1 and jobs[0].get('name')=='Validate exact synchronization',
+        'empty sync native job inventory is incomplete or ambiguous')
+    job = adapter._job(jobs[0],attempt,15368,final_name='Validate exact synchronization')
+    A.require((job.status,job.conclusion)==('in_progress',None) and job.completed_at is None
+        and controller.P._time(attempt.get('run_started_at'))<=controller.P._time(job.started_at)
+        <=datetime.now(timezone.utc), 'empty sync native job is not currently executing')
+    return {'registration':registration,'run':{key:attempt.get(key) for key in keys},'job':vars(job)}
+
+
+def verified_empty_sync(api, config, request, candidate, *, environment=None):
+    """Validation-only source proof; never original test/runtime qualification.
+
+    The raw helper supplies immutable arithmetic only. Actual gate topology,
+    native dispatch, protected default/controller and current PR bookends supply
+    its authority. An unavailable proof leaves the existing execution route.
+    """
+    if request.changed_paths or request.repair_paths:
+        return None
+    try:
+        controller = _native_parent_controller()
+        A = controller.A
+        A.require(config.get('repository')==A.REPOSITORY and config.get('repository_id')==1319052603
+            and config.get('trusted_actions_app_id')==15368
+            and config.get('validation_workflow')=='sync-validation.yml'
+            and config['edges'][request.base]['parent']==request.parent,
+            'empty sync requires the exact configured protected edge')
+        adapter = A.Adapter(api.native_producer_api(controller))
+        native = os.environ if environment is None else environment
+        def observe():
+            binding, refs, local = _native_sync_context(controller,adapter,request)
+            invocation = _empty_sync_invocation(controller,adapter,refs,native)
+            policy = controller.producer._host_policy()
+            source = controller.producer.reuse_source_context(adapter,binding,refs,policy)
+            tree_sha, current = controller.full_tree(adapter,request.merge_sha)
+            before_sha, previous = controller.full_tree(adapter,request.base_sha)
+            A.require(tree_sha==before_sha==binding['merge_tree'] and current==previous
+                and controller.execution.checkout_identity(candidate)==(request.merge_sha,tree_sha)
+                and suite_inputs.full_tree(candidate,request.merge_sha)==current,
+                'empty sync complete immutable candidate inventory differs')
+            package = policy.package_policy()
+            A.require(package.validate_tree_wiring(current)==controller.ci_profile.RETAINED_SOURCE_GENERATION
+                and current.get('.github/workflows/sync-validation.yml')==local.get(
+                    'tools/repository-checks/workflows/sync-ci-selection.yml')
+                and local.get('.github/workflows/sync-validation.yml')==local.get(
+                    'tools/repository-checks/workflows/sync-ci-selection.yml'),
+                'empty sync is not the complete reviewed future recipe')
+            pr = adapter._object('pulls/'+str(request.number))
+            labels = pr.get('labels')
+            A.require(isinstance(labels,list) and all(type(label) is dict and type(label.get('name')) is str
+                for label in labels) and not any(label['name']=='android-long-diagnostics' for label in labels),
+                'explicit diagnostics cannot select an empty sync')
+            checks = package.load('sync_empty_immutable_math','tools/repository-checks/check.py')
+            proof = checks.immutable_empty_candidate(candidate,base_sha=request.base_sha,
+                head_sha=request.head_sha,candidate_sha=request.merge_sha,
+                merge_parents=(request.base_sha,request.head_sha))
+            A.require(type(proof) is dict and proof.get('tree')==tree_sha,
+                'empty sync raw immutable source proof is unavailable')
+            return {'schema':1,'kind':'verified-empty-sync-v1','qualification':False,'reusable':False,
+                'immutable':proof,'binding':binding,'references':refs,'source':source,'native':invocation}
+        first = observe()
+        A.require(observe()==first,'empty sync source or native context changed')
+        return first
+    except (EvidenceError,GateError,ValueError,OSError,KeyError,TypeError,AttributeError,ImportError,
+            subprocess.SubprocessError):
+        return None
+
 def _native_parent_run(controller, adapter, request, now):
     endpoint = ('actions/workflows/350930890/runs?branch='+quote(request.parent, safe='')
         +'&event=push&head_sha='+request.parent_sha)

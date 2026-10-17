@@ -34,6 +34,7 @@ on: # zizmor: ignore[dangerous-triggers] PR and finite completion notifications 
       - Repository Health Doctor
       - Sync test reuse
       - Sync validation
+      - Sync validation gate-*-attempt-*
     types: [completed]
     branches: [main, android-main, android-phone, android-vr, android-vr-pico, apple-main, apple-ios]
   schedule:
