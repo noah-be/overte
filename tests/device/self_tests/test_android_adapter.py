@@ -13,6 +13,7 @@ import tempfile
 import time
 import unittest
 from urllib.request import urlopen
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -416,7 +417,8 @@ class AndroidAdapterTest(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("batched_android_profile", ADAPTER)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        adapter = module.AndroidAdapter("phone")
+        with patch.object(module, "AdbTransport"):
+            adapter = module.AndroidAdapter("phone")
 
         class LiveProfile:
             def __init__(self):

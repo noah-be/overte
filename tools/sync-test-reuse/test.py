@@ -1505,7 +1505,9 @@ class EffectiveBaseTopologyTests(unittest.TestCase):
                    'base': side('android-main', HEAD), 'head': side('main', self.default)}
         self.event = {'number': 610, 'repository': {'full_name': REPOSITORY, 'id': REPOSITORY_ID},
                       'pull_request': deepcopy(self.pr)}
-        self.env = {'GITHUB_ACTIONS': 'true', 'GITHUB_REPOSITORY': REPOSITORY,
+        self.env = {'GIT_CONFIG_COUNT': '1', 'GIT_CONFIG_KEY_0': 'safe.directory',
+                    'GIT_CONFIG_VALUE_0': str(gate.ROOT),
+                    'GITHUB_ACTIONS': 'true', 'GITHUB_REPOSITORY': REPOSITORY,
                     'GITHUB_REPOSITORY_ID': str(REPOSITORY_ID), 'GITHUB_RUN_ATTEMPT': '1',
                     'GITHUB_EVENT_NAME': 'pull_request_target', 'GITHUB_RUN_ID': '901',
                     'GITHUB_JOB': 'sync-test-reuse', 'GITHUB_REF': 'refs/heads/android-main',
@@ -2605,6 +2607,59 @@ class NativeRetainedParentEvidenceTests(unittest.TestCase):
         # selection: the authenticated original include-platform decision stays.
         self.profile['selection']['include_platform']=False
         with self.assertRaises(gate.EvidenceError):self.verify()
+
+    def retain_equal_tree_parent(self):
+        """Keep source4/E3/Android owner real; add only native transport facts."""
+        C=self.controller; native=self.native
+        hops=self.fixtures.RetainedIntegratedFakeApi(self.case,1)
+        hops.metadata=deepcopy(self.generation)
+        hops.helper=deepcopy(native.local[C.A.METADATA_SOURCE])
+        hops.policy=C.A.MetadataPolicy(99,self.case.policy.caller_path,
+            {C.producer.PLATFORM_GENERATION:hops.metadata},
+            {C.producer.PLATFORM_GENERATION:{C.A.METADATA_SOURCE:hops.helper}})
+        hops.maps={self.case.binding['merge_tree']:self.parent}
+        hops.commits[self.case.binding['base_sha']]=self.records[self.case.binding['base_sha']]
+        hops.default=native.default;hops.fallback_json=native.api.json
+        native.api.json=hops.json;native.api.integrated_pr=hops.integrated_pr
+        hop=hops.hops[0];native.push_rows=[deepcopy(hops.extra_runs[hop['push']])]
+        native.request=replace(native.request,head_sha=hops.current,parent_sha=hops.current)
+        self.records[native.child_merge]=(native.child_tree,[native.child_base,hops.current])
+        self.hops=hops
+        return hops
+
+    def test_same_tree_parent_retains_original_B_D_selection_E_and_separate_child_platform(self):
+        hops=self.retain_equal_tree_parent()
+        original_receipt=deepcopy(self.receipt);original_profile=deepcopy(self.profile)
+        value=self.verify()
+        self.assertEqual(value['parent_commit'],hops.current)
+        self.assertEqual(value['original_commit'],self.case.binding['merge_sha'])
+        self.assertEqual(value['original_proof']['origin_integration']['commit'],self.case.integrated)
+        self.assertEqual(value['original_protected_source'],self.retained)
+        self.assertEqual(value['environment'],self.environment)
+        self.assertEqual(value['expires_at'],self.case.aggregate['expires_at'])
+        self.assertEqual(value['original_git_context']['commits'][self.case.binding['merge_sha']]['parents'][0],self.case.binding['base_sha'])
+        self.assertEqual(self.receipt,original_receipt);self.assertEqual(self.profile,original_profile)
+        self.assertFalse(value['platform_reused'])
+        if self.partition is not None:self.assertEqual(value['original_platform_observation']['job_id'],140)
+        self.controller.execution.execute.assert_not_called()
+        self.controller.execution.capture_execution_environment.assert_not_called()
+
+    def test_same_tree_retention_cannot_hide_lost_original_platform_or_late_hop_change(self):
+        hops=self.retain_equal_tree_parent()
+        if self.partition is not None:
+            self.case.jobs[100][-1]['conclusion']='failure'
+            with self.assertRaises(gate.EvidenceError):self.verify()
+            self.case.jobs[100][-1]['conclusion']='success'
+        original=hops.mutate;reads=0
+        def mutate(endpoint,value):
+            nonlocal reads
+            if endpoint.endswith('/check-suites/'+str(hops.extra_runs[hops.run_id]['check_suite_id'])):
+                reads+=1
+                if reads>2:value['app']['id']=42
+            return original(endpoint,value)
+        hops.mutate=mutate
+        with self.assertRaises(gate.EvidenceError):self.verify()
+
 
 
 class NativeOriginalLookupCompatibilityTests(unittest.TestCase):
