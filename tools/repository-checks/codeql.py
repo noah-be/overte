@@ -23,6 +23,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import subprocess
+import sys
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -409,6 +410,26 @@ def select_repository(root: Path | str, base_sha: str, candidate_sha: str, *, ev
     return result
 
 
+def cli_repository_plan(root, base_sha, candidate_sha, *, event):
+    """Plan from native M's base provisionally; the result gate proves live refs."""
+    if event == 'pull_request' and os.environ.get('GITHUB_ACTIONS') == 'true':
+        path = Path(os.environ.get('GITHUB_EVENT_PATH', ''))
+        if not path.is_file() or path.is_symlink() or path.stat().st_size > 2_000_000:
+            raise ValueError('bounded native CodeQL event is unavailable')
+        server_event = json.loads(path.read_bytes(), object_pairs_hook=inputs._unique_object)
+        spec = importlib.util.spec_from_file_location('trusted_codeql_candidate_context', ROOT / 'tools/repository-checks/check.py')
+        if spec is None or spec.loader is None:
+            raise ValueError('trusted native candidate context is unavailable')
+        checks = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = checks
+        spec.loader.exec_module(checks)
+        context = checks.pr_candidate_context(Path(root), server_event, candidate_sha)
+        if not isinstance(context, dict) or context['event_base'] != base_sha:
+            raise ValueError('CodeQL selector snapshot differs from the native event')
+        base_sha = context['base']
+    return select_repository(root, base_sha, candidate_sha, event=event)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, required=True)
@@ -416,7 +437,7 @@ def main() -> None:
     parser.add_argument("--candidate-sha", default="")
     parser.add_argument("--event", default="pull_request")
     args = parser.parse_args()
-    print(json.dumps(select_repository(args.root, args.base_sha, args.candidate_sha, event=args.event),
+    print(json.dumps(cli_repository_plan(args.root, args.base_sha, args.candidate_sha, event=args.event),
                      sort_keys=True, separators=(",", ":")))
 
 

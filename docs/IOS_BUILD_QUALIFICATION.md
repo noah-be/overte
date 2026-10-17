@@ -83,14 +83,20 @@ checks. Both input trees must still match this reader boundary; new application
 readers invalidate the exception even for a later CI-only change.
 
 The own iOS host run also has an independent, narrower negative dependency
-boundary in `host.py`. Exactly 142 reviewed CI paths may change while both the
-protected base and merge candidate retain the complete reviewed complement of
-11,168 ordinary Git entries, including historical child differences, test
+boundary in `host.py`. At its initial deployment, exactly 142 reviewed CI paths
+could change while both the protected base and merge candidate retained the
+reviewed complement of 11,168 ordinary Git entries, including historical child differences, test
 discovery, imports, helpers, product sources, consumed documentation and modes.
 Unknown paths, new discovery members, native scan inputs, missing files, mode
 changes, symbolic links and gitlinks invalidate this boundary. There is no
 generic Markdown, tools or tests exemption. The app input selector must separately
 require no application build before the host omission can apply.
+
+The current finite set also includes ordinary `docs/BRANCH_GOVERNANCE.md`. The
+iOS launcher and its test readers do not consume it, and the native source scan
+does not read Markdown. An edit to this exact document can therefore omit the
+own-host run; executable documents, aliases, neighboring unknown paths and mixed
+host-reader changes retain the relevant checks.
 
 For this reviewed CI-only route, the separate iOS host, Qt and client jobs are
 skipped. The final verifier independently recomputes the selection and requires
@@ -178,8 +184,8 @@ not a package test receipt and cannot make a failing package check mergeable.
 Both app and own-host reader complements remain bound independently on both
 immutable trees. The app reader complement contains 10,964 entries and is
 `sha256:cba03775542c32affcfe172b66b80b23cab31abd9f61293abd3f5cb0e19c03e8`;
-the own-host complement is
-`eb10f2ce89017a4efc75001773c1da415994dc2f4d542fb2804183bc2f77ba15`.
+the current own-host complement contains 11,161 entries and is
+`90da341e226f56b8dfb8b925af7c0273ecc41772ca424e3426b04c80acdb9a7b`.
 These protected-`apple-ios` reader identities normalize only the finite lock
 class; they do not approve arbitrary lock graphs. Missing or unsupported owners,
 changed package consumers/configuration, native sources, discovery membership,
