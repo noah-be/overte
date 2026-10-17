@@ -1590,6 +1590,35 @@ class RequiredCodeQLInvocationTests(unittest.TestCase):
                 'ref': 'refs/heads/' + target, 'object': {'type': 'commit', 'sha': BASE}}
             with self.subTest(target=target): self.assertTrue(self.validate())
 
+    def test_protected_policy_pins_real_codeql_on_every_permanent_target(self):
+        self.policy = json.loads((HERE.parents[1] / '.github/repository-checks.json').read_text())
+        targets = ['main', 'apple-main', 'apple-ios', 'android-main',
+                   'android-phone', 'android-vr', 'android-vr-pico']
+        self.assertEqual(self.policy['codeql_results_required_branches'], targets)
+        self.write_policy()
+        current = self.documents[f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1']
+        previous = self.documents[f'repos/{REPOSITORY}/git/trees/{CODEQL_BASE_TREE}?recursive=1']
+        previous['tree'] = [entry('.github/workflows/codeql.yml', PINNED_WORKFLOW_BLOB)]
+        for target in targets:
+            self.pr['base']['ref'] = target
+            self.event['pull_request']['base']['ref'] = target
+            self.documents[f'repos/{REPOSITORY}/git/ref/heads/{target}'] = {
+                'ref': 'refs/heads/' + target, 'object': {'type': 'commit', 'sha': BASE}}
+            current['tree'] = [entry('.github/workflows/codeql.yml', PINNED_WORKFLOW_BLOB)]
+            with self.subTest(target=target, recipe='reviewed'):
+                self.assertTrue(self.validate())
+            for variant in ('fabricated', 'missing', 'executable', 'symlink', 'gitlink'):
+                item = entry('.github/workflows/codeql.yml', PINNED_WORKFLOW_BLOB)
+                if variant == 'fabricated': item['sha'] = HEAD
+                if variant == 'executable': item['mode'] = '100755'
+                if variant == 'symlink': item['mode'] = '120000'
+                if variant == 'gitlink': item.update(mode='160000', type='commit')
+                current['tree'] = [] if variant == 'missing' else [item]
+                self.event['jobs'] = {'codeql-security-results': 'success'}
+                self.event['codeql_results_required_branches'] = []
+                with self.subTest(target=target, recipe=variant), self.assertRaises(gate.GateError):
+                    self.validate()
+
     def test_exact_retarget_generation_can_deploy_but_cannot_be_reverted(self):
         current = self.documents[f'repos/{REPOSITORY}/git/trees/{TREE}?recursive=1']['tree'][0]
         previous = self.documents[f'repos/{REPOSITORY}/git/trees/{CODEQL_BASE_TREE}?recursive=1']['tree'][0]

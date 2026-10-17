@@ -1442,10 +1442,13 @@ selector implementation and unknown inputs retain their cross-language checks.
 The independent trusted `sync-test-reuse` pull-request-target gate also pins
 the new exact CodeQL workflow when `codeql_results_required_branches` is
 activated for the target. A candidate cannot substitute an older workflow or
-imitate the result job name to avoid its verifier. The source prerequisite kept the target list empty. The deployed caller now
-enables `main`; all other targets retain their staged compatibility until their
-reviewed workflow deployment. The separate required-context ruleset is applied
-only after this workflow has passed live qualification.
+imitate the result job name to avoid its verifier. The trusted source policy
+enables this check for all seven permanent targets. Protect that source policy
+before extending the existing required-context ruleset to the children; a green
+job name alone cannot authenticate the verifier recipe. The separate ruleset
+also requires live qualification of the actual selected-result gate on every
+included branch. Enabling the source guard grants no successful analysis or
+native qualification.
 
 The dormant `tools/repository-checks/workflows/metadata-edits/codeql.yml`
 successor also receives PR base-retarget `edited` events. Before reading the
