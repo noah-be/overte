@@ -583,6 +583,7 @@ class CanonicalTemplateTests(unittest.TestCase):
                 'npm-consumers-sync-ci-v1': 'npm-consumers/repository-checks.yml',
                 'npm-consumers-metadata-edits-v1': 'metadata-edits/repository-checks.yml',
                 'android-owned-npm5-sync-ci-v1': 'android-owned/repository-checks.yml',
+                'protected-producer-original-default-v1': 'producers/repository-checks.yml',
             }
             self.assertIn(generation, callers)
             self.assertEqual(outer, BROWSER.trusted_bytes(

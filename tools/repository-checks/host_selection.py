@@ -144,23 +144,23 @@ PROGRAM_INPUTS = (
 # legacy-retirement/contract handoff files. Only the two separately owned foreign
 # locks are outside this complement; changed locks need mandatory package coverage.
 # These identities are not execution receipts or application-build evidence.
-REVIEWED_PROGRAMS = '6c6064992d2e2e189e06af5957c147fd1ac0996b886b8d0b6f30dbf856ee9afe'
+REVIEWED_PROGRAMS = '8bab8809889352e95addd026efcc5a0551f0496ccd307fda18be54041566dc0c'
 REVIEWED_CHILD_PROGRAMS = {
-    'apple-main': 'ad02726fc123ea762f37e077f6ad11bf54b568542c89ebba9ae6477d9225288a',
-    'apple-ios': '5cd6ed41804507a65889ceacbf54133cbcebb4e27bb0fa2b75f482bc75580204',
-    'android-main': '9a16a98317cc83215785138376c2bbc36084959a28691d502c9925889c006501',
-    'android-phone': '1f1d0fad2dc765cfba467f2231691409ab1ed2aa4a584848925b9a8ba1fd6d76',
-    'android-vr': '9a16a98317cc83215785138376c2bbc36084959a28691d502c9925889c006501',
-    'android-vr-pico': '0b931fec15b3984639dbfec96d68279ac5ee9f774d7f3579155857415cfeb69c',
+    'apple-main': 'bfefacb052005c9631ce77cac1ac39afb7aa363b1257e21ac0664a07984894e4',
+    'apple-ios': '94be108a98236dc856e441a640c8d7b112b3d3dbf382c5d06ede51397f7c3aea',
+    'android-main': '2f74c9291ff1397e5a09753ac1a43ad4289a3c367a95ba04db8e86da06d5179a',
+    'android-phone': '2495e657a385c03af5592e58dd266be46e9badc6f34443a4c2c7c199422162fb',
+    'android-vr': '2f74c9291ff1397e5a09753ac1a43ad4289a3c367a95ba04db8e86da06d5179a',
+    'android-vr-pico': '98ceb7b0f049b4314c976373c8ef04ee43d63be1718f5ac7958ac88001023020',
 }
 REVIEWED_PREDECESSORS = {
     'main': '6c6064992d2e2e189e06af5957c147fd1ac0996b886b8d0b6f30dbf856ee9afe',
     'apple-main': 'ad02726fc123ea762f37e077f6ad11bf54b568542c89ebba9ae6477d9225288a',
     'apple-ios': '5cd6ed41804507a65889ceacbf54133cbcebb4e27bb0fa2b75f482bc75580204',
-    'android-main': '7ae2b307ffa0d609a4bacbd4b2dd85083a8f81bc21b8190aaedc614b480bd596',
-    'android-phone': '8deb0c38de466bc4674eff17333f71b784f601ea656d7c6dc955bd7a42696cbc',
-    'android-vr': '7ae2b307ffa0d609a4bacbd4b2dd85083a8f81bc21b8190aaedc614b480bd596',
-    'android-vr-pico': '946e3096fbf075937b511d2179a6264ff9a0d6d249c1d809dada3a8a20f2394e',
+    'android-main': '9a7365b2256bcacde3e964ca331adfb988a576b4ed32d687cd038d38b3d6cc81',
+    'android-phone': '0c2b3c37a66e7ba14a89688ddc73a78406bcbf4e23c78fc19ac306c2a5809b65',
+    'android-vr': '9a7365b2256bcacde3e964ca331adfb988a576b4ed32d687cd038d38b3d6cc81',
+    'android-vr-pico': 'faa013fcb7ad5bc28c1f4a824b3c7d63d9ab8a2f8b196396febff813d891071b',
 }
 CONTROL_PLANE = 'tests/device/run_control_plane_tests.py'
 PACKAGE_LOCKS = {
@@ -171,6 +171,9 @@ PACKAGE_LOCKS = {
 CI_EXECUTABLE_PATHS = frozenset({
     'tests/project-suite-self-test.py', 'tests/repository-health-test.py',
     'tests/run-project-tests.py',
+    # The required Doctor host owner exercises this exact CLI. Preserve its
+    # executable mode without admitting neighboring tools or product readers.
+    'tools/repository-health/check.py',
 })
 
 
