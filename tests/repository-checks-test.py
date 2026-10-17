@@ -2194,19 +2194,25 @@ class PackageChecksTests(unittest.TestCase):
         source = next(row for row in rows if row['name'] == 'npm-consumers-sync-ci-v1')
         budget = next(row for row in rows if row['name'] == 'npm-consumers-sync-ci-budget-v1')
         self.assertEqual(set(budget['workflows']), set(PACKAGES.CONSUMER_WORKFLOW_PATHS))
-        changed = {path for path in source['workflows']
-                   if source['workflows'][path] != budget['workflows'][path]}
-        self.assertEqual(changed, {'.github/workflows/project-tests.yml'})
-        recipe = (ROOT / 'tools/repository-checks/workflows/host/project-tests.yml').read_bytes()
-        self.assertEqual(hashlib.sha1(b'blob '+str(len(recipe)).encode()+b'\0'+recipe).hexdigest(),
-                         '8920a91e79c8e25c34c0afdeda610d71a625dde9')
-        self.assertEqual(recipe.count(b'    timeout-minutes: 20\n'), 1)
-        self.assertEqual(recipe.count(b'          qml-module-qttest qtdeclarative5-dev-tools'), 1)
-        proposed = recipe.replace(b'    timeout-minutes: 20\n', b'    timeout-minutes: 30\n').replace(
-            b'          qml-module-qttest qtdeclarative5-dev-tools',
-            b'          bubblewrap qml-module-qttest qtdeclarative5-dev-tools')
-        self.assertEqual(budget['workflows']['.github/workflows/project-tests.yml'],
-            {'mode':'100644','type':'blob','sha':hashlib.sha1(
+        changed = {path for path in source['workflows'] if source['workflows'][path] != budget['workflows'][path]}
+        expected = {'.github/workflows/project-tests.yml': '8920a91e79c8e25c34c0afdeda610d71a625dde9', '.github/workflows/parent-qualification.yml': '6d2d342e4b63d9e60602451157d13854bd52dde7', '.github/workflows/sync-validation.yml': '55d08b65a987224ce576459cede693cfd49375f6'}
+        self.assertEqual(changed, set(expected))
+        step = '- name: Install selected artifact namespace utility\n  if: steps.{select}.outputs.requires_artifact_namespace == \'true\'\n  env:\n    FULL_HOST: ${{ steps.{select}.outputs.full_host }}\n  run: |\n    set -euo pipefail\n    if ! test -x /usr/bin/bwrap; then\n      if test "$FULL_HOST" != true; then\n        sudo apt-get -o Acquire::Retries=4 update\n      fi\n      sudo apt-get -o Acquire::Retries=4 install --no-install-recommends -y bubblewrap\n    fi\n    test -x /usr/bin/bwrap\n'
+        for path, old_oid in expected.items():
+            if path.endswith('sync-validation.yml'):
+                recipe = historical_workflow_bytes()[old_oid]
+            else:
+                recipe = (ROOT / 'tools/repository-checks/workflows/host' / Path(path).name).read_bytes()
+            self.assertEqual(hashlib.sha1(b'blob '+str(len(recipe)).encode()+b'\0'+recipe).hexdigest(), old_oid)
+            sync = path.endswith('sync-validation.yml'); indent = 6 if sync else 4
+            marker = ' '*indent+'- name: '+('Prepare isolated shared and product Python validators' if sync else 'Prepare isolated host evidence validators')+'\n'
+            utility = ''.join(' '*indent+line+'\n' for line in step.replace('{select}', 'select' if sync else 'host').splitlines())
+            self.assertEqual(recipe.count(marker.encode()), 1)
+            proposed = recipe.replace(marker.encode(), (utility+marker).encode())
+            if path.endswith('project-tests.yml'):
+                self.assertEqual(proposed.count(b'    timeout-minutes: 20\n'), 1)
+                proposed = proposed.replace(b'    timeout-minutes: 20\n', b'    timeout-minutes: 30\n')
+            self.assertEqual(budget['workflows'][path], {'mode':'100644','type':'blob','sha':hashlib.sha1(
                 b'blob '+str(len(proposed)).encode()+b'\0'+proposed).hexdigest()})
         self.assertEqual(PACKAGES.validate_tree_wiring(source['workflows']), 'npm-consumers-sync-ci-v1')
         self.assertEqual(PACKAGES.validate_tree_wiring(budget['workflows']), 'npm-consumers-sync-ci-budget-v1')
@@ -2215,6 +2221,12 @@ class PackageChecksTests(unittest.TestCase):
         with patch.object(PACKAGES, '_trusted_bytes', return_value=old_policy):
             self.assertEqual(PACKAGES.validate_tree_wiring(source['workflows']), 'npm-consumers-sync-ci-v1')
             with self.assertRaises(ValueError): PACKAGES.validate_tree_wiring(budget['workflows'])
+        for path in expected:
+            for origin in ('old-in-new','new-in-old'):
+                tree = deepcopy(budget['workflows'] if origin=='old-in-new' else source['workflows'])
+                tree[path] = deepcopy(source['workflows'][path] if origin=='old-in-new' else budget['workflows'][path])
+                with self.subTest(path=path, origin=origin), self.assertRaises(ValueError):
+                    PACKAGES.validate_tree_wiring(tree)
         for mutation in ('unknown-project','mixed-caller','missing','executable','symlink','submodule'):
             tree = deepcopy(budget['workflows'])
             if mutation == 'unknown-project': tree['.github/workflows/project-tests.yml']['sha'] = 'a'*40
@@ -2223,8 +2235,7 @@ class PackageChecksTests(unittest.TestCase):
             elif mutation in ('executable','symlink'):
                 tree['.github/workflows/project-tests.yml']['mode'] = '100755' if mutation=='executable' else '120000'
             else: tree['.github/workflows/project-tests.yml']['type'] = 'commit'
-            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
-                PACKAGES.validate_tree_wiring(tree)
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError): PACKAGES.validate_tree_wiring(tree)
         original22 = rows[21]
         self.assertEqual(original22['name'], 'protected-producer-original-default-v1')
         self.assertEqual(original22['workflows']['.github/workflows/project-tests.yml']['sha'],

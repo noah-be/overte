@@ -1679,11 +1679,16 @@ launcher executes those fixtures directly. This input decision carries no test,
 application-build, checkpoint or reusable-evidence qualification authority.
 
 The complete `npm-consumers-sync-ci-budget-v1` source tuple is registered before
-installation. Its project workflow adds `bubblewrap` to the existing full-host
-prerequisites and allows 30 minutes for the source transition that verifies both
-the trusted and changed Device commands. All earlier tuples and the protected
-producer tuple remain unchanged. Registration alone installs no workflow and
-does not establish execution evidence.
+installation. Shared PR, parent and synchronization workflows install
+`bubblewrap` only for selected owners that require `/usr/bin/bwrap`, including
+the project-runner's isolated checks in a partial CI selection. Qt prerequisites
+remain separately selected. The utility reuses a successful Qt step's package
+index; otherwise it updates the index only when the executable is missing.
+Verified empty or zero-execution cases and bounded documentation avoid this
+utility setup. The project job allows 30 minutes for the source transition that
+verifies both the trusted and changed Device commands. All earlier tuples and
+the protected producer tuple remain unchanged. Registration alone installs no
+workflow and does not establish execution evidence.
 
 The legacy host CLI stops after a selected suite fails. Its partial report names
 only executed suites; unexecuted suites cannot acquire passing evidence. A

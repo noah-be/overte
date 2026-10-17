@@ -610,6 +610,20 @@ def candidate_selection(candidate, event, sha, expected_plan=None):
         raise ValueError('candidate changed during owned host selection')
     return selected
 
+def requires_artifact_namespace(suite_names):
+    """Schedule the utility for actual owners without changing selection authority."""
+    if type(suite_names) not in (list, tuple) or any(type(name) is not str or not name for name in suite_names):
+        raise ValueError('artifact namespace scheduling requires explicit suite names')
+    for name in suite_names:
+        for owner in ('project-runner', 'device-control-plane-full'):
+            if name == owner: return True
+            prefix = owner + '-candidate-'
+            if name.startswith(prefix) and len(name) == len(prefix) + 12 \
+                    and all(character in '0123456789abcdef' for character in name[len(prefix):]):
+                return True
+    return False
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--candidate', type=Path, required=True)
@@ -662,6 +676,8 @@ def main():
             with args.output.open('a') as output:
                 output.write('full_host=' + str(selected['full_host']).lower() + '\n')
                 output.write('complete_receipt=' + str(complete_receipt).lower() + '\n')
+                output.write('requires_artifact_namespace=' + str(requires_artifact_namespace(
+                    selected['suites'] + selected['additional_suites'] + selected['platform_suites'])).lower() + '\n')
             return 0
         if args.junit is None:
             raise ValueError('host execution requires a test report path')
