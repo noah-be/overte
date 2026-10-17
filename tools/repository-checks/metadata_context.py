@@ -35,7 +35,7 @@ LEGACY_HELPER_BLOB = '9c531c34ba559d17255768d8cae3129496fac55d'
 # Authenticate the only executable bootstrap BEFORE it can read API facts.
 # A guard upgrade requires a reviewed helper upgrade; local Git equality alone
 # cannot let an arbitrary historical/candidate guard authenticate itself.
-SOURCE_GUARD_BLOB = 'f6cbc9c022beb3283925a7289acb893eef1a883b'
+SOURCE_GUARD_BLOB = '20580c3ea413e63a6779898fdd3d2c5e051625f4'
 TARGETS = frozenset({'main', 'apple-main', 'apple-ios', 'android-main',
                      'android-phone', 'android-vr', 'android-vr-pico'})
 _READERS = ('inputs', 'runtime', 'execution', 'producer', 'producer_api', 'source_admission')
@@ -167,7 +167,7 @@ def native(event, environment, *, root=ROOT, caller=None):
     raw = source_path.read_bytes()
     require(len(raw) <= 64_000 and hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest() == oid,
             'loaded marker differs from immutable protected source')
-    return {'number': number, 'base': pr['base']['sha'], 'head': pr['head']['sha'],
+    return {'number': number, 'base_snapshot': pr['base']['sha'], 'head': pr['head']['sha'],
         'merge': source, 'run_id': int(environment['GITHUB_RUN_ID']), 'helper_blob': oid,
         'checkout': checkout}
 
@@ -198,10 +198,15 @@ def _protected_readers(event, environment, native_value, root):
     repository = api.get('')
     require(repository.get('id') == REPOSITORY_ID and repository.get('full_name') == REPOSITORY
         and repository.get('default_branch') == 'main', 'scheduling repository/default identity changed')
-    target = event['pull_request']['base']['ref']
-    branch = api.get('branches/' + target)
-    require(branch.get('name') == target and branch.get('protected') is True
-        and branch.get('commit', {}).get('sha') == native_value['base'], 'scheduling protected B changed')
+    current_pr = api.get('pulls/' + str(native_value['number']))
+    require(current_pr.get('number') == native_value['number'] and current_pr.get('state') == 'open',
+            'scheduling current open PR unavailable')
+    current_merge = api.get('commits/refs/pull/' + str(native_value['number']) + '/merge')
+    resolved = source.resolve_pr_base(api, current_pr, current_merge, event_pr=event['pull_request'])
+    target, effective_base = resolved['target'], resolved['base']
+    require(resolved['head'] == native_value['head'] and resolved['source'] == native_value['merge']
+        and resolved['head_ref'] == event['pull_request']['head']['ref']
+        and target == event['pull_request']['base']['ref'], 'scheduling native M/head/target differs')
     reference = api.get('git/ref/heads/main')
     require(reference.get('ref') == 'refs/heads/main' and reference.get('object', {}).get('type') == 'commit',
             'scheduling protected default ref changed')
@@ -209,9 +214,9 @@ def _protected_readers(event, environment, native_value, root):
     authority = api.get('branches/main')
     require(authority.get('name') == 'main' and authority.get('protected') is True
         and authority.get('commit', {}).get('sha') == default_commit, 'scheduling default protection changed')
-    require(native_value['checkout'] in {native_value['base'], default_commit},
+    require(native_value['checkout'] in {effective_base, default_commit},
             'scheduling checkout is neither protected B nor D')
-    base = source.api_tree(api, native_value['base'])
+    base = source.api_tree(api, effective_base)
     default = source.api_tree(api, default_commit)
     def actual(relative):
         raw = _git(root, 'show', 'HEAD:' + relative)
@@ -223,8 +228,8 @@ def _protected_readers(event, environment, native_value, root):
     require(event_only(event, environment.get('GITHUB_EVENT_NAME'))
         and environment.get('GITHUB_JOB') in {'recognize','route','select'},
         'source precheck requires the one-way metadata scheduling role')
-    context = source.reuse_compatibility(base, default, target,
-        read_actual=actual, actual_imports=source.actual_import_inventory(root))
+    context = {**source.reuse_compatibility(base, default, target,
+        read_actual=actual, actual_imports=source.actual_import_inventory(root)), 'base': effective_base}
     import importlib
     directory = root / 'tools/test-evidence'
     for name in _READERS:
@@ -248,7 +253,7 @@ def _source_policy(root, adapter, binding, references, native_value, protected, 
     Python, YAML snippet, tool, environment capture or suite is executed.
     """
     A, source, base, default, default_commit, context = protected
-    require(references['default'] == default_commit and binding['base_sha'] == native_value['base'],
+    require(references['default'] == default_commit and binding['base_sha'] == context['base'],
             'scheduling API and stdlib protected source disagree')
     extras = ('tools/repository-checks/codeql.py', 'tools/repository-checks/codeql_results.py',
               'tools/repository-checks/workflows/metadata-edits/codeql-metadata.yml',
@@ -307,7 +312,7 @@ def schedule(event, environment, *, root=ROOT, adapter=None, clock=lambda: datet
     adapter = A.Adapter() if adapter is None else adapter
     binding, references = adapter.current(native_value['number'])
     require(binding['base_ref'] == event['pull_request']['base']['ref']
-        and all(binding[key + '_sha'] == native_value[key] for key in ('base', 'head', 'merge'))
+        and all(binding[key + '_sha'] == native_value[key] for key in ('head', 'merge'))
         and references['default_ref'] == 'main', 'scheduling live native candidate differs')
     caller = next(path for path in CALLERS if environment['GITHUB_WORKFLOW_REF'] ==
         REPOSITORY + '/' + path + '@' + environment['GITHUB_REF'])
