@@ -1225,7 +1225,7 @@ class HostSelectionTests(unittest.TestCase):
     def test_producer_transition_cli_requests_full_prerequisites_and_runs_one_complete_owner(self):
         result, controller = self.cli(transition=True, select_only=True)
         self.assertEqual(result, 0)
-        self.assertEqual(controller.selection_output, 'full_host=true\ncomplete_receipt=true\n')
+        self.assertEqual(controller.selection_output, 'full_host=true\ncomplete_receipt=true\nrequires_artifact_namespace=true\n')
         self.assertEqual(controller.selection_report['selection']['reason'], 'reviewed-protected-producer-transition')
         self.assertEqual(controller.selection_report['omitted_suites'], [])
         controller.run_suites.assert_not_called()
@@ -1238,7 +1238,7 @@ class HostSelectionTests(unittest.TestCase):
     def test_metadata_installation_cli_selects_full_prerequisites_and_one_complete_owner(self):
         result,controller=self.cli(transition='metadata',select_only=True)
         self.assertEqual(result,0)
-        self.assertEqual(controller.selection_output,'full_host=true\ncomplete_receipt=true\n')
+        self.assertEqual(controller.selection_output,'full_host=true\ncomplete_receipt=true\nrequires_artifact_namespace=true\n')
         self.assertEqual(controller.selection_report['selection']['reason'],'reviewed-protected-producer-transition')
         self.assertEqual(controller.selection_report['omitted_suites'],[])
         controller.run_suites.assert_not_called()
@@ -1252,7 +1252,7 @@ class HostSelectionTests(unittest.TestCase):
             with self.subTest(transition=transition):
                 result,controller=self.cli(transition=transition,select_only=True)
                 self.assertEqual(result,0)
-                self.assertEqual(controller.selection_output,'full_host=true\ncomplete_receipt=true\n')
+                self.assertEqual(controller.selection_output,'full_host=true\ncomplete_receipt=true\nrequires_artifact_namespace=true\n')
                 self.assertEqual(controller.selection_report['selection']['reason'],'reviewed-protected-producer-transition')
                 self.assertEqual(controller.selection_report['omitted_suites'],[])
                 controller.run_suites.assert_not_called()
@@ -1263,14 +1263,14 @@ class HostSelectionTests(unittest.TestCase):
     def test_new_candidate_host_command_forces_prerequisites_before_execution(self):
         result,controller=self.cli(new_command=True,select_only=True)
         self.assertEqual(result,0)
-        self.assertEqual(controller.selection_output,'full_host=true\ncomplete_receipt=false\n')
+        self.assertEqual(controller.selection_output,'full_host=true\ncomplete_receipt=false\nrequires_artifact_namespace=true\n')
         self.assertFalse(controller.selection_report['complete_receipt_required'])
         controller.run_suites.assert_not_called()
 
     def test_partial_host_owner_keeps_qt_without_claiming_full_receipt(self):
         result,controller=self.cli(control_changed=True,select_only=True,platform=True)
         self.assertEqual(result,0)
-        self.assertEqual(controller.selection_output,'full_host=true\ncomplete_receipt=false\n')
+        self.assertEqual(controller.selection_output,'full_host=true\ncomplete_receipt=false\nrequires_artifact_namespace=true\n')
         report=controller.selection_report
         self.assertFalse(report['complete_receipt_required'])
         self.assertFalse(report['reusable'])
@@ -1305,10 +1305,30 @@ class HostSelectionTests(unittest.TestCase):
         self.assertEqual(controller.selection_report['selection']['platform_suites'],['fixture-platform'])
         self.assertEqual(controller.selection_report['selection']['omitted_platform_suites'],[])
 
+    def test_namespace_utility_follows_partial_full_and_candidate_owners_without_changing_selection(self):
+        for names in (['project-runner'], ['device-control-plane-full'],
+                      ['project-runner-candidate-0123456789ab'],
+                      ['device-control-plane-full-candidate-abcdef012345']):
+            with self.subTest(names=names): self.assertTrue(HOST.requires_artifact_namespace(names))
+        for names in ([], ['documentation'], ['branch-cleanup'], ['device-control-plane-full-candidate-invalid'],
+                      ['project-runner-neighbor']):
+            with self.subTest(names=names): self.assertFalse(HOST.requires_artifact_namespace(names))
+        for names in (None, 'project-runner', {}, [None], ['']):
+            with self.subTest(malformed=names), self.assertRaises(ValueError):
+                HOST.requires_artifact_namespace(names)
+        for options in ({}, {'full_host':True}, {'control_changed':True}, {'new_command':True}):
+            with self.subTest(options=options):
+                result, controller = self.cli(select_only=True, **options)
+                self.assertEqual(result, 0)
+                self.assertIn('requires_artifact_namespace=true\n', controller.selection_output)
+                self.assertNotIn('requires_artifact_namespace', controller.selection_report['selection'])
+                self.assertNotIn('requires_artifact_namespace', controller.selection_report)
+                controller.run_suites.assert_not_called()
+
     def test_partial_parent_plan_cannot_claim_full_or_reused_execution(self):
         result,controller=self.cli(select_only=True)
         self.assertEqual(result,0)
-        self.assertEqual(controller.selection_output,'full_host=false\ncomplete_receipt=false\n')
+        self.assertEqual(controller.selection_output,'full_host=false\ncomplete_receipt=false\nrequires_artifact_namespace=true\n')
         report=controller.selection_report
         self.assertFalse(report['reusable'])
         self.assertEqual(report['kind'],'host-impact-selection')
@@ -1321,7 +1341,7 @@ class HostSelectionTests(unittest.TestCase):
     def test_product_parent_plan_keeps_legacy_complete_receipt_route(self):
         result,controller=self.cli(select_only=True,full_host=True)
         self.assertEqual(result,0)
-        self.assertEqual(controller.selection_output,'full_host=true\ncomplete_receipt=true\n')
+        self.assertEqual(controller.selection_output,'full_host=true\ncomplete_receipt=true\nrequires_artifact_namespace=true\n')
         self.assertTrue(controller.selection_report['complete_receipt_required'])
         self.assertEqual(controller.selection_report['omitted_suites'],[])
         controller.run_suites.assert_not_called()
@@ -1418,6 +1438,35 @@ class HostSelectionTests(unittest.TestCase):
         result,controller=self.cli(runner_result=143,cancel=True)
         self.assertEqual(result,143)
         controller.run_suites.assert_called_once()
+
+    def test_cli_fail_fast_preserves_failure_partial_xml_and_all_success_coverage(self):
+        import xml.etree.ElementTree as ET
+        result, controller = self.cli()
+        self.assertEqual(result, 0)
+        actual = controller.run_suites.call_args.args[0]
+        self.assertTrue(actual.fail_fast)
+        self.assertEqual(actual.timeout, 240)
+        self.assertEqual(actual.host_timeout, 900)
+        runner = HOST.execution._runner()
+        for failing in (True, False):
+            with self.subTest(failing=failing), tempfile.TemporaryDirectory() as folder:
+                canary = Path(folder) / 'later-canary'
+                report = Path(folder) / 'partial.xml'
+                suites = [runner.Suite('early-pass','quick',(sys.executable,'-c','print("early pass")')),
+                    runner.Suite('selected-failure' if failing else 'middle-pass','quick',
+                        (sys.executable,'-c','import sys; print("controlled middle"); sys.exit('+('7' if failing else '0')+')')),
+                    runner.Suite('later-canary','quick',(sys.executable,'-c',
+                        'from pathlib import Path; Path('+repr(str(canary))+').write_text("executed")'))]
+                args = SimpleNamespace(**{**vars(actual),'junit':report})
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    status = runner.run_suites(args,suites,[])
+                self.assertEqual(status, 1 if failing else 0)
+                cases = ET.parse(report).getroot().findall('testcase')
+                self.assertEqual([case.get('name') for case in cases],
+                    ['early-pass','selected-failure'] if failing else ['early-pass','middle-pass','later-canary'])
+                self.assertEqual(sum(case.find('failure') is not None for case in cases), 1 if failing else 0)
+                self.assertTrue(all(case.find('skipped') is None for case in cases))
+                self.assertEqual(canary.exists(), not failing)
 
 
 if __name__=='__main__':

@@ -56,7 +56,7 @@ PROTECTED_GENERATIONS = (
 )
 METADATA_PRODUCER_GENERATIONS = PROTECTED_GENERATIONS[-3:]
 SELECTED_SYNC_GENERATIONS = (
-    'npm-consumers-sync-ci-v1', 'npm-consumers-metadata-edits-v1',
+    'npm-consumers-sync-ci-v1', 'npm-consumers-sync-ci-budget-v1', 'npm-consumers-metadata-edits-v1',
     'android-owned-npm5-sync-ci-v1', *PROTECTED_GENERATIONS,
 )
 
@@ -1153,6 +1153,34 @@ class ArchivedRefRetirementContracts(unittest.TestCase):
         self.assertEqual([len(batch) for batch in batches], [4, 4, 4, 1])
         self.assertEqual([source for batch in batches for source in batch], sources)
 
+def source13_budget_recipes():
+    old = {'.github/workflows/project-tests.yml': '8920a91e79c8e25c34c0afdeda610d71a625dde9', '.github/workflows/parent-qualification.yml': '6d2d342e4b63d9e60602451157d13854bd52dde7', '.github/workflows/sync-validation.yml': '55d08b65a987224ce576459cede693cfd49375f6'}
+    expected = {'.github/workflows/project-tests.yml': 'e1e009f489e2bd126d0546f75977dc73c6450dda', '.github/workflows/parent-qualification.yml': '2f4aec7f6463801a6deeb443b59977273197ea60', '.github/workflows/sync-validation.yml': 'cff76b696a4afd8658329a02ab33032672f292b9'}
+    sync = zlib.decompress(base64.b85decode('c-rk5YjfMU@w<Kns`Ffun}T{+q#lhs&gIm^J;!!rJ8dU*H6RE|uql!TKsmZ3{q0=<ltk)bD{01;59coyfZfGn-@E()ohve80g_23C__mc&HjP{mPX0UED#A56No00G-8S&B{Hc1{w@(WVU*nA5sR51iYGB5!Guc*znn@;Caj0fXE8-n67j$QR74izjVEaD<445fG*i-{i4ZKZ+n+yIDoNa{pv8T|fXkF9I@X&g$FaW=DxmhzN5O70E?CghOtU{DHA~@UsRWNlpL2{!60ohHbewPst0dJFWe>d<ER(Pik|^>Cy}6o`NktO!i0yc3nnlr212U<0L}4FNMnUdFpGY>8WAdeVV@86n!J9BK+U>$h%0#YzqYy%KsR_8cqLmXX7OUlk76Z=3FyE~J6wN@3F`a25Bavh&+yUl-m*#>C=28@<wimdF#FRyt#~9Qy5==_VaHVpc_=dHd60>$=E%IHy2Tupi&5dJ`#QZmFx*8D7S7L2inV-cf!_AgcZ<!OtCoIVnp71zR4DM^XW}n5=xow`l>klsa!?$mahZp_xi{aq%<fK37p;{(IE#iLdR(Um_$F<u@1SEjr7#zzWgTti@8^<}nFUO4DAh>kllKHC=kwYQ`#tOXTil|YI0SJft!9Hy@nM(+DebTABou(U*w%2OZX`|C<w)cI~t@{o11Ddv-y3<$?yyI%zTdY7LEbO5P;c;OPymQ=}GgaJYLUO4v1q%W@;3NXxz>_3fdD(y&PEo|C44n-SH{fcvpjD8n{`>jGd4G8R`bDo8Mb;d~+Q$6v)$8HK>9740i!*{}Wxk`58y1)0UiV-8vYqzasmeHS`h!>ZFtqTfGS=DU@$qobe|rhWQ9@id@Lcv8SmLJw1<4e`EK5+zQx*~)70%wjN7cQ#psMKLzvw^j>$ppBc=fSW|GbB;u2!MvPu~rC@#x*ai?7Ww8n}C<(XM`4K>+*BNOZ9GbTmdJ<)|uHn#kJTtD}q8mp=oQv(xjVi_^isYFboqP$K?p_3EeBw+IX5Xv1){8lFFY4%_yY>NDWxpd_nx=I0c&`nOY9%5OUbYYUKECtMA;QYy%HL25%77&F8tlS~mmVmb&0HlCR~jOS{og7-agnD_!;upwmegu+S4AoXLYPc%UDYog0h4A?BzKv3OC76B(v<b;Ny)vynVotdmBImG0}bsSQl#oQK?c8xD@PJii_M57CmmB27K{oB!T87i+g%79-J2fz3D_E%ig@eFJ@-k;}|no1IIcbzOTo9Zk<S#6%$vDT!M&I;%lTb*H3*J2Dd4h(>Q<$>h%^5X3BqFTaOy3z6%#wGx9$h5O1_A(4r0isyjtcJVN1xDZC;$Q~`FIOy}Shed-tvaj)S`14VYwhIQ%UA;xwfyt_W#lMbdY#2wAwT0$V8sVTQWhy$Gj*1g5(}IUlgK=lGM;V+UzTOgwM^m_cRPoql%)mfof#!AT`BC@`o^)>I#w&viAc=QpAOKIh>ZxHVL!>hX@e)|)2CH0&`?1_vkCaLVdTk{&;}VYOR+VhLwHu3`gM;INS1CGhV53P+X*^etJ{Iyme=l3uR%<B^PGLBzBRmAf_SP!kS-6a`%a@-eMk@|pm~tk?<t8GSU7C9y4`lY-Ry!eSh(+Yx?Zcrn()tSxy%i8@bA+7j+KLZj~q0)f)tt$%i!;1N*)$Ks3XKU0Z)Q-_(YfT_dn|zs2=(r3q!x|vX<NOn{K`CdZ68I!}IE%A5bq0sULPdqh8l(-}5Z!IHASyGuu`wHpxV(;MLa^p516y*HVsD&@mR?Z632Fw|tEh)@#8mNT66!(4Iq4n4lNbv~IoLfWcdsJZOO;R&whOI6Qv|2Gha$LI(&aU?8PRglFjA1&RnkGowRX7BPIQbnHO4Dqu7sdSozVE~N4)HgOydJR9j?tF*|^)0+{7?l9yd=nVW(G%<iH*R2sRa{v#bH_Z)unz9mb&Bnus%s>lr)6pG|gXFHc#)pRsoGhNSvR8Qd9rNj!K+6{yV0huJa+jO#rpFe!0Umvc!z2orh`?ZVUWqh__Ylk)(E<jn)^|+KisXg^J){9YphD-1d+BP~ZQ5JtVdLRk4-b;Y;H4=Hg4kv{R%!Q=v9f}AqF}hOnMwdfX0mpsjl7r}mR75?JCC7O5h4-bE0}!%B}nvExo?d;;Kx6h|I%t)uTGfKB88vc9KtI>csayMz&V2gg$QT|WTJ%tW$hT20fP9WM^!-vC9loH%b~&lk%%5Hf~&>)BQKcNkJh4?velCvl??kQ?~VqiCvW;Ex@F9ZYOEt-Y0hB6n4C$fAWq#OFi4P<LsF2)BoR<)>S#{YFpEJQQ^=Yy{v1LY5wSd|7wEvSM@tR#qz`prMN%x1M9tSRQ+BSjUZLU%nu0L$nn|;W^;;x{%>wwQV>1J?bTk?0<qJ_4QjzZNFzn7V4z|M*=q49su_jf^hjqFVkVZ(3`k+?q<Q)?{oS|HgYt7HRXPldi$*wz^$-(Ys(*NgK|K&v=3fTTJ{5U$zyQYoA?J}PYe|f+4M>F-!nyJTWjm*UT(Hf(<-0{-Ps(b79`MY&fxx?BK^-}CI(<P({?~4yLpm9BwUZ0+Rv+(|ye*4Fq<O^K;p|tXyyZmEML%w&Xzl4vmBq)9@HFc2|yHMq_jYM~3CZ9e-KmLfGe*0m<vn_3RW;nz|C?3Mzq2H#i=aF{1$voflL*MPNpdL_Y!`=NRX|=mSyWQ!AcBD|hZ=_%(u=@Ege>yJ24Df;>55O;0H;K}{fZ8-*{#2^}Hz=oczA*XP2FRbZrgsO2W)8kAYcmP0ix%~6m8m;ytp?q&fr@(Qj)=H4Q`cWpwKM`yc@MQK{{ur>)>r'))
+    step = '- name: Install selected artifact namespace utility\n  if: steps.{select}.outputs.requires_artifact_namespace == \'true\'\n  env:\n    FULL_HOST: ${{ steps.{select}.outputs.full_host }}\n  run: |\n    set -euo pipefail\n    if ! test -x /usr/bin/bwrap; then\n      if test "$FULL_HOST" != true; then\n        sudo apt-get -o Acquire::Retries=4 update\n      fi\n      sudo apt-get -o Acquire::Retries=4 install --no-install-recommends -y bubblewrap\n    fi\n    test -x /usr/bin/bwrap\n'
+    result = {}
+    for path, old_oid in old.items():
+        raw = sync if path.endswith('sync-validation.yml') else (ROOT / 'tools/repository-checks/workflows/host' / Path(path).name).read_bytes()
+        if hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest() != old_oid:
+            raise AssertionError('historical source13 recipes must remain immutable')
+        selected_sync = path.endswith('sync-validation.yml'); indent = 6 if selected_sync else 4
+        marker = ' '*indent+'- name: '+('Prepare isolated shared and product Python validators' if selected_sync else 'Prepare isolated host evidence validators')+'\n'
+        utility = ''.join(' '*indent+line+'\n' for line in step.replace('{select}', 'select' if selected_sync else 'host').splitlines())
+        if raw.count(marker.encode()) != 1: raise AssertionError('source23 prerequisite position differs')
+        raw = raw.replace(marker.encode(), (utility+marker).encode())
+        if path.endswith('project-tests.yml'):
+            if raw.count(b'    timeout-minutes: 20\n') != 1: raise AssertionError('source13 budget differs')
+            raw = raw.replace(b'    timeout-minutes: 20\n', b'    timeout-minutes: 30\n')
+        if hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest() != expected[path]:
+            raise AssertionError('source23 recipe requires its exact reviewed bytes')
+        result[path] = raw.decode('utf-8')
+    return result
+
+
+def source13_budget_recipe():
+    return source13_budget_recipes()['.github/workflows/project-tests.yml']
+
+
 def assert_reviewed_host_selection(case, source):
     """Accept the exact reviewed successor while retaining execution authority."""
     template = ROOT / 'tools/repository-checks/workflows/host/project-tests.yml'
@@ -1162,7 +1190,19 @@ def assert_reviewed_host_selection(case, source):
     android_owned = source == owned.read_text(encoding='utf-8')
     platform_owner = source == platform.read_text(encoding='utf-8')
     protected_owner = source == protected.read_text(encoding='utf-8') or platform_owner
-    if android_owned or protected_owner:
+    budget_owner = source == source13_budget_recipe()
+    if budget_owner:
+        spec = importlib.util.spec_from_file_location(
+            'budget_contract_packages', ROOT / 'tools/repository-checks/package_checks.py')
+        packages = importlib.util.module_from_spec(spec); spec.loader.exec_module(packages)
+        row = next(row for row in packages.workflow_generations()
+                   if row['name'] == 'npm-consumers-sync-ci-budget-v1')
+        raw = source.encode()
+        case.assertEqual(row['workflows']['.github/workflows/project-tests.yml'],
+            {'mode':'100644','type':'blob','sha':hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()})
+        if source == WORKFLOW.read_text(encoding='utf-8'):
+            case.assertEqual(reviewed_package_generation(), 'npm-consumers-sync-ci-budget-v1')
+    elif android_owned or protected_owner:
         # Historical staged templates retain their exact approved identities
         # when a newer complete generation becomes the deployed workflow.
         spec = importlib.util.spec_from_file_location(
@@ -1498,6 +1538,48 @@ class ProjectWorkflowContracts(unittest.TestCase):
         else:
             self.assertIn("--profile host --timeout 240 --host-timeout 900", self.source)
         self.assertIn("device-e2e-control-plane.xml", self.source)
+
+    def test_budget_source_recipe_keeps_commands_and_rejects_other_budget_or_setup_changes(self):
+        recipes = source13_budget_recipes()
+        source = recipes['.github/workflows/project-tests.yml']
+        assert_reviewed_host_selection(self, source)
+        spec = importlib.util.spec_from_file_location('namespace_contract_packages', ROOT / 'tools/repository-checks/package_checks.py')
+        packages = importlib.util.module_from_spec(spec); spec.loader.exec_module(packages)
+        budget = next(row for row in packages.workflow_generations() if row['name']=='npm-consumers-sync-ci-budget-v1')
+        for path, recipe in recipes.items():
+            with self.subTest(path=path):
+                raw = recipe.encode()
+                self.assertEqual(budget['workflows'][path], {'mode':'100644','type':'blob','sha':hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()})
+                jobs = workflow_data(recipe)['jobs']
+                job = jobs['validate' if path.endswith('sync-validation.yml') else 'qualify-parent' if path.endswith('parent-qualification.yml') else 'project-tests']
+                steps = job['steps']; utility = next(step for step in steps if step['name']=='Install selected artifact namespace utility')
+                select = 'select' if path.endswith('sync-validation.yml') else 'host'
+                self.assertEqual(utility['if'], "steps."+select+".outputs.requires_artifact_namespace == 'true'")
+                self.assertEqual(utility['run'], 'set -euo pipefail\nif ! test -x /usr/bin/bwrap; then\n  if test "$FULL_HOST" != true; then\n    sudo apt-get -o Acquire::Retries=4 update\n  fi\n  sudo apt-get -o Acquire::Retries=4 install --no-install-recommends -y bubblewrap\nfi\ntest -x /usr/bin/bwrap\n')
+                self.assertNotIn('full_host', utility['if'])
+                self.assertEqual(utility['env'], {'FULL_HOST':'${{ steps.'+select+'.outputs.full_host }}'})
+                self.assertIn('if test "$FULL_HOST" != true; then', utility['run'])
+                self.assertNotIn('qml', utility['run'])
+                self.assertEqual(sum(step['name']=='Install selected artifact namespace utility' for step in steps), 1)
+                qt = next(step for step in steps if step['name'] == ('Install candidate host prerequisites' if select=='select' else 'Install QML and portable C++ contract prerequisites'))
+                self.assertEqual(qt['if'], "steps."+select+".outputs.full_host == 'true'")
+                self.assertLess(steps.index(qt), steps.index(utility))
+        jobs = workflow_data(source)['jobs']
+        self.assertEqual(jobs['project-tests']['timeout-minutes'], 30)
+        old = workflow_data((ROOT / 'tools/repository-checks/workflows/host/project-tests.yml').read_text())
+        old['jobs']['project-tests']['timeout-minutes'] = 30
+        jobs['project-tests']['steps'].remove(next(step for step in jobs['project-tests']['steps'] if step['name']=='Install selected artifact namespace utility'))
+        self.assertEqual(jobs, old['jobs'])
+        for changed in (source.replace('timeout-minutes: 30','timeout-minutes: 31'),
+                        source.replace('requires_artifact_namespace', 'full_host'),
+                        source.replace('-y bubblewrap', '-y bubblewrap curl'),
+                        source.replace('host_selection.py','foreign_selection.py')):
+            with self.subTest(changed=changed[:100]), self.assertRaises(AssertionError):
+                assert_reviewed_host_selection(self, changed)
+        with mock.patch.object(sys.modules[__name__], 'WORKFLOW') as current, \
+             mock.patch.object(sys.modules[__name__], 'reviewed_package_generation',return_value='unknown-or-mixed-generation'):
+            current.read_text.return_value = source
+            with self.assertRaises(AssertionError): assert_reviewed_host_selection(self, source)
 
 
 class HostWorkflowRoutingContracts(unittest.TestCase):

@@ -624,6 +624,36 @@
           "sha": "b76ade9fd7a76da21bf2cb2161deae7a262163e8"
         }
       }
+    },
+    {
+      "name": "npm-consumers-sync-ci-budget-v1",
+      "workflows": {
+        ".github/workflows/project-tests.yml": {
+          "mode": "100644",
+          "type": "blob",
+          "sha": "e1e009f489e2bd126d0546f75977dc73c6450dda"
+        },
+        ".github/workflows/parent-qualification.yml": {
+          "mode": "100644",
+          "type": "blob",
+          "sha": "2f4aec7f6463801a6deeb443b59977273197ea60"
+        },
+        ".github/workflows/sync-validation.yml": {
+          "mode": "100644",
+          "type": "blob",
+          "sha": "cff76b696a4afd8658329a02ab33032672f292b9"
+        },
+        ".github/workflows/repository-checks.yml": {
+          "mode": "100644",
+          "type": "blob",
+          "sha": "7f7ec83f15581ebc9cd693201aac1d8cd77d944f"
+        },
+        ".github/workflows/browser-client.yml": {
+          "mode": "100644",
+          "type": "blob",
+          "sha": "8f6e3e009e201ce6c9980f4f23ff4a994588bb9d"
+        }
+      }
     }
   ]
 }

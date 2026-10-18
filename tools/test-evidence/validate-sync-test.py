@@ -845,6 +845,83 @@ class NativeParentConsumerTests(unittest.TestCase):
         f.gate.native_parent_evidence.assert_not_called()
 
 
+class ArtifactNamespaceSelectionTests(unittest.TestCase):
+    def selected(self, **changes):
+        value = {'schema': 1, 'kind': 'sync-ci-selection', 'reusable': False,
+            'selection': 'sha256:' + '1' * 64, 'lane': 'affected-ci',
+            'full_host': False, 'suites': ['workflow-contracts'],
+            'profile': 'apple-family', 'requested_mode': 'reuse'}
+        value.update(changes)
+        return value
+
+    def test_namespace_utility_follows_actual_selected_owners_not_full_host(self):
+        for owner in ('project-runner', 'device-control-plane-full',
+                      'project-runner-candidate-' + 'a' * 12,
+                      'device-control-plane-full-candidate-' + 'b' * 12):
+            for full_host in (False, True):
+                selected = self.selected(suites=['workflow-contracts', owner], full_host=full_host)
+                original = deepcopy(selected)
+                with self.subTest(owner=owner, full_host=full_host):
+                    self.assertTrue(VALIDATION.requires_artifact_namespace(selected))
+                    self.assertEqual(selected, original)
+        for full_host in (False, True):
+            self.assertFalse(VALIDATION.requires_artifact_namespace(
+                self.selected(full_host=full_host)))
+        self.assertTrue(VALIDATION.requires_artifact_namespace(
+            self.selected(lane='complete', full_host=True, suites=[])))
+        for profile in ('documentation', 'tool-dependencies'):
+            self.assertFalse(VALIDATION.requires_artifact_namespace(self.selected(
+                lane='legacy-bounded', full_host=False, suites=[], profile=profile)))
+
+    def test_unknown_or_malformed_setup_never_omits_namespace_utility(self):
+        values = [None, [], {}, self.selected(lane='unknown'), self.selected(schema=True),
+            self.selected(suites=[]), self.selected(suites=('project-runner',)),
+            self.selected(suites=['workflow-contracts', 'workflow-contracts']),
+            self.selected(suites=['foreign/module']), self.selected(full_host='false'),
+            self.selected(selection='sha256:' + 'G' * 64),
+            self.selected(consumer_setup='none'),
+            self.selected(consumer_setup='none', native_setup='sha256:' + '2' * 64, suites=[]),
+            self.selected(consumer_setup='unknown'),
+            self.selected(consumer_setup='none', native_setup='invalid'),
+            self.selected(native_setup='sha256:' + '2' * 64),
+            self.selected(empty_setup='sha256:' + '1' * 64),
+            self.selected(lane='complete', full_host=False),
+            self.selected(lane='legacy-bounded', suites=[], profile='apple-family'),
+            self.selected(lane='legacy-bounded', suites=[], profile='documentation', requested_mode='fallback')]
+        for selected in values:
+            original = deepcopy(selected)
+            with self.subTest(selected=selected):
+                self.assertTrue(VALIDATION.requires_artifact_namespace(selected))
+                self.assertEqual(selected, original)
+
+    def test_select_only_adds_utility_output_without_mutating_selection_or_receipt(self):
+        for selected, expected in ((self.selected(suites=['project-runner']), 'true'),
+                                   (self.selected(), 'false')):
+            with self.subTest(expected=expected), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / 'output'
+                original = deepcopy(selected)
+                argv = ['--candidate', directory, '--repository', 'noah-l-frank/overte',
+                    '--pull-request', '42', '--mode', 'reuse', '--profile', 'apple-family',
+                    '--base-sha', 'a' * 40, '--head-sha', 'b' * 40, '--merge-sha', 'c' * 40,
+                    '--junit', str(Path(directory) / 'unused.xml'),
+                    '--receipt', str(Path(directory) / 'unused.json'), '--select-only', '--output', str(output)]
+                rendered = io.StringIO()
+                with patch.object(VALIDATION, 'select_sync', return_value=selected) as select, \
+                        patch.object(VALIDATION, 'validate_sync', side_effect=AssertionError('selection cannot execute')) as execute, \
+                        redirect_stdout(rendered), redirect_stderr(io.StringIO()):
+                    self.assertEqual(VALIDATION.main(argv), 0)
+                select.assert_called_once(); execute.assert_not_called()
+                self.assertEqual(selected, original)
+                self.assertEqual(json.loads(rendered.getvalue()), original)
+                fields = dict(line.split('=', 1) for line in output.read_text().splitlines())
+                self.assertEqual(fields.pop('requires_artifact_namespace'), expected)
+                self.assertEqual(fields, {'selection': original['selection'], 'lane': original['lane'],
+                    'full_host': str(original['full_host']).lower(), 'consumer_setup': 'required',
+                    'native_setup': '', 'empty_setup': ''})
+                self.assertFalse((Path(directory) / 'unused.xml').exists())
+                self.assertFalse((Path(directory) / 'unused.json').exists())
+
+
 class NativeZeroCommandSetupTests(unittest.TestCase):
     def setUp(self):
         self.native = NativeParentConsumerTests()
@@ -859,6 +936,29 @@ class NativeZeroCommandSetupTests(unittest.TestCase):
         selected = f.ci_prepare()
         f.args.expected_native_setup = selected.get('native_setup', '')
         return selected
+
+    def test_namespace_output_recognizes_actual_native_zero_and_partial_proof_loss(self):
+        selected = self.prepare()
+        original = deepcopy(selected)
+        self.assertEqual(selected['consumer_setup'], 'none')
+        self.assertFalse(VALIDATION.requires_artifact_namespace(selected))
+        self.assertEqual(selected, original)
+        f = self.fixture
+        parent_tree = deepcopy(f.tree)
+        parent_tree['libraries/alpha.cpp']['sha'] = 'd' * 40
+        self.native.bind_native(parent_tree)
+        partial = self.prepare()
+        self.assertEqual(partial['lane'], 'complete')
+        self.assertNotIn('consumer_setup', partial)
+        self.assertNotIn('native_setup', partial)
+        self.assertTrue(VALIDATION.requires_artifact_namespace(partial))
+        affected = self.prepare(affected=True)
+        self.assertEqual(affected['lane'], 'affected-ci')
+        self.assertEqual(affected['consumer_setup'], 'none')
+        original = deepcopy(affected)
+        self.assertFalse(VALIDATION.requires_artifact_namespace(affected))
+        self.assertEqual(affected, original)
+        self.assertEqual(f.executed(), [])
 
     def test_early_lookup_is_stdlib_only_and_does_not_change_pure_selection(self):
         f = self.fixture
@@ -1169,6 +1269,19 @@ class VerifiedEmptyConsumerTests(unittest.TestCase):
                 patch.object(VALIDATION,'_bounded_junit',side_effect=AssertionError('no fictitious JUnit suite')), \
                 patch.object(VALIDATION,'_native_zero_setup',side_effect=AssertionError('no prior-proof setup')):
             return VALIDATION.validate_sync(f.args,api=f.api)
+
+    def test_namespace_output_recognizes_only_exact_verified_empty_marker(self):
+        selected = self.prepare()
+        original = deepcopy(selected)
+        self.assertFalse(VALIDATION.requires_artifact_namespace(selected))
+        self.assertEqual(selected, original)
+        for name, value in (('empty_setup', 'sha256:' + 'f' * 64),
+                            ('consumer_setup', 'required'), ('full_host', True),
+                            ('native_setup', 'sha256:' + 'e' * 64)):
+            changed = deepcopy(selected); changed[name] = value
+            with self.subTest(field=name):
+                self.assertTrue(VALIDATION.requires_artifact_namespace(changed))
+        self.assertEqual(self.fixture.executed(), [])
 
     def test_early_empty_selection_and_final_validation_need_no_test_or_original_E(self):
         f=self.fixture

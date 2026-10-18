@@ -738,6 +738,58 @@ def validate_sync(args, *, api=None):
     return result
 
 
+def requires_artifact_namespace(selection):
+    """Schedule one utility from trusted selection; never change its authority.
+
+    Only select_sync supplies these outputs. Existing validation independently
+    rechecks empty/native-zero proofs before it can omit consumer execution.
+    """
+    def token(value):
+        return type(value) is str and len(value) == 71 and value.startswith('sha256:') \
+            and all(character in '0123456789abcdef' for character in value[7:])
+
+    if type(selection) is not dict or type(selection.get('schema')) is not int \
+            or selection['schema'] != 1 or selection.get('kind') != 'sync-ci-selection' \
+            or selection.get('reusable') is not False or not token(selection.get('selection')) \
+            or type(selection.get('full_host')) is not bool \
+            or selection.get('requested_mode') not in ('reuse', 'fallback'):
+        return True
+    lane, names = selection.get('lane'), selection.get('suites')
+    if lane not in ('verified-empty', 'legacy-bounded', 'affected-ci', 'complete') \
+            or type(names) is not list or any(type(name) is not str or not name \
+                or any(character not in 'abcdefghijklmnopqrstuvwxyz0123456789-_' for character in name)
+                for name in names) or len(names) != len(set(names)):
+        return True
+    if lane == 'verified-empty':
+        return not (selection['full_host'] is False and not names \
+            and selection.get('consumer_setup') == 'none' \
+            and selection.get('empty_setup') == selection['selection'] \
+            and 'native_setup' not in selection)
+    if lane == 'affected-ci' and not names:
+        return True
+    if lane == 'complete' and selection['full_host'] is not True:
+        return True
+    if selection.get('consumer_setup', 'required') == 'none':
+        return not (lane in ('affected-ci', 'complete') \
+            and token(selection.get('native_setup')) and 'empty_setup' not in selection)
+    if selection.get('consumer_setup', 'required') != 'required' \
+            or 'native_setup' in selection or 'empty_setup' in selection:
+        return True
+    if lane == 'legacy-bounded':
+        return not (selection['full_host'] is False and not names \
+            and selection['requested_mode'] == 'reuse' \
+            and selection.get('profile') in ('documentation', 'tool-dependencies'))
+    if lane == 'complete' or not names:
+        return True
+    # affected-ci names were already authenticated against the trusted registry.
+    # Candidate command variants are retained conservatively if introduced later.
+    for name in names:
+        for owner in ('project-runner', 'device-control-plane-full'):
+            if name == owner or name.startswith(owner + '-candidate-'):
+                return True
+    return False
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--candidate", type=Path, required=True)
@@ -765,7 +817,8 @@ def main(argv=None):
                                    ("full_host", str(selected["full_host"]).lower()),
                                    ("consumer_setup", selected.get('consumer_setup', 'required')),
                                    ("native_setup", selected.get('native_setup', '')),
-                                   ("empty_setup", selected.get('empty_setup', ''))):
+                                   ("empty_setup", selected.get('empty_setup', '')),
+                                   ("requires_artifact_namespace", str(requires_artifact_namespace(selected)).lower())):
                     output.write(key + "=" + value + "\n")
             print(json.dumps(selected, sort_keys=True))
             return 0

@@ -1392,6 +1392,63 @@ class HostGenerationTests(unittest.TestCase):
                 needs = self.needs(output);needs[name]["result"] = "success"
                 with self.assertRaises(ValueError): self.verify(output, event, source, required=needs)
 
+    def test_exact_artifact_identity_launcher_omits_only_unaffected_ios_work(self):
+        relative = "tests/device/run_artifact_identity.py"
+        inputs = self.host.selector(self.trusted)
+        boundary = self.host.ci_host_boundary(inputs.read_snapshot(self.root, self.base))
+        added = self.commit(self.base, {relative: "# Fixed ordinary shared Device helper\n"})
+        with patch.object(self.host, "REVIEWED_CI_HOST_BOUNDARY", boundary):
+            for base, value in ((self.base, "# Added helper must not execute\n"),
+                                (added, "# Changed helper must not execute\n"), (added, None)):
+                event, source = self.candidate({relative: value}, base=base)
+                output = self.route(event, source)
+                with self.subTest(base=base, deleted=value is None):
+                    self.assertEqual((output["required"], output["host_required"], output["reason"]),
+                                     ("false", "false", "reviewed-ci-only-host-inputs"))
+                    self.assertEqual(self.verify(output, event, source), output)
+            # These fixtures are actual iOS launcher inputs. Their required host
+            # must survive when mixed with the independent shared Device helper.
+            for fixture in ("tests/device/contracts/chat/test_chat_qml.py",
+                            "tests/device/contracts/snapshot/test_snapshot_native.py",
+                            "tests/device/contracts/snapshot/test_snapshot_qml.py"):
+                event, source = self.candidate({relative: "# Mixed shared Device helper\n",
+                                               fixture: "# Changed required iOS host fixture\n"})
+                output = self.route(event, source)
+                with self.subTest(fixture=fixture):
+                    self.assertEqual((output["required"], output["host_required"]), ("false", "true"))
+                    self.assertEqual(self.verify(output, event, source), output)
+                    needs = self.needs(output);needs["host"]["result"] = "skipped"
+                    with self.assertRaises(ValueError):
+                        self.verify(output, event, source, required=needs)
+
+    def test_artifact_identity_launcher_host_omission_retains_complete_reader_and_mode_guards(self):
+        relative = "tests/device/run_artifact_identity.py"
+        inputs = self.host.selector(self.trusted)
+        previous = inputs.read_snapshot(self.root, self.base)
+        boundary = self.host.ci_host_boundary(previous)
+        changes = ({relative: ("100755", "# Unexpected executable helper\n")},
+                   {relative: ("120000", "other.py")},
+                   {"tests/device/run_artifact_identity_extra.py": "# Unknown neighbor\n"},
+                   {relative: "# Mixed helper\n", "CMakeLists.txt": "file(READ tests/device/run_artifact_identity.py APP_INPUT)\n"},
+                   {"ios/tests/dsym_fixture.py": "# Changed actual iOS host reader\n"})
+        with patch.object(self.host, "REVIEWED_CI_HOST_BOUNDARY", boundary):
+            for change in changes:
+                with self.subTest(paths=sorted(change)):
+                    event, source = self.candidate(change)
+                    self.assertIsNone(self.host.ci_host_omission(previous, inputs.read_snapshot(self.root, source)))
+                    try:
+                        output = self.route(event, source)
+                    except ValueError:
+                        pass  # Nonordinary inventory may reject before emitting a route.
+                    else:
+                        self.assertEqual((output["required"], output["host_required"]), ("true", "true"))
+            historical = self.commit(self.base, {"ios/tests/dsym_fixture.py": "# Historical host reader drift\n"})
+            event, source = self.candidate({relative: "# Later independent helper edit\n"}, base=historical)
+            self.assertIsNone(self.host.ci_host_omission(inputs.read_snapshot(self.root, historical),
+                                                       inputs.read_snapshot(self.root, source)))
+            self.assertEqual((self.route(event, source)["required"], self.route(event, source)["host_required"]),
+                             ("true", "true"))
+
     def test_exact_governance_document_omits_host_only_with_regular_reviewed_inputs(self):
         document = "docs/BRANCH_GOVERNANCE.md"
         base = self.commit(self.base, {document: "# Reviewed governance\n"})

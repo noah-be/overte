@@ -2699,7 +2699,7 @@ class MetadataRetentionConsumerTests(unittest.TestCase):
         real_host = C.producer._host_policy()
         real_package = real_host.package_policy()
         generations = real_package.workflow_generations()
-        self.assertEqual(len(generations), 22)
+        self.assertEqual(len(generations), 23)
         self.generation_name = getattr(self, 'generation_name', 'protected-producer-metadata-ci-v1')
         generation = next(row for row in generations if row["name"] == self.generation_name)
         sources = {".github/workflows/project-tests.yml": C.producer.TEMPLATE,
